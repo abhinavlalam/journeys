@@ -34,7 +34,7 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 | `workspace.ts` / `WorkspaceView.tsx` | Tabs, groups and splits as a pure model / its flat rendering. |
 | `NotePane.tsx`, `useNoteBuffer.ts`, `useBuffers.ts` | A note tab, its buffer, and the one door to every open buffer. |
 | `EditorHost.tsx` | The editor minus the language: box, gutters, folding, caret, `decorated()`. |
-| `MarkdownEditor.tsx`, `JsonEditor.tsx`, `CsvEditor.tsx` | One language each. |
+| `MarkdownEditor.tsx`, `JsonEditor.tsx`, `CsvEditor.tsx`, `TextEditor.tsx` | One language each; `TextEditor` is none, for a `.conf`, `.yaml` or `.txt` (as markdown, every `# comment` was a heading). |
 | `editorCommands.ts`, `editorComplete.ts`, `editorFold.ts`, `editorPreview.ts` | Keys that write syntax, the `[[` and `/` popups, folding, decorations. |
 | `FolderTree.tsx`, `rows.tsx`, `SidebarSection.tsx`, `useDrops.ts` | The left pane; `rows.tsx` is the one row shape everything lists with; `useDrops` is what is dropped onto the tree. |
 | `actions.ts`, `actionKinds.ts`, `useCollections.ts`, `tags.ts`, `frontmatter.ts` | `--keyword` collections, their declarations, tags, properties. |

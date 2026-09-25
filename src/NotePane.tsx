@@ -11,6 +11,7 @@ import { dailyNeighbours } from './daily'
 import { ChevronIcon } from './icons'
 import { fileKind, isEncrypted, isNote } from './vaultModel'
 import { CsvEditor } from './CsvEditor'
+import { TextEditor } from './TextEditor'
 import type { VaultFile, VaultFolder } from './vaultModel'
 import type { Settings } from './settings'
 import type { useVaultTexts } from './useVaultTexts'
@@ -204,8 +205,8 @@ export function NotePane({
            file, a CSV, a note — a file of the user's, kept as they type.
            `.config/settings.json` is the one file with a Save, and it has its own
            tab. The question is what *kind* of file it is and not whether it is a
-           note: an unlocked `.enc` is markdown once it is open, and a `.txt` is a
-           plain text file the markdown editor is a perfectly good editor for. */
+           note: an unlocked `.enc` is markdown once it is open, and a `.txt` or a
+           `.conf` is not — in the markdown editor every `# comment` was a heading. */
       fileKind(file.path) === 'json' ? (
         <JsonEditor
           key={`${file.path}:${buffer.editorEpoch}`}
@@ -216,6 +217,14 @@ export function NotePane({
         />
       ) : fileKind(file.path) === 'csv' ? (
         <CsvEditor
+          key={`${file.path}:${buffer.editorEpoch}`}
+          name={file.name}
+          initialText={buffer.body}
+          onChange={handleEditorChange}
+          indentWidth={settings.indentWidth}
+        />
+      ) : fileKind(file.path) === 'text' ? (
+        <TextEditor
           key={`${file.path}:${buffer.editorEpoch}`}
           name={file.name}
           initialText={buffer.body}
