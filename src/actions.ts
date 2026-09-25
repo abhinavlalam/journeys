@@ -536,15 +536,15 @@ export function fillFields(declaration: string, values: Record<string, string>):
   const holes = holesOf(declaration)
   const valueOf = (hole: Hole) => values[hole.name] ?? (isLabelled(hole.opens) ? hole.inner : '')
   // Parts are cut on the *declaration's* pipes, before any value — whose own `|`
-  // is text — goes in. A slot stands in as its index until then.
+  // is text — goes in. A slot stands in as its index, between NULs, until then.
   let marked = ''
   let read = 0
   holes.forEach((hole, at) => {
-    marked += `${body.slice(read, hole.from)} ${at} `
+    marked += `${body.slice(read, hole.from)}\u0000${at}\u0000`
     read = hole.to
   })
   marked += body.slice(read)
-  const slots = / (\d+) /g
+  const slots = /\u0000(\d+)\u0000/g
   const kept = marked.split('|').filter((part, at) => {
     const own = [...part.matchAll(slots)].map((slot) => holes[Number(slot[1])])
     return at === 0 || own.length === 0 || own.some((hole) => valueOf(hole) !== '')
