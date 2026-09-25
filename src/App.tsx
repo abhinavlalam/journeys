@@ -60,6 +60,7 @@ import { useRelocation } from './useRelocation'
 import { useInlineCreate } from './useInlineCreate'
 import { useWindowShortcuts } from './useWindowShortcuts'
 import { useLocks } from './useLocks'
+import { onAndroid } from './platform'
 import { useDrops } from './useDrops'
 import { useCalendarSync } from './useCalendarSync'
 import { endTerminal } from './terminal'
@@ -862,10 +863,16 @@ export default function App() {
       <div className="app app-empty">
         <div className="welcome">
           <h1>Journeys</h1>
-          <p>Choose a folder of markdown files. They stay yours — plain text, edited in place.</p>
-          <button className="primary" onClick={() => void vault.pickVault()}>
-            Open folder…
-          </button>
+          {onAndroid ? (
+            <p>Download your vault from GitHub. It stays yours — plain text, synced with git.</p>
+          ) : (
+            <>
+              <p>Choose a folder of markdown files. They stay yours — plain text, edited in place.</p>
+              <button className="primary" onClick={() => void vault.pickVault()}>
+                Open folder…
+              </button>
+            </>
+          )}
           <CloneVault onOpened={(path) => void vault.loadVault(path)} onError={setError} />
           {error && <p className="welcome-error">{error}</p>}
         </div>
@@ -1081,17 +1088,19 @@ export default function App() {
                 next use case is built on. The row goes back to the shell there is,
                 and a second one is on its right-click menu: opening a fresh shell on
                 every press read as `claude` restarting. */}
-            <li style={{ paddingLeft: stepIn(1) }}>
-              <NoteRow
-                icon={<RowIcon><TerminalIcon /></RowIcon>}
-                name="Terminal"
-                aria-label="Terminal"
-                aria-pressed={active?.kind === 'terminal'}
-                onClick={() => setWs((current) => openTerminal(current))}
-                onContextMenu={openTerminalMenu}
-              />
-              {terminalMenu}
-            </li>
+            {!onAndroid && (
+              <li style={{ paddingLeft: stepIn(1) }}>
+                <NoteRow
+                  icon={<RowIcon><TerminalIcon /></RowIcon>}
+                  name="Terminal"
+                  aria-label="Terminal"
+                  aria-pressed={active?.kind === 'terminal'}
+                  onClick={() => setWs((current) => openTerminal(current))}
+                  onContextMenu={openTerminalMenu}
+                />
+                {terminalMenu}
+              </li>
+            )}
             <li style={{ paddingLeft: stepIn(1) }}>
               <NoteRow
                 icon={<RowIcon><SettingsIcon /></RowIcon>}

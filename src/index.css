@@ -647,6 +647,8 @@ body {
   align-items: flex-start;
   gap: 0.6rem;
   max-width: 26rem;
+  /* A phone is narrower than the column, and text against the glass is unreadable. */
+  padding-inline: var(--column-pad);
   color: var(--text-dim);
 }
 

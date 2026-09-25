@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
+import { appDataDir } from '@tauri-apps/api/path'
+import { onAndroid } from './platform'
 import { syncClone, syncSetToken } from './sync'
 
 /**
@@ -8,9 +10,13 @@ import { syncClone, syncSetToken } from './sync'
  * put it in; the repository's name becomes the folder, inside the one picked. The
  * token goes to the keychain first, keyed by the address, which is where the
  * clone and every round after it look for it.
+ *
+ * **On Android there is no folder to pick**: an app reaches its own storage and
+ * little else, so the vault goes there, and this is the only door, open from the
+ * start.
  */
 export function CloneVault({ onOpened, onError }: { onOpened: (path: string) => void; onError: (message: string) => void }) {
-  const [asking, setAsking] = useState(false)
+  const [asking, setAsking] = useState(onAndroid)
   const [url, setUrl] = useState('')
   const [token, setToken] = useState('')
   const [working, setWorking] = useState(false)
@@ -25,7 +31,7 @@ export function CloneVault({ onOpened, onError }: { onOpened: (path: string) => 
 
   async function download() {
     const address = url.trim()
-    const parent = await open({ directory: true, multiple: false, title: 'Where to keep the vault' })
+    const parent = onAndroid ? await appDataDir() : await open({ directory: true, multiple: false, title: 'Where to keep the vault' })
     if (typeof parent !== 'string') return
     const name = address.replace(/\/+$/, '').replace(/\.git$/, '').split('/').pop() || 'Vault'
     setWorking(true)
@@ -60,7 +66,7 @@ export function CloneVault({ onOpened, onError }: { onOpened: (path: string) => 
         onChange={(e) => setToken(e.currentTarget.value)}
       />
       <button className="primary" disabled={working || !/^https?:\/\//i.test(url.trim())} onClick={() => void download()}>
-        {working ? 'Downloading…' : 'Choose a folder and download'}
+        {working ? 'Downloading…' : onAndroid ? 'Download' : 'Choose a folder and download'}
       </button>
     </div>
   )

@@ -116,12 +116,16 @@ async fn fetch_feed(url: String) -> Result<String, String> {
     .await
 }
 
+mod secrets;
 mod sync;
 mod terminal;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(target_os = "android")]
+    let builder = builder.plugin(secrets::init());
+    builder
         .manage(terminal::TerminalState::default())
         .invoke_handler(tauri::generate_handler![
             reveal,
@@ -150,6 +154,13 @@ pub fn run() {
                         .level(log::LevelFilter::Info)
                         .build(),
                 )?;
+            }
+            // Not fatal: without them the app still opens, and a sync says it
+            // could not connect rather than the app not starting at all.
+            #[cfg(target_os = "android")]
+            match sync::trust_system_certificates() {
+                Ok(count) => log::info!("trusting {count} system certificates"),
+                Err(e) => log::warn!("sync will not connect: {e}"),
             }
             Ok(())
         })

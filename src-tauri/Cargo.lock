@@ -69,7 +69,9 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "git2",
+ "libgit2-sys",
  "log",
+ "openssl-sys",
  "portable-pty",
  "serde",
  "tauri",
