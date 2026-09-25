@@ -3,6 +3,7 @@ import { isSelfOrDescendant } from './vault'
 import { fileKind, folderNoteRef, folderOf, isEncrypted, isNote, type FileKind } from './vaultModel'
 import { guideAt, NameField, NoteRow, stepIn, RowIcon } from './rows'
 import { pickMode, type PickMode } from './picking'
+import { onAndroid } from './platform'
 import type { VaultFolder, VaultFile } from './vaultModel'
 import { useContextMenu } from './useContextMenu'
 import {
@@ -367,7 +368,7 @@ function FileRow({
   const many = picked && pickedCount > 1
   const [menu, openMenu] = useContextMenu(() => [
     ...(many ? [] : [{ label: 'Rename', onSelect: rename.start }]),
-    { label: 'Reveal in Finder', onSelect: () => onReveal(file.absolutePath) },
+    ...(onAndroid ? [] : [{ label: 'Reveal in Finder', onSelect: () => onReveal(file.absolutePath) }]),
     many
       ? { label: `Delete ${pickedCount} notes`, onSelect: onDeletePicked, danger: true }
       : { label: 'Delete', onSelect: () => onDeleteFile(file), danger: true },
@@ -712,7 +713,7 @@ function FolderRow(props: FolderTreeProps) {
     // The folder, not its own note: the row stands for the folder, and revealing it
     // shows the container with its note and its children inside. A folder note that
     // has never been typed in has no file to select anyway.
-    { label: 'Reveal in Finder', onSelect: () => onReveal(folder.absolutePath) },
+    ...(onAndroid ? [] : [{ label: 'Reveal in Finder', onSelect: () => onReveal(folder.absolutePath) }]),
     { label: 'Delete', onSelect: () => onDeleteFolder(folder), danger: true },
   ])
   /** Its own — what is written in the note, which is all a row draws. */

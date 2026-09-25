@@ -15,23 +15,19 @@
 //! A remote holding a history this vault does not share is refused, not merged
 //! over.
 //!
-//! The token never touches the vault or `settings.json`: it lives in the OS
-//! keychain, reached through macOS's own `security`, keyed by the remote's
-//! address.
+//! The token never touches the vault or `settings.json`: `secrets.rs` keeps it,
+//! keyed by the remote's address.
 
 use git2::{
     build::{CheckoutBuilder, RepoBuilder},
     Cred, CredentialType, FetchOptions, IndexAddOption, Oid, PushOptions, RemoteCallbacks,
     Repository, StatusOptions,
 };
-use crate::blocking;
+use crate::{blocking, secrets};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
 const REMOTE: &str = "origin";
-const KEYCHAIN_SERVICE: &str = "Journeys sync";
-/// macOS's keychain tool, by absolute path for the reason `lib.rs` gives.
-const SECURITY: &str = "/usr/bin/security";
 /// The user a token goes with when the server names none; GitHub reads the token as
 /// the password and ignores the user.
 const TOKEN_USER: &str = "x-access-token";
@@ -103,38 +99,43 @@ fn signature(repo: &Repository) -> Result<git2::Signature<'static>> {
     git2::Signature::now(&name, &email).map_err(err)
 }
 
-// ---------------------------------------------------------------------------
-// The keychain
-
-fn security(args: &[&str]) -> Result<std::process::Output> {
-    std::process::Command::new(SECURITY)
-        .args(args)
-        .output()
-        .map_err(|e| format!("could not run security: {e}"))
-}
-
-fn token_for(remote: &str) -> Option<String> {
-    let out = security(&["find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", remote, "-w"]).ok()?;
-    if !out.status.success() {
-        return None;
+/// **Android's certificates, handed to libgit2's OpenSSL from memory.** The OpenSSL
+/// built for Android has no file access (`no-stdio`, which it needs to build there),
+/// so neither a bundle nor Android's own folder can be pointed at: each certificate
+/// the phone trusts is parsed here and added to the store every connection is
+/// verified against. The updatable store first, since Android 14.
+#[cfg(target_os = "android")]
+pub fn trust_system_certificates() -> Result<usize> {
+    use std::ffi::{c_int, c_void};
+    use std::ptr::null_mut;
+    let dirs = ["/apex/com.android.conscrypt/cacerts", "/system/etc/security/cacerts"];
+    let dir = dirs.iter().find(|d| Path::new(d).is_dir()).ok_or("this phone has no system certificates")?;
+    libgit2_sys::init();
+    let mut added = 0;
+    for entry in std::fs::read_dir(dir).map_err(err)?.flatten() {
+        let Ok(pem) = std::fs::read(entry.path()) else { continue };
+        // SAFETY: the BIO reads `pem`, which outlives it; libgit2 takes its own
+        // reference to the certificate, so this one is freed after the add.
+        unsafe {
+            let bio = openssl_sys::BIO_new_mem_buf(pem.as_ptr() as *const c_void, pem.len() as c_int);
+            if bio.is_null() {
+                continue;
+            }
+            let cert = openssl_sys::PEM_read_bio_X509(bio, null_mut(), None, null_mut());
+            openssl_sys::BIO_free_all(bio);
+            if cert.is_null() {
+                continue;
+            }
+            if libgit2_sys::git_libgit2_opts(libgit2_sys::GIT_OPT_ADD_SSL_X509_CERT as c_int, cert) == 0 {
+                added += 1;
+            }
+            openssl_sys::X509_free(cert);
+        }
     }
-    let token = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    (!token.is_empty()).then_some(token)
-}
-
-fn store_token(remote: &str, token: &str) -> Result<()> {
-    // `-U` updates an item that is there rather than failing on it.
-    let out = security(&["add-generic-password", "-U", "-s", KEYCHAIN_SERVICE, "-a", remote, "-w", token])?;
-    if out.status.success() {
-        Ok(())
-    } else {
-        Err(format!("the keychain refused the token: {}", String::from_utf8_lossy(&out.stderr).trim()))
+    if added == 0 {
+        return Err(format!("none of the certificates in {dir} could be read"));
     }
-}
-
-fn forget_token(remote: &str) -> Result<()> {
-    // Absent is the state asked for, not a failure.
-    security(&["delete-generic-password", "-s", KEYCHAIN_SERVICE, "-a", remote]).map(|_| ())
+    Ok(added)
 }
 
 /// Callbacks that answer a credential prompt with the token, and refuse without
@@ -162,7 +163,7 @@ fn status_of(vault: &str) -> SyncStatus {
     let remote = remote_url(&repo);
     let mut status = SyncStatus {
         is_repo: true,
-        has_token: remote.as_deref().map(|r| token_for(r).is_some()).unwrap_or(false),
+        has_token: remote.as_deref().map(|r| secrets::get(r).is_some()).unwrap_or(false),
         remote,
         name: config_string(&repo, "user.name"),
         email: config_string(&repo, "user.email"),
@@ -290,7 +291,7 @@ fn connect(vault: &str) -> Result<(Repository, String, Option<String>)> {
     let repo = open(vault)?;
     let url = remote_url(&repo).ok_or("No repository address is set.")?;
     let branch = head_branch(&repo);
-    Ok((repo, branch, token_for(&url)))
+    Ok((repo, branch, secrets::get(&url)))
 }
 
 /// A checkout or a merge that stopped because a file was written since this round's
@@ -454,7 +455,7 @@ fn pull(vault: &str) -> Result<Pulled> {
 }
 
 fn clone(url: &str, into: &str) -> Result<()> {
-    let token = token_for(url);
+    let token = secrets::get(url);
     let mut opts = FetchOptions::new();
     opts.remote_callbacks(callbacks(token.as_deref()));
     let repo = RepoBuilder::new().fetch_options(opts).clone(url, Path::new(into)).map_err(err)?;
@@ -562,12 +563,12 @@ pub async fn sync_clone(url: String, into: String) -> Result<()> {
 
 #[tauri::command]
 pub async fn sync_set_token(remote: String, token: String) -> Result<()> {
-    blocking(move || store_token(&remote, token.trim())).await
+    blocking(move || secrets::set(&remote, token.trim())).await
 }
 
 #[tauri::command]
 pub async fn sync_forget_token(remote: String) -> Result<()> {
-    blocking(move || forget_token(&remote)).await
+    blocking(move || secrets::forget(&remote)).await
 }
 
 // ---------------------------------------------------------------------------

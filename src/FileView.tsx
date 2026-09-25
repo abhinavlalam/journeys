@@ -2,6 +2,7 @@ import { ViewerHeader } from './ViewerHeader'
 import { fileUrl } from './assets'
 import { fileKind } from './vaultModel'
 import type { VaultFile } from './vaultModel'
+import { onAndroid } from './platform'
 
 /**
  * A file the pane **shows** rather than edits: a PDF, an image, or something it
@@ -39,9 +40,11 @@ export function FileView({ file, onReveal }: { file: VaultFile; onReveal: (absol
         <div className="file-view">
           <p className="viewer-empty">
             {file.name} is not a kind of file this app shows.
-            <button className="file-reveal" onClick={() => onReveal(file.absolutePath)}>
-              Reveal in Finder
-            </button>
+            {!onAndroid && (
+              <button className="file-reveal" onClick={() => onReveal(file.absolutePath)}>
+                Reveal in Finder
+              </button>
+            )}
           </p>
         </div>
       )}
