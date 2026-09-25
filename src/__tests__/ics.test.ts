@@ -168,6 +168,68 @@ END:VEVENT`)
   })
 })
 
+/**
+ * **A rule repeats on the clock it was written on.** Stepped on this machine's
+ * clock instead, a New York 09:00 made in January came out at 10:00 New York all
+ * summer for someone in India, and an `EXDATE` or an edited instance, which name
+ * the right time, matched nothing. Only visible from a zone whose DST differs from
+ * the event's, so each case says which zone it is looked at from.
+ */
+describe('occurrences, of an event written in another zone', () => {
+  const from = (tz: string, check: () => void) => {
+    const real = process.env.TZ
+    process.env.TZ = tz
+    try {
+      check()
+    } finally {
+      if (real === undefined) delete process.env.TZ
+      else process.env.TZ = real
+    }
+  }
+  const summer = [new Date(Date.UTC(2026, 5, 28)), new Date(Date.UTC(2026, 6, 14))] as const
+  const standup = (extra = '') =>
+    parseIcs(
+      feed(`
+BEGIN:VEVENT
+UID:standup@example
+SUMMARY:Standup
+DTSTART;TZID=America/New_York:20260105T090000
+DTEND;TZID=America/New_York:20260105T093000
+RRULE:FREQ=WEEKLY
+EXDATE;TZID=America/New_York:20260706T090000
+END:VEVENT${extra}`)
+    )
+
+  it('keeps its wall time across the DST change of its own zone, less its EXDATE', () =>
+    from('Asia/Kolkata', () => {
+      expect(occurrences(standup(), ...summer).map((one) => one.start.getTime())).toEqual([
+        Date.UTC(2026, 5, 29, 13),
+        Date.UTC(2026, 6, 13, 13),
+      ])
+    }))
+
+  it('puts an edited instance in place of the start it names', () =>
+    from('Asia/Kolkata', () => {
+      const moved = standup(`
+BEGIN:VEVENT
+UID:standup@example
+SUMMARY:Standup (moved)
+RECURRENCE-ID;TZID=America/New_York:20260629T090000
+DTSTART;TZID=America/New_York:20260629T110000
+END:VEVENT`)
+      expect(occurrences(moved, ...summer).map((one) => [one.event.summary, one.start.getTime()])).toEqual([
+        ['Standup (moved)', Date.UTC(2026, 5, 29, 15)],
+        ['Standup', Date.UTC(2026, 6, 13, 13)],
+      ])
+    }))
+
+  it('repeats a time written in UTC in UTC', () =>
+    from('Europe/London', () => {
+      const utc = parseIcs(feed('BEGIN:VEVENT\nUID:u\nDTSTART:20260105T090000Z\nRRULE:FREQ=WEEKLY\nEND:VEVENT'))
+      expect(occurrences(utc, ...summer)[0].start.getTime()).toBe(Date.UTC(2026, 5, 29, 9))
+    }))
+})
+
 describe('parseRule', () => {
   it('reads an ordinal weekday as the weekday, and refuses a frequency it cannot step', () => {
     expect(parseRule('FREQ=MONTHLY;BYDAY=2TU')!.byDay).toEqual([2])

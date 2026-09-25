@@ -22,6 +22,10 @@ export interface IcsEvent {
   /** Null when the feed gives none — an all-day event with no `DTEND` is one day. */
   end: Date | null
   allDay: boolean
+  /** The zone its times are written in, `UTC` for one ending in `Z` — the clock its
+   *  rule repeats on. Null for a date or a floating time, which repeat on this
+   *  machine's. */
+  zone: string | null
   /** The `RRULE` line's value, or `''`. */
   rrule: string
   /** Starts the rule skips, as instants. */
@@ -90,17 +94,27 @@ export function icsTime(value: string, params: Record<string, string>): { at: Da
   return { at: tz ? zoned(y, mo, d, h, mi, s, tz) : new Date(y, mo, d, h, mi, s), allDay: false }
 }
 
+/** A zone's wall clock, both ways: `wall` reads an instant there, `instant` names
+ *  the one a wall time there is. Wall times are written as UTC milliseconds. */
+interface ZoneClock {
+  wall: (instant: number) => number
+  instant: (wall: number) => number
+}
+
+const clocks = new Map<string, ZoneClock | null>()
+
 /**
- * A wall-clock time in a named zone, as an instant — with no zone table of our
- * own. `Intl` can print an instant in a zone, so the zone's offset at the instant
- * is what that print differs from UTC by; the wall time read as UTC is the first
- * guess, and a second pass corrects a guess that fell across a DST edge. A zone
- * `Intl` does not know reads as local time, which is what a floating time means.
+ * A named zone's clock, with no zone table of our own — or null for a zone `Intl`
+ * does not know, which then reads as local time, as a floating time would. `Intl`
+ * can print an instant in a zone, so the wall time read as UTC is the first guess
+ * at the instant, and a second pass corrects a guess that fell across a DST edge.
+ * Kept per zone: a rule steps once per occurrence, and each formatter is costly.
  */
-function zoned(y: number, mo: number, d: number, h: number, mi: number, s: number, tz: string): Date {
-  let format: Intl.DateTimeFormat
+function clockIn(tz: string): ZoneClock | null {
+  if (clocks.has(tz)) return clocks.get(tz)!
+  let clock: ZoneClock | null = null
   try {
-    format = new Intl.DateTimeFormat('en-US', {
+    const format = new Intl.DateTimeFormat('en-US', {
       timeZone: tz,
       hourCycle: 'h23',
       year: 'numeric',
@@ -110,18 +124,28 @@ function zoned(y: number, mo: number, d: number, h: number, mi: number, s: numbe
       minute: '2-digit',
       second: '2-digit',
     })
-  } catch {
-    return new Date(y, mo, d, h, mi, s)
-  }
-  const offset = (instant: number) => {
-    const p: Record<string, number> = {}
-    for (const part of format.formatToParts(new Date(instant))) {
-      if (part.type !== 'literal') p[part.type] = Number(part.value)
+    const wall = (instant: number) => {
+      const p: Record<string, number> = {}
+      for (const part of format.formatToParts(new Date(instant))) {
+        if (part.type !== 'literal') p[part.type] = Number(part.value)
+      }
+      return Date.UTC(p.year, p.month - 1, p.day, p.hour % 24, p.minute, p.second)
     }
-    return Date.UTC(p.year, p.month - 1, p.day, p.hour % 24, p.minute, p.second) - instant
+    const instant = (at: number) => {
+      const guess = at - (wall(at) - at)
+      return at - (wall(guess) - guess)
+    }
+    clock = { wall, instant }
+  } catch {
+    // Not a zone `Intl` knows.
   }
-  const wall = Date.UTC(y, mo, d, h, mi, s)
-  return new Date(wall - offset(wall - offset(wall)))
+  clocks.set(tz, clock)
+  return clock
+}
+
+function zoned(y: number, mo: number, d: number, h: number, mi: number, s: number, tz: string): Date {
+  const clock = clockIn(tz)
+  return clock ? new Date(clock.instant(Date.UTC(y, mo, d, h, mi, s))) : new Date(y, mo, d, h, mi, s)
 }
 
 /** `-P7D` → `7 days`, `-PT15M` → `15 minutes`, `-P1DT2H` → `1 day 2 hours`. A
@@ -158,6 +182,7 @@ export function parseIcs(text: string): IcsFeed {
     start: new Date(NaN),
     end: null,
     allDay: false,
+    zone: null,
     rrule: '',
     exdates: [],
     recurrenceId: null,
@@ -210,6 +235,7 @@ export function parseIcs(text: string): IcsFeed {
         if (t) {
           event.start = t.at
           event.allDay = t.allDay
+          event.zone = t.allDay ? null : value.endsWith('Z') ? 'UTC' : (params.TZID ?? null)
         }
         break
       }
@@ -283,36 +309,50 @@ export function parseRule(rrule: string): Recurrence | null {
 }
 
 /** Every start the rule names from `first` on, in order, at `first`'s own time of
- *  day — stepped on the local calendar so a 09:00 stays 09:00 across a DST change.
+ *  day — stepped on the calendar of `zone`, the event's own, or this machine's when
+ *  it has none, so a 09:00 there stays 09:00 there across a DST change.
  *  Unbounded: the caller stops it. */
-export function* recurrences(rule: Recurrence, first: Date): Generator<Date> {
-  const [y, mo, d] = [first.getFullYear(), first.getMonth(), first.getDate()]
-  const at = (yy: number, mm: number, dd: number) =>
-    new Date(yy, mm, dd, first.getHours(), first.getMinutes(), first.getSeconds())
+export function* recurrences(rule: Recurrence, first: Date, zone: string | null = null): Generator<Date> {
+  const clock = zone ? clockIn(zone) : null
+  // The start as its clock reads it, written as UTC so the calendar arithmetic
+  // below is on dates no DST can move.
+  const start = new Date(
+    clock
+      ? clock.wall(first.getTime())
+      : Date.UTC(first.getFullYear(), first.getMonth(), first.getDate(), first.getHours(), first.getMinutes(), first.getSeconds())
+  )
+  const [y, mo, d] = [start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()]
+  const date = (yy: number, mm: number, dd: number) => new Date(Date.UTC(yy, mm, dd))
+  /** The instant a day's wall date names at the start's time of day. */
+  const at = (day: Date) => {
+    const [yy, mm, dd] = [day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate()]
+    const [h, mi, s] = [start.getUTCHours(), start.getUTCMinutes(), start.getUTCSeconds()]
+    return clock ? new Date(clock.instant(Date.UTC(yy, mm, dd, h, mi, s))) : new Date(yy, mm, dd, h, mi, s)
+  }
   // Weeks are stepped whole from `WEEK_START`, whichever day the rule was read on.
   const intoWeek = (day: number) => (day - WEEK_START + 7) % 7
-  const days = rule.byDay.length ? [...rule.byDay].sort((a, b) => intoWeek(a) - intoWeek(b)) : [first.getDay()]
-  const weekStart = d - intoWeek(first.getDay())
+  const days = rule.byDay.length ? [...rule.byDay].sort((a, b) => intoWeek(a) - intoWeek(b)) : [start.getUTCDay()]
+  const weekStart = d - intoWeek(start.getUTCDay())
   for (let i = 0; i < MOST_STEPS; i++) {
     switch (rule.freq) {
       case 'DAILY':
-        yield at(y, mo, d + i * rule.interval)
+        yield at(date(y, mo, d + i * rule.interval))
         break
       case 'WEEKLY':
         for (const day of days) {
-          const one = at(y, mo, weekStart + i * 7 * rule.interval + intoWeek(day))
+          const one = at(date(y, mo, weekStart + i * 7 * rule.interval + intoWeek(day)))
           if (one >= first) yield one
         }
         break
       case 'MONTHLY': {
         // The 31st of a month that has thirty days is skipped, not rolled over.
-        const one = at(y, mo + i * rule.interval, d)
-        if (one.getDate() === d) yield one
+        const day = date(y, mo + i * rule.interval, d)
+        if (day.getUTCDate() === d) yield at(day)
         break
       }
       case 'YEARLY': {
-        const one = at(y + i * rule.interval, mo, d)
-        if (one.getMonth() === mo) yield one
+        const day = date(y + i * rule.interval, mo, d)
+        if (day.getUTCMonth() === mo) yield at(day)
         break
       }
     }
@@ -346,7 +386,7 @@ export function occurrences(feed: IcsFeed, from: Date, to: Date): Occurrence[] {
     }
     const length = event.end ? event.end.getTime() - event.start.getTime() : 0
     let count = 0
-    for (const start of recurrences(rule, event.start)) {
+    for (const start of recurrences(rule, event.start, event.zone)) {
       if (start >= to || (rule.until !== null && start.getTime() > rule.until)) break
       if (rule.count !== null && ++count > rule.count) break
       const t = start.getTime()
