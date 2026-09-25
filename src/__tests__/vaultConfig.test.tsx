@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
 import { CONFIG_DIR } from '../vault'
-import { DEFAULT_SETTINGS, SETTINGS_FILE, parseSettings } from '../settings'
+import { DEFAULT_SETTINGS, parseSettings } from '../settings'
+import { SETTINGS_FILE } from '../vaultModel'
 
 /**
  * **A vault carries its own settings**, in `.config/settings.json` at its root.

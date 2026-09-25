@@ -2,7 +2,8 @@ import { useEffect, useReducer, useRef, useState } from 'react'
 import { keymap } from '@codemirror/view'
 import { JsonEditor } from './JsonEditor'
 import { ViewerHeader } from './ViewerHeader'
-import { parseSettings, settingsJson, SETTINGS_FILE, type Settings } from './settings'
+import { parseSettings, settingsJson, type Settings } from './settings'
+import { SETTINGS_FILE } from './vaultModel'
 import { readConfigFile } from './vault'
 
 interface SettingsFileProps {

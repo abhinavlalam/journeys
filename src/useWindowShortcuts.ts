@@ -1,5 +1,5 @@
 import { useWindowEvent } from './useWindowEvent'
-import { matchesCombo } from './shortcuts'
+import { matchesCombo, SETTINGS_COMBO } from './shortcuts'
 
 /**
  * ⌘, opens the panel — the macOS convention, and deliberately **not** in `ACTIONS`:
@@ -10,7 +10,6 @@ import { matchesCombo } from './shortcuts'
  * that braces: a combo already stored from before the reservation keeps working
  * rather than becoming a key that does nothing.
  */
-const SETTINGS_COMBO = 'mod+,'
 
 /**
  * The window's two shortcuts: today's note on the bound combo, the panel on ⌘,.

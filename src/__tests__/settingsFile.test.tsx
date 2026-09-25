@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { EditorView } from '@codemirror/view'
 import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
-import { DEFAULT_SETTINGS, SETTINGS_FILE, parseSettings } from '../settings'
+import { DEFAULT_SETTINGS, parseSettings } from '../settings'
+import { SETTINGS_FILE } from '../vaultModel'
 import { CONFIG_DIR } from '../vault'
 
 /**

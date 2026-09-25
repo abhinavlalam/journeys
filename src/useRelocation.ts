@@ -17,6 +17,9 @@ import type { NoteMoves } from './links'
 import type { useVault } from './useVault'
 import type { useVaultTexts } from './useVaultTexts'
 
+/** How many notes a message names before it counts the rest. */
+const NAMED = 3
+
 /**
  * The operations that change where a note is, and what each one drags along.
  *
@@ -60,15 +63,15 @@ export function useRelocation({
     })
     /**
      * **Which note, by name**, because a count alone is a fact with nothing to do
-     * about it — asked, in as many words, *"what happened?"*. A **locked** note is
-     * not in this list at all: it was reported on every rename, which is a banner
-     * about a permanent condition (*"that's an unnecessary callout"*), and a note
-     * nobody has unlocked is opaque to the rest of the app too. What reaches here is
-     * a note that is there, is not locked, and still could not be read.
+     * about it — asked, in as many words, *"what happened?"*. An **encrypted** note
+     * is not in this list at all: it was reported on every rename, which is a banner
+     * about a permanent condition (*"that's an unnecessary callout"*), and nothing
+     * writes into one anyway. What reaches here is a note that is there and still
+     * could not be read.
      */
     if (unreadable.length > 0) {
-      const names = unreadable.slice(0, 3).join(', ')
-      const rest = unreadable.length > 3 ? `, and ${unreadable.length - 3} more` : ''
+      const names = unreadable.slice(0, NAMED).join(', ')
+      const rest = unreadable.length > NAMED ? `, and ${unreadable.length - NAMED} more` : ''
       setError(`Links in ${names}${rest} were left as they were: they could not be read.`)
     }
   }

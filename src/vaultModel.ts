@@ -82,6 +82,9 @@ export function folderNoteRef(folder: VaultFolder): VaultFile {
   }
 }
 
+/** The file in the vault's `.config` that holds its settings. */
+export const SETTINGS_FILE = 'settings.json'
+
 /**
  * Whether a path names a **note** — a markdown file.
  *

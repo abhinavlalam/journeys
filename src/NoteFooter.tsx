@@ -1,6 +1,6 @@
-import type { CSSProperties, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { DEFAULT_NOTE_ICON } from './icons'
-import { NoteRow, opensNote, readable, stepIn, RowIcon, Section } from './rows'
+import { guideAt, NoteRow, opensNote, readable, stepIn, RowIcon, Section } from './rows'
 import type { Backlink } from './links'
 import { folderNoteRef, type VaultFile, type VaultFolder } from './vaultModel'
 
@@ -143,12 +143,7 @@ function Row({
 }) {
   return (
     <li
-      style={
-        {
-          paddingLeft: stepIn(depth + 1),
-          '--guide-x': stepIn(depth),
-        } as CSSProperties
-      }
+      style={{ paddingLeft: stepIn(depth + 1), ...guideAt(depth) }}
     >
       <NoteRow
         icon={<RowIcon icon={icon ?? DEFAULT_NOTE_ICON} />}

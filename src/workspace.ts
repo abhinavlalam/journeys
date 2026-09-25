@@ -12,7 +12,7 @@
 
 import { pathKey } from './links'
 import type { NoteMoves } from './links'
-import type { VaultFile } from './vaultModel'
+import { SETTINGS_FILE, type VaultFile } from './vaultModel'
 
 export type Tab =
   | { kind: 'note'; id: number; file: VaultFile }
@@ -108,7 +108,7 @@ export function tabLabel(tab: Tab): string {
     case 'calendar':
       return 'Calendar'
     case 'settingsFile':
-      return 'settings.json'
+      return SETTINGS_FILE
     case 'terminal':
       return 'Terminal'
   }

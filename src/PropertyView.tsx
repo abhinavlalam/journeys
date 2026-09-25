@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { Cell } from './CollectionTable'
 import { useColumnWidths } from './columnWidths'
 import { ViewerHeader } from './ViewerHeader'
-import { countOf, NoteRow, stepIn, RowIcon, Section } from './rows'
+import { countOf, NoteRow, READING, stepIn, RowIcon, Section } from './rows'
 import type { VaultFile } from './vaultModel'
 
 /**
@@ -45,7 +45,7 @@ export function PropertyView({
           <li style={{ paddingLeft: stepIn(1) }}>
             <NoteRow
               icon={<RowIcon />}
-              name={loading ? 'Reading the vault…' : 'No note carries this yet.'}
+              name={loading ? READING : 'No note carries this yet.'}
               disabled
             />
           </li>

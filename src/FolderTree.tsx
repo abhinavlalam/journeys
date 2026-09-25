@@ -1,7 +1,7 @@
-import { type CSSProperties, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { isSelfOrDescendant } from './vault'
 import { fileKind, folderNoteRef, folderOf, isEncrypted, isNote, type FileKind } from './vaultModel'
-import { NameField, NoteRow, stepIn, RowIcon } from './rows'
+import { guideAt, NameField, NoteRow, stepIn, RowIcon } from './rows'
 import { pickMode, type PickMode } from './picking'
 import type { VaultFolder, VaultFile } from './vaultModel'
 import { useContextMenu } from './useContextMenu'
@@ -821,7 +821,7 @@ function FolderRow(props: FolderTreeProps) {
         // `--guide-x` is this folder's own indent; the stylesheet adds the half
         // chevron that centres the rule under the arrow, because that is where the
         // chevron's size is written down.
-        <ul className="folder-children" style={{ '--guide-x': stepIn(depth) } as CSSProperties}>
+        <ul className="folder-children" style={guideAt(depth)}>
           <FolderTree {...props} depth={depth + 1} />
         </ul>
       )}
