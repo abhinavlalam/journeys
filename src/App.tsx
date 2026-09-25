@@ -1,25 +1,20 @@
 import { lazy, Suspense, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { lock, lockAll, passphraseFor, unlockedPaths } from './crypto'
 import {
   CONFIG_DIR,
   convertToNested,
   createNote,
   ensureDailyNote,
   folderIcon,
-  importFile,
-  moveFile,
-  moveFolder,
   readVaultFile,
   safeName,
-  unlockFile,
   vaultFileRef,
   writeNoteProperty,
   writePathProperty,
 } from './vault'
-import { folderNoteRef, folderOf, isEncrypted, isTextFile, knownPath, noteName } from './vaultModel'
+import { folderNoteRef, isTextFile, knownPath, noteName, SETTINGS_FILE } from './vaultModel'
 import { FileView } from './FileView'
 import type { VaultFile, VaultFolder } from './vaultModel'
-import { FolderTree, useDropTarget, type InlineUnlock } from './FolderTree'
+import { FolderTree, useDropTarget } from './FolderTree'
 import { ActionsPane } from './ActionsPane'
 import { BUILT_IN_KINDS, creatable, declares, createAction, groupKey, type ViewKind } from './actionKinds'
 import { SettingsFile } from './SettingsFile'
@@ -42,7 +37,6 @@ import { Resizer } from './Resizer'
 import { useContextMenu } from './useContextMenu'
 import { useFolderOpenState } from './useFolderOpenState'
 import { useVaultTexts } from './useVaultTexts'
-import { SETTINGS_FILE } from './settings'
 import { useSettings } from './useSettings'
 import { useBuffers } from './useBuffers'
 import { NotePane } from './NotePane'
@@ -65,8 +59,8 @@ import { useVault, type VaultBufferOps } from './useVault'
 import { useRelocation } from './useRelocation'
 import { useInlineCreate } from './useInlineCreate'
 import { useWindowShortcuts } from './useWindowShortcuts'
-import { useWindowEvent } from './useWindowEvent'
-import { useAutoLock } from './useAutoLock'
+import { useLocks } from './useLocks'
+import { useDrops } from './useDrops'
 import { useCalendarSync } from './useCalendarSync'
 import { endTerminal } from './terminal'
 import { SettingsPanel, type SectionId } from './SettingsPanel'
@@ -116,11 +110,6 @@ export default function App() {
       rows' names — and what is in it. Empty is not closed: the field can be open
       and waiting, which is the state you type the first letter into. */
   const [searching, setSearching] = useState<'notes' | 'actions' | null>(null)
-  /** The encrypted file waiting on a passphrase, and what has been typed. The
-      passphrase itself never leaves this render and `crypto.ts` — nothing writes
-      it down. */
-  const [unlocking, setUnlocking] = useState<VaultFile | null>(null)
-  const [passphrase, setPassphrase] = useState('')
   const [query, setQuery] = useState('')
   /**
    * **What stands in the reading pane**: groups of tabs, split into panes, one
@@ -207,14 +196,8 @@ export default function App() {
    */
   const [picked, setPicked] = useState(nothingPicked)
 
-  // **Another vault locks everything.** A passphrase is held for a path, and paths
-  // belong to the vault they were read from; the derived keys go with it.
-  useEffect(() => {
-    setUnlocking(null)
-    setPassphrase('')
-    setPicked(nothingPicked)
-    lockAll()
-  }, [vault.vaultPath])
+  // Another vault is another set of rows to have picked.
+  useEffect(() => setPicked(nothingPicked), [vault.vaultPath])
   /**
    * The open note's text as the *editor* has it.
    *
@@ -483,15 +466,8 @@ export default function App() {
     // meant a folder could be open *because* a note in it was open — so clicking
     // another folder moved the selection and shut the first one.
     folders.reveal(knownPath(file.path))
-    // **An encrypted note opens by being unlocked.** Asked here because this is the
-    // one funnel every row, search hit, backlink, graph node and link goes through
-    // — and because a locked file must not reach the buffer at all: a read of one
-    // throws rather than handing back bytes, and the buffer would report that as a
-    // note it could not read.
-    if (isEncrypted(file.path) && passphraseFor(file.path) === null) {
-      askPassphrase(file)
-      return Promise.resolve()
-    }
+    // **An encrypted note opens by being unlocked** — see `useLocks`.
+    if (locks.asks(file)) return Promise.resolve()
     // **A tab of the kind the file is.** A note tab owns a buffer and an editor,
     // which is right for anything the app reads as text and wrong for a PDF: a
     // buffer over one is a file the first keystroke corrupts. `FileView` shows the
@@ -501,68 +477,28 @@ export default function App() {
   }
 
   /**
-   * The passphrase question: one field, under the file it is about.
-   *
-   * It shuts the other two fields for the reason they shut each other — one box at
-   * a time — and the file becomes the tree's selected path, which is what opens the
-   * folders above it: the question is no use under a row nobody can see.
+   * **Locked notes**: the passphrase question under the note's row — it shuts the
+   * other fields, and the note becomes the tree's selected path, which opens the
+   * folders above it — and locking again, which closes the note's tabs and drops
+   * the corpus's copy of its text.
    */
-  function askPassphrase(file: VaultFile) {
-    closeSearch()
-    creating.cancel()
-    setNamingAction(null)
-    setPassphrase('')
-    setUnlocking(file)
-  }
-
-  async function submitPassphrase() {
-    const file = unlocking
-    if (!file) return
-    try {
-      await unlockFile(file, passphrase)
-    } catch (err) {
-      // The field stays open: a wrong passphrase is worth retyping, and the two
-      // errors `unlockFile` throws say which of those this is.
-      setError(err instanceof Error ? err.message : String(err))
-      setPassphrase('')
-      return
-    }
-    setError(null)
-    setUnlocking(null)
-    setPassphrase('')
-    await openNote(file)
-  }
-
-  /**
-   * **Locking a note is forgetting its passphrase and closing what shows it.** Its
-   * queued typing goes out first, sealed — after the passphrase is gone there is
-   * nothing to seal it with — and the corpus's copy of the editor's text goes too.
-   */
-  async function lockNotes(paths: readonly string[]) {
-    await buffers.flushPendingSave()
-    setWs((current) => paths.reduce(closeNotesUnder, current))
-    if (liveText.current && paths.includes(liveText.current.path)) liveText.current = null
-    paths.forEach(lock)
-  }
-
-  useAutoLock({
+  const locks = useLocks({
+    vaultPath: vault.vaultPath,
     minutes: settings.lockMinutes,
     front: focusedNote?.path ?? null,
-    unlocked: unlockedPaths,
-    onLock: (paths) => void lockNotes(paths),
-  })
-
-  const unlock: InlineUnlock | null = unlocking && {
-    path: unlocking.path,
-    name: unlocking.name,
-    value: passphrase,
-    onChange: setPassphrase,
-    onSubmit: () => void submitPassphrase(),
-    onCancel: () => {
-      setUnlocking(null)
-      setPassphrase('')
+    onAsk: () => {
+      closeSearch()
+      creating.cancel()
+      setNamingAction(null)
     },
-  }
+    onOpen: openNote,
+    onLocked: (paths) => {
+      setWs((current) => paths.reduce(closeNotesUnder, current))
+      if (liveText.current && paths.includes(liveText.current.path)) liveText.current = null
+    },
+    flush: buffers.flushPendingSave,
+    setError,
+  })
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_KEY, String(sidebarWidth))
@@ -844,110 +780,14 @@ export default function App() {
     return moved
   }
 
-  /** The copy itself, inside a mutation the caller owns — two callers now, and the
-   *  refresh and the report belong to one of them rather than to each. */
-  async function copyInto(vaultPath: string, to: string, files: readonly File[]) {
-    /** Already there, and left alone — not a failure. */
-    const there: string[] = []
-    /**
-     * **And what actually went wrong, said as itself.** These two were one list
-     * once, so a copy that *failed* was reported as one that was already there:
-     * `fs:allow-write-file` was missing from the capability, every write was
-     * refused, and the app said the file was in the vault when nothing was. A
-     * message that names the wrong cause is worse than no message — it sends you
-     * looking in Finder for a file that was never written.
-     */
-    const failed: string[] = []
-    for (const file of files) {
-      try {
-        const made = await importFile(vaultPath, to, file.name, new Uint8Array(await file.arrayBuffer()))
-        if (!made) there.push(file.name)
-      } catch (err: unknown) {
-        failed.push(`${file.name} (${String(err)})`)
-      }
-    }
-    return { there, failed }
-  }
-
-  /** What the copy has to say for itself, once the tree has been read again. */
-  function sayHowItWent({ there, failed }: { there: string[]; failed: string[] }) {
-    const said: string[] = []
-    if (there.length > 0) {
-      const many = there.length > 1
-      said.push(
-        `${there.join(', ')} ${many ? 'are' : 'is'} already here, so nothing was copied over ${many ? 'them' : 'it'}.`
-      )
-    }
-    if (failed.length > 0) said.push(`Could not copy ${failed.join(', ')}.`)
-    if (said.length > 0) setError(said.join(' '))
-  }
-
-  /** Files dropped on a folder, or on the tree itself. */
-  async function importFiles(files: readonly File[], to: string) {
-    let outcome = { there: [] as string[], failed: [] as string[] }
-    await vault.mutate(
-      async (v) => {
-        outcome = await copyInto(v, to, files)
-      },
-      () => sayHowItWent(outcome)
-    )
-  }
-
-  /**
-   * **Files dropped on a plain note**: it becomes a nested note and they go inside
-   * it. A note with notes in it is a folder plus a same-named note, and that is a
-   * state a note gets *into* rather than a kind it is — the `+` on a row already
-   * says so for a typed name, and this says it for a file dragged in. One drop, one
-   * conversion, one refresh.
-   */
-  async function importFilesInside(note: VaultFile, files: readonly File[]) {
-    let outcome = { there: [] as string[], failed: [] as string[] }
-    await vault.mutate(
-      async (v) => {
-        const moved = await convertNote(note, v)
-        outcome = await copyInto(v, folderOf(moved.path), files)
-      },
-      () => sayHowItWent(outcome)
-    )
-  }
-
-  /**
-   * **A note dropped on a plain note goes inside it**, converting it on the way —
-   * `importFilesInside` for one of the vault's own notes, and the same shape: the
-   * conversion and the move are **one mutation**, so the tree is read once and
-   * nothing is drawn with the target converted and the note still outside it. The
-   * target's own following (buffer, tab, `path:`) is `convertNote`'s; the dragged
-   * note's is the relocate callback every other move already uses, handed the move's
-   * result after the refresh. Asked for as "I want to be able to move notes under any
-   * other note; a note should just automatically convert."
-   */
-  function adoptFile(note: VaultFile, dragged: VaultFile) {
-    return vault.mutate(async (v) => {
-      const parent = await convertNote(note, v)
-      return moveFile(dragged, v, folderOf(parent.path))
-    }, fileOps.relocateFile(dragged.path))
-  }
-
-  /** The same for a nested note — a folder with its own note — dragged onto a plain one. */
-  function adoptFolder(note: VaultFile, dragged: VaultFolder) {
-    return vault.mutate(async (v) => {
-      const parent = await convertNote(note, v)
-      return moveFolder(dragged, v, folderOf(parent.path))
-    }, fileOps.relocateFolder(dragged.path))
-  }
-
-  /**
-   * **A file dropped anywhere else does nothing at all.**
-   *
-   * The webview's own answer to a dropped file is to *navigate to it* — the whole
-   * app replaced by a PDF, with no way back but relaunching, which is what happened
-   * to a file dragged at the left pane and missed. `preventDefault` on `dragover`
-   * is what makes a drop possible at all, and on `drop` is what makes this one do
-   * nothing; the tree's own targets stop the event before it reaches here.
-   */
-  const swallow = (event: DragEvent) => event.preventDefault()
-  useWindowEvent('dragover', swallow)
-  useWindowEvent('drop', swallow)
+  /** Files and notes dropped onto the tree — see `useDrops`. */
+  const { importFiles, importFilesInside, adoptFile, adoptFolder } = useDrops({
+    vault,
+    convertNote,
+    relocateFile: fileOps.relocateFile,
+    relocateFolder: fileOps.relocateFolder,
+    setError,
+  })
 
   /**
    * The tree's container is the **root** as a drop target.
@@ -969,8 +809,8 @@ export default function App() {
    */
   const treeProps = {
     create: creating.create,
-    unlock,
-    selectedPath: unlocking?.path ?? focusedNote?.path ?? null,
+    unlock: locks.unlock,
+    selectedPath: locks.unlock?.path ?? focusedNote?.path ?? null,
     openFolders: folders.open,
     onToggleFolder: folders.toggle,
     picked: picked.paths,
@@ -1324,7 +1164,7 @@ export default function App() {
                     onOpenCollection={(keyword) => view('collection', keyword)}
                     onOpenTag={(tag) => view('tag', tag)}
                     onRename={(file, name) => void renameNote(file, name)}
-                    onLock={(file) => void lockNotes([file.path])}
+                    onLock={(file) => void locks.lockNotes([file.path])}
                     onTyped={typed}
                   />
                 )

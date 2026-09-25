@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ViewerHeader } from './ViewerHeader'
-import { countOf, NoteRow, RowIcon, Section, stepIn } from './rows'
+import { countOf, NoteRow, READING, RowIcon, Section, stepIn } from './rows'
 import { ChevronIcon } from './icons'
 import { clockStart, dayDate, daysAfter, daysBetween, localDateStamp, relativeDay } from './clock'
 import {
@@ -127,7 +127,7 @@ export function CalendarView({
                   <li style={{ paddingLeft: stepIn(1) }}>
                     <NoteRow
                       icon={<RowIcon />}
-                      name={loading || collected === null ? 'Reading the vault…' : 'Nothing on.'}
+                      name={loading || collected === null ? READING : 'Nothing on.'}
                       disabled
                     />
                   </li>

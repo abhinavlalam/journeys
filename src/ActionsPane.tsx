@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { listVaultDir, listVaultEntries, vaultFileRef } from './vault'
 import { noteName } from './vaultModel'
 import type { VaultFile } from './vaultModel'
-import { GroupRow, NameField, NoteRow, stepIn, RowIcon } from './rows'
+import { GroupRow, guideAt, NameField, NoteRow, stepIn, RowIcon } from './rows'
 import {
   creatable,
   createAction,
@@ -263,7 +263,7 @@ export function ActionsPane({
               }
             />
             {(expanded || naming === kind.key) && (
-              <ul className="folder-children" style={{ '--guide-x': stepIn(depth) } as CSSProperties}>
+              <ul className="folder-children" style={guideAt(depth)}>
                 {rows.map((row) => {
                   // `inDir` already made it vault-relative — see `rowsFor`.
                   const file = row.file ? vaultFileRef(vaultPath, row.file) : null

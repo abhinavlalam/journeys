@@ -479,11 +479,14 @@ export function stepLayout(
  * Run the simulation to rest, or to `maxSteps`, whichever comes first — what a test
  * wants, and what the renderer wants for a graph it opens without animating.
  */
+/** How many steps a layout may take to settle before it is drawn as it stands. */
+const SETTLE_STEPS = 800
+
 export function settle(
   graph: NoteGraph,
   from: LayoutState,
   options?: Partial<LayoutOptions>,
-  maxSteps = 800
+  maxSteps = SETTLE_STEPS
 ): LayoutState {
   let state = from
   for (let i = 0; i < maxSteps && !state.converged; i++) state = stepLayout(graph, state, options)
@@ -493,14 +496,14 @@ export function settle(
 /**
  * The settled layout from scratch: `settle` from frame zero.
  *
- * The loop was written twice, here and in `GraphView`, along with two copies of the
- * 800 — the renderer needs to settle a layout that is already part-way, which is the
- * only thing that differed. It is a starting state, so it is an argument.
+ * The loop was written twice, here and in `GraphView` — the renderer needs to settle
+ * a layout that is already part-way, which is the only thing that differed. It is a
+ * starting state, so it is an argument.
  */
 export const layout = (
   graph: NoteGraph,
   options?: Partial<LayoutOptions>,
-  maxSteps = 800
+  maxSteps = SETTLE_STEPS
 ): LayoutState => settle(graph, initialLayout(graph, options), options, maxSteps)
 
 /**

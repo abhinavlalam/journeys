@@ -27,6 +27,12 @@ import type { CollectedNote } from './useVaultTexts'
  *  guide under them cannot disagree. No number here — the step is the sheet's. */
 export const stepIn = (depth: number) => `calc(${depth} * var(--row-step))`
 
+/** Where a list's guide line runs: the indent of the row the list hangs from. */
+export const guideAt = (depth: number) => ({ '--guide-x': stepIn(depth) }) as CSSProperties
+
+/** What a page's empty row says while the vault is still being read. */
+export const READING = 'Reading the vault…'
+
 /**
  * Opens a note from a click on the **lines** under a row, unless that click was the
  * end of a selection someone was making.
@@ -234,7 +240,7 @@ export function Section({
         trailing={<span className="row-count">{count}</span>}
       />
       {open && (
-        <ul className="file-list folder-children" style={{ '--guide-x': '0px' } as CSSProperties}>
+        <ul className="file-list folder-children" style={guideAt(0)}>
           {children}
         </ul>
       )}
@@ -290,7 +296,7 @@ export function GatheredNotes({
       <li style={{ paddingLeft: stepIn(1) }}>
         <NoteRow
           icon={<RowIcon />}
-          name={loading || notes === null ? 'Reading the vault…' : 'No line carries this yet.'}
+          name={loading || notes === null ? READING : 'No line carries this yet.'}
           disabled
         />
       </li>

@@ -273,10 +273,13 @@ export const EDITOR_COMBOS: ReadonlySet<string> = new Set(
  * Deliberately few. A guessed reservation refuses a shortcut that would have
  * worked, which is worse than letting one through.
  */
+/** The panel's own way in, and not an action anyone can rebind. */
+export const SETTINGS_COMBO = 'mod+,'
+
 export const RESERVED_COMBOS: readonly Reservation[] = [
   // The panel's own way in. Bindable otherwise, and then the gear is the only
   // route back to Settings — which is fine until the binding is forgotten.
-  { combo: 'mod+,', reason: '⌘, opens Settings.' },
+  { combo: SETTINGS_COMBO, reason: '⌘, opens Settings.' },
   // The webview, above the editor.
   { combo: 'mod+c', reason: '⌘C is copy.' },
   { combo: 'mod+x', reason: '⌘X is cut.' },

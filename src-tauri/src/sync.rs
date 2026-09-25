@@ -351,14 +351,17 @@ fn pull(vault: &str) -> Result<Pulled> {
     // **Checkouts are safe, never forced.** Forced, a note typed into between this
     // round's commit and here was overwritten on disk — even one the other device
     // never touched — and the buffer's re-read then took the overwritten text.
-    let checkout = |tree: &git2::Tree| repo.checkout_tree(tree.as_object(), Some(CheckoutBuilder::new().safe()));
+    // Their tree on disk, or `None` when a file here is mid-edit and the round waits.
+    let take_theirs = || -> Result<Option<git2::Tree>> {
+        let tree = their_commit.tree().map_err(err)?;
+        match repo.checkout_tree(tree.as_object(), Some(CheckoutBuilder::new().safe())) {
+            Err(e) if waits(&e) => Ok(None),
+            done => done.map(|_| Some(tree)).map_err(err),
+        }
+    };
     let Some(our_commit) = repo.head().ok().and_then(|h| h.peel_to_commit().ok()) else {
         // Nothing committed here yet: take theirs as the starting point.
-        let tree = their_commit.tree().map_err(err)?;
-        match checkout(&tree) {
-            Err(e) if waits(&e) => return Ok(Pulled::default()),
-            done => done.map_err(err)?,
-        }
+        let Some(tree) = take_theirs()? else { return Ok(Pulled::default()) };
         repo.reference(&format!("refs/heads/{branch}"), theirs.id(), true, "sync: first pull").map_err(err)?;
         repo.set_head(&format!("refs/heads/{branch}")).map_err(err)?;
         return Ok(Pulled { changed: tree_paths(&tree), conflicts: vec![] });
@@ -374,11 +377,7 @@ fn pull(vault: &str) -> Result<Pulled> {
     let before = our_commit.tree().map_err(err)?;
 
     if analysis.is_fast_forward() {
-        let tree = their_commit.tree().map_err(err)?;
-        match checkout(&tree) {
-            Err(e) if waits(&e) => return Ok(Pulled::default()),
-            done => done.map_err(err)?,
-        }
+        let Some(tree) = take_theirs()? else { return Ok(Pulled::default()) };
         repo.reference(&format!("refs/heads/{branch}"), theirs.id(), true, "sync: fast-forward").map_err(err)?;
         return Ok(Pulled { changed: changed_between(&repo, &before, &tree), conflicts: vec![] });
     }

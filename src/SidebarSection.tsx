@@ -1,5 +1,5 @@
-import type { CSSProperties, HTMLAttributes, ReactNode } from 'react'
-import { GroupRow } from './rows'
+import type { HTMLAttributes, ReactNode } from 'react'
+import { GroupRow, guideAt } from './rows'
 
 /**
  * One collapsible section of the left pane — Notes, Actions, Applications — as
@@ -42,7 +42,7 @@ export function SidebarSection({
         <ul
           {...list}
           className={`file-list folder-children ${list?.className ?? ''}`}
-          style={{ '--guide-x': '0px' } as CSSProperties}
+          style={guideAt(0)}
         >
           {children}
         </ul>

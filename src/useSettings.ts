@@ -5,9 +5,9 @@ import {
   loadVaultSettings,
   saveSettings,
   saveVaultSettings,
-  SETTINGS_FILE,
   type Settings,
 } from './settings'
+import { SETTINGS_FILE } from './vaultModel'
 import { CONFIG_DIR } from './vault'
 
 /** How long a change waits before it reaches the vault's `.config`. A slider is

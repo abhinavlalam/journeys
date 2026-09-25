@@ -36,10 +36,10 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 | `EditorHost.tsx` | The editor minus the language: box, gutters, folding, caret, `decorated()`. |
 | `MarkdownEditor.tsx`, `JsonEditor.tsx`, `CsvEditor.tsx` | One language each. |
 | `editorCommands.ts`, `editorComplete.ts`, `editorFold.ts`, `editorPreview.ts` | Keys that write syntax, the `[[` and `/` popups, folding, decorations. |
-| `FolderTree.tsx`, `rows.tsx`, `SidebarSection.tsx` | The left pane; `rows.tsx` is the one row shape everything lists with. |
+| `FolderTree.tsx`, `rows.tsx`, `SidebarSection.tsx`, `useDrops.ts` | The left pane; `rows.tsx` is the one row shape everything lists with; `useDrops` is what is dropped onto the tree. |
 | `actions.ts`, `actionKinds.ts`, `useCollections.ts`, `tags.ts`, `frontmatter.ts` | `--keyword` collections, their declarations, tags, properties. |
 | `calendar.ts`, `ics.ts`, `calendarSync.ts`, `useCalendarSync.ts`, `CalendarView.tsx` | The calendar. |
-| `crypto.ts`, `useAutoLock.ts` | Locked notes: the format, the passphrases held, relocking. |
+| `crypto.ts`, `useLocks.ts`, `useAutoLock.ts` | Locked notes: the format and the passphrases held / asking and locking / the clock. |
 | `sync.ts`, `useSync.ts`, `src-tauri/src/sync.rs` | Git sync. |
 | `terminal.ts`, `TerminalPane.tsx`, `src-tauri/src/terminal.rs` | The terminal. |
 | `graph.ts`, `GraphView.tsx` | The graph's model and layout / its view. |
@@ -129,8 +129,8 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   a create gives up on blur). `createLockedNote` writes ciphertext first.
 - **It locks again** by hand (the header's Lock) or unused for `lockMinutes`
   (`useAutoLock`): used means input while it is the note in front, measured
-  against the clock so a machine that slept finds it locked. `lockNotes` is the
-  one funnel: flush typing (sealed), close tabs, drop `liveText`, then `lock`,
+  against the clock so a machine that slept finds it locked. `lockNotes` in
+  `useLocks` is the one funnel: flush typing (sealed), close tabs, drop `liveText`, then `lock`,
   which also clears the derived-key cache.
 
 ## The workspace
@@ -159,7 +159,7 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 - **A folder is open because it is in one set.** Opening a note writes its
   ancestors into it (`reveal`); nothing derives openness from the selection.
 - **One row shape everywhere** (`rows.tsx`: `NoteRow`, `RowIcon`, `GroupRow`,
-  `NameField`, `stepIn`, `GatheredNotes`, `Section`); `rowShape.test.tsx` compares
+  `NameField`, `stepIn`, `guideAt`, `GatheredNotes`, `Section`); `rowShape.test.tsx` compares
   the boxes in the tree, the Actions pane and a note's footer.
 - **One field at a time, and leaving it means what the caller says**: a rename
   commits on blur, a create or search abandons. Buttons that open a field

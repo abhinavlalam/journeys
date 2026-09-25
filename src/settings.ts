@@ -11,6 +11,7 @@
  * a pure function or a single documented DOM write.
  */
 import { DAILY_FOLDER, readConfigFile, safeNewName, writeConfigFile } from './vault'
+import { SETTINGS_FILE } from './vaultModel'
 import { ACTIONS, defaultShortcuts, normalizeCombo, type ActionId } from './shortcuts'
 
 export type { ActionId }
@@ -478,8 +479,6 @@ export function loadSettings(): Settings {
   return parseSettings(raw)
 }
 
-/** The file in the vault's `.config` that holds these. */
-export const SETTINGS_FILE = 'settings.json'
 
 /**
  * This vault's settings, or null when it has none yet — the caller writes them in
