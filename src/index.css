@@ -1,0 +1,4700 @@
+/* The one stylesheet: the shell reset, then everything a component renders.
+   Imported by `main.tsx` alone. Do not start a second sheet — a split divides
+   one selector's rules across two specificity orders, silently. */
+
+/* ---- Palette: six schemes × two modes ---- */
+
+/* Selected by two attributes JS sets on <html>: `data-scheme` (slate | graphite |
+   moss | ember | ink) and `data-theme`, which the JS resolves to `dark` or `light`
+   before it lands. The literal `system` never reaches this sheet, so there is
+   deliberately no `prefers-color-scheme` anywhere in it — adding one back would
+   give a second, competing source of truth.
+
+   Nesting order is mode-outer / scheme-inner, and `slate`/dark is the bare
+   `:root` rather than a block of its own. That buys three things:
+     - slate/dark is today's palette by *being* the base, so "a fresh install looks
+       identical to today" is structural rather than a copied list of hexes, and the
+       first paint before JS runs is already right instead of flashing;
+     - eight delta blocks instead of ten;
+     - the five tokens JS sets inline (`--fs-prose`, `--line-height-prose`,
+       `--reading-width`, `--font-prose`) are declared once, here,
+       and no palette block mentions them — an inline style on <html> wins over every selector in
+       this file, but only if no scheme block quietly re-declares one.
+
+   Specificity, since it is easy to get wrong: an attribute selector counts in the
+   *class* column, so `:root` is (0,1,0), `:root[data-theme="light"]` is (0,2,0),
+   and `:root[data-scheme=…][data-theme=…]` is (0,3,0). The cascade here is decided
+   by specificity, not by source order. Nothing else in this sheet sets a `:root`
+   token, so raising `:root` costs nothing downstream.
+
+   Contrast: measured, per palette, in the comment on each block. Read the note on
+   `--text` below before touching a ground. */
+
+:root {
+  /* All three are written by `applySettings` from the settings; these are what the
+     first frame uses, and what a test that never applies them gets. A space is
+     0.29em of a proportional face, near enough, and the step is four of them. */
+  --space-w: 0.29em;
+  --marker-gap: calc(var(--indent-step) * 0.25);
+  --indent-step: calc(var(--space-w) * 4);
+
+  /* A row's height: **the note's own leading, and nothing else**. There was a
+     24px floor here, which is the kind of number that quietly takes over — at the
+     default size it was within 0.05px of the leading, so the rhythm of both panes
+     was set by a constant rather than by the setting the user moved. What stops a
+     row collapsing is what is in it: an icon is content, and content sets a floor
+     of its own.
+
+     On `:root` and not on `.sidebar`, because the sections at the end of a note
+     draw the same rows with the same guide lines. The `1em` resolves at the element
+     *using* it, which is what makes one declaration right in both places. */
+  --row-h: calc(var(--line-height-prose) * 1em);
+
+  /* **A row's own parts, named once.** They were seven literals across five rules
+     — a 16px icon at 12px with a 0.4rem gap, a 10px chevron in a 0.55rem box, a
+     4px radius on one control and 6px on the row it sits in, 0.25rem here and
+     0.2rem there — and nothing said which of them had to agree with which.
+
+     `--glyph` is the size every chrome glyph is drawn at, and `icons.tsx` reads
+     this token rather than carrying its own number. `--control` is the square box
+     one sits in — the `+`, the chevron — which is a row tall, so a control and the
+     row it is in are the same height by construction. `--row-bleed` is how far a
+     row's hover paint reaches into the gap around it. */
+  /* **Two glyph sizes, both in `em`.** One for a glyph that *depicts* — a note's
+     icon, the `+`, the search lens — and a smaller one for a glyph that only
+     *points*: a disclosure arrow. Every icon in `icons.tsx` reads one of these, so
+     there are no sizes in the components at all, and both grow with the reading
+     size like everything else. */
+  /* The two glyph sizes, as *numbers* and as lengths: the stroke below divides by
+     the number, and a `calc` cannot divide by a length. One source either way. */
+  --glyph-num: 0.92;
+  --glyph-sm-num: 0.7;
+  --glyph: calc(var(--glyph-num) * 1em);
+  --glyph-sm: calc(var(--glyph-sm-num) * 1em);
+  /* **Every glyph's weight, as a share of its own size** — `applySettings` writes
+     it from the settings, and this is the frame before that lands. 0.088em is about
+     1.14px at a 13px reading size. */
+  --icon-weight: 0.088;
+  /* A pressed icon button: the same glyph, half again as heavy, which is how a
+     control with no text says what a row's name says by going bold. */
+  --stroke-on: 1.5;
+  /* A hairline: the settings slider's track, and anything else that is a drawn
+     line rather than a box. In `em` like the rest, so it does not vanish at 24px
+     type or dominate at 12. */
+  --hair: 0.22em;
+  --control: var(--row-h);
+  --icon-gap: 0.4rem;
+  --row-bleed: 2px;
+
+  /* The gap between a table's columns: the pane's inset is the space a row keeps
+     from its edge, and two columns need rather more than that between them or the
+     values run together. */
+  --column-gap: 1.1rem;
+  /* The widest a table cell may grow before it is clipped — see `.collection-table
+     td`. A phrase, in the unit a measure is stated in. */
+  --cell-max: 16ch;
+  /* How tall the `[[` picker may grow: about twelve rows, after which it scrolls.
+     Here rather than in `editorComplete`'s theme, which is a cascade fix and not a
+     second place to keep measurements. */
+  --picker-height: 18rem;
+
+  /* The inset every box in the pane's column shares — a row, the field typed into
+     one, a search result. One name, so a field cannot come to rest 0.8px off the
+     rows above it. */
+  --pane-inset: 0.45rem;
+  /* **One level of indent, wherever rows nest.** A child row steps in by this,
+     and the guide line under a folder is drawn at the same distance; `stepIn` in
+     `rows.tsx` is how a component states a depth in it. It was `ROW_STEP = 16`, a
+     number of pixels in the components — the one size the sheet's own rule
+     against pixels could not see, and the reason a tree at 20px type still
+     indented by 16. */
+  --row-step: 1rem;
+
+  /* One corner radius for the whole shell: present, but tight. */
+  --radius: 6px;
+  /* **One small rounding, not three.** The sheet carried a 2px, a 3px and two 4px
+     radii beside this token and a `calc(var(--radius) / 2)` that is also 3 — four
+     numbers for one job, each picked by eye for one rule. Snapped to the half, so
+     nothing moves more than a pixel and a corner is either this or that. */
+  --radius-sm: calc(var(--radius) / 2);
+
+  /* **Every change of state takes this long, on this curve.** A hover ground
+     arriving, a glyph or a title taking the mark, a cell's link lighting up: one
+     duration for all of it, short enough that a fast pointer never waits on it
+     and long enough that a row does not flash. It was `0.1s ease` written on one
+     rule and nothing on the others, so a row faded and a heading snapped.
+     `@media (prefers-reduced-motion)` below sets it to zero, which is the one
+     place it may be redefined. */
+  --motion: 120ms ease-out;
+
+  /* **Three weights, by role.** Strong: a title, a heading, a section's name, a
+     label, the open row. Medium: a settings label, the pressed rail item, the status
+     word. Regular: syntax brought back into a line, a radio's words. They were
+     numbers in thirty-one rules; a weight is part of the type the way a size is, and
+     `--fw-prose` is the reading weight the owner sets. */
+  --fw-strong: 600;
+  --fw-medium: 500;
+  --fw-regular: 400;
+
+  /* **The four layers, in order, by name.** They were 1, 5, 10 and 20 in four
+     rules, which says nothing about what may cover what. A number here is a
+     relationship, so it is written as one. */
+  --layer-header: 1;
+  --layer-resizer: 5;
+  --layer-menu: 10;
+  --layer-modal: 20;
+
+  /* The editor's gutter, fixed rather than content-sized, so the note's title can
+     line up with the text under it. `.viewer-header` adds this to the prose inset;
+     a gutter that grew with the line count would leave the title behind. Wide
+     enough for four digits at `--fs-prose`. */
+  /* Room for the line numbers and the fold arrow beside them. Every file type has
+     both; the note's own left inset is built from this, so the text sits off it. */
+  --gutter-w: 3.4rem;
+  /* The note column's own inset, a side. Written by `applySettings` from
+     `COLUMN_PADDING` — the panel's character readout is that number, and a sheet
+     that insets by a different one makes the readout lie. This is the fallback for
+     the frame before the settings land. */
+  --column-pad: 2.5rem;
+  /* **How far the fade band reaches past the header.** The band is `--header-h`
+     tall and pinned to the top of the scrollport, so this much of it hangs below
+     the title — which is what makes text disappear gradually as it scrolls up
+     rather than at a hard edge.
+
+     It is a token because something has to *clear* it: the band is positioned, so
+     it paints over the in-flow content under it. The editor never noticed — its
+     first line sits lower — but a collection's page starts with a section, and the
+     top half of its heading was painted out. Reported as the heading disappearing
+     into the title. */
+  --header-fade: 1.7rem;
+  /* **The title's two numbers.** In `rem` and not off the prose, because it is the
+     chrome's: it names the page the way the vault's name names the pane, and a
+     title that grew with the reading size read as the first heading of the note
+     rather than the name above it. */
+  --title-size: 1.75rem;
+  --title-leading: 1.15;
+  /* The viewer header's height: its top and bottom padding and the title's own line
+     box, plus the band that fades under it. One sum, so the band above the header
+     and the header itself cannot drift apart. It added the *prose* line here for a
+     while, which is not the line the title is set on — a 0.24rem lie the fade
+     absorbed, and would not have at a larger title. */
+  --header-h: calc(
+    1.75rem + 0.5rem + var(--title-size) * var(--title-leading) + var(--header-fade)
+  );
+
+  /* The chrome's one type size. The *prose* sizes are below, in the group JS
+     overrides. */
+  --fs-chrome: 0.8125rem;
+
+  /* ---- The five the settings panel writes inline on <html> ----
+     Declared here and nowhere else in this file. A `[data-scheme]` block that
+     re-declared one would still lose to the inline style — but it would win in
+     any palette the user has not yet triggered a re-write for, which is exactly
+     the kind of "works in two schemes, not the other three" bug that is invisible
+     until someone switches. Keep this group in the base block only.
+
+     `--reading-width` is the note column's outer width: the box is what is capped
+     and centred, and its own padding is inside that, so the text measure is this
+     less 2 × 2.5rem — 640px, which at `--fs-prose` is roughly 85 characters.
+     It moves with `--fs-prose`, in the opposite direction: smaller type puts more
+     characters on the same column, so dropping one without the other is what
+     widens the measure past what is comfortable to read. */
+  --fs-prose: 0.90625rem;
+  --line-height-prose: 1.85;
+  --fw-prose: 400;
+  /* Space *between* lines, on top of the leading inside them — see `lineGap` in
+     `settings.ts`. Set inline on <html> from the setting, so this is the value
+     before JS runs and nothing here may re-declare it. */
+  --line-gap: 0px;
+  --row-gap: 0px;
+  --reading-width: 720px;
+  --font-prose: var(--font-sans);
+  /* The tree rules, in the sidebar and down an indented list in the editor. Faint
+     on purpose: this is scaffolding for the eye, and at full strength a nested list
+     reads as a table. */
+  --guide: color-mix(in srgb, var(--text-faint) 30%, transparent);
+
+  /* **The scheme's accent, wherever the app marks something.** One tone, both
+     sides: every icon the app draws as chrome — the rail, the `+`s, the arrows, the
+     gear, a row's own glyph — and every mark inside the prose — a property's name,
+     the clock a journal line opens with, a key in a JSON file, a section's heading,
+     the `---` rule.
+
+     There were two tones for a while, one per surface. Softened on either side it
+     read as two different apps beside each other, so there is one: `--accent-soft`,
+     which is the sanctioned *text* accent and therefore safe as both.
+
+     One name, so the answer cannot drift between the panes. `--icon` was the old
+     name for the chrome's half of it. */
+  --mark: var(--accent-soft);
+
+  /* `ui-monospace` ahead of Menlo, not behind it. Behind, it was unreachable: none
+     of the three named faces above resolve on a stock macOS — SF Mono ships as
+     `SFNSMono.ttf` under a hidden family name that `'SF Mono'` does not match — so
+     Menlo always won and `ui-monospace`, which *does* reach SF Mono, never ran. The
+     three stay in front so an installed preference still wins. */
+  --font-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', ui-monospace, Menlo, Monaco,
+    'Cascadia Mono', monospace;
+  /* System-first: SF Pro on macOS. No webfont — fetching Inter would add a network
+     dependency and a Tauri CSP host; it is listed only in case it is installed. */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui,
+    sans-serif;
+  /* Every serif face in `settings.ts`'s `FACES` ends `…, var(--font-serif), serif`,
+     so this is what a chosen serif falls through when its own file is missing.
+     `--font-sans` and `--font-mono` carry the other two categories. Same rule as
+     those: nothing fetched. New York ships with macOS and is what `ui-serif`
+     resolves to. */
+  --font-serif: ui-serif, 'New York', 'Iowan Old Style', Charter, 'Palatino Linotype',
+    Palatino, 'Times New Roman', Times, serif;
+  /* **One family on a screen, and the hierarchy is size and weight.** The reading
+     face sets everything: the prose, every row, every control, every label, the
+     title, the sections at the end of a note, and the author's own `#` headings.
+
+     A serif display face set the headings, the title and the section headings for a
+     stretch, on the argument that a serif over a sans is the oldest pairing there is
+     and reads as hierarchy rather than as a change of style. It was asked back in
+     three separate rounds, smallest scope last — the section headings, then the
+     title, then the headings themselves — and the report each time was the same
+     one that had started it: the fonts keep changing. **Two families are a
+     hierarchy only to the person who drew the roles**, and the roles were never
+     visible to the reader; what a reader sees is a page where some words are in a
+     different font. So the pairing is gone rather than narrowed a fourth time, and
+     `stylesheet.test.ts` refuses a second family coming back. `--font-serif` stays,
+     because eight of the selectable prose faces fall through it. */
+  font-family: var(--font-sans);
+
+  /* ---- slate / dark: the base palette, and today's, verbatim ----
+
+     Surfaces: neutral near-black, five steps apart in L*, and *borders are the only
+     depth mechanism* — the one shadow in this sheet is on `.settings-dialog`.
+     Ordered darkest-first, because two of the orderings are load-bearing:
+       - `--bg-raised` must stay lighter than `--bg-sidebar`/`--bg-viewer` (a
+         floating menu has to lift off the page) and darker than `--bg-hover`
+         (the hover *inside* that menu has to lift off the menu).
+       - `--bg-active` must stay lighter than `--bg-hover`, or a *chosen* thing
+         reads as less than a hovered one. It paints a drawn selection in the note,
+         the bracket pair under the caret, the icon picker's chosen cell and the
+         panel's rail — no longer a row in the tree, which marks its name instead.
+     Both orderings *invert* in light mode, where lifting means lighter-than-white
+     is impossible and prominence is carried by going darker. See that block.
+     L*: 2.8 / 5.1 / 7.4 / 9.9 / 13.4. */
+  color-scheme: dark;
+  --bg-sidebar: #111113;
+  --bg-viewer: #0a0a0b;
+  --bg-raised: #16161a;
+  --bg-hover: #1b1b1f;
+  /* Selection: the accent at 18% over `--bg-viewer`, so it separates from
+     `--bg-hover` by hue and not only by 3.5 points of L*. Kept as a literal
+     because slate/dark is pinned — but the literal *is* that mix: rounded,
+     `color-mix(in srgb, var(--accent) 18%, var(--bg-sidebar))` lands on exactly
+     these three bytes. That is where every other scheme's value came from. */
+  --bg-active: #1f2135;
+
+  --border: #1f1f23;
+
+  /* Text, three tiers, and every one of them has to be readable — a tier used only
+     for text nobody can read is not a hierarchy, it is a missing feature.
+
+     The floor is *per tier*, not one ground for all three, because the three tiers
+     do not land on the same set. Measured, worst ground first:
+       --text        8.90 on the `--text` 12% tint over `--bg-active` · 10.57 that
+                     tint over `--bg-hover` · 13.53 active · 13.99 code chip ·
+                     14.68 hover · 14.79 drag-over wash · 15.43 raised ·
+                     16.13 viewer · 16.93 sidebar
+       --text-dim    7.35 on active · 7.98 hover · 8.03 drag-over wash ·
+                     8.38 raised · 8.76 viewer · 9.19 sidebar
+       --text-faint  5.02 on hover · 5.27 raised · 5.51 viewer · 5.78 sidebar
+     So: `--text-faint`'s floor is `--bg-hover` (it never lands on `--bg-active`),
+     `--text-dim`'s is `--bg-active`, and `--text`'s is neither — it is the
+     `color-mix(in srgb, var(--text) 12%, transparent)` tint that `.folder-actions
+     button:hover` paints *over* `--bg-active`, a composite ground and the lightest
+     thing in the dark palette that text sits on. An earlier version of this comment
+     named `--bg-hover` as the single floor for all three; it was wrong twice over.
+
+     An even-ish ladder in L*: 93.8 / 72.1 / 57.7. Recompute all three if a surface
+     gets lighter; measure, don't eyeball, and never discount one of these a second
+     time with an `opacity` — the colour step *is* the hierarchy. The only
+     `opacity` in this sheet is on a whole row mid-drag and on the reveal of the
+     folder actions; none of it discounts a text colour, and none should. */
+  --text: #ededef;
+  --text-dim: #b0b0b9;
+  --text-faint: #8a8a93;
+
+  /* One accent per scheme, used sparingly: the selection wash, the primary button,
+     focus, and links. Four tokens, because one colour cannot do all four jobs at
+     4.5:1.
+       --accent       a *ground* or a graphic, never text. 4.01:1 on `--bg-viewer`
+                      here — under the floor, and that is fine for what it is.
+       --accent-soft  the text/border/hairline one. 4.88:1 on the viewer,
+                      5.12 sidebar, 4.67 raised. On `--bg-hover` it is 4.44 and on
+                      `--bg-active` 4.09: below 4.5, and load-bearing only as a
+                      1px border and a 10px folder glyph — graphics, where the
+                      threshold is 3:1. Links land on the viewer. Do not promote it
+                      to body text on a hovered row or over `--bg-active`.
+       --accent-hover the primary button's hover fill. It moves *away* from
+                      `--on-accent`, which is the only rule that holds in both
+                      modes: away from white means darker, away from ember's dark
+                      ink means lighter. Lifting the fill to `--accent-soft`, which
+                      is what this rule used to do, put white on #6e79dc at
+                      3.87:1 — a real failure, found by measuring.
+       --on-accent    the label on an accent fill. A token and not a literal `#fff`
+                      because ember's fill is a light amber, where white is 2.0:1
+                      and a dark ink is 6.44:1. 4.70:1 here (`--text` would be
+                      4.02, which is why this is not just `var(--text)`). */
+  --accent: #5e6ad2;
+  --accent-soft: #6e79dc;
+  --accent-hover: #5360c8;
+  --on-accent: #ffffff;
+
+  --alert: #ef7a7a;
+
+  /* **A column's colour in a delimited file** — see `csvPreview`. Six hues, cycling,
+     and **the one place in the app a hue is fixed rather than derived**: the accent
+     is one colour and "which column is this" needs six that are told apart, which is
+     a property of hue and not of a scheme. The terminal's ANSI set is the only other
+     such palette, and for the same reason — a program that asks for red means red.
+     Per mode, like the text tiers, so every scheme gets them.
+
+     Measured on every scheme's note ground, worst first: red 7.98 · violet 9.30 ·
+     blue 9.32 · green 10.75 · teal 10.88 · amber 11.50. They are separated from one
+     another by **hue** and not by luminance, so the reader who cannot tell two of
+     them apart still has what a table has: the columns are in fixed places. */
+  --csv-1: #79b8f0;
+  --csv-2: #6ed39a;
+  --csv-3: #e8c07a;
+  --csv-4: #c9a2f0;
+  --csv-5: #5fd3c3;
+  --csv-6: #e88b8b;
+
+  /* The modal scrim. Per mode and not per scheme: it is a veil over the whole app,
+     and it has to darken. `--bg-viewer` is the darkest ground in dark mode — the
+     note's, since the two panes exchanged grounds — and light mode declares its own
+     off `--text`, because mixing off a near-white ground there would produce a veil
+     that dims nothing. */
+  --scrim: color-mix(in srgb, var(--bg-viewer) 72%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion: 0s;
+  }
+}
+
+/* ---- slate / light ----
+   Roles inverted, not mirrored. `--bg-raised` is white because a lifted surface in
+   light mode cannot go lighter than the page by much, and `--bg-hover`/`--bg-active`
+   go *darker* than the page instead of lighter — so the two orderings from the dark
+   block read, here, as: raised ≥ viewer > sidebar > hover > active.
+
+   Floors, measured (worst ground first, all ten palettes are within 0.2 of these):
+     --text        10.32 on the `--text` 12% tint over `--bg-active` · 11.62 that
+                   tint over hover · 12.49 drag-over wash · 13.04 active ·
+                   14.74 code chip · 14.75 hover · 15.55 sidebar · 16.80 viewer ·
+                   17.36 raised
+     --text-dim    6.21 on the drag-over wash · 6.48 active · 7.33 hover ·
+                   7.73 sidebar · 8.35 viewer · 8.63 raised
+     --text-faint  5.06 on hover · 5.33 sidebar · 5.76 viewer · 5.95 raised
+   `--text-faint`'s floor is `--bg-hover` in *both* modes, but for opposite reasons:
+   in dark it is the lightest ground faint lands on, in light the darkest. It is not
+   the same ground inverted — the dark floor had to be re-derived, not flipped.
+
+   `--accent-soft` inverts too: lighter than `--accent` in dark mode, equal-to-darker
+   here, because both are bounded above by the same luminance ceiling (white on the
+   fill and the fill on white are the same 4.5:1 constraint). */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg-sidebar: #f2f2f6;
+  --bg-viewer: #fbfbfd;
+  --bg-raised: #ffffff;
+  --bg-hover: #ececf1;
+  --bg-active: #dcdef2;
+  --border: #e3e3ea;
+
+  --text: #1a1a1d;
+  --text-dim: #4b4b54;
+  --text-faint: #63636b;
+
+  --accent: #4d58c4;
+  --accent-soft: #4b56bd;
+  --accent-hover: #414bb0;
+  --on-accent: #ffffff;
+
+  --alert: #b42222;
+
+  /* The same six, taken down for a light ground. Worst first, over every scheme's:
+     teal 4.77 · amber 5.06 · green 5.16 · blue 5.62 · red 6.31 · violet 6.33. */
+  --csv-1: #1f5fd0;
+  --csv-2: #1e7a46;
+  --csv-3: #946200;
+  --csv-4: #7a3fb5;
+  --csv-5: #0f7c86;
+  --csv-6: #b3261e;
+
+  --scrim: color-mix(in srgb, var(--text) 42%, transparent);
+}
+
+/* ---- The five other schemes ----
+   Nine tokens each: the accent trio is the identity, and the grounds carry the same
+   hue at 1–4 bytes off neutral so the whole window agrees with the accent without
+   leaving near-neutral. The text tiers, `--alert`, `--on-accent` and `--scrim` are
+   *not* repeated — they are per mode, and every one of them was re-measured against
+   every ground in every scheme (worst case: `--text-faint` 4.93 on `--bg-hover`,
+   midnight/dark). Ember and midnight override `--on-accent`, both for the same
+   reason: a light fill.
+
+   The number after each block is that palette's worst text ratio and the ground it
+   lands on. Nothing here is under 4.5. */
+
+/* worst: --text-faint 5.03 on --bg-hover */
+:root[data-scheme='graphite'][data-theme='dark'] {
+  --bg-sidebar: #111111;
+  --bg-viewer: #0a0a0a;
+  --bg-raised: #161616;
+  --bg-hover: #1b1b1b;
+  --bg-active: #242428;
+  --border: #1f1f1f;
+  --accent: #6b6b6b;
+  --accent-soft: #a8a8a8;
+  --accent-hover: #5f5f5f;
+}
+
+/* worst: --text-faint 4.96 on --bg-hover */
+:root[data-scheme='moss'][data-theme='dark'] {
+  --bg-sidebar: #111211;
+  --bg-viewer: #0a0b0a;
+  --bg-raised: #161816;
+  --bg-hover: #1b1d1b;
+  --bg-active: #182a20;
+  --border: #1f211f;
+  --accent: #2e7d4f;
+  --accent-soft: #5fb87f;
+  --accent-hover: #276b44;
+}
+
+/* worst: --text-faint 4.95 on --bg-hover. The one light fill in the set: white on
+   this amber is 2.0:1, so `--on-accent` goes dark and `--accent-hover` goes
+   *lighter* to move away from it. */
+:root[data-scheme='ember'][data-theme='dark'] {
+  --bg-sidebar: #131211;
+  --bg-viewer: #0b0a0a;
+  --bg-raised: #1a1816;
+  --bg-hover: #1f1c1b;
+  --bg-active: #332618;
+  --border: #231f1f;
+  --accent: #d98324;
+  --accent-soft: #e89a45;
+  --accent-hover: #eb9a3d;
+  --on-accent: #17110a;
+}
+
+/* worst: --text-faint 4.95 on --bg-hover */
+:root[data-scheme='ink'][data-theme='dark'] {
+  --bg-sidebar: #101213;
+  --bg-viewer: #090a0b;
+  --bg-raised: #15181a;
+  --bg-hover: #1a1d1f;
+  --bg-active: #152539;
+  --border: #1e2123;
+  --accent: #1f5fd0;
+  --accent-soft: #5a9bf0;
+  --accent-hover: #1a52b8;
+}
+
+/* worst: --text-faint 5.04 on --bg-hover */
+:root[data-scheme='graphite'][data-theme='light'] {
+  --bg-sidebar: #f3f3f3;
+  --bg-viewer: #fbfbfb;
+  --bg-raised: #ffffff;
+  --bg-hover: #ececec;
+  --bg-active: #dedede;
+  --border: #e4e4e4;
+  --accent: #5f5f5f;
+  --accent-soft: #5c5c5c;
+  --accent-hover: #4f4f4f;
+}
+
+/* worst: --text-faint 5.08 on --bg-hover */
+:root[data-scheme='moss'][data-theme='light'] {
+  --bg-sidebar: #f2f4f2;
+  --bg-viewer: #fbfcfb;
+  --bg-raised: #ffffff;
+  --bg-hover: #eaeeea;
+  --bg-active: #d7e6db;
+  --border: #e2e7e3;
+  --accent: #2e7d4f;
+  --accent-soft: #256a42;
+  --accent-hover: #1f5b38;
+}
+
+/* worst: --text-faint 5.02 on --bg-hover. Same light amber fill as ember/dark, so
+   the same dark `--on-accent`; `--accent-soft` has to go deep, because as *text* it
+   is measured against white. */
+:root[data-scheme='ember'][data-theme='light'] {
+  --bg-sidebar: #f5f3f1;
+  --bg-viewer: #fdfcfb;
+  --bg-raised: #ffffff;
+  --bg-hover: #efebe7;
+  --bg-active: #eddfcb;
+  --border: #e9e4de;
+  --accent: #d98324;
+  --accent-soft: #8f4e0e;
+  --accent-hover: #eb9a3d;
+  --on-accent: #17110a;
+}
+
+/* worst: --text-faint 5.06 on --bg-hover */
+:root[data-scheme='ink'][data-theme='light'] {
+  --bg-sidebar: #f1f3f6;
+  --bg-viewer: #fafbfd;
+  --bg-raised: #ffffff;
+  --bg-hover: #e9edf2;
+  --bg-active: #d5e2f4;
+  --border: #e1e6ec;
+  --accent: #1f5fd0;
+  --accent-soft: #1a55bd;
+  --accent-hover: #164aa6;
+}
+
+/* ---- midnight ----
+   The dark-first scheme, built from a reference rather than from slate: a black
+   with a blue cast (`#0a0a0f` — five bytes off neutral, the most any ground here
+   moves), the raised surface and the hover a step lighter each, a hairline that is
+   8% of white, and a sky blue at full strength for the mark. Ordered as the base
+   block asks: L* 2.9 / 5.7 / 7.6 / 10.8 / 16.6 for viewer / sidebar / raised /
+   hover / active.
+
+   `--accent` is the fill and `--accent-soft` the text, as in slate, but this fill
+   is light: white on it is 3.1:1, so `--on-accent` goes to a blue-black ink at
+   6.20 and `--accent-hover` moves *lighter*, away from that ink — ember's rule.
+   `--accent-soft` on the note is 7.77, on the sidebar 7.33, on `--bg-hover` 6.63.
+   `--bg-active` is the accent at 18% over the sidebar, as every scheme's is.
+
+   worst: --text-faint 4.93 on --bg-hover */
+:root[data-scheme='midnight'][data-theme='dark'] {
+  --bg-sidebar: #12121a;
+  --bg-viewer: #0a0a0f;
+  --bg-raised: #16161f;
+  --bg-hover: #1c1c28;
+  --bg-active: #1c2941;
+  --border: #20202b;
+  --accent: #4b93f5;
+  --accent-soft: #60a5fa;
+  --accent-hover: #78b4fb;
+  --on-accent: #0a0f1a;
+}
+
+/* The reference has no light mode, so this one is derived: the same blue cast on
+   the near-white grounds, the accent taken down to where white sits on it at 5.17
+   and the text accent at 5.50 on the note. worst: --text-faint 5.00 on --bg-hover */
+:root[data-scheme='midnight'][data-theme='light'] {
+  --bg-sidebar: #f1f2f8;
+  --bg-viewer: #fbfbfe;
+  --bg-raised: #ffffff;
+  --bg-hover: #e9ebf4;
+  --bg-active: #ccd8f6;
+  --border: #e0e2ee;
+  --accent: #2563eb;
+  --accent-soft: #1f5fd9;
+  --accent-hover: #1d55cc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* The shell is exactly the window: `.app` is 100vh and each region inside it (the
+   sidebar, `.viewer`) owns its own overflow. So the document must not scroll or
+   bounce, and both halves of that have to be said.
+
+   `overflow: hidden` stops it scrolling if something ever does overflow — a long
+   note, a narrow window — where otherwise the whole shell can be panned
+   off-window. `overscroll-behavior: none` is the other half: WebKit gives the
+   viewport an elastic overscroll affordance whether or not it can scroll, so a
+   two-finger swipe rubber-banded the entire app sideways. Scroll chaining out of
+   any inner region ends here too. */
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---- Shell ---- */
+
+.app {
+  display: flex;
+  height: 100vh;
+  background: var(--bg-viewer);
+}
+
+.app-empty {
+  align-items: center;
+  justify-content: center;
+  -webkit-app-region: drag;
+}
+
+.welcome {
+  -webkit-app-region: no-drag;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+  max-width: 26rem;
+  color: var(--text-dim);
+}
+
+.welcome h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: var(--fw-strong);
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.welcome p {
+  margin: 0;
+  font-size: var(--fs-chrome);
+  line-height: 1.5;
+}
+
+.welcome-error {
+  color: var(--alert);
+}
+
+/* The one saturated fill in the app. `--on-accent` and not `--text`, and not the
+   literal `#fff` this used to be: the label sits on `--accent`, where `--text` is
+   4.02:1, and where white is 4.70:1 in slate but **2.91:1 on ember's amber
+   #d98324**, against 6.44:1 for the near-black the token carries in ember. */
+button.primary {
+  margin-top: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: inherit;
+  font-size: var(--fs-chrome);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+}
+
+button.primary:hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
+/* The welcome's second door and its two fields: the same well an input in the
+   panel is, sized off the chrome rather than the panel's em. */
+.welcome-secondary {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--mark);
+  font-family: inherit;
+  font-size: var(--fs-chrome);
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.welcome-clone {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.welcome-input {
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sidebar);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-chrome);
+  line-height: inherit;
+}
+
+/* The sync's one sentence, with when it last saved beside it. */
+.settings-sync-word {
+  margin: 0;
+  color: var(--text);
+}
+
+/* ---- Sidebar ---- */
+
+.sidebar {
+  /* **The note's face, size and leading**, so a row *is* a line of the note —
+     26.8px each at the defaults, moving together on one slider. A row has no
+     padding: the line box is the target.
+
+     Everything below takes all three by `inherit`, and a control needs
+     `line-height: inherit` said out loud (CLAUDE.md). The popups take none of it: a
+     context menu is rendered inside a row's own markup but styles its text at
+     `--fs-chrome`, which is what keeps a menu a menu. */
+  font-family: var(--font-prose);
+  /* **The weight is a setting, and it reaches both panes.** A face's idea of
+     regular differs across the eighteen stacks, and a pane of rows reads heavy for
+     the same reason a note does. The controls in it say `font-weight: inherit` for
+     the reason they say it of the size: a `<button>`'s UA `font:` shorthand sets a
+     weight of its own. */
+  font-weight: var(--fw-prose);
+  font-size: var(--fs-prose);
+  line-height: var(--line-height-prose);
+  /* Width comes from an inline style; keep it from flexing. */
+  flex-shrink: 0;
+  background: var(--bg-sidebar);
+  color: var(--text);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 0.6rem;
+  overflow: hidden;
+  -webkit-app-region: drag;
+}
+
+/* On the pane's own column: the vault's name and the section buttons had `0.2rem`
+   of their own, which put them 3.2px right of every row under them. */
+.sidebar-header {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 var(--pane-inset) max(var(--row-gap), 0.35em);
+}
+
+/* **The pane's one scrollport, and the sections scroll inside it.** The three
+   sections stack, and a vault with more notes than the window is tall has to go
+   somewhere: this is the box that scrolls, and every list inside it grows to its
+   content. It had no rule at all for a build — a plain block in a flex column the
+   pane clips — so a long tree was simply cut off with no way to reach the rest.
+   Reported as there being no way to scroll the left pane.
+
+   One scrollport and not one per section, because three of them is three places
+   the wheel could mean and a section is shut when it is not wanted. */
+.sidebar-body {
+  -webkit-app-region: no-drag;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* **A section's heading stays while its own rows scroll under it**, and gives way
+   to the next section's — `position: sticky` inside the section, so each heading
+   holds the top only as far as its own rows reach. It carries the pane's ground,
+   or the rows would show through it. */
+.pane-section > .folder-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-sidebar);
+}
+
+/* A section is as tall as what it holds: the pane scrolls, not the section. */
+.pane-section {
+  flex: none;
+}
+
+button.vault-name {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 0.25rem 0.4rem;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  font-weight: var(--fw-strong);
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+button.vault-name:hover {
+  background: var(--bg-hover);
+}
+
+.sidebar-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+/* **`padding: 0`.** The UA gives a button `1px 6px`, so a 24px box had a 12px
+   content column and every icon in this rail was squeezed to 12 wide whatever its
+   own size said — which is why the `+` was drawn at 22px to begin with. Measured:
+   the search glyph 12x15, the fold pair 12x16, the `+` 12x17.5, against a row's
+   `+` at 17.5x17.5. */
+.sidebar-actions > button {
+  width: var(--control);
+  height: var(--control);
+  padding: 0;
+  /* These hold inline SVGs, so the box centres them rather than leaving them on a
+     text baseline — the same three lines `.folder-actions button` needed. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--mark);
+  font-family: inherit;
+  font-weight: inherit;
+  /* Inherit, not `--fs-chrome`: `--control` is `1.5em`, so a fixed size here would
+     hold the rail's buttons at 19.5 while every row's control grew with the reading
+     size. */
+  font-size: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.sidebar-actions > button:hover {
+  background: var(--bg-hover);
+  color: var(--accent-soft);
+}
+
+/* **One weight for every glyph the app draws.**
+   A `stroke-width` is in viewBox units, so the rendered thickness is
+   `stroke × size ÷ grid` — invert that and the stroke a glyph needs is
+   `weight × grid ÷ its own em size`. Each glyph states its grid as `data-grid` and
+   nothing else; the weight is `--icon-weight`, which the settings write. Before
+   this the set ran 0.85px to 1.50px on seven hand-written numbers, the `+` heaviest
+   of all.
+
+   The dots come off the same token: they are *filled*, not stroked, and a filled
+   2-unit circle beside a 1.5-unit stroke is what made the graph and the gear read
+   heavier than the lens beside them. `1.35` is the ratio a node has to a stem. */
+svg[data-grid='10'] {
+  stroke-width: calc(var(--icon-weight) * 10 / var(--glyph-sm-num));
+}
+
+svg[data-grid='16'] {
+  stroke-width: calc(var(--icon-weight) * 16 / var(--glyph-num));
+}
+
+svg[data-grid='24'] {
+  stroke-width: calc(var(--icon-weight) * 24 / var(--glyph-num));
+}
+
+svg[data-grid='16'] circle[fill='currentColor'] {
+  r: calc(var(--icon-weight) * 16 / var(--glyph-num) * 1.35px);
+}
+
+/* ---- The tree ---- */
+
+/* **No `gap` here.** A flex gap reaches an element's direct children only, so one
+   here spaces the top of the tree and not the rows inside a folder, which are in
+   their own `.folder-children` list. Space between rows is `--row-gap`, on the
+   rows themselves, which reaches every depth. */
+/* The search field over the tree, and its results in the tree's place.
+
+   `-webkit-app-region: no-drag` for the same reason `.file-list` carries it: the
+   sidebar is a window-drag region and the property reaches its descendants, so
+   without this a click into the field drags the window rather than putting a caret
+   in it. */
+.sidebar-search {
+  -webkit-app-region: no-drag;
+  display: flex;
+  flex-direction: column;
+  /* **No box at all**: no padding, no margin. The field and its results start on
+     the same x as the tree's rows — the pane's padding and nothing else — and the
+     space under the field is the field's own, so the search box and the tree's
+     create box leave the same gap. Measured with 0.5rem here, the field sat at
+     x=18 against rows at x=10 and read as indented from the vault it was
+     searching. */
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar-search-hits {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One row per note: its name, and under that the line the words were found on.
+   Rows of its own and not the tree's, because a result is not a place in the tree
+   — it has no depth, no guide and no arrow, and dressing it in those would say it
+   did. */
+.sidebar-search-hits button {
+  -webkit-app-region: no-drag;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: var(--row-h);
+  /* The pane's own gap between them, as the tree's rows have: a result list with
+     no gap read as one block of text rather than as rows. The inset is a row's, so
+     a result's name begins where a row's box does. */
+  margin-bottom: var(--row-gap);
+  padding: 0 var(--pane-inset);
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar-search-hits button:hover {
+  background: var(--bg-hover);
+}
+
+.sidebar-search-name,
+.sidebar-search-line {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The line it was found on, dimmed and smaller — a note found by a word in the
+   middle of a paragraph is only worth listing if you can see the word. */
+.sidebar-search-line {
+  color: var(--text-faint);
+  font-size: 0.92em;
+}
+
+.sidebar-search-empty {
+  margin: var(--row-gap) var(--pane-inset);
+  color: var(--text-faint);
+  font-size: 0.92em;
+}
+
+/* **A list of rows grows; the box around it scrolls.** It was the scrollport
+   itself, from when the pane held exactly one list — with three sections stacked
+   that would be three scrollports inside a fourth, and a wheel with three possible
+   meanings. `.sidebar-body` scrolls in the pane and `.viewer` in a note's footer.
+
+   **No box of its own**: a margin here is a margin only the rows *inside* the list
+   get, and a field above them does not — which is how a search box came to sit
+   5.6px lower than the same box rendered as the list's first row. */
+.file-list {
+  -webkit-app-region: no-drag;
+  flex: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+}
+
+/* **`li > button`, not `button`.** A row is a direct child of its `li`; a chevron's
+   parent is `.folder-header` and an action's is `.folder-actions`. Written broadly
+   this rule caught all of them, each then had to out-specify it, and the day one of
+   those selectors lost a point of specificity — `button.folder-chevron` to
+   `.folder-chevron` — this rule's `width: 100%` made the arrow as wide as the row
+   and pushed every folder's name off the pane.
+
+   There is no vertical padding: a row's height is its line box, which is the
+   note's. The same goes for `.folder-toggle` and `.rename-input` — a folder row
+   takes its height from the toggle inside it, and a row being renamed must not
+   change height as the input replaces the button. */
+.file-list li > button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0 var(--pane-inset);
+  border-radius: var(--radius);
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: inherit;
+  /* `line-height` as well as the font: a form control does **not** inherit it. The
+     UA gives a button `normal` — about 1.17 — so these rows were 17px tall while
+     the pane said 1.85, and every change to the pane's leading missed them. */
+  font-size: inherit;
+  line-height: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background-color var(--motion), color var(--motion);
+}
+
+/* Background and weight carry the state; the colour does not, because a resting row
+   is already `--text`. */
+.file-list li > button:hover {
+  background: var(--bg-hover);
+}
+
+/* **The open row is coloured, not filled.** A `--bg-active` box behind it was a
+   second shape in a pane that is otherwise rows of text, and it sat inside a
+   hover box of its own — two grounds saying one thing. The name takes `--mark`
+   and a weight: the same treatment a property's name and a section's heading get,
+   which is the app's one way of marking something. */
+.file-list li > button.selected .row-name,
+.folder-header.selected .row-name {
+  color: var(--mark);
+  font-weight: var(--fw-strong);
+}
+
+.file-list li > button.dragging,
+.folder-header.dragging {
+  opacity: 0.35;
+}
+
+.folder-row {
+  list-style: none;
+}
+
+/* **A leaf row is a folder row without the arrow, and the `li` is the box.**
+   The note on the left and its `+` on the right — a button cannot contain a
+   button, so the `li` holds the pair *and paints them*: the button used to paint
+   itself, which left the selection 24px short of the pane (measured 215.5 against
+   a folder row's 239.8 in the same row) and the `+` centred over the row plus its
+   gap, 2.5px below the name beside it. Painting the box fixes both without an
+   overlay, which is what the `+` was for a build and is what made it stick. */
+.note-row {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius);
+}
+
+.note-row:hover {
+  background: var(--bg-hover);
+}
+
+/* Transparent, and carrying no gap of its own: the row has both. (0,3,1), which
+   beats `.file-list li > button:hover` — otherwise the button paints its own
+   shorter box on top of the row's. Nothing for `.selected` to undo: an open row
+   marks its name and paints no ground at all. */
+.file-list .note-row > button.file-row,
+.file-list .note-row > button.file-row:hover {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding-block: 0;
+  background: transparent;
+}
+
+.folder-children {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* The lines an issue tree draws: a trunk down from the folder, and an elbow into
+   every row on it.
+
+   Both are drawn per **child**, not once on the list, and that is what makes the
+   trunk stop where it should. A single line over the whole list runs past the last
+   row to the bottom of the subtree; here the last child's segment is half a row
+   long, so the trunk ends exactly where the last elbow leaves it.
+
+   A child that is itself an open folder keeps the full-height segment, which is
+   right: the trunk has to carry on past it to the sibling below. Its own children
+   get their own trunk, one step further in.
+
+   `--guide-x` is the folder's own indent, handed down from the row that knows its
+   depth and inherited by these; the half chevron is added here, where the chevron's
+   width is declared, so a line stays centred under the arrow if that changes. */
+.folder-children > li {
+  position: relative;
+}
+
+.folder-children > li::before,
+.folder-children > li::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--guide-x, 0px) + var(--control) / 2);
+}
+
+.folder-children > li::before {
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--guide);
+}
+
+/* The last one: down to its own row and no further. */
+.folder-children > li:last-child::before {
+  bottom: auto;
+  height: calc(var(--row-h) / 2);
+}
+
+/* And across into the row. It stops short of the row's icon rather than touching
+   it — the line is scaffolding, and running it into the glyph reads as a fault. */
+.folder-children > li::after {
+  top: calc(var(--row-h) / 2);
+  width: 0.4rem;
+  border-top: 1px solid var(--guide);
+}
+
+
+/* A row lays out as two boxes on a line rather than as inline text: an inline
+   icon aligns to the text baseline, which put it a descender's height above where
+   the same icon sits in the folder row beside it.
+   The name takes the ellipsis the button used to own, because a flex container
+   cannot clip an anonymous text item. */
+ /* **A file row is a folder row without the arrow.** Same padding, same gap, same
+    body — so a leaf's icon and name land where a folder's do because they are the
+    same boxes, not because two numbers were added up to agree. */
+.file-list button.file-row {
+  display: flex;
+  align-items: center;
+  padding: 0;
+  gap: 0;
+}
+
+/* Both kinds of row, one height: the note's own leading. The two agree because
+   they are the same text in the same box — and because this is the only place
+   either is given a height. `--row-h` is `1.5em`, so the size it resolves against
+   is stated here rather than left to a UA default. */
+.folder-header,
+.file-list li > button.file-row {
+  min-height: var(--row-h);
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* The half of a row past the arrow. `.folder-toggle` is the folder's, and the two
+   share the padding: change it here and both kinds move together, which is the
+   whole point of the pair. */
+.row-body,
+button.folder-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  overflow: hidden;
+}
+
+.row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* **A row's name is a label on a control, not text to select.** Right-clicking
+     one selected the word under the pointer — the blue run you get from dragging
+     across a sentence — under the menu that opened. The lines beneath a row are
+     left selectable, because a mention *is* text someone copies, and `opensNote`
+     already declines while a selection is open. */
+  user-select: none;
+}
+
+/* **A picked set takes a ground; the open row still takes only a mark.** The open
+   row is coloured and not filled, because a ground behind one name in a pane of
+   names is a second shape — that rule stands, and `.selected .row-name` is it. But
+   a *set* is the one thing colour on a name cannot say: three marked names read as
+   three open notes, not as a group about to be acted on. So picking paints, at the
+   `--bg-active` every chosen thing in the app takes, and the mark on the open row
+   still says which of them is open.
+
+   The hover is that ground with the pane's own 12% text tint over it — the
+   composite every palette's contrast was measured against (see the text tiers) —
+   so a picked row still answers the pointer. */
+.file-list .note-row > button.file-row.picked {
+  background: var(--bg-active);
+}
+
+.file-list .note-row > button.file-row.picked:hover {
+  background: color-mix(in srgb, var(--text) 12%, var(--bg-active));
+}
+
+/* The gap between rows — its own setting, because a list of names wants a
+   different amount of air than a paragraph does. Everywhere a row is drawn reads
+   this: the tree, the Actions section, and the sections at the end of a note.
+
+   On the row and not the `li`, because a folder's `li` holds its whole subtree — a
+   margin there would space the *subtree*, not the row. The tree's rules run
+   through it: a trunk spans the `li`, which includes the gap below each row, so
+   the line stays unbroken.
+
+   **The paint bleeds into that gap by `--row-bleed`**, top and bottom, and the
+   pitch is untouched: a box that stops at the text reads as a marked word rather
+   than a hovered row. Both kinds of row take it, so a note's box and a folder's are
+   the same shape.
+
+   Centred, and that is the arithmetic: padding grows the box downward from its
+   own top, so an equal negative `margin-top` lifts it back — the text ends where it
+   started and the box reaches the same distance above and below it. It was
+   `-2px` against `padding: 2px 0` with the *gap* also cut by 2, which lifted every
+   row 2px off its slot. `max(…, 0px)` keeps a zero gap from pulling the next row
+   up over this one. */
+.file-list button.file-row,
+.folder-header,
+.note-row {
+  padding-block: var(--row-bleed);
+  margin-top: calc(-1 * var(--row-bleed));
+  margin-bottom: max(var(--row-gap) - var(--row-bleed), 0px);
+}
+
+/* **No border, not even a transparent one.** A 1px border top and bottom made every
+   folder row 2px taller than every leaf row — the gap that did not match. The
+   drag-over outline is an inset shadow instead, which is drawn inside the box and
+   costs no height. */
+.folder-header {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border-radius: var(--radius);
+  transition: background-color var(--motion);
+}
+
+.folder-header:hover {
+  background: var(--bg-hover);
+}
+
+/* `.file-list button:hover` (0,1,1) paints a background on every button in the
+   sidebar, which drew a second box inside the row's own highlight. The row owns the
+   paint, so the name and the chevron stay transparent — the action buttons keep
+   theirs, since they need to read as separately clickable. */
+.file-list .folder-header .folder-toggle:hover,
+.file-list .folder-header .folder-chevron:hover {
+  background: transparent;
+}
+
+/* A row about to take a drop: the wash, and a hairline round the box it is. A
+   *note's* row takes one too — a file dropped on a plain note makes it a nested
+   note and goes inside — and it is the same box, so it is the same paint. */
+.file-list .note-row > button.file-row.drag-over,
+.folder-header.drag-over {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: inset 0 0 0 1px var(--accent-soft);
+}
+
+/* **The pane itself takes the wash and no edge.** The tree's own list is the root
+   as a drop target — dropping on no row means the top of the vault — and it had a
+   row's hairline too: a rectangle drawn round the whole scrollport, three sides of
+   it on screen and the fourth below the fold, which is not an outline of anything.
+   Reported exactly that way. The wash says the pane will take it, which is what a
+   pane can say; the edge belongs to a box you can see all of. */
+.file-list.drag-over {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+/* **`align-self: stretch`, and no height at all.** A height here is a *floor* under
+   the row: a folder row is as tall as its tallest child, so a 20px arrow and a 24px
+   action button held folder rows at 24 while leaf rows followed the text down —
+   measured at line-height 1.55, folder 24.00 against leaf 22.47. Stretch is the one
+   way to be the row's height without being part of the sum: a stretched item's
+   contribution to the line is its *content*, which here is a 9px glyph, and then it
+   fills whatever the text asked for. `--row-h` was the first attempt and was subtly
+   wrong — its `em` resolves against the element *using* it, and a button's font-size
+   is the UA's, so these came out 2px short of the row. */
+/* **`font-size: inherit`, and that is the alignment.** This class is a `<button>`
+   on a folder row and an empty `<span>` on a leaf, and `--control` is `1.5em`: a
+   button keeps the UA's 13.33px unless told otherwise, so the arrow's box came out
+   20.0 wide against the reserved span's 19.5 — every row with an arrow sat half a
+   pixel right of every row without one, which is the column wobbling down the pane.
+   Reported as a nested note with nothing inside it being out of line with the
+   nested notes around it. `line-height` comes with it, as CLAUDE.md's trap says. */
+.folder-chevron {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  width: var(--control);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--mark);
+  cursor: pointer;
+  font-size: inherit;
+  line-height: inherit;
+  transition: color var(--motion);
+}
+
+.folder-chevron:hover {
+  color: var(--accent-soft);
+}
+
+/* The geometry is shared with `.row-body` above; this is what makes it a button. */
+button.folder-toggle {
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  /* **No weight of its own.** A nested note is a note: it was half a step heavier
+     than a leaf, which is a second way of saying "this row is different" on top of
+     the arrow it already carries — and weight is what the *open* row uses. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--motion);
+}
+
+.folder-toggle:hover {
+  color: var(--text);
+}
+
+/* No colour of its own: the icon takes the row's, so a folder's glyph and its name
+   always agree. It used to be `--accent-soft` for every folder except the open one,
+   and two colours applied by a rule nobody could see read as arbitrary rather than
+   as "this one is open" — the open row marks its *name* now, which is the app's one
+   way of saying it. */
+.folder-toggle svg {
+  flex-shrink: 0;
+  display: block;
+  margin-top: -1px;
+}
+
+.folder-actions {
+  display: flex;
+  /* Centred on the row, not stretched down it: the span's own height is its
+     glyph's, and a stretched button inside a centred span is what made the `+`'s
+     box 19.5 wide and 11.95 tall — a letterbox around a square glyph. */
+  align-items: center;
+  gap: var(--icon-gap);
+  /* **`visibility`, not `opacity`.** Reported from the running app: the `+` came up
+     on hover and stayed up, several rows' worth at once. An animated `opacity` with
+     `pointer-events` toggled under it gives WebKit three reasons to keep a stale
+     layer painted; `visibility: hidden` is not hit-testable, does not animate, and
+     needs no layer at all. */
+  visibility: hidden;
+  padding-right: calc(var(--pane-inset) - var(--row-bleed));
+}
+
+/* Both kinds of row reveal their `+` on hover. Hidden until then, because a column
+   of them down a quiet tree is noise; `pointer-events` as well as `opacity`, or the
+   invisible button still takes the click meant for the row. */
+.folder-header:hover .folder-actions,
+.note-row:hover .folder-actions {
+  visibility: visible;
+}
+
+/* **A square of the row's own height, and a glyph measured in the type.** Every
+   number here used to be its own: a 22px glyph in a button the UA gave `1px 6px`
+   of padding came to 24px, and a `+` is the one control a tree row has and the
+   Actions pane's rows have not — so at any leading under 24px the tree's rows were
+   24 and every other row in the app followed the setting. Measured in Chrome at
+   prose 12: tree folder rows 24.00, every other row 22.19.
+
+   `font-size: inherit` is what makes `--row-h` mean the row here — a button's UA
+   font-size is 13.33px, so `1em` in it answered for a size nobody set — and
+   `line-height` comes with it, as CLAUDE.md's trap says it must. */
+/* **A square**, the row's own height, with the row's own radius: it was `--row-h`
+   wide and whatever `align-self: stretch` made it tall, which came out 19.5 by
+   11.95 — the flattened box. */
+.folder-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control);
+  height: var(--control);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--mark);
+  cursor: pointer;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.folder-actions button:hover {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  color: var(--accent-soft);
+}
+
+/* **A box, not a squeezed row.** Measured at prose 13 / leading 1.5 / row gap 5: a
+   tree row is 19.50 tall and leaves 5 under it, and this was 21.50 with nothing
+   under it — three pixels short of a row and jammed against the one below, which is
+   what "too tightly packed" was. So it stands a third of a line taller than a row
+   and leaves the same gap a row does, and the pane's rhythm carries on through it.
+   Both numbers are the settings': `--row-h` is the leading and `--row-gap` is the
+   pane's own spacing, so the box grows with the type rather than at a size of its
+   own. */
+.rename-input {
+  -webkit-app-region: no-drag;
+  width: 100%;
+  min-height: calc(var(--row-h) + 0.35em);
+  margin-bottom: var(--row-gap);
+  /* A row's inset, so the text in the field begins where the text in a row's box
+     does rather than 0.8px past it. */
+  padding: 0 var(--pane-inset);
+  border-radius: var(--radius);
+  border: 1px solid var(--accent-soft);
+  background: var(--bg-raised);
+  color: var(--text);
+  font-family: inherit;
+  font-weight: inherit;
+  /* The row's size, not the chrome's: this box replaces a row in place, and a
+     smaller face inside it would make the tree jump on every rename. */
+  font-size: inherit;
+  line-height: inherit;
+  outline: none;
+}
+
+/* **Renaming in place is the one placement that may not grow.** The field stands in
+   for a row that is already on screen, so a taller box would walk every row below it
+   down and back as the rename opens and shuts. `useRename` passes this; the search
+   box and the two create rows take the size above, because nothing is underneath
+   them to move.
+
+   The border is drawn **in the gap**, a pixel each side: `border-box` is global, but
+   the line box inside is already a row tall, so a bordered field cannot be a row's
+   19.5px — it is 21.5. The negative margin puts those two pixels where the row gap
+   already is, and the block comes to exactly a row's pitch. Measured at prose 13,
+   leading 1.5, gap 5: 24.50 either way, against 21.50 before any of this. */
+.rename-input.rename-in-row {
+  min-height: var(--row-h);
+  font-size: inherit;
+  line-height: inherit;
+  margin-top: -1px;
+  margin-bottom: calc(var(--row-gap) - 1px);
+}
+
+.rename-input::placeholder {
+  color: var(--text-faint);
+}
+
+/* Renaming a folder happens inside the flex row, where a `width: 100%` input would
+   measure against the row and push the actions out. `.rename-input` is (0,1,0) and
+   this is (0,2,0), so it wins wherever it sits. */
+.rename-input.folder-rename-input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  margin: 1px 0;
+}
+
+/* WKWebView needs `-webkit-user-drag` to start an HTML5 drag on these rows. The
+   `draggable` attribute alone is not enough: WebKit consumes mousedown on a
+   `<button>` for activation instead of starting a drag, so the gesture never
+   becomes a dragstart. Separate from `dragDropEnabled: false` in tauri.conf.json —
+   that makes DnD reach the page at all; this makes the element draggable. */
+.file-list li > button[draggable='true'],
+.folder-header[draggable='true'] {
+  -webkit-user-drag: element;
+}
+
+.drag-ghost {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent-soft);
+  background: var(--bg-active);
+  color: var(--text);
+  font-size: var(--fs-chrome);
+  font-weight: var(--fw-medium);
+  font-family: var(--font-sans);
+  white-space: nowrap;
+}
+
+/* ---- Context menu ---- */
+
+/* Lifted by being lighter than either ground, plus a hairline. No shadow. */
+.context-menu {
+  position: fixed;
+  min-width: 12em;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.25rem;
+  z-index: var(--layer-menu);
+}
+
+/* A menu row: the glyph, a gap, then the label. `svg` and not a class for the
+   icon, because it is a slot — whatever is passed gets the same box. */
+.context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: var(--fs-chrome);
+}
+
+.context-menu button:hover {
+  background: var(--bg-hover);
+}
+
+.context-menu button.danger {
+  color: var(--alert);
+}
+
+.context-menu button.danger:hover {
+  background: color-mix(in srgb, var(--alert) 14%, transparent);
+}
+
+/* ---- The resizer ---- */
+
+.resizer {
+  flex: 0 0 5px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  z-index: var(--layer-resizer);
+}
+
+.resizer::after {
+  content: '';
+  position: absolute;
+  inset: 0 2px;
+  background: var(--border);
+}
+
+.resizer:hover::after,
+.resizer:active::after {
+  background: var(--accent-soft);
+}
+
+/* ---- The workspace: panes of tabs ---- */
+
+/* The reading side of the window is a **workspace**: groups of tabs, split into
+   panes the way an editor splits them, with the error banner across the top. The
+   tree is `Workspace.tsx`'s and the model is `workspace.ts`'s; the sheet only
+   sizes the boxes. Every box here says `min-width: 0` / `min-height: 0`, because
+   a flex child defaults to its content's size and a pane holding a wide table would
+   otherwise push its sibling off the window rather than scroll. */
+.workspace {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-viewer);
+}
+
+/* **The tree is geometry, and the DOM is flat.** Every group is a box placed as a
+   share of this body, every split a handle on the line between two boxes, and
+   every open tab's viewer its own element laid over its group's box — so a pane
+   split, resized or emptied *moves* elements and re-parents none. Nested one
+   element per split, a split was a new parent: React unmounted everything under
+   it, and a terminal lost its shell whenever anything moved across panes.
+
+   `--strip-h` is the tab strip's height, stated here in the reading size so a
+   viewer can start below it: it is `calc` in `em`, and the body sets the `em` every
+   child resolves it against. */
+.workspace-body {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  font-size: var(--fs-prose);
+  --strip-h: calc(var(--row-h) + 0.75em);
+}
+
+.pane-group {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* A viewer laid over its group's box, under the strip; the geometry is inline. */
+.workspace-body > .viewer {
+  position: absolute;
+}
+
+/* The pane under its strip: the empty pane's words, and the drop target for a
+   dragged tab while one is being dragged. */
+.pane-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.viewer-inline {
+  position: relative;
+}
+
+/* **Where a dragged tab would land**, an overlay that exists only during a drag —
+   over the viewer, since the viewer is not this pane's child — drawn over the half
+   it would take, or the whole pane when it would join it. The same accent wash a
+   chosen thing takes, translucent so the page shows through. */
+.pane-drop {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.pane-drop[data-zone]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  transition: inset var(--motion);
+}
+
+.pane-drop[data-zone='left']::after {
+  inset: 0 50% 0 0;
+}
+
+.pane-drop[data-zone='right']::after {
+  inset: 0 0 0 50%;
+}
+
+.pane-drop[data-zone='top']::after {
+  inset: 0 0 50% 0;
+}
+
+.pane-drop[data-zone='bottom']::after {
+  inset: 50% 0 0 0;
+}
+
+/* The handle on the line between two panes: the sidebar's resizer, placed by the
+   split's own box — its long side inline, its short side here, centred on the line
+   so the hairline it draws *is* the boundary. Above the viewers, or the pane on the
+   right would take the press. */
+.split-handle {
+  position: absolute;
+  z-index: var(--layer-resizer);
+  background: transparent;
+}
+
+.split-handle[aria-orientation='vertical'] {
+  width: 0.4rem;
+  transform: translateX(-50%);
+  cursor: col-resize;
+}
+
+.split-handle[aria-orientation='horizontal'] {
+  height: 0.4rem;
+  transform: translateY(-50%);
+  cursor: row-resize;
+}
+
+.split-handle::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 50%;
+  border-left: 1px solid var(--border);
+}
+
+.split-handle[aria-orientation='horizontal']::after {
+  inset: 50% 0 auto 0;
+  border-left: none;
+  border-top: 1px solid var(--border);
+}
+
+.split-handle:hover::after,
+.split-handle:active::after {
+  border-color: var(--accent-soft);
+}
+
+/* **A tab is a piece of the page, lifted out of a duller strip.** The strip takes
+   the sidebar's ground — the duller of the two the scheme has — and the active tab
+   takes the note's, with no line under it, so it and the page below read as one
+   sheet with the others tucked behind: the shape every editor's tabs have, and the
+   one a reader recognises without looking. It was a row of dim names divided by
+   hairlines with an underline for the active one — a browser's chrome, read as
+   cheap. Inactive tabs have no borders of their own; hovering one lifts its ground
+   half-way. The strip is a window-drag region, as the header under it is; the tabs
+   and the buttons opt out, or pressing a tab moves the window.
+
+   A tab is taller than a row — a row and a half — because a strip of tabs at the
+   line's own height is a list, not a set of handles. In the type's own unit. */
+.tab-strip {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  height: var(--strip-h);
+  padding: 0 var(--pane-inset);
+  overflow-x: auto;
+  background: var(--bg-sidebar);
+  box-shadow: inset 0 -1px var(--border);
+  font-size: var(--fs-prose);
+  line-height: var(--line-height-prose);
+  -webkit-app-region: drag;
+}
+
+.tab {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--icon-gap);
+  max-width: 14rem;
+  padding: 0 0.75rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-app-region: no-drag;
+  transition: color var(--motion), background-color var(--motion);
+}
+
+.tab:hover {
+  background: color-mix(in srgb, var(--bg-viewer) 50%, var(--bg-sidebar));
+  color: var(--text);
+}
+
+/* A tab dragged over a strip washes it, as a folder washes under a dragged note:
+   the same tone, because it is the same act one pane over. */
+.tab-strip.drag-over {
+  background: var(--bg-hover);
+}
+
+/* **The active tab is the page, cut square.** Its ground is the page's, it fills the
+   strip's whole height, and it stands over the strip's bottom hairline — so the tab
+   and the page below it are one sheet, with no line between them and no line under
+   them. It had the shell's radius on its top two corners, which left a wedge of
+   strip inside each curve: a lozenge with two little triangles at its shoulders,
+   and *"a triangle with sharp edges"* is what it read as. Square, and every edge it
+   has is a right angle it means.
+
+   **The marker is a two-pixel rule along its top edge** — the crispest mark a
+   rectangle can carry, and the width of the note's own caret. It is the
+   scheme's mark in the focused pane and the faint tier elsewhere, so which pane a
+   click in the sidebar opens into is readable at a glance; the text follows, a tier
+   dimmer in a pane that is not focused. */
+.tab[aria-selected='true'] {
+  z-index: 1;
+  background: var(--bg-viewer);
+  color: var(--text-dim);
+}
+
+.tab[aria-selected='true']::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  border-top: 2px solid var(--text-faint);
+}
+
+.pane-group[data-focused='true'] .tab[aria-selected='true'] {
+  color: var(--text);
+}
+
+.pane-group[data-focused='true'] .tab[aria-selected='true']::before {
+  border-top-color: var(--mark);
+}
+
+.tab-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The close is there on the active tab and on hover, and holds its space
+   otherwise — through `visibility`, as the tree's `+` does, so a strip of tabs does
+   not jitter as the pointer crosses it. A glyph from the face, not an icon: it is a
+   letter-sized mark beside a word. */
+.tab-close {
+  flex: none;
+  width: var(--glyph);
+  height: var(--glyph);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  visibility: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tab:hover .tab-close,
+.tab[aria-selected='true'] .tab-close {
+  visibility: visible;
+}
+
+.tab-close:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+/* The split buttons, at the strip's right; `sidebar-actions` dresses them. Shown
+   when the pointer is over the strip, as a section's controls are over its heading:
+   a permanent pair of frames on every pane is furniture. */
+.tab-strip-actions {
+  margin-left: auto;
+  flex: none;
+  align-self: center;
+  -webkit-app-region: no-drag;
+  visibility: hidden;
+}
+
+.tab-strip:hover .tab-strip-actions,
+.tab-strip:focus-within .tab-strip-actions {
+  visibility: visible;
+}
+
+/* **The terminal fills its pane**, edge to edge but for the pane's own inset, on
+   the page's ground — xterm reads that ground off this element, so the colour is
+   declared once here and painted twice. `min-height: 0` for the reason every pane
+   box says it: the grid follows the box, and the box must not follow the grid. */
+.terminal-pane {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  padding: 0.5rem var(--pane-inset);
+  background: var(--bg-viewer);
+  color: var(--text);
+  /* **One step down from the prose, on the note's leading** — the size the sheet
+     gives everything set in mono beside the reading face (the gutter, a code span,
+     the property block), because a mono face at the prose's own size reads a size
+     larger: its caps are taller and its cells wider. Measured at 13px prose: the
+     same 13px in Menlo, and it was reported as much larger than any note. The
+     leading is stated here because xterm reads both off this element, and an
+     unstated leading computed `normal`, which xterm took as 1. */
+  font-size: calc(var(--fs-prose) * 0.92);
+  /**
+   * **A terminal's leading is 1, and that is not taste.** It was the note's, on the
+   * argument that a line of shell output is a line of the note — and a paragraph's
+   * leading is exactly what a *grid* cannot have. xterm multiplies this by the cell
+   * to get the row, so at the note's 1.59 an 11.96px glyph sat on a 19.00px row and
+   * every box-drawing character had a 7px gap under it: `claude`'s bordered panels
+   * came out as dashed verticals, which is what "the formatting in the terminal"
+   * was. `customGlyphs` draws those continuously whatever the leading, but it is
+   * documented as not working with the **DOM renderer** — and with no WebGL or
+   * canvas addon loaded, the DOM renderer is what this is. So the glyphs come from
+   * the font, and the font can only tile at 1.
+   *
+   * It also buys back a third of the rows on screen, which a shell wants more than
+   * a paragraph does. Terminal.app, iTerm2 and VS Code all default to 1.
+   */
+  line-height: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Said only when a session will not outlive the window, which is the tmux-is-missing
+   case. `flex: none` so it takes its own height and the screen below keeps the rest:
+   xterm measures itself in that box, and a note that ate into it would fit a row too
+   many — the trap `FitAddon` already sprang once. */
+.terminal-note {
+  flex: none;
+  margin: 0 0 0.5rem;
+  color: var(--text-dim);
+  /* The pane's leading is the terminal's grid, which is 1; this is a sentence. */
+  line-height: var(--line-height-prose);
+}
+
+/* **The box xterm opens into, and it has no padding of its own** — the pane above
+   carries that. `FitAddon` divides the parent's computed height by the cell height,
+   and `box-sizing: border-box` puts the padding inside that number, so a padded
+   host fitted one row more than there was room for and clipped it. */
+.terminal-screen {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.terminal-pane .xterm {
+  height: 100%;
+}
+
+/* No focus ring: the caret says where the keyboard is, as the editor's does. */
+.terminal-pane .xterm:focus,
+.terminal-pane .xterm.focus {
+  outline: none;
+}
+
+/* **`.xterm-viewport` is vestigial in xterm 6** — scrolling moved to
+   `.xterm-scrollable-element`, whose sliders are drawn from the theme (see
+   `themeFrom`). It is still in the DOM, still absolute over the whole terminal, and
+   xterm's own sheet paints it `#000`: a black plate under a light scheme, and the
+   screen above it is only as tall as its rows, so the band showed. The scrollbar
+   rules that used to be here styled this same dead element, which is why none of
+   them ever appeared.
+
+   **Three classes, and that is the point**: xterm's rule is `.xterm
+   .xterm-viewport` at two, its sheet is imported by the pane's own module and so
+   lands *after* this one, and a tie goes to the later sheet — measured, the ground
+   stayed `rgb(0, 0, 0)` at two classes. The same trap `.cm-gutters` and the drawn
+   selection fell into. */
+.terminal-pane .xterm .xterm-viewport {
+  background-color: transparent;
+}
+
+/* **A pane showing a terminal does not scroll; the terminal does.** Two scrollports
+   in one box is a wheel that moves whichever the pointer's chain reaches first, and
+   the outer one carries the whole terminal with it. */
+.viewer:has(> .terminal-pane) {
+  overflow: hidden;
+}
+
+/* **One hue per column, down the file** — Rainbow CSV's reading, in the app's
+   palette. The file is its own text: nothing is aligned, padded or rewritten, and
+   the commas are where they were typed. A separator keeps the prose colour, which
+   is what makes the columns read as columns rather than as a stripe. */
+.csv-editor .cm-csv-c0 {
+  color: var(--csv-1);
+}
+
+.csv-editor .cm-csv-c1 {
+  color: var(--csv-2);
+}
+
+.csv-editor .cm-csv-c2 {
+  color: var(--csv-3);
+}
+
+.csv-editor .cm-csv-c3 {
+  color: var(--csv-4);
+}
+
+.csv-editor .cm-csv-c4 {
+  color: var(--csv-5);
+}
+
+.csv-editor .cm-csv-c5 {
+  color: var(--csv-6);
+}
+
+/* ---- A file the pane shows rather than edits ---- */
+
+/* The box an image or a message sits in: the pane's own, centred, with the note's
+   column padding so a photograph starts where a paragraph would. */
+.file-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem var(--column-pad) 2rem;
+}
+
+/* **Contained, never cropped, never enlarged.** A photograph is shown whole and at
+   its own size or smaller: blowing a 200px thumbnail up to the pane's width is the
+   app inventing detail it does not have. The shell's radius and a hairline, because
+   an image is an object on the page — the one other thing that takes them is the
+   collection table. */
+.file-image {
+  max-width: 100%;
+  max-height: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+/* A PDF fills the pane: the engine's own reader, with its own scrolling and zoom. */
+.file-frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: none;
+  background: var(--bg-raised);
+}
+
+.file-reveal {
+  margin-left: 0.5rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--mark);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.file-reveal:hover {
+  text-decoration: underline;
+}
+
+/* ---- The note pane ---- */
+
+.viewer[hidden] {
+  display: none;
+}
+
+.viewer {
+  /* A pane's scrollport, one per group: the tab strip above it is `flex: none`, so
+     this takes the rest and `min-height: 0` lets it scroll rather than grow. */
+  min-height: 0;
+  /* **The reading face, for everything in the pane.** `.sidebar` took `--font-prose`
+     and so did the editor's scroller — and this never did, so the note's title and
+     its footer headings fell through to `:root`'s system sans. Measured on one
+     screen: twelve type voices in three families, one of which was never chosen.
+     A title in a different face from the prose under it is the "changing font
+     styles" a reader feels and cannot name. */
+  font-family: var(--font-prose);
+  position: relative;
+  flex: 1;
+  overflow-y: auto;
+  background: var(--bg-viewer);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+}
+
+/* The note page is one column, centred in whatever the window leaves over. The
+   header is drawn on the same column as the text, so both are capped here rather
+   than the editor alone — capping the editor by itself leaves the title behind at
+   the old left edge.
+
+   `width: 100%` is load-bearing: these are flex items, and auto cross-axis margins
+   switch `stretch` off, which would leave each box shrink-wrapped around its
+   content. Anything added to the page has to join this list or it sits alone —
+   which the editor did not for a while, under a second copy of these three
+   declarations written because the list named a class nothing rendered. */
+.viewer > .viewer-header,
+.viewer > .daily-steps,
+.viewer > .note-section,
+.viewer > .calendar-month,
+.viewer > .json-message,
+.viewer > .code-editor {
+  width: 100%;
+  max-width: var(--reading-width);
+  margin-inline: auto;
+}
+
+/* **The day before and the day after, at the top of a journal page.** One row on
+   the note's own column: the previous day at its left edge, the next at its right,
+   and whichever exists alone at its own end — `margin-left: auto` on the forward
+   step, so a first day's only step still sits right. A step is a link in every
+   respect the app has: the mark's colour, an underline only under the pointer, and
+   one chevron, the tree's own, turned back for the way back.
+
+   A tier down in size, because it is the page's apparatus and not its text. */
+.daily-steps {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  padding: 0 var(--column-pad) 0.25rem calc(var(--gutter-w) + var(--column-pad));
+  font-size: 0.92em;
+}
+
+.daily-step {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--mark);
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  font-variant-numeric: tabular-nums;
+  transition: color var(--motion);
+}
+
+.daily-step.forward {
+  margin-left: auto;
+}
+
+/* One chevron, turned. */
+.daily-step.back svg {
+  transform: scaleX(-1);
+}
+
+/* **The first thing on the page starts below the band, not under it.**
+   `.viewer::before` is positioned, so it paints over the in-flow content beneath
+   it: at prose 13.5 the band is opaque to 76px and fades to 83.45 while the header
+   itself ends at 66, so a section beginning 3.2px under the title had the top 7px
+   of its heading painted out and the next 7px washed. Only the *first* one needs
+   this — the sections at the end of a note come after the editor, which is nowhere
+   near the top of the scrollport. */
+.viewer > .viewer-header + .note-section,
+.viewer > .viewer-header + .daily-steps {
+  padding-top: var(--header-fade);
+}
+
+/* Text fades out *above* the sticky header rather than sliding up to a hard edge
+   under the title. A band pinned to the top of the scrollport: fully opaque as far
+   as the header's own bottom edge, then fading over the space below it.
+
+   **Derived from the header, not measured off it.** `--header-h` adds up the same
+   three lengths the header's own `padding` and line box are made of, so changing
+   the header moves the band with it; it was 6.4375rem written out twice, with a
+   comment admitting it had to be re-derived by hand.
+
+   Three things about the shape. `flex: none`, because `.viewer` is a column flex
+   container whose content overflows and an empty item would otherwise collapse to
+   0. The negative margin, so outer size is 0 and the header still starts exactly
+   where it did. And `pointer-events: none`, because the band reaches over the
+   note's own text and the header is a window-drag region — a hit-testable overlay
+   there would eat a click meant to place the caret. */
+.viewer:has(> .viewer-header)::before {
+  content: '';
+  position: sticky;
+  top: 0;
+  flex: none;
+  height: var(--header-h);
+  /* Outer size 0, so the header still starts exactly where it did. */
+  margin-bottom: calc(-1 * var(--header-h));
+  background: linear-gradient(
+    var(--bg-viewer) calc(var(--header-h) - var(--header-fade)),
+    transparent
+  );
+  pointer-events: none;
+  -webkit-app-region: no-drag;
+}
+
+.viewer-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--layer-header);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  /* The prose inset *plus* the gutter: the text begins after both, and a title that
+     began at only the inset started inside the gutter's column. */
+  padding: 1.75rem var(--column-pad) 0.5rem calc(var(--gutter-w) + var(--column-pad));
+  /* Opaque, not a gradient — the fade is the band above. */
+  background: var(--bg-viewer);
+  -webkit-app-region: drag;
+}
+
+/* **The title is a control**, because it is what starts a rename — a note is named
+   by typing over its own name. The field it becomes carries the same face, size and
+   weight, so nothing on the page moves as it opens. */
+.viewer-title,
+.viewer-header > .rename-input {
+  /* The reading face. It took the display serif for a build and was asked back,
+     as the section headings were: the title is the note's *name*, and a name is
+     read in the face everything else is. What sets it apart is size alone. */
+  font-size: var(--title-size);
+  font-weight: var(--fw-strong);
+  letter-spacing: -0.02em;
+  line-height: var(--title-leading);
+  color: var(--text);
+  min-width: 0;
+}
+
+.viewer-title {
+  /* The header is a window-drag region; a control in it has to opt out, or
+     pressing the title moves the window instead of opening the field. */
+  -webkit-app-region: no-drag;
+  /* **The whole title row starts the rename**, not just the letters. The button
+     shrink-wrapped its text, so clicking the empty space beside a short name did
+     nothing — and the name is short far more often than it is long. The window can
+     still be dragged by the space the status word keeps on the right. */
+  flex: 1;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color var(--motion);
+}
+
+/* Nothing to open: a JSON file's title, and the settings file's, are labels. */
+.viewer-title:disabled {
+  cursor: default;
+}
+
+.viewer-title:hover:not(:disabled) {
+  color: var(--mark);
+}
+
+/* **The title's field is the title, not a box over it.** Renaming a note here is
+   typing over its own name, so nothing should move or appear as the field opens: no
+   border, no ground, no inset, and the same face, size and weight as the text it
+   replaces. The caret and the selected name are the whole of what changes — which
+   is how Obsidian's inline title reads, and the ask.
+
+   The row height and the row gap go with it: those belong to a pane of rows, and
+   here they pushed the note's first line down as the field opened. */
+.viewer-header > .rename-input {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* Only the selection says the name is being edited, so it has to be visible on
+   both grounds — `--accent-soft` at a low alpha, the pane's own mark. */
+.viewer-header > .rename-input::selection {
+  background: color-mix(in srgb, var(--accent-soft) 28%, transparent);
+}
+
+/* The header is a drag region, so anything clickable inside it has to opt out —
+   without this, pressing Save moves the window. */
+.json-header-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  -webkit-app-region: no-drag;
+}
+
+.header-action {
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sidebar);
+  color: var(--text);
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: var(--fs-chrome);
+  /* The header's own leading, stated: inherited, it was `normal`, which a face
+     computes from its metrics per weight — so the pressed half of the view switch,
+     at 600, came out a pixel taller than the half beside it. Measured: 22.78
+     against 21.78. */
+  line-height: var(--title-leading);
+  cursor: pointer;
+}
+
+.header-action:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--accent-soft);
+}
+
+/* Nothing to save is not an error, so the button says so quietly rather than
+   disappearing — a control that comes and goes is a control you hunt for. */
+.header-action:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+/* The header's controls when there is more than one: the calendar's view switch
+   and its Sync, on the title's baseline. */
+.viewer-actions {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+/* A segmented pair sharing one outline. The pressed half is marked by weight and
+   colour and not by a ground, which is how the app marks every pressed control. */
+.view-switch {
+  display: flex;
+}
+
+.view-switch .header-action {
+  color: var(--text-dim);
+  border-radius: 0;
+}
+
+/* The halves overlap by the hairline rather than one dropping its edge: with the
+   second half's left border gone, the accent outline the pointer or the press
+   brings up was missing a side and read as hidden behind the first. Whichever
+   half is outlined is lifted over its neighbour so all four sides show. */
+.view-switch .header-action + .header-action {
+  margin-left: -1px;
+}
+
+.view-switch .header-action:hover,
+.view-switch .header-action[aria-pressed='true'] {
+  position: relative;
+  z-index: 1;
+}
+
+.view-switch .header-action:first-child {
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.view-switch .header-action:last-child {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.view-switch .header-action[aria-pressed='true'] {
+  color: var(--text);
+  font-weight: var(--fw-strong);
+  border-color: var(--accent-soft);
+}
+
+/* An agenda row reads as the journal line does: the clock first, in the clock's own
+   tone, then the title. What follows the title takes the room that is left and is
+   cut with an ellipsis — measured with an `at::` holding a meeting link, the
+   detail ran to x=1386 in an 830px row and the title was squeezed to nothing. */
+.event-when {
+  margin-right: var(--icon-gap);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.event-detail {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The month page, in the app's own materials: the lifted ground the collection
+   table takes, hairlines between the days (the grid's gap over `--border`), the
+   months either side on the page's own ground, today's number in the mark. A day
+   grows with what it holds. It is the first thing under the header, so it clears
+   the fade band the way a section does. */
+.viewer > .viewer-header + .calendar-month {
+  padding-top: var(--header-fade);
+}
+
+.calendar-month {
+  flex: none;
+  padding: 0 var(--column-pad) 2rem calc(var(--gutter-w) + var(--column-pad));
+  font-size: var(--fs-prose);
+  line-height: var(--line-height-prose);
+}
+
+.calendar-nav {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: var(--row-h) 0 0.5rem;
+}
+
+.calendar-month-name {
+  font-weight: var(--fw-strong);
+}
+
+.calendar-nav .header-action {
+  margin-left: auto;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--border);
+  overflow: hidden;
+}
+
+.calendar-weekday {
+  padding: 0.15rem 0.4rem;
+  background: var(--bg-raised);
+  color: var(--text-faint);
+  font-size: 0.92em;
+  text-align: center;
+}
+
+.calendar-cell {
+  min-width: 0;
+  min-height: calc(var(--row-h) * 4);
+  padding: 0.15rem 0.4rem 0.4rem;
+  background: var(--bg-raised);
+  cursor: pointer;
+}
+
+.calendar-cell.outside {
+  background: var(--bg-viewer);
+}
+
+.calendar-cell:hover {
+  background: var(--bg-hover);
+}
+
+.calendar-date {
+  display: block;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.calendar-cell.outside .calendar-date {
+  color: var(--text-faint);
+}
+
+.calendar-cell.today .calendar-date {
+  color: var(--mark);
+  font-weight: var(--fw-strong);
+}
+
+/* An event on the page: the start and the name on one line, cut with an ellipsis
+   rather than wrapped, so a day reads as a list. An all-day event is a band, the
+   ground a picked row takes. */
+.calendar-chip {
+  display: flex;
+  gap: var(--icon-gap);
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.92em;
+  font-weight: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.calendar-chip-when {
+  flex: none;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.calendar-chip-what {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-chip.all-day {
+  padding: 0 0.25rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-active);
+}
+
+.calendar-chip:hover {
+  color: var(--mark);
+}
+
+/* Colour for a JSON file.
+
+   **Within the palette, and mostly within the three text tiers.** A property's
+   name takes the accent, the same `--accent-soft` at the same weight a `date:` in
+   a note's frontmatter takes — one app, one way of saying "this is the name of a
+   property". Its value is the content, so it takes `--text`.
+
+   Brackets are coloured by **depth**, cycling through the three tiers rather than
+   through hues: the outermost pair is as strong as the text, and each nesting is
+   quieter than the one holding it. Three steps, because a config file nested four
+   deep is a config file to reconsider — and because a fourth colour would have to
+   be invented, which is how a palette of ten schemes stops being ten schemes. */
+
+
+/* A value carries a *hint* of the scheme rather than the plain text colour: at
+   `--text` exactly it was the same rgb as the prose around it, which is not a
+   colour so much as an absence of one. Mixed off `--accent-soft` and not a hue of
+   its own — the palette has ten schemes and every colour here has to follow them.
+   Weaker than the name beside it, which is the accent at full strength. */
+.json-editor .cm-json-string {
+  color: color-mix(in srgb, var(--accent-soft) 32%, var(--text));
+}
+
+/* A literal is not prose: a number and a `true` read as data one tier down, which
+   is also what keeps a long array of them from shouting. */
+.json-editor .cm-json-number,
+.json-editor .cm-json-atom {
+  color: var(--text-dim);
+}
+
+/* The pair the caret is on: a ground, not a colour, so it does not argue with the
+   depth shade the bracket already carries. `--bg-active` is the ground every
+   *chosen* thing in the app takes — a drawn selection, the picker's cell — which is
+   one way of saying "this one". A row in the tree says it by marking its name. */
+.json-editor .cm-json-match {
+  border-radius: var(--radius-sm);
+  background: var(--bg-active);
+  color: var(--accent-soft);
+  font-weight: var(--fw-strong);
+}
+
+/* A bracket with nothing closing it. Colour only and no ground: while you are
+   typing a file, the brace you just opened is unmatched, and it should say so
+   without flashing a box on and off under the caret. `--alert` because Save will
+   refuse this file until it closes. */
+.json-editor .cm-json-unmatched {
+  color: var(--alert);
+  font-weight: var(--fw-strong);
+}
+
+.json-editor .cm-json-depth-0 {
+  color: var(--text);
+}
+
+.json-editor .cm-json-depth-1 {
+  color: var(--text-dim);
+}
+
+.json-editor .cm-json-depth-2 {
+  color: var(--text-faint);
+}
+
+/* What the parser said, in the alert colour, at the top of the file it is about.
+   In the centred column with the header and the editor, and inset to the gutter
+   plus the prose inset, so it starts where the file's own first character does. */
+.json-message {
+  margin: 0;
+  padding: 0.25rem var(--column-pad) 0.4rem calc(var(--gutter-w) + var(--column-pad));
+  color: var(--alert);
+  font-size: var(--fs-chrome);
+}
+
+.save-status {
+  flex-shrink: 0;
+  font-size: 0.6875rem;
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+}
+
+.viewer-empty {
+  flex: 1;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: var(--text-faint);
+  font-size: var(--fs-chrome);
+  text-align: center;
+  -webkit-app-region: drag;
+}
+
+.banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.6rem 0.75rem 0;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--alert) 26%, transparent);
+  background: color-mix(in srgb, var(--alert) 10%, transparent);
+  color: var(--alert);
+  font-size: 0.75rem;
+}
+
+/* No `opacity`: the dismiss glyph inherits `--alert` at full strength (6.09:1 on
+   the banner's tinted ground) and the affordance is a background on hover. An
+   opacity here would discount a colour that is already carrying meaning. */
+.banner button {
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: var(--fs-chrome);
+  line-height: 1;
+  padding: 0.15rem 0.25rem;
+}
+
+.banner button:hover {
+  background: color-mix(in srgb, var(--alert) 16%, transparent);
+}
+
+/* ---- The editor ---- */
+
+/* ---- What links here ---- */
+
+/* The end of the note, on the note's own column: the same left inset as the title,
+   which is the prose inset plus the gutter. `flex: none`, because `.viewer` is a
+   column flex container and the editor above takes what is left. */
+.note-section {
+  flex: none;
+  /* The note's own size and leading, as `.sidebar` takes them for the tree. The
+     viewer sets neither — the editor's font lives on `.cm-scroller` — so without
+     this a section's rows came out at the browser's 16px beside a note at 13px.
+     Measured before: label 16px, note 13px. */
+  font-size: var(--fs-prose);
+  line-height: var(--line-height-prose);
+  /* **A row's worth of air above, and none below**: the section under it brings its
+     own. The bottom was 2rem, which read as two panes rather than two sections of
+     one note — but the top was `0.25rem`, which is not a row and never was: the
+     rule said one thing and the number said another. Measured at prose 13.5 with
+     the row gap at 8: 2px between one section's last row and the next heading,
+     against 6px between a heading and its own first row. The break *between*
+     sections was tighter than the gap *inside* one, which is the thing that reads
+     wrong. `--row-h` is the leading, so a break is one blank line — and it does not
+     move with `--row-gap`, because how far apart two rows sit is taste and where
+     one section ends is structure. */
+  padding: var(--row-h) var(--column-pad) 0 calc(var(--gutter-w) + var(--column-pad));
+}
+
+/* The last one closes the note, so it takes the space the editor's own bottom
+   padding used to give. */
+.note-section:last-child {
+  padding-bottom: 2rem;
+}
+
+/* The lists in a section are the tree's lists — `file-list` for the rows,
+   `folder-children` for the guide lines — minus the tree's scrollport: the note
+   scrolls, and a section is part of the note. */
+/* A count, not a label: one tier down and in the well the rest of the chrome uses,
+   so it reads as the number beside the word rather than as more words. */
+/* The count beside a heading, a note mentioned twice, or a property in use. `--text-faint`
+   with tabular figures, which is the app's quiet number — the same treatment the
+   settings sliders' readout takes, one tier down. No ground behind it: a badge
+   would be a shape this app draws nowhere else. */
+.row-count {
+  /* The gap the tree puts between a row's icon and its name, by name: it was that
+     number written out again, and it was flush against the heading before that,
+     which read as one word. */
+  margin-left: var(--icon-gap);
+  color: var(--text-faint);
+  font-size: 0.92em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The row a shut-and-opened empty section shows. A row, so its words start where
+   every other row's words do — as a line of text at that indent it sat under the
+   guide line's own elbow. `--text-faint` and no pointer: there is nothing to open. */
+.note-section .file-row:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+/* ---- A collection as a table ---- */
+
+/* **The app's one table**, and it takes its measurements from the same tokens as
+   every row: the note's size and leading, `--row-h` for a row's height, the pane's
+   own inset between columns, and `--mark` on the headings, which is the format this
+   app gives anything that *names* a thing rather than showing one.
+
+   No rules, no zebra: a table here is a reading of lines that are already in the
+   notes, so the columns do the work. One hairline under the heading row, because a
+   heading that does not separate itself reads as the first row of data. The
+   *ground* is the box's, below. */
+.collection-table {
+  /* **Columns hug their content.** At `width: 100%` the browser hands the spare
+     width to the columns in proportion, so `when` came out 174px wide for five
+     characters and the eye had to travel between them — measured. A table of
+     values is read across a row, so the row should be as short as it can be. */
+  width: auto;
+  max-width: 100%;
+  border-collapse: collapse;
+  font-size: inherit;
+  line-height: inherit;
+  text-align: left;
+}
+
+.collection-table th {
+  padding: 0 var(--column-gap) 0.15rem 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--mark);
+  font-weight: var(--fw-strong);
+  white-space: nowrap;
+  /* The grip sits on this edge. */
+  position: relative;
+}
+
+/* The sum row: a hairline above it, the same weight a header takes, and the same
+   `--mark` — it is the table's own reading of its rows, not one of them, and the
+   header is the other thing on the page that is about the columns rather than in
+   them. `tfoot` sits after `tbody` in the markup, so the hairline is its top edge. */
+.collection-table .collection-sum td {
+  border-top: 1px solid var(--border);
+  color: var(--mark);
+  font-weight: var(--fw-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+/* **Fixed only once a column has been dragged**, which `data-sized` says. Under
+   `auto` the browser treats a width as a suggestion and grows the column back to
+   its content, so a drag would not hold; under `fixed` from the start, the natural
+   widths — the right thing to open at, since a column's content is whatever the
+   notes happen to say — are lost. So: auto until asked, fixed after. */
+.collection-table[data-sized] {
+  table-layout: fixed;
+  width: auto;
+}
+
+/* A narrowed column clips rather than overflowing into its neighbour. The row still
+   carries the whole line as its `title`, so nothing is hidden with no way back. */
+.collection-table[data-sized] th,
+.collection-table[data-sized] td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The grip: on the column's right edge, as wide as a pointer needs and no wider,
+   and drawn only under the pointer so a header of hairlines is not the first thing
+   the page says. `--column-gap` puts it in the gap rather than over the last glyph
+   of the name. */
+.column-grip {
+  position: absolute;
+  top: 0;
+  right: calc(var(--column-gap) / 2);
+  bottom: 0;
+  width: 0.5rem;
+  cursor: col-resize;
+  /* Centred in the grip's own box. */
+  background: linear-gradient(to right, transparent 45%, var(--border) 45%, var(--border) 55%, transparent 55%);
+  opacity: 0;
+  transition: opacity var(--motion);
+}
+
+.collection-table th:hover > .column-grip,
+.column-grip:hover {
+  opacity: 1;
+}
+
+.column-grip:hover {
+  background: linear-gradient(to right, transparent 45%, var(--mark) 45%, var(--mark) 55%, transparent 55%);
+}
+
+/* **A cell is one line.** At `max-width: 100%` a squeezed table wraps the widest
+   column instead of the row — `Corner Shop` became three lines tall and, with cells
+   on the baseline, dragged `09:42` down to the last of them. A row of values is
+   read across, so the row stays one line and the *table* scrolls if it must. */
+.collection-table td {
+  height: var(--row-h);
+  padding: 0 var(--column-gap) 0 0;
+  vertical-align: baseline;
+  color: var(--text);
+  white-space: nowrap;
+  /* **A cell is a phrase, not a paragraph.** Columns hug their content, so one
+     free-text field — a `for::` holding a sentence — widened its column until the
+     note column was off the right of the reading measure. Clipped instead, and the
+     whole line is on the row's `title`; `.row-name` makes the same bargain for a
+     name too long for the pane. In `ch` because it is a measure of text: at the
+     reading column's own 92ch and eight columns there is no room for two of these. */
+  max-width: var(--cell-max);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* **The one lifted surface in the reading pane.** Everything else on the page is
+   text on the note's ground — rows, quoted lines, the structure — and a table is
+   the one thing here that is an *object*: values arranged, read across and down,
+   with edges. So it is the one thing given a raised ground, a hairline and the
+   shell's radius, the way a menu or the settings panel lifts off the page. It had
+   no ground for a build, on the argument that a border would be a second shape;
+   measured against the reference this direction came from, a page with nothing
+   lifted on it is what read as flat. One card per page, and this is it.
+
+   Also the scrollport: a table wider than the column is the one thing in the
+   reading pane allowed to move sideways, because shrinking it is the wrapping
+   `td`'s `nowrap` just stopped.
+
+   The inset is the same on every side and it is a row step — the table sits where
+   a row would, one step in under the heading, and the card's left edge is the
+   column's. `.collection-table` had the gap below; it is the card's now, since a
+   gap inside a card is padding. */
+.collection-table-box {
+  overflow-x: auto;
+  padding: 0.5rem 1rem;
+  margin-bottom: var(--row-gap);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+/* The clock, one tier down and with tabular figures so the column lines up.
+
+   **Not the accent it takes in prose.** A clock in a sentence is marked because
+   nothing else says it is a time; a clock in a column called `when` has a header
+   doing that, and colouring it again made three of the seven columns accent — the
+   labels shouting over the values, which is backwards for a table. */
+.collection-table .collection-when {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A cell that opens something is a control, so it says so by colour rather than by
+   a box — the treatment the open row and a section's heading already take. `em`
+   nowhere in here, so no font-size to declare. */
+.collection-link,
+.collection-source {
+  -webkit-app-region: no-drag;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--mark);
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--motion);
+}
+
+.collection-link:hover,
+.collection-source:hover {
+  color: var(--accent-soft);
+  text-decoration: underline;
+}
+
+/* The note a row came from is context rather than content: one tier down, like the
+   count beside a heading. */
+.collection-source {
+  color: var(--text-dim);
+}
+
+/* ---- A collection's declared structure ---- */
+
+/* **No guide down a thing that is not a list of rows.** The trunk and its elbow say
+   which row is under which, and they are drawn at the centre of a chevron's box —
+   which a row leaves empty and these two do not, so the elbow ran through the first
+   letters of the structure and through the table's `when` header. A single block
+   has no sibling for a trunk to point at either. */
+.folder-children > li.collection-structure::before,
+.folder-children > li.collection-structure::after,
+.folder-children > li.collection-table-box::before,
+.folder-children > li.collection-table-box::after {
+  content: none;
+}
+
+/* **The structure is a line, not a name.** It was a row's `row-name`, which is one
+   clipped line — so the single string this page exists to show ended in an ellipsis
+   at `using account::<<…`. A line wraps, hangs its continuation under its own first
+   word, and is a control because pressing it opens the field that edits it. */
+/* `.file-list li > button` — the rule every row in every pane is — clips its one
+   line with an ellipsis, and this button sits in exactly that slot. So the selector
+   has to reach as far, or the structure ends at `using account::<<…` again. */
+.file-list li > button.collection-line {
+  -webkit-app-region: no-drag;
+  display: block;
+  width: 100%;
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* A wrapped line hangs under its own text rather than under the margin, the way a
+   list item's second row does — one indent step, the app's own unit for it. */
+.collection-line .collection-line-text {
+  display: inline-block;
+  white-space: normal;
+  padding-left: var(--indent-step);
+  text-indent: calc(-1 * var(--indent-step));
+}
+
+.collection-line:hover .collection-line-text {
+  text-decoration: underline;
+}
+
+/* The brackets of a slot, and the prose between the fields, on a declared
+   structure. **A structure is about its fields**, so they take the app's label
+   format and everything around them steps back — it read the other way round for a
+   build, `spent` and `at` and `using` the brightest thing on the line and
+   `currency::` the faintest, which is the schema hiding behind its scaffolding. */
+.collection-syntax {
+  color: var(--text-faint);
+}
+
+/* Nothing declared yet: the same tier the empty Lines row takes. */
+.collection-empty {
+  color: var(--text-faint);
+}
+
+/* ---- Lines under a row ---- */
+
+/* What a note mentions, and what a collection gathers: the same object twice, so
+   one rule dresses both.
+
+   **The indent is the row's own name column** — a chevron's box, an icon's box and
+   the gap between them — so a line starts under the name it belongs to. It was
+   `calc(9px + 1.2rem)`, two numbers that named neither of the boxes they were
+   standing in for and could not follow them.
+
+   `0.92em` and not `--fs-chrome`: that token is a fixed 13px, so these lines were
+   the one part of the reading pane the reading size never reached. `em` puts them
+   one tier under the row above, which is what `.row-count` already does. */
+/* **The indent is on the list, not on its lines**, and that is the `em` trap this
+   sheet keeps a test for: `--control` is `1.5em`, so on a line at `0.92em` the two
+   boxes it stands in for came out 1.84px narrower than the row's own — the lines
+   sat 2.34px left of the name above them, measured. The `ul` inherits the row's
+   size, so the column is the row's. */
+.backlink-lines,
+.collected-lines {
+  margin: 0 0 0.15rem calc(var(--control) * 2 + var(--icon-gap));
+  padding: 0;
+  list-style: none;
+}
+
+/* No inset on the left: the list's own margin already put these on the name's
+   column, and 0.4rem more was the line starting 6.4px right of the word it belongs
+   under. The right one keeps a long line off the edge. */
+.backlink-lines li,
+.collected-lines li {
+  padding: 0.05rem var(--pane-inset) 0.05rem 0;
+  color: var(--text-faint);
+  font-size: 0.92em;
+  /* They open the note, like the row above them — so they say so rather than
+     reading as a field with a text cursor in it. */
+  cursor: pointer;
+}
+
+/* One line each, clipped rather than wrapped: a backlink is a reminder of where
+   the link sits, and a wrapped paragraph would turn the section into a second copy
+   of the vault. */
+.backlink-lines li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A collected entry is the whole of what was written: the line, and the lines
+   nested under it, indented as they are in the file. So the whitespace is content
+   — `pre-wrap` — and wrapping is on, because this *is* the thing being read and
+   clipping it would hide the half of the line the keyword was about. */
+.collected-lines li {
+  white-space: pre-wrap;
+  margin-bottom: var(--row-gap);
+}
+
+/* **The entry reads above its own detail.** The `li` is one block — the line and
+   whatever is nested under it — and a backlink's tier is right for the nesting,
+   which is context. The entry itself is what the page gathered, so it takes the
+   note's own colour and the run under it stays where it was. */
+.collected-lines .collection-line-text {
+  color: var(--text);
+}
+
+/* ---- The settings panel ---- */
+
+/* The app's one modal, and its one shadow.
+ *
+ * Ground roles, and they hold in both modes because the sheet's two orderings do:
+ * the dialog is `--bg-raised` (the lifted surface, white in light mode), and the
+ * rail plus every input well is `--bg-sidebar` — "recessed" is what that token
+ * already means in light mode, where lighter-than-the-page is not available.
+ *
+ * Contrast, measured over all ten palettes, worst case per pairing. Every one of
+ * these is a pairing the sheet already carries, except the last:
+ *   --text on --bg-raised        15.14  ember/dark   h3, values, inputs
+ *   --text-dim on --bg-raised     8.23  ember/dark   field labels
+ *   --text-faint on --bg-raised   5.17  ember/dark   hints, ✕, ↺
+ *   --text on --bg-sidebar       15.55  slate/light  keybind, text input
+ *   --text-dim on --bg-sidebar    7.73  slate/light  rail, resting
+ *   --text on --bg-hover         14.48  ember/dark   rail and ✕, hovered
+ *   --text on --bg-active        12.55  ember/dark   rail active, keybind capturing
+ *   --alert on --bg-raised        6.52  ember/dark   .settings-conflict  ← new here
+ * Graphics, floor 3:1: `--accent-soft` as a border or the ✓ is 4.67 at worst
+ * (slate/dark), `--text-faint` as a hovered border 5.17. No `opacity` discounts
+ * any text colour; the two hairline borders are the sheet's own depth mechanism
+ * and are not carrying information. */
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  /* Above `.context-menu`'s 10 and `.resizer`'s 5. */
+  z-index: var(--layer-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: var(--scrim);
+  /* The sidebar and the viewer header are window-drag regions and this covers
+     both. `-webkit-app-region` reaches descendants — which is why `.welcome` and
+     `.file-list` switch it off — so without this a click meant for the panel
+     drags the window instead. */
+  -webkit-app-region: no-drag;
+}
+
+.settings-dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* **In `em`, which is now the app's own size**: the dialog is the same object
+     as a pane, so it grows with the reading size rather than staying a 768px box
+     around 24px type. */
+  width: min(46em, 100%);
+  /* **Fixed**, not capped: the panel is the same box in every section, so moving
+     down the rail cannot resize the dialog under the pointer or walk the close
+     button up the screen. Everything that does not fit is `.settings-content`'s
+     scroll. `100%` is the overlay's content box, already inset by its padding, so
+     a short window still shrinks the dialog rather than overflowing it. */
+  height: min(34em, 100%);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--text);
+  /* **The panel is typed like the panes.** It was `--fs-chrome`, fixed at 13px —
+     so the one part of the app the reading size did not reach was the place the
+     reading size is set. Everything inside is `inherit` or `em` off this, which is
+     what keeps the dialog one object at every size. The *leading* is the panel's
+     own and tight: a dialog of controls is chrome, and a note's leading spread
+     nine rows over two screens. */
+  font-size: var(--fs-prose);
+  line-height: 1.4;
+  /* **The panel's two measurements.** Every control is one `--field-h` tall and
+     every row is one `--field-gap` apart, so a select, a slider, a swatch, a key
+     and a text box all occupy the same box and the rows step by one number.
+     Measured before: a select 31.4 tall against a slider row's 20, and the rows
+     stepping 27.1, then 32.5, then 23.9. `--field-h` is the pane's field height,
+     because a control in a dialog and a field in a pane are the same object. */
+  --field-h: calc(var(--row-h) + 0.35em);
+  --field-gap: 0.5em;
+  /* The sheet's only `box-shadow`, and the agreed exception: a hairline cannot
+     detach a modal from the prose behind it.
+
+     `--scrim` as the shadow colour, not a mix of a ground. It is the one token
+     that is dark in *both* modes by construction — see its own note: a shadow
+     mixed off `--bg-sidebar` would be a near-white shadow in light mode, the
+     exact mistake that comment exists to prevent. */
+  box-shadow: 0 10px 30px var(--scrim);
+}
+
+.settings-title {
+  flex: none;
+  margin: 0;
+  /* The right inset is `.settings-close`'s column — a long title stops there. */
+  padding: 0.5em 2.4em 0.5em 0.75em;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: inherit;
+  line-height: inherit;
+  font-weight: var(--fw-strong);
+  letter-spacing: -0.005em;
+}
+
+/* Placed absolutely rather than flexed beside the title, so the title bar needs
+   no wrapper element and the class contract stays the list it is. Safe because
+   the dialog itself never scrolls — only `.settings-content` does — so the
+   top-right corner is a fixed target. */
+.settings-close {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  width: var(--field-h);
+  height: var(--field-h);
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-faint);
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.settings-close:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.settings-body {
+  flex: 1;
+  display: flex;
+  /* A flex child's `min-height: auto` refuses to shrink below its content, which
+     is what lets a tall section push the dialog past its cap instead of handing
+     the overflow to `.settings-content`. */
+  min-height: 0;
+}
+
+.settings-rail {
+  flex: none;
+  /* Wide enough for the longest section name at any reading size — it was 8em, and
+     "Appearance" came out "Appearan…". */
+  width: 10em;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0.5rem;
+  border-right: 1px solid var(--border);
+  background: var(--bg-sidebar);
+  overflow-y: auto;
+}
+
+.settings-rail button {
+  width: 100%;
+  text-align: left;
+  padding: 0.35em 0.5em;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  cursor: pointer;
+  /* A long section name must not widen the rail: the dialog is capped and nothing
+     here may produce a sideways scroll. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-rail button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* (0,2,1), the same as `.settings-rail button:hover` above — a pseudo-class counts
+   in the class column — so this wins on source order alone and has to stay below
+   it. Otherwise hovering the section you are already in repaints it as unselected. */
+.settings-rail button.active {
+  background: var(--bg-active);
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+
+.settings-content {
+  flex: 1;
+  min-width: 0;
+  /* The panel is built like the app: a rail on the sidebar's ground and the
+     content on the note's, so the dialog reads as the two panes it sets. */
+  background: var(--bg-viewer);
+  padding: 0.9em 1em;
+  overflow-y: auto;
+  /* The shell already sets `overscroll-behavior: none` on the document; this is
+     the other half — a scroll that reaches the end of the panel must not chain
+     out into the note behind it. */
+  overscroll-behavior: contain;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--field-gap);
+}
+
+/* Same size as everything else in the chrome. The hierarchy here is the three
+   text tiers — `--text` heading, `--text-dim` label, `--text-faint` hint — not a
+   type scale, so there is nothing to add to `--fs-chrome`. */
+.settings-section h3 {
+  margin: 0 0 0.15em;
+  color: var(--text);
+  font-size: inherit;
+  line-height: inherit;
+  font-weight: var(--fw-strong);
+}
+
+/* Label left, control right, hint under the control.
+   A column stack is what a narrow dialog needs; at this width it left every
+   control on its own line with its name floating above it, which is the "rough
+   edges" this replaced. The label column is in `em`, so a row keeps its
+   proportions at every reading size rather than the labels growing into a fixed
+   gutter. `minmax(0, 1fr)` and not `1fr`: a grid track's automatic minimum is its
+   content, so a long `<select>` value or an unbroken hint would push the second
+   column — and the dialog — wider than the box. */
+.settings-field {
+  display: grid;
+  /* Wide enough for the longest label in any section at any reading size: at 7.5em
+     "Insert current time" and "Inherit icons" both wrapped to two lines, which is a
+     row twice the height of its neighbours. */
+  grid-template-columns: 10em minmax(0, 1fr);
+  align-items: center;
+  gap: calc(var(--field-gap) / 2) 0.9em;
+  min-width: 0;
+}
+
+/* Every child that is not the name sits in the control column, so the hint lands
+   under the control it explains rather than under the label. (0,1,1) — `:not()`
+   counts its argument — which is what the keybind rule below has to beat. */
+.settings-field > label {
+  grid-column: 1;
+}
+
+.settings-field > :not(label) {
+  grid-column: 2;
+}
+
+/* A checkbox is the one control with no width of its own, and a grid item
+   stretches by default: without this it becomes a box the width of the column. */
+.settings-field input[type='checkbox'] {
+  justify-self: start;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.settings-field label {
+  color: var(--text-dim);
+  font-size: inherit;
+  line-height: inherit;
+  font-weight: var(--fw-medium);
+}
+
+.settings-field-hint {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 0.92em;
+  line-height: 1.45;
+}
+
+/* **A group's caption**, in the app's one label format — see that rule for the
+   colour and the weight. Nine controls in one list read as nine unrelated things;
+   two captions say what each half is for, in less room than the sentences they
+   replaced. */
+/* A caption is a row's gap above it and its own below, so a group reads as a break
+   rather than as another row. */
+.settings-group {
+  margin: var(--field-gap) 0 0;
+  font-size: 0.92em;
+  letter-spacing: 0.02em;
+}
+
+.settings-group:first-of-type {
+  margin-top: 0;
+}
+
+.settings-conflict {
+  margin: 0;
+  color: var(--alert);
+  font-size: 0.92em;
+  line-height: 1.45;
+}
+
+.settings-radios,
+.settings-swatches {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: calc(var(--field-gap) / 2);
+}
+
+/* `.settings-field label` above is (0,1,1) and `.settings-radio` is itself a
+   `<label>`; a bare `.settings-radio` is (0,1,0) and would lose to it wherever it
+   sat in this file. Qualified to (0,2,1). */
+.settings-field .settings-radio {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text);
+  font-weight: var(--fw-regular);
+  cursor: pointer;
+}
+
+/* Without an explicit `accent-color` these render in the OS blue, which clashes
+   with nine of the ten palettes. Once one grouped selector; split because the
+   slider needs `flex: 1` and a radio must not stretch, and one selector may only
+   be declared once here — a second block for it is how the two drift apart. */
+.settings-radio input {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.settings-slider {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  min-height: var(--field-h);
+}
+
+/* **A hairline and a dot**, not the platform's 4px rail and 16px puck: this is a
+   row of nine of them and the chrome should not outweigh the numbers. `appearance:
+   none` is what allows a track of our own, and it costs the filled half — WebKit
+   paints that only for the stock control — so `--fill` comes in from the `Slider`
+   component, which is the one place that knows the value.
+
+   The UA also gives the input a 2px horizontal margin, which put every track 2px
+   right of the select above it. */
+.settings-slider input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  /* `--field-h` and the thumb below are both `em`, and a range input keeps the
+     UA's own size unless told — the track would then be a different height from
+     the rows around it. The pseudo-elements inherit this. */
+  font-size: inherit;
+  line-height: inherit;
+  height: var(--field-h);
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.settings-slider input[type='range']::-webkit-slider-runnable-track {
+  height: var(--hair);
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--mark) 0 var(--fill, 0%),
+    var(--border) var(--fill, 0%) 100%
+  );
+}
+
+.settings-slider input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0.8em;
+  height: 0.8em;
+  border-radius: 50%;
+  background: var(--mark);
+  /* Centred on the track: half the thumb, less half the track's own height. */
+  margin-top: calc((var(--hair) - 0.75em) / 2);
+}
+
+.settings-slider input[type='range']:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mark) 35%, transparent);
+}
+
+/* Tabular and right-aligned, so the number does not shuffle the row as it counts.
+   **A fixed width, not a minimum**: `6 spaces` and `700px · 92ch` are wider than a
+   `13px`, and a column that grows for them shortens those rows' tracks — measured
+   ragged, six readouts at six different x. Both survive the face: `--font-sans`,
+   because a monospace readout was the only one in the app and read as belonging to
+   some other program. */
+.settings-slider output {
+  flex: none;
+  width: 7em;
+  text-align: right;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 0.92em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The swatch keeps the dialog's own ground in *every* state, and that is a
+   measured decision rather than tidiness. The chip below is a per-scheme literal,
+   so its contrast has to be checked against whatever it lands on — and on
+   `--bg-active` in dark mode four of the five fall under the 3:1 graphic floor
+   (ink 2.52, graphite 2.75, moss 2.91, slate 2.97, all in ember/dark). Holding
+   one ground means one number to keep, so selection is carried by the border, the
+   text tier and a ✓ — none of which move the chip's ground. */
+.settings-swatch {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  min-height: var(--field-h);
+  padding: 0 0.35em;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: 0.92em;
+  cursor: pointer;
+}
+
+/* The scheme's own colour. A pseudo-element and not a nested `<span>`, so the
+   panel's class contract stays the closed list it is. */
+.settings-swatch::before {
+  content: '';
+  flex: none;
+  /* The scheme's dot, at the size every other glyph in the app is drawn: it was
+     12px, which is what `--glyph` comes to at the default reading size anyway. */
+  width: var(--glyph);
+  height: var(--glyph);
+  border-radius: var(--radius-sm);
+  background: var(--swatch);
+}
+
+.settings-swatch:hover {
+  border-color: var(--text-faint);
+  color: var(--text);
+}
+
+/* (0,2,0) against `.settings-swatch:hover`'s (0,2,0): below it on purpose, so a
+   hover cannot repaint the selected swatch as unselected. */
+.settings-swatch.selected {
+  border-color: var(--accent-soft);
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+
+/* The second cue, and the reason there is one: the accent border is a *colour*
+   difference, and selection may not rest on colour alone. */
+.settings-swatch.selected::after {
+  content: '✓';
+  color: var(--accent-soft);
+}
+
+/* ---- The five scheme colours, as literals ----
+   The one place in this app where a literal colour is correct: the moss swatch has
+   to show moss's green while the window is painted in ember, so it cannot come
+   from the palette in force. Only the fill is duplicated — the label, the border
+   and the ground all still come from live tokens, which is why this is five values
+   per mode and not thirty.
+
+   Each is copied from a palette block above: for dark, that scheme's `--accent`;
+   for light, its `--accent-soft`, which those blocks already measure against
+   white. Ember is why the set is split by mode at all — its amber is **2.91:1** on
+   a white `--bg-raised`, the same 2.91 that `#fff` on that amber scored, while its
+   light `--accent-soft` is 6.43. If an accent changes above, change it here too;
+   nothing links the two. A sixth scheme added to `SCHEMES` without a pair of
+   rules here renders as a *blank* chip: `var(--swatch)` with no value falls back
+   to `transparent`, which is deliberate — the gap should show rather than borrow
+   a colour that would be the wrong one.
+
+   Measured on `--bg-raised` in every palette the panel can be painted in, worst
+   first: ink 3.04 · graphite 3.32 · moss 3.51 · slate 3.77 (all ember/dark, the
+   lightest dark ground) · midnight 5.73 · ember 6.09; every light palette
+   5.17–6.82, midnight's the lowest. Floor is 3:1, a chip being a graphic.
+
+   They separate from each other by *hue*, not luminance — adjacent fills are
+   1.02–2.00 apart — so the name beside the chip is load-bearing. Do not drop it
+   for a colour-only row. */
+.settings-swatch[data-scheme='slate'] {
+  --swatch: #5e6ad2;
+}
+
+.settings-swatch[data-scheme='graphite'] {
+  --swatch: #6b6b6b;
+}
+
+.settings-swatch[data-scheme='moss'] {
+  --swatch: #2e7d4f;
+}
+
+.settings-swatch[data-scheme='ember'] {
+  --swatch: #d98324;
+}
+
+.settings-swatch[data-scheme='ink'] {
+  --swatch: #1f5fd0;
+}
+
+.settings-swatch[data-scheme='midnight'] {
+  --swatch: #4b93f5;
+}
+
+/* (0,4,0) over the (0,2,0) above. `data-theme` is resolved to `dark` or `light`
+   before it lands, so there is no `system` case to answer here. */
+:root[data-theme='light'] .settings-swatch[data-scheme='slate'] {
+  --swatch: #4b56bd;
+}
+
+:root[data-theme='light'] .settings-swatch[data-scheme='graphite'] {
+  --swatch: #5c5c5c;
+}
+
+:root[data-theme='light'] .settings-swatch[data-scheme='moss'] {
+  --swatch: #256a42;
+}
+
+:root[data-theme='light'] .settings-swatch[data-scheme='ember'] {
+  --swatch: #8f4e0e;
+}
+
+:root[data-theme='light'] .settings-swatch[data-scheme='ink'] {
+  --swatch: #1a55bd;
+}
+
+:root[data-theme='light'] .settings-swatch[data-scheme='midnight'] {
+  --swatch: #2563eb;
+}
+
+/* A shortcut row is three things across, not two: name, the combo, the reset.
+   `:has()` rather than a fifth class name — the sheet already uses it on
+   `.viewer`. The name column is the fields' own 10.5rem and not a `1fr` that
+   would push the combo to the right edge: every control in the panel starts at
+   one x, and a shortcut's is not the exception. */
+.settings-field:has(.settings-keybind) {
+  /* `max-content` with `justify-content: start`, not `auto`: an `auto` track takes
+     a share of the leftover row and the combo came out 237px wide, three times the
+     key it holds. The row inherits `.settings-field`'s column gap so the combo
+     begins on the same x as every select and slider above it. */
+  grid-template-columns: 10em max-content max-content;
+  justify-content: start;
+}
+
+/* (0,2,1), beating `.settings-field > :not(label)` above, which would otherwise
+   stack the combo and its reset in one column, one under the other. */
+.settings-field:has(.settings-keybind) > :not(label) {
+  grid-column: auto;
+}
+
+/* The conflict line is a whole row: it belongs to the section, not to the row
+   that was being rebound when it appeared. */
+.settings-field:has(.settings-keybind) > .settings-conflict {
+  grid-column: 1 / -1;
+}
+
+.settings-keybind {
+  flex: none;
+  min-width: 5.5em;
+  min-height: var(--field-h);
+  padding: 0 0.5em;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sidebar);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.settings-keybind:hover {
+  background: var(--bg-hover);
+}
+
+/* (0,2,0), tying with `.settings-keybind:hover` above and winning on order — a
+   hover mid-capture must not repaint the capturing state away. */
+.settings-keybind.capturing {
+  border-color: var(--accent-soft);
+  background: var(--bg-active);
+  color: var(--text);
+}
+
+.settings-keybind-reset {
+  flex: none;
+  width: var(--field-h);
+  height: var(--field-h);
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-faint);
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.settings-keybind-reset:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* A field with its buttons beside it — a calendar's masked address with Show and
+   Remove, the sync's token with Save and Forget — and the panel's small word
+   buttons, which take the keybind's look in the reading face: they are words, not
+   a combo. */
+.settings-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  min-width: 0;
+}
+
+.settings-inline .settings-text-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The name is the shorter of the two: a word or three against an address. */
+.settings-inline .settings-feed-name {
+  flex: 0 1 9em;
+}
+
+.settings-action {
+  flex: none;
+  min-height: var(--field-h);
+  padding: 0 0.5em;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sidebar);
+  color: var(--text);
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: 0.92em;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.settings-action:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.settings-action:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.settings-action[aria-pressed='true'] {
+  color: var(--accent-soft);
+}
+
+/* The face menu. `appearance: none` because a native popup button ignores nearly
+   all of this and renders as a piece of macOS sitting in a window that is
+   otherwise flat and bordered — the same foreignness the mono readout had.
+
+   The caret is two 45° gradients rather than an inline SVG, for one reason: a
+   `background-image` data URI cannot take `currentColor`, so it would need a
+   literal hex, and there are ten palettes. This one is `--text-faint`, which is
+   5.78:1 on `--bg-sidebar` at worst against a 3:1 floor for a graphic. If it ever
+   fails to draw, what is left is a bordered box showing its value — legible, just
+   without its arrow.
+
+   `padding-right` is the caret's column: without it a long face name runs under
+   the arrow. */
+.settings-select {
+  appearance: none;
+  width: 100%;
+  min-height: var(--field-h);
+  padding: 0 1.6em 0 0.5em;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--bg-sidebar);
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-faint) 50%),
+    linear-gradient(135deg, var(--text-faint) 50%, transparent 50%);
+  background-size: 5px 5px;
+  background-position: right 0.85rem center, right 0.5rem center;
+  background-repeat: no-repeat;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.settings-text-input {
+  width: 100%;
+  min-height: var(--field-h);
+  padding: 0 0.5em;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  /* A well, not a card: the dialog is already `--bg-raised`, so an input painted
+     the same would have only a ~1.1:1 hairline to show its edge. `--bg-sidebar`
+     is the ground that is *away* from the page in both modes. */
+  background: var(--bg-sidebar);
+  color: var(--text);
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.graph-canvas {
+  display: block;
+  /* The background is the view's handle: a press on it pans. `grab` says so, and
+     `touch-action: none` is what lets a trackpad drag reach `pointermove` at all
+     rather than being taken as a scroll. */
+  cursor: grab;
+  touch-action: none;
+}
+
+.graph-canvas[data-panning] {
+  cursor: grabbing;
+}
+
+/* Everything inside the transform fades as a group, so a dimmed node and its label
+   dim together. `--motion` is the one duration; a hover that snaps reads as a
+   flicker when the pointer crosses a dense patch. */
+.graph-view g {
+  transition: opacity var(--motion);
+}
+
+/* **The web recedes; the notes are the page.** 198 edges at the same strength as
+   the nodes is a mesh with dots caught in it, which is what the resting graph read
+   as. A link is context for the thing it joins, so it is drawn at a little over a
+   third of the faintest text — enough to follow one when you look for it, not
+   enough to compete with a name. A hovered node's own edges come back to full
+   strength through the `opacity` the renderer sets, so the mesh is still the thing
+   that answers "connected to what". */
+.graph-edge {
+  stroke: color-mix(in srgb, var(--text-faint) 38%, transparent);
+  /* Width comes from the edge's `weight` as an attribute, so the stroke says how
+     many links a pair shares. `stepLayout` deliberately does *not* stiffen the
+     spring by weight; this is where the count shows up instead. */
+  fill: none;
+}
+
+.graph-node {
+  fill: var(--accent-soft);
+  cursor: pointer;
+}
+
+/* A link whose note is not written yet — `GraphNode.exists` false. Hollow and
+   dashed, filled with the page so the ring reads as an outline rather than a disc
+   in a second colour. */
+.graph-node.missing {
+  fill: var(--bg-viewer);
+  stroke: var(--accent-soft);
+  stroke-width: 1.4px;
+  stroke-dasharray: 2.5 2;
+}
+
+/* The one under the pointer, which is also the one whose name is showing. */
+.graph-view g:hover > .graph-node {
+  fill: var(--mark);
+}
+
+/* The open note. See the third point above for why this is a fill and not a ring. */
+.graph-node.current {
+  fill: var(--text);
+  stroke: none;
+}
+
+/* Everything about a label except its **size**, which `LABEL_PX` in `GraphView` sets
+   as an inline attribute: a label is counter-scaled by the zoom so a name keeps one
+   readable size at every magnification, and that is arithmetic, not a declaration. A
+   `font-size` here never applied, because the attribute beats it. */
+.graph-label {
+  fill: var(--text-dim);
+  font-weight: var(--fw-medium);
+  text-anchor: middle;
+  /* The halo. `stroke fill` paints the stroke *first*, so the glyph's own ink lands
+     on top of it and only the outer half shows. */
+  paint-order: stroke fill;
+  stroke: var(--bg-viewer);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* The node a click or the keyboard is on. `outline` rather than a stroke: a stroke
+   would be invisible on `.current`, whose fill is already the outline's colour. */
+.graph-view g:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.graph-view g:focus {
+  outline: none;
+}
+
+/* The view's own controls, over the canvas in the opposite corner to the count.
+   Pointer-driven zoom is the real interface; these are for discoverability and for
+   getting back — `Fit` is the way out of having zoomed into nothing. */
+.graph-controls {
+  position: absolute;
+  left: 1rem;
+  bottom: 0.75rem;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.graph-controls > button {
+  min-width: var(--control);
+  height: var(--control);
+  padding: 0 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 0.6875rem;
+  font-weight: var(--fw-medium);
+  line-height: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--motion),
+    color var(--motion);
+}
+
+.graph-controls > button:hover {
+  background: var(--bg-hover);
+  color: var(--mark);
+}
+
+/* Pinned to the corner over the canvas, so it does not take a row of the box that
+   the layout is fitted into. */
+.graph-stats {
+  position: absolute;
+  right: 1rem;
+  bottom: 0.75rem;
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 0.6875rem;
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+/* Reading the vault, or a vault with nothing in it. Same shape as `.viewer-empty`,
+   minus the drag region — this is inside `.graph-view`, which is `no-drag`. */
+.graph-empty {
+  flex: 1;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: var(--text-faint);
+  font-size: var(--fs-chrome);
+  text-align: center;
+}
+
+/* A pressed icon button: the graph pane's toggle in the footer, and the section the
+   rail is showing. **No box.** It was a `--bg-active` ground, which is the second
+   shape the pane grew — the same one the open row had — and a pane of rows and
+   glyphs has no other. State is weight and colour here as it is on a row's name: an
+   icon has no text to embolden, so it takes the accent at full strength and a
+   heavier stroke, and every other glyph stays in the chrome's own tone. */
+.sidebar-actions > button[aria-pressed='true'] {
+  color: var(--accent-soft);
+}
+
+.sidebar-actions > button[aria-pressed='true'] svg {
+  /* The glyph's own weight, a step up: `--stroke-on` is `--glyph`'s stroke scaled,
+     so it moves with the size like everything else. */
+  stroke-width: var(--stroke-on);
+}
+
+/* Ties with `.sidebar-actions > button:hover` on specificity and would otherwise
+   win on source order, leaving a pressed button with no hover at all. */
+.sidebar-actions > button[aria-pressed='true']:hover {
+  background: var(--bg-hover);
+}
+
+/* ---- The markdown editor: CodeMirror over the file's own bytes ---- */
+
+/* Two things about precedence, both verified rather than assumed.
+ *
+ * CodeMirror's base theme is injected by `style-mod`, which does
+ * `target.insertBefore(styleTag, target.firstChild)` — its `<style>` is the *first*
+ * child of `<head>`, so this sheet comes later and wins every tie. What it does not
+ * win is a *higher* specificity, and a few of those selectors are two classes deep
+ * (`.ͼ1 .cm-content` for the caret colour, `.ͼ1.cm-focused` for the focus ring), so
+ * every rule below carries `.code-editor` *and* `.cm-editor` to clear them.
+ * `display: flex !important` on `.cm-editor`/`.cm-scroller` is deliberate on
+ * CodeMirror's part and is not fought here.
+ *
+ * No new colour pairing is introduced by the chrome: the body text is `--text` on
+ * `--bg-viewer`, the same 16.13:1 the `:root` comment measures for the prose. The
+ * three that *are* new belong to Live Preview and are measured where they are set.
+ */
+
+/* Scrolls inside itself, as the textarea it replaces did: `flex: 1` with
+   `min-height: 0` makes the box the viewport rather than letting an overflowing
+   note stretch `.viewer` past its own scrollport.
+   `overflow` has to be set on `.cm-scroller` by hand — a definite height on
+   `.cm-editor` alone gives CodeMirror a viewport and no way to reach the rest. */
+/* **Grows with its text.** The sections at the end of a note are appended to it,
+   not pinned under it, so the editor cannot be the scrollport — `.viewer` is, and
+   this box is however tall the document makes it. It was `flex: 1` with its own
+   scroller, which put a short note's footer at the bottom of the window with a
+   field of nothing between. */
+.code-editor {
+  flex: none;
+}
+
+.code-editor .cm-editor {
+  height: auto;
+  background: transparent;
+  color: var(--text);
+}
+
+/* CodeMirror's own is `1px dotted #212121` — a colour, on a focus ring the app does
+   not draw anywhere else. */
+.code-editor .cm-editor.cm-focused {
+  outline: none;
+}
+
+/* One face, one size, one leading, for **every** file the pane opens. The file
+   type changes nothing here: a JSON file in the reading face was the ask, and a
+   mono exception for it — which this had for one build — is a second typography to
+   keep in step with the first. `--font-mono` still dresses a code span inside a
+   note, which is markdown's own business and is decorated as such. */
+.code-editor .cm-editor .cm-scroller {
+  /* Not `auto`: the note scrolls, not the editor inside it. */
+  overflow: visible;
+  font-family: var(--font-prose);
+  font-size: var(--fs-prose);
+  line-height: var(--line-height-prose);
+}
+
+/* The gap goes *below each source line*, which is what makes it a paragraph gap
+   rather than more leading: a wrapped line is one `.cm-line` however many rows it
+   takes, so its continuations stay tight and the space lands between one line of
+   the note and the next.
+
+   **And the prose inset is here, because the drawn selection is measured against
+   it.** `rectanglesForRange` in `@codemirror/view` computes a selection band as
+   `contentDOM`'s own rect *minus the first `.cm-line`'s horizontal padding* — so
+   with the inset on `.cm-content` instead, nothing was subtracted and a selection
+   crossing two lines painted the full width of the content box. Measured at a
+   560px pane: the band ran 0–560 where the text column is 40–520, 40px past the
+   words on each side. On the line it comes out exactly 40–520. This is also
+   CodeMirror's own arrangement — its base theme puts `padding: 0 2px` on
+   `.cm-line` — which is why the library reads it from there. */
+.code-editor .cm-editor .cm-line {
+  padding: 0 var(--column-pad) var(--line-gap);
+}
+
+.markdown-editor .cm-md-em {
+  font-style: italic;
+}
+
+.markdown-editor .cm-md-strike {
+  color: var(--text-dim);
+  text-decoration: line-through;
+}
+
+.markdown-editor .cm-md-code {
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--text) 6%, var(--bg-viewer));
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+/* The revealed `**`, `_`, `` ` `` and `#`. Dimmed and never bold: `.cm-md-marker`
+   sits *inside* the node's own mark, so without the weight reset the asterisks of a
+   bold run come back bold and read as content. */
+.markdown-editor .cm-md-marker {
+  color: var(--text-faint);
+  font-style: normal;
+  font-weight: var(--fw-regular);
+}
+
+/* **Every heading is the reading face, and size is the whole of the ladder.** The
+   author's `#`/`##`/`###` were the last place a display serif was set, and it was
+   asked back exactly as the section headings and the title were before it — a
+   heading in a second family is the "fonts keep changing" complaint, three times
+   reported and three times the same answer. So a heading is now literally what the
+   comment always claimed: a smaller title, 600 in the face everything else is,
+   which is what `####` and below already were. The weight matters as well as the
+   face: `--fw-prose` is a setting that reaches 600, and a heading at 500 would
+   have been *lighter* than the paragraph under it. */
+.markdown-editor .cm-md-h2 {
+  font-size: 1.23em;
+  font-weight: var(--fw-strong);
+}
+
+.markdown-editor .cm-md-h3 {
+  font-size: 1.06em;
+  font-weight: var(--fw-strong);
+}
+
+.markdown-editor .cm-md-h4,
+.markdown-editor .cm-md-h5,
+.markdown-editor .cm-md-h6 {
+  font-weight: var(--fw-strong);
+}
+
+/* **A marker sits in the gap; its text sits on the grid.**
+   A box with the marker pushed to its right edge, so an item's text starts exactly
+   where a line indented that far starts and `9.` and `10.` put their text in one
+   column. The marker is *replaced* rather than hidden for the same reason the box
+   has a width at all: with `- ` gone the item loses its indent and the text jogs
+   sideways as the caret leaves the line.
+
+   `min-width`, not `width`: `100.` grows its own box and pushes only that item's
+   text, rather than breaking the column for the whole list. */
+.markdown-editor .cm-md-bullet,
+.markdown-editor .cm-md-number {
+  display: inline-block;
+  /* **One step wide, gap included** — `box-sizing` is what makes that true, and
+     it is why the gap is a share of the step rather than a pixel count: subtracting
+     6px from a 7.16px step left a 1.16px box that every marker overflowed, pushing
+     its own text off the grid. Wider than a step (`10.`, `100.`) the box still
+     grows, which is the one case where an item's text cannot be on it. */
+  box-sizing: border-box;
+  /* The fallback only: the decoration sets this per item, because a document's own
+     nesting (markdown's content column) and the grid's step (the indent setting)
+     are different numbers — see `markerBox`. */
+  min-width: var(--indent-step);
+  padding-right: var(--marker-gap);
+  text-align: right;
+  color: var(--text-faint);
+}
+
+/* **A task wears the bullet's box**, so an item's words land on the same grid stop
+   whether or not it is a task — the box is the marker's, and a checkbox is what
+   this item's marker is. `[ ]`, `[x]` and, per Obsidian's reading, any other single
+   character; a state the app draws no glyph for is drawn as itself. */
+.markdown-editor .cm-md-task {
+  display: inline-block;
+  box-sizing: border-box;
+  min-width: var(--indent-step);
+  padding-right: var(--marker-gap);
+  text-align: right;
+  cursor: pointer;
+}
+
+/* The square itself, sized off the type like every other glyph's box and centred
+   on the text rather than the line box, so it sits with the words and not above
+   them. `--glyph` is the depicting scale, which is what this is. */
+.markdown-editor .cm-md-task-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--glyph);
+  height: var(--glyph);
+  box-sizing: border-box;
+  border: 1px solid var(--text-faint);
+  border-radius: var(--radius-sm);
+  vertical-align: -0.15em;
+  color: var(--text-faint);
+  transition:
+    background-color var(--motion),
+    border-color var(--motion),
+    color var(--motion);
+}
+
+.markdown-editor .cm-md-task:hover .cm-md-task-box {
+  border-color: var(--mark);
+  color: var(--mark);
+}
+
+/* Checked takes the mark as a ground and the tick is the ink that reads on it —
+   `--on-accent`, the one colour every scheme derives for exactly this. */
+.markdown-editor .cm-md-task[data-state='done'] .cm-md-task-box {
+  background: var(--mark);
+  border-color: var(--mark);
+  color: var(--on-accent);
+}
+
+/* A state with no glyph is its own character, in the mark, so `[>]` and `[/]` from
+   a vault written elsewhere read as something deliberate rather than as damage. */
+.markdown-editor .cm-md-task[data-state='other'] .cm-md-task-box {
+  border-color: var(--mark);
+  color: var(--mark);
+}
+
+/* A done item's words step back. **Not a line through them**: `~~text~~` is its own
+   syntax in a note, and one mark cannot mean two things. */
+.markdown-editor .cm-md-task-done {
+  color: var(--text-dim);
+}
+
+/* Every row after the first starts under the text, not at the margin. `--hang` is
+   how many steps in that text is, set per line by the decoration — the first row is
+   pulled back by the same amount, so the characters still place it.
+
+   Qualified to (0,4,0) and sitting after it, because `.markdown-editor .cm-editor
+   .cm-line` sets `padding` as a **shorthand** at (0,3,0): at (0,2,0) this rule's
+   `padding-left` was reset to zero while its `text-indent` applied, which pulled
+   every list line's first row a step *left* of the margin. Measured that way:
+   padding-left 0px against a text-indent of -14.46px. */
+.markdown-editor .cm-editor .cm-line.cm-md-hang {
+  /* **The inset plus the hang**, because this overrides the shorthand's left and
+     the inset is now in it. Written as the hang alone, every list line sat hard
+     against the gutter. The negative `text-indent` still cancels only the hang, so
+     the first row's characters land on the column and the selection band — which
+     is `paddingLeft + min(0, textIndent)` — still resolves to the inset exactly.
+
+     `--hang` is a **length** now and not a count of steps, because two kinds of
+     line hang and they measure differently: a list item by its markdown depth in
+     `--indent-step`s, an indented prose line by the width of the spaces it carries.
+     Prose was not hanging at all, so a wrapped indented line put its second and
+     third rows at the margin while its first row sat indented. */
+  padding-left: calc(var(--column-pad) + var(--hang));
+  text-indent: calc(-1 * var(--hang));
+}
+
+/* Drawn rather than typed. A `•` glyph sits at whatever height its font puts it,
+   and the reading face is one of eighteen the user can choose — so the one thing
+   that cannot be got right with a character is vertical alignment. A box aligned
+   to `middle` lands on the baseline plus half the x-height, which is where the eye
+   expects a bullet whatever the face. */
+.markdown-editor .cm-md-bullet::before {
+  content: '';
+  display: inline-block;
+  width: 0.33em;
+  height: 0.33em;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
+}
+
+/* A quote reads as a quote by its bar, since its `>` is hidden away from the caret
+   — the same trade the list marker makes, but a border can carry it.
+
+   An inset shadow and not a `border-left`: a `Decoration.mark` is split at every
+   line boundary, so a border would draw once per wrapped row. `--text-dim` on the
+   note's ground is 8.33:1 at worst (ink/light), measured with the rest of Live
+   Preview. */
+.markdown-editor .cm-md-quote {
+  color: var(--text-dim);
+  box-shadow: inset 2px 0 0 0 var(--border);
+  padding-left: 0.6rem;
+}
+
+/* The bullet glyph that stands in for `- `, in the quote's tier. */
+.markdown-editor .cm-md-bullet {
+  color: var(--text-dim);
+}
+
+/* The `[[` picker. CodeMirror draws it; this only gives it the palette, so there is
+   no popup component and no keyboard handling of our own to keep in step. */
+
+/* ---- The note graph ----
+
+   Every ratio below was computed from the hexes at the top of this file, for all
+   ten palettes. A circle and an edge are graphics, so the floor is 3:1; a label and
+   the stats line are text, so it is 4.5:1. Range, then the worst case:
+
+     .graph-edge    --text-faint on --bg-viewer   5.47-5.81   worst 5.47 ember/dark
+     .graph-node    --accent-soft on --bg-viewer  4.88-8.14   worst 4.88 slate/dark
+     .missing       the same stroke, with --bg-viewer as the hole: same 4.88 floor
+     .current       --text on --bg-viewer        16.00-16.95  worst 16.00 ember/dark
+     .graph-label   --text-dim on --bg-viewer     8.33-8.77   worst 8.33 ink/light
+     .graph-stats   --text-faint on --bg-viewer   5.47-5.81   worst 5.47 ember/dark
+     .graph-empty   the same as .graph-stats
+
+   Four of those were decided by the measurement and not by taste:
+
+   - **`--accent` is not the node fill**, which was the obvious choice. As a
+     *graphic* it needs 3:1, and on `--bg-viewer` it is **2.84 in ember/light**.
+     The note on `--accent` above allows it under the floor because it is a ground
+     there; a circle is not a ground. `--accent-soft` is this sheet's token for a
+     graphic and clears 3:1 in all ten, worst 4.88.
+   - **`.current` is not a ring around the fill.** A `--text` ring on an
+     `--accent-soft` disc is **1.97:1 in ember/dark** — that is the 1.97-3.31 range
+     the note on `--accent-soft` already records, reproduced exactly. So the open
+     note's node is told apart by luminance against the *shared page* — 16.00
+     against 4.88 — and not by a border nobody could see.
+   - **The label carries a halo of the page.** `--text-dim` is 8.33 on
+     `--bg-viewer`, but only **1.45 where a label crosses an edge** and **1.07
+     where it crosses a node**, and a label in a force layout lands wherever it
+     lands. `paint-order: stroke fill` with a `--bg-viewer` stroke puts the measured
+     ground back under the glyphs, so 8.33 holds everywhere. It is not an opacity
+     and it does not discount the colour — the ink is `--text-dim` at full strength.
+   - **`--border` is not the edge stroke**, though "hairline" is its whole job here.
+     It is **1.15:1 on `--bg-viewer`**: a web nobody can see. Measured, not guessed.
+
+   `.missing` and `.current` are also distinguished by *shape* — hollow and dashed,
+   solid, solid — because colour alone cannot carry two states that both have to
+   read, which is the point of the 1.97 above. */
+
+.graph-view {
+  /* The pane's whole size, which the view transform maps into. `min-height: 0` so
+     it takes its height from `.viewer` rather than from the SVG inside it, and
+     `overflow: hidden` because the graph is fitted to the box and never scrolls. */
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  /* A window-drag region here would eat the click that opens a note — the same
+     trap the fade band above `.viewer-header` records. */
+  -webkit-app-region: no-drag;
+}
+
+/* **The prose inset is on `.cm-line`, not here** — see that rule for the
+   measurement. It was here, on the argument that the content element is the
+   contenteditable and the native caret and native selection are measured inside its
+   padding; both halves of that are moot, because `caret-color` is transparent below
+   and `drawSelection` replaces the native selection outright. What it cost was the
+   drawn selection: CodeMirror subtracts *the line's* padding from the content's
+   rect, so a band crossing two lines painted the whole content box, 40px past the
+   words on each side. Reported as the selection going wider than the pane. */
+.code-editor .cm-editor .cm-content {
+  /* The bottom was 6rem of click-space, which is now 6rem between the last line
+     and the section under it. */
+  padding: 0.75rem 0;
+  /* The browser's caret is hidden: `drawSelection` renders `.cm-cursor` instead, so
+     the height and the colour below are ours. Without this the two draw together. */
+  caret-color: transparent;
+  /* The setting, not the face's idea of regular: at a reading size some of the
+     eighteen stacks come out heavier than others, and this is the dial for it.
+     Anything with a weight of its own — a heading, a `**bold**` run — still wins,
+     because those set their own. */
+  font-weight: var(--fw-prose);
+}
+
+/* Three sizes and then a weight: h1–h3 scale, h4–h6 take the body size and the
+   weight — visibly a heading, and not a claim about a scale this app does not have.
+   `em`, so the whole scale moves with `--fs-prose`. */
+/* The air above a heading. `padding` on the line box rather than `margin`, because
+   CodeMirror measures a line's height for its own scrolling and a collapsed margin
+   is not part of it — so the two would disagree about where a line is.
+
+   Not on the first line of the note: a heading at the top would push the whole
+   document down a half line for nothing. */
+/* **Reaching past the line's own `padding` shorthand**, which is
+   `.code-editor .cm-editor .cm-line` at three classes and resets `padding-top` to
+   zero. This rule was two classes and lost silently: measured, a heading line
+   computed `padding-top: 0px`, so the air it has claimed since it was written was
+   never on screen. That is a good part of why a page of prose reads as one
+   undifferentiated block. Anything here that sets a *side* of that padding has to
+   out-specify the shorthand — `stylesheet.test.ts` pins it. */
+.code-editor .cm-editor .cm-line.cm-md-heading-line {
+  padding-top: 0.5em;
+}
+
+.code-editor .cm-editor .cm-line:first-child.cm-md-heading-line {
+  padding-top: 0;
+}
+
+.markdown-editor .cm-md-h1 {
+  font-size: 1.55em;
+  font-weight: var(--fw-strong);
+  /* The title's own tracking, one size down: tight sets well at a display size and
+     badly at a reading one, which is why `##` and below carry none. */
+  letter-spacing: -0.01em;
+}
+
+/* ---- Live Preview ----
+ *
+ * Rendered inline, with the syntax hidden by a `Decoration.replace` until the caret
+ * reaches the node — at which point the markers come back as `.cm-md-marker` rather
+ * than disappearing, which is the whole point of the feature.
+ *
+ * Three new pairings, measured across all ten palettes (5 schemes × 2 themes).
+ * `--text`, `--text-dim` and `--text-faint` are theme-level tokens, so only
+ * `--bg-viewer` moves between schemes, and it moves by a point or two:
+ *
+ *   --text-faint on --bg-viewer          5.47 … 5.81   worst ember/dark
+ *   --text-dim   on --bg-viewer          8.33 … 8.77   worst ink/light
+ *   --text       on the code ground     14.07 … 14.99  worst ember/dark
+ *   --text-faint on the code ground      4.81 … 5.14   worst ember/dark
+ *
+ * The code ground is the 6% `--text` tint below. 6 and not 14 (Crepe's
+ * `--crepe-color-inline-area`) because the *marker* sits on it too when revealed:
+ * at 8% that pairing measures 4.54, which passes and has nothing left over, and at
+ * 12% it is 4.07 and fails. Every number ≥ 4.5:1 as text.
+ */
+
+.markdown-editor .cm-md-strong {
+  font-weight: var(--fw-strong);
+}
+
+/* The line-number gutter. Crepe had a block handle in this column; a gutter is
+   CodeMirror's own answer and needs no component. `--text-faint` is the measured
+   floor tier, 5.47:1 at worst against the page. */
+/* Three classes, because CodeMirror paints its own gutter ground at two and this
+   won only by the sheet loading after `style-mod` — true in the app, false in every
+   harness, and a tie is not a rule. */
+.code-editor .cm-editor .cm-gutters {
+  width: var(--gutter-w);
+  background: transparent;
+  border-right: none;
+  color: var(--text-faint);
+  /* The reading face and the one step-down size the sheet uses everywhere else
+     (`0.92em`, eleven times) — this was mono at `0.78em`, a third family and a
+     fourth small size on the same screen. Tabular figures do the column's work. */
+  font-family: var(--font-prose);
+  font-size: 0.92em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* **The numbers column fills the gutter, and the numbers right-align in it.**
+   `.cm-gutters` is a fixed `--gutter-w`, but this column sized to its content and
+   the numbers sat against its left — so every digit the count gained pushed the
+   column, and the fold arrow after it, to the right. Measured at prose 13.5: the
+   number's right edge went 37.36 at nine lines, 38.05 at ten, 44.39 at a hundred,
+   50.72 at a thousand, and the arrow moved with it each time. Reported from the
+   running app as the gutter changing width at 9+ and 99+.
+
+   Dividing the fixed width instead makes that impossible rather than deferred: no
+   reserve to guess, no threshold to cross. `tabular-nums` for the same reason the
+   clock and the row counts take it — a proportional face gives `11` and `18`
+   different widths, which is the same wobble one scale down.
+
+   The number shares the text's line box, so the two sit on one line. Without that
+   the gutter kept its own — a smaller font at the default leading — and every
+   number rode high against the row it labels. */
+.code-editor .cm-lineNumbers {
+  flex: 1;
+}
+
+.code-editor .cm-lineNumbers .cm-gutterElement {
+  padding: 0 0.5rem 0 1rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  line-height: calc(var(--fs-prose) * var(--line-height-prose));
+}
+
+.code-editor .cm-foldGutter .cm-gutterElement,
+.code-editor .cm-gutters {
+  line-height: calc(var(--fs-prose) * var(--line-height-prose));
+}
+
+/* Only the JSON editor draws numbers, so only it needs the width for them. */
+
+/* The active line's number, so the caret's row is findable at a glance. */
+.code-editor .cm-activeLineGutter {
+  background: transparent;
+  color: var(--text-dim);
+}
+
+/* **A link is coloured, and that is how it is read.** The colour is the mark's —
+   `--accent-soft`, the sanctioned text accent, 4.88:1 at worst on the page — and
+   there is no underline at rest. It went the other way for two builds: the prose
+   colour with a thin tinted underline, on the argument that the underline alone
+   separates goes-somewhere from names-something and the colour was a third accent
+   on every journal line. Asked back — *"the coloured underline is not helping"* —
+   because a hairline under a word is not what a reader has learnt a link looks
+   like, and a link that has to be found is not a link. So the keyword and a link
+   share the mark: one says what the line is, the other where it goes, and the
+   pointer and the hover's underline are what tell them apart. The brackets stay
+   visible when the caret is in the line — they are the syntax being edited. */
+.markdown-editor .cm-md-link {
+  color: var(--mark);
+  cursor: pointer;
+  transition: color var(--motion);
+}
+
+/* The one hover for a thing that goes somewhere — a link in a note, the steps to
+   the days either side, the welcome's second door: an underline under the
+   pointer, and only there. */
+.markdown-editor .cm-md-link:hover,
+.daily-step:hover,
+.welcome-secondary:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+/* **The caret is where CodeMirror puts it, and as tall as it says.** `drawSelection`
+   measures the glyph box under the head — its top *and* its height, per line, so a
+   heading's caret is a heading's height and a body line's is the body's — and
+   writes both inline. The sheet used to override the height with a fixed `1.18em`
+   and add a `margin-top` that re-centred it in the line box, which double-counted
+   the half-leading the glyph box already sits below: measured at Verdana 13/1.4,
+   the glyph rect starts 1.00px under the line's top and the sheet added 1.43 more
+   and made the bar 0.66 shorter — the caret rode low, and a plugin then re-scaled
+   the height per line to undo the override's other effect. Reported as the cursor
+   sitting a little under the line. Both are gone; colour and width are all this
+   says. `--text` rather than the accent, which read as a highlight. */
+.code-editor .cm-cursor,
+.code-editor .cm-dropCursor {
+  border-left-color: var(--text);
+  border-left-width: 2px;
+}
+
+/* Drawn selection, now that the native one is off. `--bg-active` is the ground
+   every chosen thing takes, so every text tier over it is already measured. */
+/* **Three classes, `.cm-editor` among them, or CodeMirror's own colour wins.**
+   CodeMirror injects its base theme at runtime, after this sheet, and its focused
+   selection is `.ͼ1.cm-focused .cm-selectionBackground` at three classes — the
+   *light* theme's lavender, since nothing tells it the editor is dark. Written at
+   two and three classes here the tie went to the later sheet, and in dark mode a
+   near-white text sat on a near-white band: reported as an opaque white band you
+   could not read through. The same trap `.cm-gutters` fell into, recorded there.
+   `--bg-active` is the ground every chosen thing takes, and `--text` on it is
+   measured in every palette. */
+.code-editor .cm-editor .cm-selectionBackground,
+.code-editor .cm-editor.cm-focused .cm-selectionBackground {
+  background: var(--bg-active);
+}
+
+/* The fold arrow, in the same gutter as the line numbers. This is also the column
+   Crepe filled with a block handle, so the affordance is back where it was. */
+.code-editor .cm-foldGutter .cm-gutterElement {
+  /* The same glyph and the same tone as the arrow on every row in the tree — it
+     was `›`/`⌄` from the reading face in `--text-faint`, which is neither. */
+  display: flex;
+  /* **Centred in the first line box, not in the element.** A gutter element is as
+     tall as the line it labels, so on a line that wraps to four rows `center` put
+     the arrow halfway down the paragraph while its own line number stayed at the
+     top. Reported from the running app. The padding is the same centring done
+     against one line: half of what a line box has spare around the glyph. */
+  align-items: flex-start;
+  justify-content: center;
+  padding: calc((var(--fs-prose) * var(--line-height-prose) - var(--glyph-sm)) / 2) 0.25rem 0;
+  color: var(--mark);
+  cursor: pointer;
+}
+
+/* **The marker is a `<span>` around the SVG, and a span is as tall as its line.**
+   `FoldMarker.toDOM` builds one, so it inherited the element's `line-height` — the
+   note's whole line box — and the glyph was centred *inside that* before the
+   padding above centred it again. The arrow landed half a line box below its own
+   number: measured at prose 13.5, a 20.25px span around a 10.30px glyph, the
+   arrow's middle 5.32px under the number's. Reported as the arrow not lining up
+   with the line number in the gutter.
+
+   A flex box makes the span exactly the glyph's height, which is what the padding's
+   arithmetic assumes. Measured after: the span is 10.30 like the glyph, and the
+   arrow's middle sits within 0.1px of the number's line box centre. */
+.code-editor .cm-foldGutter .cm-gutterElement > span {
+  display: flex;
+}
+
+.code-editor .cm-foldGutter .cm-gutterElement:hover {
+  color: var(--text);
+}
+
+/* What a folded block collapses to. A chip, not a word: it has to read as "there is
+   more here" without looking like content. */
+.code-editor .cm-foldPlaceholder {
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  margin: 0 0.25rem;
+  padding: 0 0.4rem;
+  font-family: var(--font-sans);
+  font-size: 0.85em;
+}
+
+/* The fold arrow is ours, so it needs its own box — `foldGutter()` supplied one and
+   we no longer use it. See `indentFoldGutter`: that gutter exists because
+   `lang-markdown` offers to fold any block, which put an arrow beside paragraphs. */
+.code-editor .cm-foldGutter {
+  min-width: 1.1em;
+}
+
+/* The empty-note cue. `--text-faint` is the measured floor tier, 5.47:1 at worst
+   against the page — a hint has to be readable, not merely present. */
+.code-editor .cm-placeholder {
+  color: var(--text-faint);
+  font-style: normal;
+}
+
+/* **The app's one label format**, wherever it *names* a thing rather than showing
+   one: the `HH:MM` a journal line opens with, a property's name in a note's
+   frontmatter, a key in a JSON file, a field's label. One declaration.
+
+   `--accent-soft` and not `--accent`: the soft one is the sanctioned *text* accent
+   here, 4.88:1 at worst against the page, where `--accent` is 4.01 and only allowed
+   as a ground. A link carries the same colour, which is the trade — they stay apart
+   because a link is underlined and a label never is. */
+.markdown-editor .cm-md-property,
+/* A field's label on a declared structure, which is the same kind of word as a
+   property's name. */
+.collection-label,
+.json-editor .cm-json-key,
+.settings-group {
+  color: var(--mark);
+  font-weight: var(--fw-strong);
+}
+
+/* **A mark inside a sentence changes one thing about the text, and never its
+   size.** The clock and the `--keyword` sit in the middle of a journal line, and
+   for a build they differed from the prose around them in three ways at once — the
+   clock a step *smaller* and dim, the keyword bold and accent — so one line carried
+   three formats, and the smaller run read as the line being squeezed: a 12px
+   x-height in a row of 13px ones is what "vertically squished" is. Reported in
+   those words. So both are the prose's own size and weight and take a colour, and
+   nothing else: the clock steps back to `--text-dim`, because when is a dimmer fact
+   than what, and the keyword takes the mark, because it says what the line *is*.
+   Bold is for a label that stands *outside* a sentence — a property's name, a JSON
+   key, a field's label on the structure page — where there is no prose beside it
+   to be heavier than. */
+/* **A `#tag` reads exactly as a `--keyword` does**, and for the same reasons: it is
+   a word the app itself reads, it names something, and it goes somewhere. So it
+   takes the mark's colour and nothing else — the prose's own size and weight, since
+   a run set smaller or bolder is a second format inside a sentence — and no
+   underline, because the underline is what separates "goes somewhere" from "names
+   something" and a tag is both. The `#` stays visible: unlike a link's brackets, it
+   *is* the tag, and hiding it would leave a different word on the line. */
+.markdown-editor .cm-md-collection,
+.markdown-editor .cm-md-tag,
+.collection-keyword {
+  color: var(--mark);
+  cursor: pointer;
+}
+
+/* **A section's heading is a heading, not a label.** It sat in the label rule
+   above — the mark's colour and 600 in the reading face at the reading size — and
+   read as one more marked word in a page of them: *Backlinks* in the same voice
+   as `amount::`. It takes the display face now, one step up in size and at the
+   title's weight, in the text colour rather than the mark: the sections at the end
+   of a note are the note's own parts, and a part is named the way the whole is.
+   The count beside it stays the quiet number it was.
+
+   **And a hairline runs from the heading to the edge of the column.** The toggle
+   is a flex row that already holds the name and the count; a `::after` with
+   `flex: 1` takes what is left of it and draws its top edge, so the line starts a
+   column gap after the last word and ends where the column does, whatever the
+   heading says. It is what separates a section from the note above it without a
+   second ground — the reference this direction came from draws every section
+   this way. A group in the *sidebar* is the same `GroupRow` and takes none of
+   this: that pane is chrome, and its groups are rows. */
+/* **In the reading face, not the display face.** It took the serif for a build,
+   with the title and the `#` headings, and was asked back to sans: the sections
+   are the note's *apparatus* — where it sits, what it holds, what points at it —
+   and apparatus is read, not announced. So the display face is for what the
+   author wrote (the title, their headings) and this is the reading face one small
+   step up, at the weight a heading in that face takes. The hairline is what makes
+   it a heading now, and it stays. */
+.note-section > .folder-header .row-name {
+  font-size: 1.06em;
+  font-weight: var(--fw-strong);
+  color: var(--text);
+}
+
+.note-section > .folder-header > .folder-toggle::after {
+  content: '';
+  flex: 1;
+  margin-left: var(--column-gap);
+  border-top: 1px solid var(--border);
+}
+
+/* **The clock is prose that happens to be a time.** Everything it ever had of its
+   own has been asked back, one thing at a time: mono (two faces interleaved on
+   every line), the accent at 600 (five accent runs on a journal line), a step
+   smaller (a squeezed run), and half a line of air above the line it opens —
+   which made a clock's line taller than its neighbours and was reported as the
+   time being larger than the rest of the line. What is left is one colour, a tier
+   back, because when is a dimmer fact than what; and tabular figures, which change
+   no glyph's size and are what lines a column of stamps up in a proportional face.
+   The reading face across the whole line, at one size and one weight, is the ask. */
+.markdown-editor .cm-md-stamp {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A nested note's chosen icon, in the outline glyph's place. It is one of the drawn
+   set, so it inherits the row's colour and needs nothing but a box and a pointer.
+   The `font-size` and `line-height` are for the fallback path only: an unknown key
+   renders as text, which is how an emoji set before the drawn set existed still
+   shows — and an emoji's own leading would otherwise push the row taller than its
+   siblings.
+
+   The space before the name is a margin here rather than the row's `gap`, because a
+   file row is `display: block` — it has no gap to give — and the two kinds of row
+   have to indent their names to the same place. */
+/* Every note's icon is the icon colour — a note with sub-notes and one without
+   look the same, and the disclosure arrow is what says which. */
+.folder-icon {
+  color: var(--mark);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  /* **A control square, not the glyph's own width.** At `--glyph` the box was
+     narrower than the 15px note icons it holds and they came out clipped —
+     reported from the running app. A square the size of every other control also
+     means one column: the chevron, the icon and the name land on the same three x
+     in every pane.
+
+     **Divided by `--glyph-num`, and that is not arithmetic for its own sake.**
+     `--control` is `1.85em` and this is the one part of a row that sets a smaller
+     `font-size` of its own — so `1em` here is the *glyph's* em, and the box came
+     out 18.63 against the chevron's 20.25: the icon column was 1.62px narrower
+     than the arrow column beside it, in every pane. Dividing by the ratio the
+     `font-size` multiplies by states the box in the row's em instead, which is
+     what makes the two columns one column. Same trap as the arrow that sat half a
+     pixel right of a leaf's, one element further in. */
+  width: calc(var(--control) / var(--glyph-num));
+  height: calc(var(--control) / var(--glyph-num));
+  margin-right: var(--icon-gap);
+  font-size: var(--glyph);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.context-menu button > svg {
+  flex-shrink: 0;
+  color: var(--mark);
+}
+
+/* The icon picker: seven to a row, no labels. Sixty-three of these as menu rows
+   would be taller than the window, and each row would be a word doing an icon's
+   job — the label is the tooltip and the accessible name instead.
+
+   After `.context-menu button`, deliberately. These selectors tie with it on
+   specificity, and it is the block that would otherwise make each of these a
+   full-width row with its contents to the left. */
+.context-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+}
+
+/* Not `:last-child`: the divider is only right when rows follow it. */
+.context-menu-grid:not(:last-child) {
+  margin-bottom: 0.25rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.context-menu-grid button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control);
+  height: var(--control);
+  padding: 0;
+  border-radius: var(--radius);
+  font-size: inherit;
+  line-height: inherit;
+  color: var(--mark);
+}
+
+.context-menu-grid button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* The icon the note already has. */
+.context-menu-grid button.selected {
+  background: var(--bg-active);
+  color: var(--text);
+}
+
+/* The rule above dims every icon in a menu row; in the grid the icon *is* the
+   button, and it takes the button's own colour. */
+.context-menu-grid button > svg {
+  color: inherit;
+}
+
+/* The property block at the top of a note. Mono and one tier down, so `---` and
+   `icon: calendar` read as metadata rather than as a sentence with dashes round it.
+   Not hidden: the whole point of putting a property in the page is being able to
+   see and edit it. `--text-dim` is 8.33:1 at worst against the page. */
+/* One step of an indent, drawn as a piece of tree: a trunk down its left edge and,
+   on the step a line hangs off, an elbow into the text.
+
+   Pseudo-elements rather than a border on the mark itself. A border can only be the
+   height of the box it is on, and these have to be a *half* line tall where a trunk
+   ends and to turn a corner where it meets its row — which is the whole difference
+   between a tree and four parallel lines. `position: relative` on the mark is what
+   gives them something to be absolute against; on an inline box that is its own
+   fragment, which is exactly the run of spaces this step is.
+
+   The overshoot top and bottom is the gap between the text's content box — 1.18em,
+   which is what a font's ascent and descent come to here — and the line box it sits
+   in. Derived rather than the constant it used to be: the line height is a setting,
+   and a number pinned to one value of it leaves a dash with a gap under it at every
+   other value. */
+.markdown-editor .cm-md-guide {
+  position: relative;
+}
+
+.markdown-editor .cm-md-guide::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: calc((1.18em - var(--line-height-prose) * 1em) / 2);
+  bottom: calc((1.18em - var(--line-height-prose) * 1em) / 2);
+  border-left: 1px solid var(--guide);
+}
+
+/* Nothing below is inside this step, so the trunk stops at the line's middle —
+   where its own elbow leaves it. */
+.markdown-editor .cm-md-guide-end::before {
+  bottom: auto;
+  height: calc(50% + (var(--line-height-prose) * 1em - 1.18em) / 2);
+}
+
+/* And the turn into the text. Short of the glyphs rather than up against them: the
+   line is scaffolding, and running it into a letter reads as a fault. */
+.markdown-editor .cm-md-elbow::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 0.5em;
+  border-top: 1px solid var(--guide);
+}
+
+/* `---`, as the line it means: the full column, a hairline, in the scheme's own
+   accent. It was 2px of `--text-faint` — heavy enough to read as a rule between
+   two panels rather than a break the writer put in the prose, and grey in an app
+   where every other deliberate mark follows the palette. `--accent-soft` is the
+   sanctioned text accent, the same one a property's name and the clock take. */
+.markdown-editor .cm-md-rule,
+.markdown-editor .cm-md-fence {
+  display: inline-block;
+  width: 100%;
+  height: 0;
+  vertical-align: middle;
+  border-top: 1px solid var(--mark);
+}
+
+/* A property block's fence is a bound, not a divider in the prose: a hairline in
+   the border tone, where the rule above takes the accent. Two of these bracketed
+   `icon: calendar` in the accent and were the heaviest strokes on the page. */
+.markdown-editor .cm-md-fence {
+  border-top-color: var(--border);
+}
+
+/* **The reading face, one step down, dim.** It was mono at `0.9em` — with the mono
+   gutter beside it and the sans prose under it, the top of every note switched
+   family twice in three lines. Mono is for code spans, where the glyph *is* the
+   content; a property block is labelled prose, and the label's colour and weight
+   already say what it is. */
+.markdown-editor .cm-md-frontmatter {
+  color: var(--text-dim);
+  font-size: 0.92em;
+}
+
+/* A property's name, in the timestamp's colour and weight — the same
+   `--accent-soft` for the same reason, that it is the sanctioned *text* accent and
+   follows the palette instead of being a colour of its own. Only those two
+   declarations: the face and the size come from `.cm-md-frontmatter` around it, so
+   a property is one run of mono with a label at the front of it. The colon stays
+   dim, which is what separates the name from the value without a second colour. */
+
+
