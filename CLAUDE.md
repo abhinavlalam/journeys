@@ -303,6 +303,30 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   scrolls `.xterm-scrollable-element`, whose slider needs theme colours; the fit
   wraps an unpadded `.terminal-screen` and reruns on `document.fonts.ready`.
 
+## Android
+
+- **Toolchain, all from Homebrew**: `openjdk@17` and the `android-commandlinetools`
+  cask, whose `sdkmanager` installs the platform, build-tools, NDK and emulator into
+  `/opt/homebrew/share/android-commandlinetools`; `rustup target add` the four
+  Android targets. `~/.zprofile` sets `JAVA_HOME`, `ANDROID_HOME`, `NDK_HOME`, and a
+  `RANLIB_<target>` per target pointing at the NDK's `llvm-ranlib`, because the NDK
+  ships no `<target>-ranlib` and the OpenSSL git builds asks for it by that name.
+- Build with `npx tauri android build --debug --apk --target aarch64`; Gradle calls
+  back through the npm `tauri` script, and `run()` carries
+  `#[cfg_attr(mobile, tauri::mobile_entry_point)]`. The emulator (`journeys`, a
+  Pixel 8 on Android 36) runs headless; `adb exec-out screencap -p` is how to look.
+- **git's OpenSSL is built from source there and has no file access** (`no-stdio`,
+  which openssl-src needs on Android), so no certificate file or folder can be
+  pointed at: `trust_system_certificates` parses the phone's own certificates in
+  memory and adds each with `GIT_OPT_ADD_SSL_X509_CERT`. It is not fatal — a
+  failure at startup used to be the app not opening at all.
+- **The token** is `secrets.rs`: the keychain on macOS, and on Android
+  `SecretsPlugin.kt` in the app's own sources, sealing it with a Keystore key into
+  the app's private files. Written here rather than taken from a plugin, because
+  it is the one credential the app holds.
+- **What Android cannot do is left out, not faked** (`platform.ts`): no folder to
+  pick (the vault is cloned into the app's storage), no shell, no Finder.
+
 ## The graph
 
 - `GraphView` owns a view transform; the layout stays in world space. The wheel
