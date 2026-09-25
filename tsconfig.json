@@ -1,0 +1,37 @@
+{
+  // One config, covering `src` and the Vite config together.
+  //
+  // Vite's template ships three files — a solution-style root with `references` to
+  // an app config and a node config — because `vite.config.ts` runs in Node while
+  // `src` runs in a browser. That split has a real cost: a root config holding only
+  // `references` type-checks *nothing*, so `tsc --noEmit` silently passed on files
+  // that did not compile, and the only true check was `tsc -b`. One config makes
+  // `tsc --noEmit` mean what it says.
+  //
+  // The trade, stated so nobody rediscovers it: `node` types and the `DOM` lib are
+  // both visible everywhere, so `process` in browser code type-checks. If that ever
+  // matters more than a working `tsc --noEmit`, split it back.
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "esnext",
+    "types": ["node", "vite/client"],
+    "allowArbitraryExtensions": true,
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src", "vite.config.ts"]
+}

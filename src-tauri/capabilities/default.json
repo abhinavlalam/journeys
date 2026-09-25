@@ -1,0 +1,173 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The folder picker, and read/write access to the folder it returns. The vault's own `.config` and `.claude` are named literally because `**` cannot match a path component starting with a dot: `tauri-plugin-fs` defaults `requireLiteralLeadingDot` to true on Unix, and with only `**` here every write into `.config` was refused \u2014 twice. `.claude` holds the vault's skills, which the Actions pane lists.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "dialog:allow-open",
+    "dialog:allow-message",
+    {
+      "identifier": "fs:allow-read-dir",
+      "allow": [
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.config"
+        },
+        {
+          "path": "**/.config/**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.config"
+        },
+        {
+          "path": "**/.config/**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.config"
+        },
+        {
+          "path": "**/.config/**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.config"
+        },
+        {
+          "path": "**/.config/**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.config"
+        },
+        {
+          "path": "**/.config/**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.config"
+        },
+        {
+          "path": "**/.config/**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-rename",
+      "allow": [
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.config"
+        },
+        {
+          "path": "**/.config/**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-remove",
+      "allow": [
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.config"
+        },
+        {
+          "path": "**/.config/**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/**"
+        }
+      ]
+    }
+  ]
+}

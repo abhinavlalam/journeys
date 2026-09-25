@@ -1,0 +1,43 @@
+[package]
+name = "app"
+version = "0.1.0"
+description = "A local-first markdown notebook"
+authors = ["you"]
+license = ""
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+# `tauri dev` runs the bare cargo binary, which has no Info.plist — so macOS takes
+# the Dock and menu-bar name straight from the executable's filename. With the
+# default name that reads "app". tauri.conf.json's productName only applies when
+# bundling, and mainBinaryName only renames during `tauri build`, so neither fixes
+# dev; Tauri's own schema points at the Cargo name instead.
+# An explicit [[bin]] disables target auto-discovery, hence the path.
+[[bin]]
+name = "Journeys"
+path = "src/main.rs"
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+log = "0.4"
+tauri = { version = "2.11.3", features = ["protocol-asset"] }
+tauri-plugin-log = "2"
+tauri-plugin-dialog = "2.7.2"
+tauri-plugin-fs = "2.5.1"
+# A pseudo-terminal for the Terminal tab: the user's own shell in the vault folder.
+portable-pty = "0.9.0"
+# The vault's sync: libgit2 in-process, so the same code later builds for Android,
+# where there is no git binary. HTTPS and a token, nothing else: the default `ssh`
+# feature compiled libssh2 for a key the app never offers.
+git2 = { version = "0.20", default-features = false, features = ["https"] }
+# For the shapes the sync commands answer with. Already in the tree through tauri.
+serde = { version = "1", features = ["derive"] }

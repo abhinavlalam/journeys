@@ -1,0 +1,8 @@
+# **OpenSSL linked in, not loaded from Homebrew.** libgit2-sys initialises OpenSSL
+# on every Unix, macOS included, though libgit2 then speaks TLS through the system's
+# own SecureTransport — and `openssl-sys` found Homebrew's copy and linked it
+# dynamically, so the shipped app loaded /opt/homebrew/opt/openssl@3/lib/libssl.3.dylib
+# at launch and would not start on a Mac without that package. Static takes the
+# same library's `.a` into the binary; `otool -L` on the bundle lists no /opt path.
+[env]
+OPENSSL_STATIC = "1"
