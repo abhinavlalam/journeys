@@ -952,7 +952,9 @@ function mention(entry: Backlink, text: string) {
  * otherwise walk its own text fifty times.
  */
 function lineFinder(text: string): (at: number) => string {
-  const lines = text.split(/\r?\n/)
+  // On `\n` alone: a CRLF's `\r` is a character before the link, and dropping it
+  // from the count put a mention on a later line. `mention` trims it off.
+  const lines = text.split('\n')
   let offset = 0
   const starts = lines.map((line) => {
     const start = offset

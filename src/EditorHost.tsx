@@ -105,11 +105,24 @@ function shared(
     EditorView.contentAttributes.of({ 'aria-label': ariaLabel }),
     // **Synchronous**, and `docChanged` only: a selection move is not an edit. The
     // cost of firing per keystroke is a string copy; what the caller does with it —
-    // autosave a note, dirty a JSON file — is the caller's business.
+    // autosave a note, dirty a JSON file — is the caller's business. `sliceDoc` and
+    // not `doc.toString()`, which joins lines with `\n` whatever the file used.
     EditorView.updateListener.of((update) => {
-      if (update.docChanged) onChange(update.state.doc.toString())
+      if (update.docChanged) onChange(update.state.sliceDoc())
     }),
   ]
+}
+
+/**
+ * The line break a file is written with: the commonest of the three. Left to
+ * itself CodeMirror splits on all three and writes `\n`, so the first keystroke in
+ * a CRLF file rewrote every line ending; told, a mixed file's strays stay as written.
+ */
+function lineBreakOf(text: string): string {
+  const crlf = text.split('\r\n').length - 1
+  const cr = text.split('\r').length - 1 - crlf
+  const lf = text.split('\n').length - 1 - crlf
+  return crlf > lf && crlf >= cr ? '\r\n' : cr > lf ? '\r' : '\n'
 }
 
 /** A field of the app's own chrome has the keyboard — a rename, a new name, the
@@ -196,13 +209,18 @@ export function EditorHost({
     const root = rootRef.current
     if (!root) return
     viewRef.current = null
+    const lineBreak = lineBreakOf(initialText)
+    // Clamped: the caller works this out from the text, and a stale answer for a
+    // shorter document would throw rather than land somewhere harmless. Then moved
+    // into the document's positions, where a `\r\n` the caller counted as two is one.
+    const anchor = Math.min(initialSelection, initialText.length)
+    const breaks = initialText.slice(0, anchor).split(lineBreak).length - 1
     const view = new EditorView({
       state: EditorState.create({
         doc: initialText,
-        // Clamped: the caller works this out from the text, and a stale answer for
-        // a shorter document would throw rather than land somewhere harmless.
-        selection: { anchor: Math.min(initialSelection, initialText.length) },
+        selection: { anchor: anchor - breaks * (lineBreak.length - 1) },
         extensions: [
+          EditorState.lineSeparator.of(lineBreak),
           ...extensions,
           ...shared((text) => onChangeRef.current(text), ariaLabel, indentWidth),
         ],
