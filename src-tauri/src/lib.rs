@@ -119,6 +119,7 @@ async fn fetch_feed(url: String) -> Result<String, String> {
 mod sync;
 mod terminal;
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(terminal::TerminalState::default())

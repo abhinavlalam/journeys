@@ -41,3 +41,8 @@ portable-pty = "0.9.0"
 git2 = { version = "0.20", default-features = false, features = ["https"] }
 # For the shapes the sync commands answer with. Already in the tree through tauri.
 serde = { version = "1", features = ["derive"] }
+
+# Android has no OpenSSL to link, so libgit2's is built from source into the app
+# there. macOS links its own statically (`.cargo/config.toml`).
+[target.'cfg(target_os = "android")'.dependencies]
+git2 = { version = "0.20", default-features = false, features = ["https", "vendored-openssl"] }
