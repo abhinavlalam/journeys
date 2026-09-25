@@ -153,6 +153,38 @@ describe('a second vault', () => {
   })
 })
 
+/**
+ * **A config file that is there and cannot be read is not absent.** Read as absent,
+ * `settings.json` was written over with the settings in force, and
+ * `collections.json` — which the calendar asks for `--event` before it syncs — with
+ * that one declaration and none of the vault's others.
+ */
+describe('a config file that cannot be read', () => {
+  const COLLECTIONS = `/v/${CONFIG_DIR}/actions/collections.json`
+
+  it('is said, and settings.json is not written over', async () => {
+    const mine = JSON.stringify({ ...DEFAULT_SETTINGS, proseSize: 21 })
+    disk.write(CONFIG, mine)
+    disk.corrupt(CONFIG)
+    await openApp()
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(SETTINGS_FILE))
+    expect(disk.read(CONFIG)).toBe(mine)
+  })
+
+  it('is said, and collections.json keeps every declaration', async () => {
+    const declared = JSON.stringify({ expense: { structure: '--expense amount::<<>>', fields: ['amount'] } })
+    disk.write(COLLECTIONS, declared)
+    disk.corrupt(COLLECTIONS)
+    disk.write(
+      CONFIG,
+      JSON.stringify({ ...DEFAULT_SETTINGS, calendarFeeds: [{ name: 'Work', url: 'https://calendar.example/ical/abc/basic.ics' }] })
+    )
+    await openApp()
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('could not be read'))
+    expect(disk.read(COLLECTIONS)).toBe(declared)
+  })
+})
+
 describe('a setting changed in the panel', () => {
   it('reaches the vault’s file', async () => {
     await openApp()

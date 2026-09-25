@@ -38,6 +38,9 @@ export function SettingsFile({ vaultPath, settings, onChange }: SettingsFileProp
   /** The bytes on disk, as far as this knows: the read at first, then whatever a
    *  save stored. `dirty` is measured against this. */
   const [stored, setStored] = useState<string | null>(null)
+  /** Why the file is there and could not be read — opened over the settings in
+   *  force instead, its Save wrote them over the file. */
+  const [unreadable, setUnreadable] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -50,15 +53,18 @@ export function SettingsFile({ vaultPath, settings, onChange }: SettingsFileProp
   // the file on that would race the write it just queued.
   useEffect(() => {
     let live = true
-    void readConfigFile(vaultPath, SETTINGS_FILE)
-      .catch(() => null)
-      .then((found) => {
+    void readConfigFile(vaultPath, SETTINGS_FILE).then(
+      (found) => {
         if (!live) return
         const text = found ?? settingsJson(settings)
         setStored(text)
         setDraft(text)
         replaceDocument()
-      })
+      },
+      (err: unknown) => {
+        if (live) setUnreadable(String(err))
+      }
+    )
     return () => {
       live = false
     }
@@ -94,6 +100,14 @@ export function SettingsFile({ vaultPath, settings, onChange }: SettingsFileProp
     keymap.of([{ key: 'Mod-s', run: () => (saveRef.current(), true) }]),
   ]).current
 
+  if (unreadable) {
+    return (
+      <p className="viewer-empty">
+        {SETTINGS_FILE} could not be read, so it has not been opened for editing. Nothing has been
+        written to it. ({unreadable})
+      </p>
+    )
+  }
   if (stored === null) return <p className="viewer-empty">Reading {SETTINGS_FILE}…</p>
 
   const dirty = draft !== stored

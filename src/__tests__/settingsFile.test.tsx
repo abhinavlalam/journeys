@@ -89,7 +89,7 @@ const field = () => screen.getByLabelText(LABEL)
  * footer had a `{}` button of its own; two ways at one file is one too many, and
  * the pane it opens is the same either way.
  */
-const openFile = async () => {
+const clickRow = async () => {
   // Groups are shut on arrival, as the tree's folders are.
   fireEvent.click(screen.getByLabelText('Expand all actions'))
   const row = await waitFor(() => {
@@ -100,6 +100,9 @@ const openFile = async () => {
     return found as HTMLElement
   })
   fireEvent.click(row)
+}
+const openFile = async () => {
+  await clickRow()
   await waitFor(() => expect(field()).toBeTruthy())
 }
 
@@ -110,6 +113,17 @@ describe('the pane', () => {
     await openApp()
     await openFile()
     expect(shown(LABEL)).toContain('"note": "written by hand"')
+  })
+
+  // Opened over the settings in force instead, its Save wrote them over the file.
+  it('does not open a file it cannot read for editing', async () => {
+    disk.write(CONFIG, '{\n  "proseSize": 21\n}\n')
+    disk.corrupt(CONFIG)
+    await openApp()
+    await clickRow()
+    await screen.findByText(/could not be read, so it has not been opened/)
+    expect(screen.queryByLabelText(LABEL)).toBeNull()
+    expect(disk.read(CONFIG)).toBe('{\n  "proseSize": 21\n}\n')
   })
 
   it('stands where the note does, and gives the pane back', async () => {

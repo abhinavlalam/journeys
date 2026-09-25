@@ -319,19 +319,6 @@ export function fileExists(file: VaultFile): Promise<boolean> {
   return vaultFs.exists(file.absolutePath)
 }
 
-/**
- * One frontmatter property on one note, written as plain text.
- *
- * The transform is `frontmatter.ts`'s and is pure; this is the half that touches a
- * disk, through `vaultFs` like everything else here. There was a `readNoteProperty`
- * beside it, and it went when `App` started reading each note once and asking
- * `readProperty` for both properties it wants: two reads of a file to get two lines
- * of its first block.
- *
- * A note that is not on disk yet is the ordinary case and not an error — a folder
- * note is written lazily (CLAUDE.md) — so writing one creates it with nothing but
- * the block.
- */
 /** The property that records where a note sits, from the vault root down. */
 const PATH_PROPERTY = 'path'
 
@@ -349,18 +336,27 @@ const PATH_PROPERTY = 'path'
  *
  * Only notes **on disk** are written: a folder note is written on the first
  * keystroke (CLAUDE.md), and this must not be the thing that creates one.
+ *
+ * Answers the notes that are there and **could not be read**, each left as it was
+ * while the rest of a moved folder still follows. A write that fails still throws.
  */
-export async function writePathProperty(files: readonly VaultFile[]): Promise<void> {
+export async function writePathProperty(files: readonly VaultFile[]): Promise<string[]> {
+  const unread: string[] = []
   for (const file of files) {
-    // `writeNoteProperty` refuses a non-note anyway; skipping here is what keeps a
-    // move of a JSON file from reading and rewriting it for nothing.
+    // Note machinery: a JSON file that moved is not read and rewritten for nothing.
     if (!isNote(file.path)) continue
     if (!(await vaultFs.exists(file.absolutePath))) continue
+    const raw = await vaultFs.readText(file.absolutePath).catch(() => null)
+    if (raw === null) {
+      unread.push(file.path)
+      continue
+    }
     // `knownPath`, not the file's own: a nested note's file is
     // `Areas/Northwind/Northwind.md`, and the note is `Areas/Northwind`. The
     // doubled form named a page the tree never shows.
-    await writeNoteProperty(file, PATH_PROPERTY, knownPath(file.path))
+    await vaultFs.writeText(file.absolutePath, withProperty(raw, PATH_PROPERTY, knownPath(file.path)))
   }
+  return unread
 }
 
 /**
@@ -381,6 +377,17 @@ export async function folderIcon(vaultPath: string, notePath: string): Promise<s
   return readProperty(await vaultFs.readText(own).catch(() => ''), 'icon')
 }
 
+/**
+ * One frontmatter property on one note, written as plain text.
+ *
+ * The transform is `frontmatter.ts`'s and is pure; this is the half that touches a
+ * disk, through `vaultFs` like everything else here.
+ *
+ * A note that is not on disk yet is the ordinary case and not an error — a folder
+ * note is written lazily (CLAUDE.md) — so writing one creates it with nothing but
+ * the block. **One that is there and cannot be read throws**: taken for not written
+ * yet, it was written over with the block alone.
+ */
 export async function writeNoteProperty(
   file: VaultFile,
   key: string,
@@ -391,12 +398,7 @@ export async function writeNoteProperty(
   // this refuses rather than corrupts. The rows that offer icons hide them for a
   // non-note anyway; this is the half that cannot be forgotten.
   if (!isNote(file.path)) return
-  let raw = ''
-  try {
-    raw = await vaultFs.readText(file.absolutePath)
-  } catch {
-    // Not written yet. Setting a property is what brings it into being.
-  }
+  const raw = (await vaultFs.exists(file.absolutePath)) ? await vaultFs.readText(file.absolutePath) : ''
   await vaultFs.writeText(file.absolutePath, withProperty(raw, key, value))
 }
 
@@ -425,11 +427,13 @@ export const CONFIG_DIR = '.config'
 export const SKILL_FILE = 'SKILL.md'
 
 /** The text of one file in the vault's `.config`, or null when it is not there —
- *  which is the ordinary case for a vault this app has not opened before. */
+ *  which is the ordinary case for a vault this app has not opened before. One that
+ *  is there and cannot be read **throws**: every caller writes a file it finds
+ *  absent, and answering null had them write over one that was only unreadable. */
 export async function readConfigFile(vaultPath: string, name: string): Promise<string | null> {
   const path = `${vaultPath}/${CONFIG_DIR}/${name}`
   if (!(await vaultFs.exists(path))) return null
-  return vaultFs.readText(path).catch(() => null)
+  return vaultFs.readText(path)
 }
 
 /**

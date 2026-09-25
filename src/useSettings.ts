@@ -75,7 +75,15 @@ export function useSettings(vaultPath: string | null, setError: (message: string
     if (!vaultPath) return
     let live = true
     void (async () => {
-      const found = await loadVaultSettings(vaultPath).catch(() => null)
+      let found: Settings | null
+      try {
+        found = await loadVaultSettings(vaultPath)
+      } catch (err) {
+        // There and unreadable is not absent: said, and nothing written over it.
+        // The vault's own settings stay unread, so nothing of it is handed out.
+        if (live) setError(`Could not read ${CONFIG_DIR}/${SETTINGS_FILE}: ${String(err)}`)
+        return
+      }
       if (!live) return
       if (!found) {
         const fresh = portable(current.current)
@@ -104,11 +112,14 @@ export function useSettings(vaultPath: string | null, setError: (message: string
    * Written here rather than in an effect on `settings`: an effect would store a
    * copy of the defaults at first launch, and then a later change to
    * `DEFAULT_SETTINGS` would never reach anyone who had never opened the panel.
+   *
+   * **Until the vault's file has been read, a change is the window's**, and is not
+   * written: it would go over a file nobody has read, or one that could not be.
    */
   function changeSettings(next: Settings) {
-    setHeld({ settings: next, vault: vaultPath })
+    setHeld({ settings: next, vault: held.vault })
     saveSettings(next)
-    if (!vaultPath) return
+    if (!vaultPath || held.vault !== vaultPath) return
     if (pending.current) clearTimeout(pending.current)
     pending.current = setTimeout(() => {
       pending.current = null
