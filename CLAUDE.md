@@ -380,6 +380,10 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   bug: a swallowed scope refusal, an unwritten file called "already there", a
   fallback shell reported as persistent. No `.catch` that turns a refusal into an
   empty answer.
+- **There and unreadable is not absent** (a Drive placeholder offline). Every
+  write that starts from "not there yet" checks `exists` and lets the read throw:
+  taken for absent, a note's body became its `path:` block, and `settings.json` and
+  `collections.json` were written over with defaults.
 - **A native crate can link Homebrew.** After adding one, run `otool -L` on the
   bundled binary: everything should be under `/System` or `/usr/lib`. OpenSSL is
   static (`src-tauri/.cargo/config.toml`).

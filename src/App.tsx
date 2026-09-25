@@ -735,7 +735,7 @@ export default function App() {
    * that already carries one — a declared default — keeps it.
    */
   async function endowNote(file: VaultFile) {
-    await writePathProperty([file])
+    fileOps.sayUnread(await writePathProperty([file]))
     await inheritIcon(file)
   }
 
@@ -777,7 +777,7 @@ export default function App() {
     const moved = await convertToNested(file, vaultPath)
     buffers.followFile(file.path, moved)
     setWs((current) => followFileTabs(current, file.path, moved))
-    await writePathProperty([moved])
+    fileOps.sayUnread(await writePathProperty([moved]))
     return moved
   }
 

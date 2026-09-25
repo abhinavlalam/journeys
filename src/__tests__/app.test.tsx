@@ -807,6 +807,37 @@ describe('the path property', () => {
     // The folder note is known by its folder, which is what the tree calls it.
     expect(pathIn('/v/roadmap/roadmap.md')).toBe('roadmap')
   })
+
+  /**
+   * **There and unreadable is not "not written yet".** A note in a moved folder
+   * that refuses to be read — a Drive placeholder while offline — was written over
+   * with its `path:` block and nothing else.
+   */
+  it('leaves a moved note it cannot read as it was, names it, and moves the rest', async () => {
+    const before = disk.read('/v/Ideas/pingbird.md')
+    // Where the move puts the note is a path the fake then refuses to read.
+    disk.corrupt('/v/Plans/pingbird.md')
+    await openApp()
+    fireEvent.doubleClick(row('Ideas'))
+    const field = screen.getByDisplayValue('Ideas')
+    fireEvent.change(field, { target: { value: 'Plans' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+
+    await waitFor(() => expect(pathIn('/v/Plans/Plans.md')).toBe('Plans'))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Plans/pingbird.md'))
+    expect(disk.read('/v/Plans/pingbird.md')).toBe(before)
+  })
+})
+
+describe('a property written into a note that cannot be read', () => {
+  it('is refused, and the note is left as it was', async () => {
+    const { writeNoteProperty } = await import('../vault')
+    disk.corrupt('/v/roadmap.md')
+    const before = disk.read('/v/roadmap.md')
+    const note = { path: 'roadmap.md', absolutePath: '/v/roadmap.md', name: 'roadmap' }
+    await expect(writeNoteProperty(note, 'icon', 'star')).rejects.toThrow()
+    expect(disk.read('/v/roadmap.md')).toBe(before)
+  })
 })
 
 /**

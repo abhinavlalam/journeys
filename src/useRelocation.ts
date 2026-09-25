@@ -54,26 +54,30 @@ export function useRelocation({
     folder: (oldPrefix: string, newPrefix: string, moves: NoteMoves) => void
   }
 }) {
-  /** A note that could not be read kept its old links, and that is worth saying —
-   *  see `retargetVaultLinks` for the one case it stays quiet about. */
-  async function followLinks(moves: Map<string, VaultFile>) {
-    const unreadable = await retargetVaultLinks(notes, moves, noteIndex).catch((err: unknown) => {
+  /**
+   * Notes that are there and could not be read, each left as it was — a `path:`
+   * not rewritten, a link not followed — and that is worth saying. **Which note, by
+   * name**, because a count alone is a fact with nothing to do about it — asked, in
+   * as many words, *"what happened?"*. An **encrypted** note is never in this list:
+   * it was reported on every rename, a banner about a permanent condition (*"that's
+   * an unnecessary callout"*), and nothing writes into one anyway.
+   */
+  function sayUnread(paths: readonly string[]) {
+    const unread = [...new Set(paths)]
+    if (unread.length === 0) return
+    const names = unread.slice(0, NAMED).join(', ')
+    const rest = unread.length > NAMED ? `, and ${unread.length - NAMED} more` : ''
+    setError(`${names}${rest} could not be read, so nothing in ${unread.length === 1 ? 'it' : 'them'} was changed.`)
+  }
+
+  /** See `retargetVaultLinks` for the one case it stays quiet about. `unread` is
+   *  what the `path:` half of the same move could not read. */
+  async function followLinks(moves: Map<string, VaultFile>, unread: readonly string[]) {
+    const skipped = await retargetVaultLinks(notes, moves, noteIndex).catch((err: unknown) => {
       setError(String(err))
       return []
     })
-    /**
-     * **Which note, by name**, because a count alone is a fact with nothing to do
-     * about it — asked, in as many words, *"what happened?"*. An **encrypted** note
-     * is not in this list at all: it was reported on every rename, which is a banner
-     * about a permanent condition (*"that's an unnecessary callout"*), and nothing
-     * writes into one anyway. What reaches here is a note that is there and still
-     * could not be read.
-     */
-    if (unreadable.length > 0) {
-      const names = unreadable.slice(0, NAMED).join(', ')
-      const rest = unreadable.length > NAMED ? `, and ${unreadable.length - NAMED} more` : ''
-      setError(`Links in ${names}${rest} were left as they were: they could not be read.`)
-    }
+    sayUnread([...unread, ...skipped])
   }
 
   /**
@@ -102,11 +106,11 @@ export function useRelocation({
   const relocateFile = (was: string) => async (now: VaultFile) => {
     buffer.followFile(was, now)
     onMoved.file(was, now)
-    await writePathProperty([now])
+    const unread = await writePathProperty([now])
     // The property just changed the open note's bytes, and the editor is holding
     // what they were before it — see `reread`.
     await buffer.reread(now)
-    await followLinks(new Map([[pathKey(was), now]]))
+    await followLinks(new Map([[pathKey(was), now]]), unread)
   }
 
   const relocateFolder = (was: string) => async (now: VaultFolder, root: VaultFolder | null) => {
@@ -121,9 +125,9 @@ export function useRelocation({
     // rename changed the folder note's own basename — see `followFolder`.
     buffer.followFolder(was, moved.path, moves)
     onMoved.folder(was, moved.path, moves)
-    await writePathProperty(existingNotesIn(moved))
+    const unread = await writePathProperty(existingNotesIn(moved))
     await buffer.rereadAll()
-    await followLinks(moves)
+    await followLinks(moves, unread)
   }
 
   /**
@@ -150,6 +154,8 @@ export function useRelocation({
      *  still needs following. Handed out rather than duplicated. */
     relocateFile,
     relocateFolder,
+    /** For the other writers of `path:` — a note made, a note converted. */
+    sayUnread,
     moveFile: (file: VaultFile, to: string) =>
       vault.mutate((v) => moveFile(file, v, to), relocateFile(file.path)),
     moveFolder: (folder: VaultFolder, to: string) =>

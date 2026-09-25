@@ -52,9 +52,15 @@ export function useCollections({
     // the effect that knows — the guard `useVaultTexts` keeps a generation for.
     let live = true
     const load = () =>
-      void read().then((found) => {
-        if (live) setStructures(found)
-      })
+      void read().then(
+        (found) => {
+          if (live) setStructures(found)
+        },
+        // There and unreadable: said, and the structures last read are kept.
+        (err: unknown) => {
+          if (live) onError(`Could not read ${COLLECTIONS_FILE}: ${String(err)}`)
+        }
+      )
     load()
     // On focus for the same reason every other read is: a structure edited in
     // another editor should turn up. `revision` is for the app's own writes, where
@@ -123,8 +129,15 @@ export function useCollections({
     },
     declare: async (name: string, structure: string) => {
       if (!vaultPath) return
-      const existing = (await readConfigFile(vaultPath, COLLECTIONS_FILE)) ?? ''
-      const next = withCollection(existing, name, structure)
+      let existing: string | null
+      try {
+        existing = await readConfigFile(vaultPath, COLLECTIONS_FILE)
+      } catch (err) {
+        // Taken for empty, it was written over with this one declaration.
+        onError(`Could not read ${COLLECTIONS_FILE}, so it was left alone: ${String(err)}`)
+        return
+      }
+      const next = withCollection(existing ?? '', name, structure)
       if (next === null) {
         onError(`${COLLECTIONS_FILE} could not be read as JSON, so it was left alone.`)
         return
