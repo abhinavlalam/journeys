@@ -505,9 +505,20 @@ export function saveVaultSettings(vaultPath: string, settings: Settings): Promis
   return writeConfigFile(vaultPath, SETTINGS_FILE, settingsJson(settings))
 }
 
+/**
+ * Settings less what is **the vault's own**: its calendars, and the folders its
+ * graph hides. What is left is the person's, and that much is carried into a vault
+ * with no settings yet and kept for the window before one opens. A calendar's
+ * address is a secret whose events are written into notes: carried, it reached
+ * another vault's remote and was synced into that vault's days.
+ */
+export function portable(settings: Settings): Settings {
+  return { ...settings, calendarFeeds: [], graphHides: [] }
+}
+
 export function saveSettings(settings: Settings): void {
   try {
-    globalThis.localStorage?.setItem(SETTINGS_KEY, JSON.stringify(settings))
+    globalThis.localStorage?.setItem(SETTINGS_KEY, JSON.stringify(portable(settings)))
   } catch {
     // A settings change is not worth failing a render over.
   }

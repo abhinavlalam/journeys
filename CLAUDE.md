@@ -343,6 +343,10 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 - `.config/settings.json` dresses the vault; each value parses on its own and
   falls back to its default; an unparsable file is left untouched.
   `readConfigFile`/`writeConfigFile` take a file name — do not add a second pair.
+- **A vault's calendars and hidden folders are its own** (`portable`): not carried
+  into a new vault, not kept in `localStorage`, and not handed out until that
+  vault's file is read. Carried, a secret feed reached another vault's remote, and
+  the render that switched vaults synced the old calendar into the new one.
 - `stylesheet.test.ts` holds the sheet to its rules; run it after any CSS change:
   - every colour a token or a mix of one; one duration, `--motion`; weights are
     `--fw-*` tokens; gaps from the allowed set; radii `--radius`/`--radius-sm`;
