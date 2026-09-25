@@ -44,7 +44,7 @@ describe('actionKeywords', () => {
     expect(actionKeywords('12:00 to 12:30 --field-notes for [[Mira Vance]]')).toEqual([
       'field-notes',
     ])
-    expect(actionKeywords('10:00 - Making --release-notes for [[Northwind]]')).toEqual([
+    expect(actionKeywords('10:00 - Making --release-notes for [[Journeys]]')).toEqual([
       'release-notes',
     ])
     // A rule is not a keyword, nor a spaced pair, nor dashes inside a word.
@@ -80,7 +80,7 @@ describe('collectLines', () => {
       '# Tuesday',
       '',
       '09:42 --expense on [[Harbour Bistro]] using',
-      '10:00 - Making --release-notes for [[Project Northwind]]',
+      '10:00 - Making --release-notes for [[Journeys]]',
       '12:00 to 12:30 --field-notes for [[Mira Vance]]',
     ].join('\n')
     expect(collectLines(note, 'expense').map((one) => one.text)).toEqual([

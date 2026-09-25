@@ -25,7 +25,7 @@
  * and that is not how these are written. From a real journal:
  *
  *     09:42 --expense on [[Harbour Bistro]]
- *     10:00 - Making --release-notes for [[Project Northwind]]
+ *     10:00 - Making --release-notes for [[Journeys]]
  *     12:00 to 12:30 --field-notes for [[Mira Vance]]
  *
  * The clock comes first, the prose wraps around it, and the keyword lands where the

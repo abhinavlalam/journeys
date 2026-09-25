@@ -40,7 +40,7 @@ const TUESDAY = [
   '09:42 --expense on [[Harbour Bistro]]',
   '  - amount:: 480',
   '  - paid by card',
-  '10:00 - Making --release-notes for [[Project Northwind]]',
+  '10:00 - Making --release-notes for [[Journeys]]',
   '',
 ].join('\n')
 
