@@ -843,7 +843,7 @@ describe('pressing a keyword', () => {
    *  it is revealed and every other span on the line has been replaced. */
   it('opens it from the middle of a sentence, caret on the line or not', () => {
     expect(
-      pressed('10:00 - Making --feature-updates for [[Igneous]]\n', '.cm-md-collection').opened
+      pressed('10:00 - Making --feature-updates for [[Journeys]]\n', '.cm-md-collection').opened
     ).toEqual(['feature-updates'])
   })
 

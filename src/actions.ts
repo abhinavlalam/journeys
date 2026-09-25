@@ -25,7 +25,7 @@
  * and that is not how these are written. From a real journal:
  *
  *     09:42 --expense on [[Harbour Bistro]]
- *     10:00 - Making --feature-updates for [[Project Igneous]]
+ *     10:00 - Making --feature-updates for [[Journeys]]
  *     12:00 to 12:30 --research-activity for [[Rhea]]
  *
  * The clock comes first, the prose wraps around it, and the keyword lands where the
