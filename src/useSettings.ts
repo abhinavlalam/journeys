@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   applySettingsLive,
   loadSettings,
   loadVaultSettings,
+  portable,
   saveSettings,
   saveVaultSettings,
   type Settings,
@@ -22,7 +23,8 @@ const CONFIG_SAVE_MS = 400
  * none — which is how a vault this app has not seen before comes to have a
  * `.config` at all. What is written then is whatever is on screen: the last
  * applied set, out of `localStorage`, so a first open carries the user's own
- * settings into the new vault rather than resetting them to the defaults.
+ * settings into the new vault rather than resetting them to the defaults — less
+ * what was the last vault's own (`portable`).
  *
  * `localStorage` keeps that last applied set for the window *before* a vault is
  * open — the only moment there is no file to read.
@@ -32,7 +34,18 @@ const CONFIG_SAVE_MS = 400
  * subject of the component that lays out the panes.
  */
 export function useSettings(vaultPath: string | null, setError: (message: string) => void) {
-  const [settings, setSettings] = useState<Settings>(loadSettings)
+  /**
+   * The settings, and the vault they were read from. **Until this vault's file has
+   * been read, what is held is another's** — the last vault's, or the window's — so
+   * its calendars and hidden folders are not handed out. Worked out in the render,
+   * because the render that switches vault is the one whose calendar sync would
+   * otherwise write the old vault's events into the new one.
+   */
+  const [held, setHeld] = useState(() => ({ settings: loadSettings(), vault: null as string | null }))
+  const settings = useMemo(
+    () => (held.vault === vaultPath ? held.settings : portable(held.settings)),
+    [held, vaultPath]
+  )
 
   /**
    * Settings onto the document, and the teardown returned — not swallowed.
@@ -65,10 +78,12 @@ export function useSettings(vaultPath: string | null, setError: (message: string
       const found = await loadVaultSettings(vaultPath).catch(() => null)
       if (!live) return
       if (!found) {
-        void saveVaultSettings(vaultPath, current.current).catch(reportFailure)
+        const fresh = portable(current.current)
+        setHeld({ settings: fresh, vault: vaultPath })
+        void saveVaultSettings(vaultPath, fresh).catch(reportFailure)
         return
       }
-      setSettings(found)
+      setHeld({ settings: found, vault: vaultPath })
       // Keeps the next launch's first paint matching the vault it will reopen.
       saveSettings(found)
     })()
@@ -91,7 +106,7 @@ export function useSettings(vaultPath: string | null, setError: (message: string
    * `DEFAULT_SETTINGS` would never reach anyone who had never opened the panel.
    */
   function changeSettings(next: Settings) {
-    setSettings(next)
+    setHeld({ settings: next, vault: vaultPath })
     saveSettings(next)
     if (!vaultPath) return
     if (pending.current) clearTimeout(pending.current)

@@ -5,6 +5,7 @@ import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } f
 import { CONFIG_DIR } from '../vault'
 import { DEFAULT_SETTINGS, parseSettings } from '../settings'
 import { SETTINGS_FILE } from '../vaultModel'
+import { localDateStamp } from '../clock'
 
 /**
  * **A vault carries its own settings**, in `.config/settings.json` at its root.
@@ -18,18 +19,21 @@ import { SETTINGS_FILE } from '../vaultModel'
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
 vi.mock('../MarkdownEditor', () => markdownEditorModule())
-vi.mock('@tauri-apps/plugin-dialog', () => ({
-  open: vi.fn(async () => null),
-  confirm: vi.fn(async () => true),
-}))
+const picked = vi.hoisted(() => vi.fn(async (): Promise<string | null> => null))
+vi.mock('@tauri-apps/plugin-dialog', () => ({ open: picked, confirm: vi.fn(async () => true) }))
+const fetched = vi.hoisted(() => vi.fn(async (_url: string) => ''))
+vi.mock('../calendarFeed', () => ({ fetchFeed: (url: string) => fetched(url) }))
 
 /** Built from the two names the app uses, so a rename of either is caught here. */
 const CONFIG = `/v/${CONFIG_DIR}/${SETTINGS_FILE}`
+const OTHER = `/w/${CONFIG_DIR}/${SETTINGS_FILE}`
 
 afterEach(cleanup)
 beforeEach(() => {
   resetFakeVault()
   rememberVault('/v')
+  picked.mockResolvedValue(null)
+  fetched.mockClear()
 })
 
 async function openApp() {
@@ -89,6 +93,63 @@ describe('a vault that has one', () => {
       )
     )
     expect(disk.read(CONFIG)).toBe('{ this is not json')
+  })
+})
+
+/**
+ * **A vault's calendars and hidden folders are its own.** The settings in force
+ * were carried into a vault with no file of its own, secret calendar addresses
+ * and all, to be committed to that vault's remote; and until a second vault's
+ * file was read, the first one's calendar was synced into its daily notes.
+ */
+describe('a second vault', () => {
+  const FEED = 'https://calendar.example/ical/abc/basic.ics'
+  const day = localDateStamp().replace(/-/g, '')
+  beforeEach(() => {
+    fetched.mockResolvedValue(
+      ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:s1', `DTSTART:${day}T093000`, 'SUMMARY:Standup', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n')
+    )
+    disk.write(
+      CONFIG,
+      JSON.stringify({
+        ...DEFAULT_SETTINGS,
+        proseSize: 21,
+        graphHides: ['Archive'],
+        calendarFeeds: [{ name: 'Work', url: FEED }],
+      })
+    )
+    disk.write('/w/other.md', '# Other\n')
+  })
+
+  async function switchTo(path: string) {
+    picked.mockResolvedValue(path)
+    fireEvent.click(document.querySelector('.vault-name')!)
+    await waitFor(() => expect(screen.getByText('other')).toBeTruthy())
+  }
+
+  it('is given the settings in force, less the first one’s calendars and hidden folders', async () => {
+    await openApp()
+    await waitFor(() => expect(fetched).toHaveBeenCalledWith(FEED))
+    await switchTo('/w')
+    await waitFor(() => expect(disk.has(OTHER)).toBe(true))
+    const written = parseSettings(disk.read(OTHER)!)
+    expect(written.proseSize).toBe(21)
+    expect(written.calendarFeeds).toEqual([])
+    expect(written.graphHides).toEqual([])
+    // Nor is a calendar's secret address kept outside the vault it belongs to.
+    expect(localStorage.getItem('journeys:settings')).not.toContain(FEED)
+  })
+
+  it('does not have the first one’s calendar synced into it', async () => {
+    disk.write(OTHER, JSON.stringify(DEFAULT_SETTINGS))
+    await openApp()
+    await waitFor(() => expect(disk.read(`/v/Daily/${localDateStamp()}.md`)).toContain('Standup'))
+    fetched.mockClear()
+    await switchTo('/w')
+    // Long enough for a sync to fetch and write, which in the fake disk is a few ticks.
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(fetched).not.toHaveBeenCalled()
+    expect(disk.has(`/w/Daily/${localDateStamp()}.md`)).toBe(false)
   })
 })
 
