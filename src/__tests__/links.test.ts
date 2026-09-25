@@ -704,6 +704,14 @@ describe('buildBacklinkIndex, for wikilinks', () => {
     expect(backlinksTo(backlinks, 'Areas/Health/Health.md')).toEqual([])
     expect(backlinksTo(backlinks, 'Later.md').map((b) => b.note.path)).toEqual(['Ideas/Ideas.md'])
   })
+
+  // Each `\r` a line ending carries is a character before the link: counted as
+  // nothing, thirty lines down the mention was read off a later line.
+  it('quotes the line a link is on in a note with CRLF endings', () => {
+    const lines = [...Array.from({ length: 30 }, (_, n) => `line ${n}`), 'the plan [[Roadmap]]', 'after']
+    const crlf = buildBacklinkIndex([{ note: note('Index.md'), text: lines.join('\r\n') }], index)
+    expect(backlinksTo(crlf, 'Notes/Roadmap.md')[0].mentions).toEqual(['the plan [[Roadmap]]'])
+  })
 })
 
 describe('matchNotes', () => {

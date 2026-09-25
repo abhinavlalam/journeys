@@ -1108,6 +1108,43 @@ describe('the mounted editor', () => {
     expect(changed).toHaveBeenLastCalledWith('one two')
   })
 
+  /**
+   * **A file's line endings are its own.** CodeMirror splits on `\r\n`, `\r` and
+   * `\n` alike and joins with `\n`, so the first keystroke in a note written on
+   * Windows, or a CSV an export left behind, rewrote every line ending in it.
+   */
+  it('keeps CRLF line endings through an edit and a new line', () => {
+    const changed = vi.fn()
+    const { container } = render(
+      <MarkdownEditor initialMarkdown={'one\r\ntwo\r\n'} onChange={changed} />
+    )
+    const view = viewOf(container)
+    view.dispatch({ changes: { from: 3, insert: '!' } })
+    expect(changed).toHaveBeenLastCalledWith('one!\r\ntwo\r\n')
+    view.dispatch({ selection: { anchor: view.state.doc.line(2).to } })
+    fireEvent.keyDown(view.contentDOM, { key: 'Enter' })
+    expect(changed).toHaveBeenLastCalledWith('one!\r\ntwo\r\n\r\n')
+  })
+
+  it('keeps the stray ending of a mixed file as it was written', () => {
+    const changed = vi.fn()
+    const { container } = render(
+      <MarkdownEditor initialMarkdown={'a\nb\r\nc\nd\n'} onChange={changed} />
+    )
+    viewOf(container).dispatch({ changes: { from: 0, insert: '-' } })
+    expect(changed).toHaveBeenLastCalledWith('-a\nb\r\nc\nd\n')
+  })
+
+  // The caret is worked out in the file's characters, where `\r\n` is two; in the
+  // document a line break is one, so each break above it pushed it one further in.
+  it('opens a CRLF note below its properties, where an LF one opens', () => {
+    const { container } = render(
+      <MarkdownEditor initialMarkdown={'---\r\nicon: x\r\n---\r\n\r\nbody\r\n'} onChange={() => {}} />
+    )
+    const { state } = viewOf(container)
+    expect(state.selection.main.head).toBe(state.doc.line(4).from)
+  })
+
   it('does not fire for a selection move', () => {
     const changed = vi.fn()
     const { container } = render(<MarkdownEditor initialMarkdown="one two" onChange={changed} />)
