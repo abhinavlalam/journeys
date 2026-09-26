@@ -430,8 +430,8 @@ comments, tests or docs — because the code is public. Fixtures are fictional
 from a real report, grep the tree for the vault's note names.
 
 The history before publication is kept beside this folder, never in the public
-repository: `journeys-v1-2026-09-02.bundle` (v1, a deliberate restart) with
-`journeys-v1-browsable` checked out from it, and
-`journeys-v2-history-2026-09-25.bundle` (this app's 416 commits before the fresh
-start, which carry the real names the published tree was scrubbed of).
-`git clone <bundle>` reads either.
+repository, as one file: `journeys-history.bundle`. Its `history` branch is this
+app's 416 commits before the fresh start, which carry the real names the
+published tree was scrubbed of; `archive/v1` and the tag `archive/v1-2026-09-02`
+are v1, a deliberate restart, whose commits are inside `history` too.
+`git clone journeys-history.bundle` reads it.
