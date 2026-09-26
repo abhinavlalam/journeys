@@ -19,6 +19,8 @@ import {
   retargetLinks,
 } from '../links'
 import { buildNoteGraph } from '../graph'
+import { actionKeywords } from '../actions'
+import { tagNames } from '../tags'
 
 const targets = (text: string) => parseNoteLinks(text).map((l) => l.target)
 
@@ -249,6 +251,37 @@ describe('parseNoteLinks', () => {
     // failed on a full run and passed alone. A flaky guard is worse than a loose one.
     expect(Date.now() - started).toBeLessThan(15000)
   })
+})
+
+/**
+ * **One rule for what is code**, for links, keywords and tags alike. There were two:
+ * the links' took a fence indented no more than three spaces, so one under a list
+ * item was masked only by being read as a code span, which a blank line ends; the
+ * keywords' closed a fence on any run, so a four-backtick fence around three leaked
+ * a flag.
+ */
+describe('code, as links, keywords and tags all read it', () => {
+  const note = [
+    '- a list item',
+    '    ```sh',
+    '    yt-dlp --sub-langs en',
+    '',
+    '    [[Inside Fence]] #intag',
+    '    ```',
+    '````md',
+    '```',
+    '--escaped [[Also Inside]] #alsoin',
+    '````',
+    'after [[Outside]] --real #real',
+  ]
+  for (const [ending, eol] of [['LF', '\n'], ['CRLF', '\r\n']] as const) {
+    it(`leaves out a nested and a list-held fence, with ${ending} endings`, () => {
+      const text = note.join(eol)
+      expect(targets(text)).toEqual(['Outside'])
+      expect(actionKeywords(text)).toEqual(['real'])
+      expect(tagNames(text)).toEqual(['real'])
+    })
+  }
 })
 
 describe('isExternalTarget', () => {
