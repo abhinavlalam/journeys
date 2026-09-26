@@ -89,29 +89,33 @@ function blank(run: string): string {
  * into it are still offsets into the original.
  *
  * Without this, every markdown link in every code sample in the vault becomes a
- * backlink. Handles fences of three or more backticks or tildes, indented up to
- * three spaces, closed by a run at least as long — and unclosed fences, which run to
- * the end of the note.
+ * backlink. **The one rule for what is code** — the keywords and the tags read it
+ * too, through `proseLines`, or a flag in a fence is a collection. Handles fences of
+ * three or more backticks or tildes, **at any indent**, because one under a list
+ * item sits as deep as the item's text; closed by a run of the same character at
+ * least as long, so a fence can hold a shorter one; unclosed, to the end of the
+ * note; and a CRLF line's `\r` is not part of what a fence line says.
  *
  * A four-space-indented code block is deliberately *not* masked: in these notes a
  * deeply nested list item is far more common than an indented code sample, and
  * masking those would silently drop real links.
  */
-function maskCode(text: string): string {
+export function maskCode(text: string): string {
   const lines = text.split('\n')
   let out = ''
   let fence: { char: string; len: number } | null = null
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
+    const bare = line.endsWith('\r') ? line.slice(0, -1) : line
     const nl = i < lines.length - 1 ? '\n' : ''
     if (fence) {
-      const close = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*$/)
+      const close = bare.match(/^[ \t]*(`{3,}|~{3,})[ \t]*$/)
       if (close && close[1][0] === fence.char && close[1].length >= fence.len) fence = null
       out += blank(line) + nl
       continue
     }
-    const open = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/)
+    const open = bare.match(/^[ \t]*(`{3,}|~{3,})(.*)$/)
     // An info string may not hold a backtick, so ``` `js` ``` is an inline span.
     if (open && !(open[1][0] === '`' && open[2].includes('`'))) {
       fence = { char: open[1][0], len: open[1].length }
@@ -129,44 +133,47 @@ function maskCode(text: string): string {
  * *exactly* N — and a run with no such closer is literal text, not an opener, so an
  * unpaired backtick cannot swallow the rest of the note. A blank line ends the
  * search: it ends the paragraph, so the backticks are literal.
+ *
+ * From backtick to backtick, copying the text between in one piece, and the
+ * paragraph's end found once per paragraph: every vault read runs this over every
+ * note several times — links, keywords, tags — and a copy of the rest of the note
+ * per backtick made it the slowest part of reading one.
  */
 function maskInlineCode(text: string): string {
+  const para = /\n[ \t]*\r?\n/g
   let out = ''
-  let i = 0
-  while (i < text.length) {
-    if (text[i] !== '`') {
-      out += text[i++]
-      continue
-    }
+  let copied = 0
+  let limit = -1
+  let i = text.indexOf('`')
+  while (i !== -1) {
     let open = i
     while (text[open] === '`') open++
     const len = open - i
-    const para = text.slice(open).search(/\n[ \t]*\n/)
-    const limit = para === -1 ? text.length : open + para
-    let j = open
+    // The first blank line at or after `open`; one found for an earlier run still
+    // is, until the scan passes it.
+    if (open > limit) {
+      para.lastIndex = open
+      limit = para.exec(text)?.index ?? text.length
+    }
     let end = -1
-    while (j < limit) {
-      if (text[j] !== '`') {
-        j++
-        continue
-      }
+    for (let j = text.indexOf('`', open); j !== -1 && j < limit; ) {
       let run = j
       while (text[run] === '`') run++
       if (run - j === len) {
         end = run
         break
       }
-      j = run
+      j = text.indexOf('`', run)
     }
     if (end === -1) {
-      out += text.slice(i, open)
-      i = open
+      i = text.indexOf('`', open)
       continue
     }
-    out += blank(text.slice(i, end))
-    i = end
+    out += text.slice(copied, i) + blank(text.slice(i, end))
+    copied = end
+    i = text.indexOf('`', end)
   }
-  return out
+  return out + text.slice(copied)
 }
 
 /** The index of the `]` closing the label that opens at `open`, or -1. */

@@ -223,7 +223,8 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 ## Collections, tags and properties
 
 - **`--keyword` anywhere in a line** after start or whitespace; `proseLines` masks
-  code first. macOS turns `--` into `—`, so `DASHES` reads `--`, `—` and `–`, and
+  code first, with `maskCode` — the one rule for what is code, which the links read
+  too (two rules disagreed about fences in lists and fences in fences). macOS turns `--` into `—`, so `DASHES` reads `--`, `—` and `–`, and
   what the app writes is always `--`.
 - **A collection's declaration is its schema**: one line in
   `.config/actions/collections.json` (`structure` is the authority; `fields` is

@@ -18,6 +18,8 @@
 //
 // **Pure**: a string in, a description out.
 
+import { maskCode } from './links'
+
 /**
  * The dashes that open a keyword: `--`, and **the em dash macOS makes of it**.
  *
@@ -156,22 +158,18 @@ const FIELD_LABEL = /[A-Za-z][\w-]*\s*::\s?/g
 const KEYWORDS = new RegExp(OPENER, 'g')
 
 /**
- * A note's lines with everything that is **not prose** masked out: a fenced block
- * and its delimiters become blank, inline code becomes spaces.
+ * A note's lines with everything that is **not prose** masked out: fenced blocks,
+ * their delimiters and inline code become spaces.
  *
- * One rule, in one place. A vault holds shell in fences — `--postprocessor-args`,
- * `--sub-langs` — and a flag someone pasted is not a collection they keep; the
- * pane's list and a collection's view had that loop written out twice, and the two
- * disagreeing is a pane listing a collection whose view is empty. Line numbers are
- * kept, because `collectLines` reads the *unmasked* line back out by index.
+ * `maskCode`'s rule, the one the links read too. A vault holds shell in fences —
+ * `--postprocessor-args`, `--sub-langs` — and a flag someone pasted is not a
+ * collection they keep. This had a rule of its own, which closed a fence on any
+ * run of backticks, so a fence holding a shorter one leaked what followed. Line
+ * numbers are kept, because `collectLines` reads the *unmasked* line back out by
+ * index.
  */
 export function proseLines(raw: string): string[] {
-  let fenced = false
-  return raw.split(/\r?\n/).map((line) => {
-    const delimiter = /^\s*(```|~~~)/.test(line)
-    if (delimiter) fenced = !fenced
-    return delimiter || fenced ? '' : line.replace(/`[^`]*`/g, ' ')
-  })
+  return maskCode(raw).split(/\r?\n/)
 }
 
 /**
