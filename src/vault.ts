@@ -48,13 +48,13 @@ interface VaultDirEntry {
 }
 
 /**
- * **The app's filesystem, as the seven calls everything above it makes.**
+ * **The app's filesystem, as the eight calls everything above it makes.**
  *
  * Two rules, and they are separate:
  *
  * - **`vault.ts` is the only module that imports `@tauri-apps/plugin-fs`.** Every
  *   test's `vi.mock('@tauri-apps/plugin-fs')` therefore reaches everything.
- * - **`VaultFs` is what a different backend implements** — seven calls, not a
+ * - **`VaultFs` is what a different backend implements** — eight calls, not a
  *   module of policy. A mobile or sync backend writes these and nothing else.
  *
  * Every path is **absolute**, which is what every caller already holds.
@@ -83,9 +83,9 @@ export interface VaultFs {
 /**
  * The surface over the real disk, and **the only place `plugin-fs` is called**.
  *
- * Everything below this line goes through `vaultFs`, so the seven calls above are
+ * Everything below this line goes through `vaultFs`, so the eight calls above are
  * enforced by the compiler rather than asserted in a comment: a function here that
- * needs an eighth cannot quietly reach past the interface, it has to widen it. The
+ * needs a ninth cannot quietly reach past the interface, it has to widen it. The
  * previous version of this file described the boundary and then made 49 raw
  * `plugin-fs` calls of its own, so nothing forced the interface to stay sufficient
  * and three things a second backend needs were missing from it.
@@ -146,14 +146,6 @@ function sameFolder(a: VaultFolder, b: VaultFolder): boolean {
   return true
 }
 
-/**
- * The files the app opens: notes, and JSON.
- *
- * A `.json` file is not a note — it carries no properties and takes no links — but
- * it is a file someone keeps *with* their notes, and the pane can show it. What
- * separates the two is `isNote`, which every piece of note machinery asks.
- * Everything else on disk stays invisible.
- */
 /**
  * **Every file, not only the ones the app can edit.**
  *
@@ -479,8 +471,8 @@ const TMUX_FILE = 'tmux.conf'
  */
 const TMUX_CONF = `# Written by Journeys when a Terminal tab first opened.
 # Yours to edit: this file is read once, when the session server starts, and is
-# never rewritten. It applies only to Journeys' own tmux server (socket
-# "journeys") and never to tmux you run yourself.
+# never rewritten. It applies only to Journeys' own tmux server for this vault,
+# on a socket of its own, and never to tmux you run yourself.
 
 # Read as a terminal in this app, not as a multiplexer someone opened.
 set -g status off
@@ -535,13 +527,6 @@ export async function writeVaultDirFile(
 }
 
 /**
- * The file names in one folder under `.config`, sorted, or `[]` when the folder is
- * not there — which is the ordinary case until the first file is written.
- *
- * Files only. Nothing in `.config` nests further than the section that writes it,
- * and a folder in a list of files would be a thing with no row to draw.
- */
-/**
  * The files in a **vault-relative** folder, dot-prefixed ones included.
  *
  * `.config` is not the only hidden folder that matters any more: a vault's skills
@@ -590,9 +575,6 @@ export async function listVaultEntries(
   return names.sort((a, b) => a.localeCompare(b))
 }
 
-/** A file under `.config` as something the pane can open. It is outside the tree —
- *  `walk` skips dot-prefixed entries — so nothing else in the app will hand one
- *  over, and this is the only place they are named. */
 /**
  * A file at a vault-relative path as something the pane can open. Outside the tree
  * — `walk` skips dot-prefixed entries — so nothing else in the app hands one over.
@@ -668,18 +650,6 @@ export async function ensureFolder(vaultPath: string, relativePath: string): Pro
 }
 
 /**
- * A note, and the folders above it.
- *
- * `parentPath` may name folders that are not there: a wikilink is written before
- * the place it points at exists, and `[[Landmark Plaza/Northwind Office]]` says
- * where the note goes as much as what it is called. Creating them here rather than
- * at the caller is what keeps "the parent must exist" from being a rule each of the
- * three callers has to remember separately.
- *
- * `name` is one segment either way — a `/` in it is folded, because that is a name
- * with a slash in it and not a path.
- */
-/**
  * **A file dragged in from outside**, copied into `parentPath` under its own name.
  *
  * Copied and not moved: dragging out of Finder into an app means a copy, and the
@@ -709,6 +679,18 @@ export async function importFile(
   return { path: relativePath, absolutePath, name: noteName(fileName) }
 }
 
+/**
+ * A note, and the folders above it.
+ *
+ * `parentPath` may name folders that are not there: a wikilink is written before
+ * the place it points at exists, and `[[Landmark Plaza/Northwind Office]]` says
+ * where the note goes as much as what it is called. Creating them here rather than
+ * at the caller is what keeps "the parent must exist" from being a rule each of the
+ * three callers has to remember separately.
+ *
+ * `name` is one segment either way — a `/` in it is folded, because that is a name
+ * with a slash in it and not a path.
+ */
 export async function createNote(
   vaultPath: string,
   parentPath: string,

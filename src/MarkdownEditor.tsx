@@ -48,7 +48,7 @@ import type { VaultFile } from './vaultModel'
 
 interface MarkdownEditorProps {
   /**
-   * Read at mount only, exactly as `Editor`'s is: the parent keys this component on
+   * Read at mount only, exactly as `EditorHost`'s is: the parent keys this component on
    * the open note's path and `editorEpoch`, so switching notes or picking up an
    * external edit *remounts* it rather than pushing text into a live editor.
    *

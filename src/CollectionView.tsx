@@ -143,20 +143,6 @@ export function CollectionView({
 }
 
 /**
- * A collection line, with the app's own writing marked.
- *
- * `collectionSyntax` says which spans are the app's — the keyword, each `label::`,
- * the `<<`/`>>` around each value — and the same list serves the editor's
- * decorations, so a line cannot read one way in the note and another on this page.
- *
- * **Two readings, because the two places want opposite things.** The *structure* is
- * the schema, so `show` draws every span, dimmed: seeing `amount::<<>>` is the
- * whole point of declaring it. A *gathered line* is the sentence a note wrote, so
- * `hide` drops them and leaves `09:42 --expense spent EUR 480 at Corner Shop`,
- * which is what that line reads as in the note with the caret elsewhere. The
- * keyword stays marked in both: it is what the line *is*.
- */
-/**
  * **What a structure is about is its fields**, so they take the app's one label
  * format — the same `--mark` and weight a property's name, a JSON key and a
  * section's heading take, because a field's label is exactly that kind of word. The
@@ -176,6 +162,20 @@ const SPAN: Record<string, string> = {
   blank: 'collection-syntax',
 }
 
+/**
+ * A collection line, with the app's own writing marked.
+ *
+ * `collectionSyntax` says which spans are the app's — the keyword, each `label::`,
+ * the `<<`/`>>` around each value — and the same list serves the editor's
+ * decorations, so a line cannot read one way in the note and another on this page.
+ *
+ * **Two readings, because the two places want opposite things.** The *structure* is
+ * the schema, so `show` draws every span, dimmed: seeing `amount::<<>>` is the
+ * whole point of declaring it. A *gathered line* is the sentence a note wrote, so
+ * `hide` drops them and leaves `09:42 --expense spent EUR 480 at Corner Shop`,
+ * which is what that line reads as in the note with the caret elsewhere. The
+ * keyword stays marked in both: it is what the line *is*.
+ */
 function CollectionLine({
   line,
   syntax,

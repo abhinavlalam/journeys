@@ -17,9 +17,9 @@
 //! building it: with no client attached, a session's pane content is intact and its
 //! child process is still running.
 //!
-//! Three things make that safe to do. The server is on a **private socket**
-//! (`-L journeys`), so this never appears in the user's own `tmux ls`, never joins
-//! their server and never reads their config. The **config is the vault's**
+//! Three things make that safe to do. The server is on a **private socket**, one
+//! per vault (`socket_for`), so this never appears in the user's own `tmux ls`,
+//! never joins their server and never reads their config. The **config is the vault's**
 //! (`.config/tmux.conf`, written by the TS side, which owns vault files) and turns
 //! the status bar off, leaves the mouse to xterm.js so the pane's own scrollback and
 //! wheel behave as they did, and sets `prefix None` — because the default `C-b` is
@@ -28,7 +28,7 @@
 //! **detaches**: killing the client leaves the server holding the session, which is
 //! the whole point, so ending one for good is a separate act.
 //!
-//! Without tmux on the PATH it falls back to the login shell exactly as before, and
+//! Without tmux (`find_tmux`) it falls back to the login shell exactly as before, and
 //! `spawn_terminal` answers which of the two it did — a fallback that reported
 //! itself as an ordinary success is this project's most repeated bug.
 

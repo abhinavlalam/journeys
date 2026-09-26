@@ -9,10 +9,8 @@
 //
 // This module is **pure**: no filesystem, no React. It takes note text as input, so
 // the caller decides when to pay for reading the vault. Nothing here imports
-// `vault.ts`: what it needed from there — `folderNoteRef`, `isSamePath`,
-// `splitFrontmatter`
-// at module scope, so a test of this file still needs that seam mocked — see
-// `links.test.ts`.
+// `vault.ts`: what it needed from there lives in `vaultModel.ts` and
+// `frontmatter.ts`, so a test of this file mocks nothing — see `links.test.ts`.
 
 import { splitFrontmatter } from './frontmatter'
 import {
@@ -457,14 +455,6 @@ export function collectNotes(root: VaultFolder): VaultFile[] {
 }
 
 /**
- * Every note inside a folder that is *on disk*, the folder's own note included.
- *
- * A folder note is written on the first keystroke (CLAUDE.md), so one that does not
- * exist yet is skipped rather than named: writing a property into it would create
- * the file that browsing a folder is supposed to leave alone. `collectNotes` names
- * it either way, which is right for resolving a link and wrong for a bulk write.
- */
-/**
  * The folders a note is **reached through**, outermost first: `Areas` then
  * `Areas/Plans` for `Areas/Plans/Q3.md`.
  *
@@ -501,6 +491,14 @@ export function folderAt(root: VaultFolder | null, path: string): VaultFolder | 
   return null
 }
 
+/**
+ * Every note inside a folder that is *on disk*, the folder's own note included.
+ *
+ * A folder note is written on the first keystroke (CLAUDE.md), so one that does not
+ * exist yet is skipped rather than named: writing a property into it would create
+ * the file that browsing a folder is supposed to leave alone. `collectNotes` names
+ * it either way, which is right for resolving a link and wrong for a bulk write.
+ */
 export function existingNotesIn(folder: VaultFolder): VaultFile[] {
   const out: VaultFile[] = []
   const walk = (f: VaultFolder) => {
@@ -607,6 +605,29 @@ function cutWikiAnchor(target: string): string {
 }
 
 /**
+ * `[[Query Layer/DML Files]]` when `Query Layer` is a note somewhere else.
+ *
+ * **A path link's head is a name too.** A slash used to send the whole thing
+ * straight to the root-relative reading — the by-name lookup above is guarded on
+ * *not* containing one — so a link naming a note plus a child resolved to nothing
+ * and then **created** the child at the top of the vault, folder and all. Reported
+ * from the running app: `Areas/Northwind/Query Layer.md` already existed, and
+ * following `[[Query Layer/DML Files]]` made `Query Layer/DML Files.md` at the
+ * root — two things with one name, and the folder sitting beside `Areas`.
+ *
+ * A note's children live in a folder beside it, so the head resolves by name and the
+ * rest hangs off its `knownPath`. Offered **after** the literal readings, so nothing
+ * that resolves today changes meaning; what it changes is where an unresolved one is
+ * created.
+ */
+function underNamedNote(written: string, index: NoteIndex): string | null {
+  const cut = written.indexOf('/')
+  if (cut <= 0) return null
+  const found = index.byName.get(nameKey(written.slice(0, cut)))
+  return found?.[0] ? `${knownPath(found[0].path)}${written.slice(cut)}` : null
+}
+
+/**
  * Where one destination points, read from the note at `fromPath`. Pass the whole
  * `NoteLink` — a bare string is read as a markdown destination, which is right for
  * an `href` taken off the document and wrong for a wikilink.
@@ -633,29 +654,6 @@ function cutWikiAnchor(target: string): string {
  * Either way the answer is one of the same three states, so a wikilink to a name
  * with no note is a dangling link like any other.
  */
-/**
- * `[[Query Layer/DML Files]]` when `Query Layer` is a note somewhere else.
- *
- * **A path link's head is a name too.** A slash used to send the whole thing
- * straight to the root-relative reading — the by-name lookup above is guarded on
- * *not* containing one — so a link naming a note plus a child resolved to nothing
- * and then **created** the child at the top of the vault, folder and all. Reported
- * from the running app: `Areas/Northwind/Query Layer.md` already existed, and
- * following `[[Query Layer/DML Files]]` made `Query Layer/DML Files.md` at the
- * root — two things with one name, and the folder sitting beside `Areas`.
- *
- * A note's children live in a folder beside it, so the head resolves by name and the
- * rest hangs off its `knownPath`. Offered **after** the literal readings, so nothing
- * that resolves today changes meaning; what it changes is where an unresolved one is
- * created.
- */
-function underNamedNote(written: string, index: NoteIndex): string | null {
-  const cut = written.indexOf('/')
-  if (cut <= 0) return null
-  const found = index.byName.get(nameKey(written.slice(0, cut)))
-  return found?.[0] ? `${knownPath(found[0].path)}${written.slice(cut)}` : null
-}
-
 export function resolveTarget(
   link: string | NoteLink,
   fromPath: string,
@@ -841,17 +839,6 @@ export interface Backlink {
 export type BacklinkIndex = Map<string, Backlink[]>
 
 /**
- * Which notes link to which.
- *
- * Takes text as **input** and never reads a disk: reading every note in a vault is
- * the expensive part, so the caller decides when to pay for it and this stays a
- * pure function over what it is given.
- *
- * A note does **not** backlink to itself. The section answers "what else points
- * here", and a note is not news to itself; a self link is still a real link that
- * `parseNoteLinks` reports and `resolveTarget` resolves.
- */
-/**
  * The folder whose own note is the note at `path`, or null.
  *
  * A nested note *is* a folder plus a same-named note inside it (CLAUDE.md), so this
@@ -866,9 +853,6 @@ export function folderWithNote(root: VaultFolder | null, path: string): VaultFol
   return root ? searchForNote(root, path) : null
 }
 
-/** Every child a row of this folder would draw: subfolders by their own note, then
- *  the files. The folder's own note is not one of them — `walk` lifts it off the
- *  file list and onto the folder. */
 /**
  * Every leaf note the tree is **showing**, in the order it draws them: a folder's
  * subfolders first and then its own files, which is `FolderTree`'s own order, and
@@ -892,6 +876,9 @@ export function visibleFiles(
   return found
 }
 
+/** Every child a row of this folder would draw: subfolders by their own note, then
+ *  the files. The folder's own note is not one of them — `walk` lifts it off the
+ *  file list and onto the folder. */
 export function childrenOf(folder: VaultFolder): VaultFile[] {
   return [...folder.folders.map(folderNoteRef), ...folder.files]
 }
@@ -905,6 +892,17 @@ function searchForNote(folder: VaultFolder, path: string): VaultFolder | null {
   return null
 }
 
+/**
+ * Which notes link to which.
+ *
+ * Takes text as **input** and never reads a disk: reading every note in a vault is
+ * the expensive part, so the caller decides when to pay for it and this stays a
+ * pure function over what it is given.
+ *
+ * A note does **not** backlink to itself. The section answers "what else points
+ * here", and a note is not news to itself; a self link is still a real link that
+ * `parseNoteLinks` reports and `resolveTarget` resolves.
+ */
 export function buildBacklinkIndex(
   notes: Iterable<{ note: VaultFile; text: string }>,
   index: NoteIndex

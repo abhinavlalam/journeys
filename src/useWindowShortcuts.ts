@@ -2,17 +2,14 @@ import { useWindowEvent } from './useWindowEvent'
 import { matchesCombo, SETTINGS_COMBO } from './shortcuts'
 
 /**
- * ⌘, opens the panel — the macOS convention, and deliberately **not** in `ACTIONS`:
- * a rebindable "open settings" is a shortcut you can lock yourself out of.
- *
- * `RESERVED_COMBOS` refuses it, so an action cannot be bound over the panel's own
- * way in. The listener still checks the bound action first, which is the belt to
- * that braces: a combo already stored from before the reservation keeps working
- * rather than becoming a key that does nothing.
- */
-
-/**
  * The window's two shortcuts: today's note on the bound combo, the panel on ⌘,.
+ *
+ * ⌘, is the macOS convention, and deliberately **not** in `ACTIONS`: a rebindable
+ * "open settings" is a shortcut you can lock yourself out of. `RESERVED_COMBOS`
+ * refuses it, so an action cannot be bound over the panel's own way in. The
+ * listener still checks the bound action first, which is the belt to that braces:
+ * a combo already stored from before the reservation keeps working rather than
+ * becoming a key that does nothing.
  *
  * Registered once, and read through a ref: a listener closes over one render, and
  * everything it needs — the vault path above all, which is null on the render that

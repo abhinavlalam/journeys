@@ -106,17 +106,6 @@ export function useCollections({
       null,
 
     /**
-     * Writes a collection's structure, keeping every other entry.
-     *
-     * **A file it cannot parse is a file it will not overwrite.** Someone may edit
-     * this by hand, and a stray comma is not a reason to throw their structures
-     * away — so the write is refused and said out loud, which is the bargain
-     * `.config/settings.json` already makes.
-     *
-     * `''` is a structure too: a collection that exists and has not been given a
-     * shape, which is what the `+` makes.
-     */
-    /**
      * The structure a name has **on disk, read now**, rather than from what the pane
      * last read. The calendar syncs as the vault opens, before that read has landed,
      * and taking "not read yet" for "not declared" would write the default over the
@@ -127,6 +116,17 @@ export function useCollections({
       const key = Object.keys(found).find((one) => one.toLowerCase() === name.toLowerCase())
       return key ? found[key] : null
     },
+    /**
+     * Writes a collection's structure, keeping every other entry.
+     *
+     * **A file it cannot parse is a file it will not overwrite.** Someone may edit
+     * this by hand, and a stray comma is not a reason to throw their structures
+     * away — so the write is refused and said out loud, which is the bargain
+     * `.config/settings.json` already makes.
+     *
+     * `''` is a structure too: a collection that exists and has not been given a
+     * shape, which is what the `+` makes.
+     */
     declare: async (name: string, structure: string) => {
       if (!vaultPath) return
       let existing: string | null

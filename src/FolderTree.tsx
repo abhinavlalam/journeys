@@ -32,7 +32,6 @@ function setCustomDragImage(e: React.DragEvent, label: string) {
   setTimeout(() => ghost.remove(), 0)
 }
 
-/** A name being typed for a note or folder about to be created, rendered in place. */
 /** The passphrase question, under the file it is about. `name` is what the field's
  *  accessible name says, since the row above it says nothing to a reader. */
 export interface InlineUnlock {
@@ -44,6 +43,7 @@ export interface InlineUnlock {
   onCancel: () => void
 }
 
+/** A name being typed for a note or folder about to be created, rendered in place. */
 export interface InlineCreate {
   /** The folder the new note goes in, `''` for the vault itself. */
   parentPath: string
@@ -465,15 +465,6 @@ function FileRow({
 }
 
 /**
- * A place a note or a folder can be dropped: a folder's row, or the tree's own
- * container, which is the **root**.
- *
- * There was no root target at all, so dragging anything out of a folder and back
- * to the top of the vault had nowhere to land — reported from the running app.
- * One hook for both, because "what may be dropped here and what that means" is one
- * question with one answer, and the root is just `''` as a destination.
- */
-/**
  * **A drag starts on the primary button and no other.**
  *
  * WebKit begins a drag session when the *right* button is pressed on a `draggable`
@@ -609,6 +600,15 @@ function useNoteDropTarget(
   }
 }
 
+/**
+ * A place a note or a folder can be dropped: a folder's row, or the tree's own
+ * container, which is the **root**.
+ *
+ * There was no root target at all, so dragging anything out of a folder and back
+ * to the top of the vault had nowhere to land — reported from the running app.
+ * One hook for both, because "what may be dropped here and what that means" is one
+ * question with one answer, and the root is just `''` as a destination.
+ */
 export function useDropTarget(
   to: string,
   onMoveFile: (file: VaultFile, to: string) => void,

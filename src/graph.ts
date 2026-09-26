@@ -475,13 +475,13 @@ export function stepLayout(
   return { nodes, step: state.step + 1, maxSpeed, converged: maxSpeed <= opts.tolerance }
 }
 
+/** How many steps a layout may take to settle before it is drawn as it stands. */
+const SETTLE_STEPS = 800
+
 /**
  * Run the simulation to rest, or to `maxSteps`, whichever comes first — what a test
  * wants, and what the renderer wants for a graph it opens without animating.
  */
-/** How many steps a layout may take to settle before it is drawn as it stands. */
-const SETTLE_STEPS = 800
-
 export function settle(
   graph: NoteGraph,
   from: LayoutState,

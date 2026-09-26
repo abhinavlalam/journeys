@@ -301,14 +301,6 @@ export function useVaultTexts({
   )
 
   /**
-   * The open collection's lines, per note.
-   *
-   * Only the open one: gathering all of them on every read would be a pass per
-   * keyword over the whole vault to answer a question nobody has asked yet. A note
-   * with no entry is left out rather than listed empty — the view lists where the
-   * lines are.
-   */
-  /**
    * The open page's lines, per note, memoised per name.
    *
    * **Only the open one**: gathering every collection and every tag on each read

@@ -237,16 +237,13 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
 
     setSaveStatus('saving')
     bodyRef.current = markdown
-    // The frontmatter the editor never showed, put back in front of the body.
-    // The document *is* the file now, so there is nothing to put back in front.
-    const raw = markdown
-    pendingSave.current = { file, raw }
+    pendingSave.current = { file, raw: markdown }
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
       pendingSave.current = null
       // Through runSave, so a flush landing while this write is in flight awaits
       // it instead of reading the file back mid-write.
-      void runSave({ file, raw })
+      void runSave({ file, raw: markdown })
     }, AUTOSAVE_MS)
   }
 

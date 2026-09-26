@@ -35,7 +35,6 @@ export function killTerminal(id: string): Promise<void> {
   return invoke('kill_terminal', { id })
 }
 
-/** End a session for good, by tmux name — the deliberate other act to detaching. */
 /** Ends the session on its vault's own server — each vault has one, named from
  *  its path, so the vault is half of which session this is. */
 export function endTerminal(name: string, cwd: string): Promise<void> {

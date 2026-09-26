@@ -19,23 +19,6 @@
 // **Pure**: a string in, a description out.
 
 /**
- * `--keyword`, **wherever it sits in the line** — the one rule for what one is.
- *
- * It was anchored to the start of a line's content, past any indent and any bullet,
- * and that is not how these are written. From a real journal:
- *
- *     09:42 --expense on [[Harbour Bistro]]
- *     10:00 - Making --feature-updates for [[Journeys]]
- *     12:00 to 12:30 --research-activity for [[Rhea]]
- *
- * The clock comes first, the prose wraps around it, and the keyword lands where the
- * sentence puts it. So the rule is a search rather than an anchor.
- *
- * `(^|\s)` and not a bare search: the dashes have to start a word, or a hyphenated
- * `stroke--width` in prose would read as one. A lowercase letter after them, for the
- * same reason a `---` rule and an em dash are not keywords.
- */
-/**
  * The dashes that open a keyword: `--`, and **the em dash macOS makes of it**.
  *
  * System-wide "smart dashes" rewrites `--` as you type, in a WKWebView as anywhere
@@ -63,6 +46,23 @@ export const KEYWORD_PREFIX = new RegExp(`${DASHES}[a-z0-9-]*`)
  */
 export const DECLARED_KEYWORD = new RegExp(`^\\s*${DASHES}[a-z][a-z0-9-]*`)
 
+/**
+ * `--keyword`, **wherever it sits in the line** — the one rule for what one is.
+ *
+ * It was anchored to the start of a line's content, past any indent and any bullet,
+ * and that is not how these are written. From a real journal:
+ *
+ *     09:42 --expense on [[Harbour Bistro]]
+ *     10:00 - Making --feature-updates for [[Journeys]]
+ *     12:00 to 12:30 --research-activity for [[Rhea]]
+ *
+ * The clock comes first, the prose wraps around it, and the keyword lands where the
+ * sentence puts it. So the rule is a search rather than an anchor.
+ *
+ * `(^|\s)` and not a bare search: the dashes have to start a word, or a hyphenated
+ * `stroke--width` in prose would read as one. A lowercase letter after them, for the
+ * same reason a `---` rule and an em dash are not keywords.
+ */
 const OPENER = new RegExp(`(^|\\s)${DASHES}([a-z][a-z0-9-]*)`)
 
 /**
@@ -213,8 +213,6 @@ export interface CollectedLine {
   at: number
 }
 
-/** The leading whitespace of a line, or -1 for a blank one — which has no indent
- *  to compare, and must not read as column zero and end a nested run. */
 /**
  * A line's indent, or **-1 for a blank line**, which is what `gatherLines` needs: a
  * blank must not end the run below an entry, so it has to be distinguishable from a
@@ -604,6 +602,12 @@ function* slotsIn(line: string, fields: readonly TemplateField[]) {
   }
 }
 
+/** Whether the literal ends in a real label — `amount::`, `at merchant:` — rather
+ *  than trailing off in prose. The `[[` that opens a link slot does not count. */
+function isLabelled(opens: string): boolean {
+  return /:\s*(\[\[\s*)?$/.test(opens)
+}
+
 /**
  * The name an **empty** slot takes: the label in front of it.
  *
@@ -616,12 +620,6 @@ function* slotsIn(line: string, fields: readonly TemplateField[]) {
  * `--tasks <<what>>` has nothing in front of it — and a name written inside the
  * slot always wins.
  */
-/** Whether the literal ends in a real label — `amount::`, `at merchant:` — rather
- *  than trailing off in prose. The `[[` that opens a link slot does not count. */
-function isLabelled(opens: string): boolean {
-  return /:\s*(\[\[\s*)?$/.test(opens)
-}
-
 function labelOf(opens: string): string {
   const label = opens.replace(/\[\[\s*$/, '').trim().replace(/:+$/, '').trim()
   return /[A-Za-z0-9]$/.test(label) ? (label.split(/\s+/).pop() ?? '') : ''

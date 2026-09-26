@@ -10,8 +10,8 @@
 // consumer, and there are deliberately **no re-exports** back through it.
 
 /**
- * A note. The vault holds `.md` files and nothing else is visible to the app, so
- * there is no `kind` to discriminate on.
+ * A file in the vault — a note or not. What kind is `fileKind`'s answer, from the
+ * path, so there is no `kind` here to disagree with it.
  */
 export interface VaultFile {
   /** Vault-relative, `/`-separated, with the extension: `Ideas/pingbird.md`. */
@@ -111,18 +111,6 @@ export function isEncrypted(path: string): boolean {
   return /\.enc(\.md)?$/i.test(path)
 }
 
-/**
- * A path or a file name with the note extension taken off — the name the app
- * *shows*, since a row, a link and a graph node all read `Ideas` and not
- * `Ideas.md`.
- *
- * One function because it was one regex written out in eleven places, across the
- * walk, the tree, the graph, the links and the completions — and **one for every
- * extension a note wears**: `.md`, and the `.enc.md` or `.enc` of one that is
- * locked. A locked note is a note, and its row says its name.
- */
-/** A file the JSON editor shows — the one file type in the vault that is not
- *  markdown, and the only reason the pane ever picks a different editor. */
 /** The last segment of a path: a file's or folder's own name, extension and all. */
 export function baseName(path: string): string {
   return path.slice(path.lastIndexOf('/') + 1)
@@ -184,6 +172,16 @@ export function isTextFile(path: string): boolean {
   return kind === 'note' || kind === 'json' || kind === 'csv' || kind === 'text'
 }
 
+/**
+ * A path or a file name with the note extension taken off — the name the app
+ * *shows*, since a row, a link and a graph node all read `Ideas` and not
+ * `Ideas.md`.
+ *
+ * One function because it was one regex written out in eleven places, across the
+ * walk, the tree, the graph, the links and the completions — and **one for every
+ * extension a note wears**: `.md`, and the `.enc.md` or `.enc` of one that is
+ * locked. A locked note is a note, and its row says its name.
+ */
 export function noteName(path: string): string {
   return path.replace(/(\.enc)?\.md$/i, '').replace(/\.enc$/i, '')
 }

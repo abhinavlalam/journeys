@@ -1,22 +1,6 @@
 import { folderNotePath } from './vaultModel'
 
 /**
- * The chevron's two paths — **down for open, right for shut** — and the box they
- * are drawn in.
- *
- * Exported because the note's fold gutter builds its marker by hand (a
- * `GutterMarker`, not JSX) and drew `›` and `⌄` from the font instead: two glyphs
- * of a different weight and size from the arrow on every row in the tree. One
- * source, so the two panes cannot disagree about what an arrow looks like.
- */
-/**
- * **The size a chrome glyph is drawn at**, and it is the sheet's `--glyph` rather
- * than a number of its own: the row of controls held a 15px search, a 16px fold
- * pair and a 12px `+` — three numbers, three files, one row — and every one is
- * drawn on the same 16-unit grid, so the difference was arbitrary. Reading the
- * token means the size lives in one place for CSS and for JSX alike.
- */
-/**
  * **The weight of every glyph is a setting, and it lives in the sheet.**
  *
  * A `stroke-width` is in viewBox units, so the same number is a different *rendered*
@@ -35,12 +19,28 @@ const GRID_16 = { 'data-grid': '16', viewBox: '0 0 16 16' } as const
 const GRID_10 = { 'data-grid': '10', viewBox: '0 0 10 10' } as const
 const GRID_24 = { 'data-grid': '24', viewBox: '0 0 24 24' } as const
 
+/**
+ * **The size a chrome glyph is drawn at**, and it is the sheet's `--glyph` rather
+ * than a number of its own: the row of controls held a 15px search, a 16px fold
+ * pair and a 12px `+` — three numbers, three files, one row — and every one is
+ * drawn on the same 16-unit grid, so the difference was arbitrary. Reading the
+ * token means the size lives in one place for CSS and for JSX alike.
+ */
 export const GLYPH = 'var(--glyph)'
 
 /** A disclosure arrow: it points rather than depicts, so it is the smaller step of
  *  the scale. Also in the sheet, also in `em`. */
 export const GLYPH_SM = 'var(--glyph-sm)'
 
+/**
+ * The chevron's two paths — **down for open, right for shut** — and the box they
+ * are drawn in.
+ *
+ * `chevronMarkup` hands them out because the note's fold gutter builds its marker by
+ * hand (a `GutterMarker`, not JSX) and drew `›` and `⌄` from the font instead: two glyphs
+ * of a different weight and size from the arrow on every row in the tree. One
+ * source, so the two panes cannot disagree about what an arrow looks like.
+ */
 const CHEVRON = {
   open: 'M1.5 3.5 5 7l3.5-3.5',
   shut: 'M3.5 1.5 7 5l-3.5 3.5',
@@ -115,15 +115,6 @@ export function FoldAllIcon({ collapse }: { collapse: boolean }) {
   )
 }
 
-/**
- * The `+`, **one size wherever it is**: the rail's and a row's were 22px and a
- * CSS-overridden 1.35em, so the same gesture had two weights on one screen. In
- * `em`, so it grows with the type like everything else.
- *
- * `0.92em` is the *small* one — what the rail's looked like before, where the UA's
- * button padding squeezed a 22px glyph into a 12px column. That squeeze was an
- * accident and this is the size on purpose, in both places.
- */
 /** A terminal: a prompt's chevron and a cursor's line, in a frame. */
 export function TerminalIcon() {
   return (
@@ -154,6 +145,11 @@ export function SplitIcon({ direction }: { direction: 'row' | 'column' }) {
   )
 }
 
+/**
+ * The `+`, **one size wherever it is**: the rail's and a row's were 22px and a
+ * CSS-overridden 1.35em, so the same gesture had two weights on one screen. It is
+ * `GLYPH` now, like every other control.
+ */
 export function PlusIcon() {
   return (
     <svg width={GLYPH} height={GLYPH} {...GRID_16} fill="none" aria-hidden="true">
@@ -228,20 +224,14 @@ export function SettingsIcon() {
 }
 
 /**
- * The icons a nested note can carry.
- *
- * Monochrome and drawn here rather than emoji: every one is a path at the same 1.2
- * stroke width as the chevron and the folder glyph, and every one takes
- * `currentColor` — so a chosen icon dims with its row, brightens when the row is
- * selected, and works in all ten palettes without a colour of its own. Emoji went
- * in first and could do none of that: WebKit resolves them through Apple Color
- * Emoji, which ignores `currentColor` entirely.
- *
- * The key is what goes in the note (`icon: book`), so the file stays plain text and
- * readable anywhere.
- */
-/**
  * The icons a note can carry.
+ *
+ * Monochrome and drawn here rather than emoji: every one is a path stroked like the
+ * chevron and the folder glyph, and every one takes `currentColor` — so a chosen
+ * icon dims with its row, brightens when the row is selected, and works in every
+ * palette without a colour of its own. Emoji went in first and could do none of
+ * that: WebKit resolves them through Apple Color Emoji, which ignores
+ * `currentColor` entirely.
  *
  * Geometry from **Lucide** (lucide.dev), ISC — `LICENSE-lucide` at the root of this
  * repository is that licence verbatim, Feather's MIT notice included, because
@@ -346,20 +336,20 @@ const PAGE = {
 
 const BY_KEY = new Map([...NOTE_ICONS, PAGE].map((icon) => [icon.key, icon]))
 
-/**
- * A note's chosen icon, by key.
- *
- * A key this set does not know is rendered as **text** rather than dropped: an
- * emoji set before this list existed, or one typed into the frontmatter by hand,
- * still shows. It will not take the row's colour, which is the cost of not being
- * one of these.
- */
 /** An emoji, and not the name of an icon this app does not have: anything without
  *  an ASCII letter in it is a glyph the font can draw. `icon: compass` used to
  *  render the word *compass* into the icon's box, where it overflowed across the
  *  name beside it — the same way `settings` did in the create menu. */
 const isGlyph = (icon: string) => icon.length <= 4 && !/[\x00-\x7F]/.test(icon)
 
+/**
+ * A note's chosen icon, by key.
+ *
+ * A key this set does not know is not dropped: an emoji — set before this list
+ * existed, or typed into the frontmatter by hand — is drawn as itself, and any other
+ * word as the page. An emoji will not take the row's colour, which is the cost of
+ * not being one of these.
+ */
 export function NoteIcon({ icon }: { icon: string }) {
   const found = BY_KEY.get(icon)
   if (!found) return isGlyph(icon) ? <>{icon}</> : <NoteIcon icon={DEFAULT_NOTE_ICON} />

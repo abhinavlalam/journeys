@@ -1,6 +1,6 @@
 // The editor, minus the language.
 //
-// **One editor, two kinds of file.** Everything here is true of any text file the
+// **One editor, every kind of text file.** Everything here is true of any file the
 // app opens: it scrolls inside itself, it numbers its lines, it folds by
 // indentation, it draws its own caret and selection, it wraps, and it reports every
 // document change synchronously. What is *not* here is anything that knows what the
