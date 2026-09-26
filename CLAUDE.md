@@ -415,7 +415,8 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   the old `calendar` action kind, `fitToBox`, line numbers off notes, a serif
   display family.
 - **Still open**: at `--fw-prose` 600, `####` and below stop reading as headings;
-  folders are not pickable.
+  folders are not pickable; the graph's layout repels every pair of nodes each step
+  (`stepLayout`), fine at hundreds of notes and slow at thousands.
 
 ## Preferences
 
