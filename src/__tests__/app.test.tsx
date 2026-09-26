@@ -10,6 +10,7 @@ import {
 } from './fakeVault'
 import { localDateStamp } from '../clock'
 import { stepIn } from '../rows'
+import { readProperty } from '../properties'
 
 /**
  * The shell end to end: pick a folder, see its notes, open one, edit it, save.
@@ -369,9 +370,9 @@ describe('an icon set on a folder', () => {
     await openApp()
     pickIcon('Icon for Ideas', 'Goal')
 
-    await waitFor(() => expect(disk.read('/v/Ideas/Ideas.md')).toContain('icon: target'))
+    await waitFor(() => expect(readProperty(disk.read('/v/Ideas/Ideas.md') ?? '', 'icon')).toBe('target'))
     const inside = disk.read('/v/Ideas/pingbird.md')!
-    expect(inside).toContain('icon: target')
+    expect(readProperty(inside ?? '', 'icon')).toBe('target')
     // Into the block it already had, not in front of it, and its own key survives.
     expect(inside).toContain('status: draft')
     expect(inside.match(/^---/gm)!.length).toBe(2)
@@ -383,17 +384,17 @@ describe('an icon set on a folder', () => {
     await openApp()
     fireEvent.click(screen.getByLabelText('Expand Ideas'))
     pickIcon('Icon for pingbird', 'Star')
-    await waitFor(() => expect(disk.read('/v/Ideas/pingbird.md')).toContain('icon: star'))
+    await waitFor(() => expect(readProperty(disk.read('/v/Ideas/pingbird.md') ?? '', 'icon')).toBe('star'))
 
     pickIcon('Icon for Ideas', 'Goal')
-    await waitFor(() => expect(disk.read('/v/Ideas/Ideas.md')).toContain('icon: target'))
+    await waitFor(() => expect(readProperty(disk.read('/v/Ideas/Ideas.md') ?? '', 'icon')).toBe('target'))
     // Somebody chose this one, so the folder does not overwrite it.
-    expect(disk.read('/v/Ideas/pingbird.md')).toContain('icon: star')
+    expect(readProperty(disk.read('/v/Ideas/pingbird.md') ?? '', 'icon')).toBe('star')
 
     // And removing the folder's icon leaves that choice alone too.
     pickIcon('Icon for Ideas', 'Remove icon')
     await waitFor(() => expect(disk.read('/v/Ideas/Ideas.md')).not.toContain('icon:'))
-    expect(disk.read('/v/Ideas/pingbird.md')).toContain('icon: star')
+    expect(readProperty(disk.read('/v/Ideas/pingbird.md') ?? '', 'icon')).toBe('star')
   })
 })
 
@@ -745,7 +746,7 @@ describe('a note inside a note', () => {
     expect(disk.read('/v/roadmap/roadmap.md')).toContain('# Roadmap\n\nThe plan, such as it is.\n')
     // `path: roadmap`, not `roadmap/roadmap`: the note is the row the tree draws,
     // and `roadmap/roadmap` names a page nothing in the app shows.
-    expect(disk.read('/v/roadmap/roadmap.md')).toContain('path: roadmap\n')
+    expect(readProperty(disk.read('/v/roadmap/roadmap.md') ?? '', 'path')).toBe('roadmap')
     expect(disk.has('/v/roadmap.md')).toBe(false)
     // It has something in it now, so it has an arrow.
     await waitFor(() => expect(screen.getByLabelText(/^(Collapse|Expand) roadmap$/)).toBeTruthy())
@@ -771,7 +772,7 @@ describe('a note inside a note', () => {
  * writes it, and a folder writes every note under it.
  */
 describe('the path property', () => {
-  const pathIn = (file: string) => /^path: (.*)$/m.exec(disk.read(file) ?? '')?.[1]
+  const pathIn = (file: string) => readProperty(disk.read(file) ?? '', 'path')
 
   it('is written when a note is created', async () => {
     await openApp()

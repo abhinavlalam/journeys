@@ -11,7 +11,7 @@
 // additions is a thing that has to be explained when a note the user can see does
 // not come back.
 
-import { splitFrontmatter } from './frontmatter'
+import { splitPageProperties } from './properties'
 import type { VaultFile } from './vaultModel'
 
 export interface SearchHit {
@@ -47,7 +47,7 @@ export function searchNotes(
       named.push({ note })
       continue
     }
-    const { body } = splitFrontmatter(text)
+    const { body } = splitPageProperties(text)
     const line = body.split('\n').find((one) => one.toLowerCase().includes(needle))
     if (line !== undefined) inside.push({ note, line: line.trim() })
   }

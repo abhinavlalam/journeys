@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
+import { readProperty } from '../properties'
 
 /**
  * Dragging a note or a folder to a new home.
@@ -95,9 +96,7 @@ describe('dropping on the root', () => {
      * nothing. `mutate` passes the walked tree now, and `relocateFolder` reads the
      * folder out of that.
      */
-    expect(disk.read('/v/Northwind/plan.md')).toBe(
-      '---\npath: Northwind/plan\n---\n\n# Plan\n'
-    )
+    expect(disk.read('/v/Northwind/plan.md')).toBe('path:: Northwind/plan\n\n# Plan\n')
     expect(disk.has('/v/Areas/Northwind')).toBe(false)
   })
 
@@ -133,8 +132,8 @@ describe('dropping on a plain note', () => {
     expect(disk.has('/v/inbox.md')).toBe(false)
     // Both know where they are: the target through `convertNote`, the dragged note
     // through the same relocate every other move uses.
-    expect(disk.read('/v/roadmap/roadmap.md')).toContain('path: roadmap')
-    expect(disk.read('/v/roadmap/inbox.md')).toContain('path: roadmap/inbox')
+    expect(readProperty(disk.read('/v/roadmap/roadmap.md') ?? '', 'path')).toBe('roadmap')
+    expect(readProperty(disk.read('/v/roadmap/inbox.md') ?? '', 'path')).toBe('roadmap/inbox')
   })
 
   it('takes a nested note too, whole', async () => {

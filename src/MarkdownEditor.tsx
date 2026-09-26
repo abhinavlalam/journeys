@@ -43,7 +43,7 @@ import {
   linkTargetAt,
   livePreview,
 } from './editorPreview'
-import { splitFrontmatter } from './frontmatter'
+import { splitPageProperties } from './properties'
 import type { VaultFile } from './vaultModel'
 
 interface MarkdownEditorProps {
@@ -246,7 +246,7 @@ function markdownExtensions(
  * heading is a section and the caret has no business skipping it.
  */
 export function caretOnOpen(text: string): number {
-  const body = splitFrontmatter(text)
+  const body = splitPageProperties(text)
   const first = body.body.split('\n', 1)[0]
   if (!/^#{1,6}\s/.test(first)) return body.prefix.length
   // The line after it, or the end of the note when the title is all there is.
