@@ -112,6 +112,9 @@ function themeFrom(el: HTMLElement) {
  *  session that is reattached; this is what the window holds. */
 const SCROLLBACK_LINES = 5000
 
+/** Counts mounts, for each one's own channel — see `TerminalPane`. */
+let mounts = 0
+
 /**
  * One Terminal tab: the user's own login shell in the vault folder, and whatever is
  * typed into it. A shell that exits on its own says so and restarts on Enter rather
@@ -120,10 +123,13 @@ const SCROLLBACK_LINES = 5000
  * **The pane attaches to a session; it does not own one.** With tmux there, the
  * session is the tmux server's and outlives both this pane and the window — so
  * mounting *reattaches* to whatever is running under `session` and unmounting
- * detaches. `session` is therefore the tmux name and the event channel at once,
- * which is sound because a session is open in exactly one tab: `terminalName`
- * hands out a name no open tab is showing, and `tabKey` will not open a second tab
- * on one.
+ * detaches. A session is open in exactly one tab: `terminalName` hands out a name
+ * no open tab is showing, and `tabKey` will not open a second tab on one.
+ *
+ * **The events and commands go by the mount's own `id`**, not the session's name.
+ * The spawn runs off the main thread, so a tab closed while it is under way sends
+ * its detach first, for nothing yet; the spawn then lands and is detached as it
+ * arrives — and by id, so that late detach cannot reach a newer tab on the session.
  */
 export function TerminalPane({ session, cwd }: { session: string; cwd: string }) {
   const container = useRef<HTMLDivElement>(null)
@@ -138,6 +144,7 @@ export function TerminalPane({ session, cwd }: { session: string; cwd: string })
     // xterm measures itself in — see the return below.
     const look = themeFrom(el.parentElement ?? el)
     let disposed = false
+    const id = `${session}-${++mounts}`
     const terminal = new Terminal({
       fontFamily: look.font.family,
       fontSize: look.font.size,
@@ -186,10 +193,11 @@ export function TerminalPane({ session, cwd }: { session: string; cwd: string })
     const start = () =>
       ensureTmuxConfig(cwd)
         .catch(() => {})
-        .then(() => spawnTerminal(session, session, cwd, terminal.cols, terminal.rows))
+        .then(() => spawnTerminal(id, session, cwd, terminal.cols, terminal.rows))
         .then((persistent) => {
+          if (disposed) return void killTerminal(id).catch(() => {})
           exited = false
-          if (!disposed) setPersists(persistent)
+          setPersists(persistent)
         })
         .catch((err: unknown) => terminal.writeln(`Could not start a shell: ${String(err)}`))
     void start()
@@ -197,10 +205,10 @@ export function TerminalPane({ session, cwd }: { session: string; cwd: string })
     // `disposed` is re-read on arrival, not captured: a tab closed right after it
     // mounts runs the cleanup while these are in flight, and a listener stored
     // then would stay registered for the window's life.
-    void onTerminalOutput(session, (chunk) => {
+    void onTerminalOutput(id, (chunk) => {
       if (!disposed) terminal.write(chunk)
     }).then((fn) => (disposed ? fn() : (unlistenOutput = fn)))
-    void onTerminalExit(session, () => {
+    void onTerminalExit(id, () => {
       if (disposed) return
       exited = true
       terminal.writeln('\r\n[the shell exited — press Enter for a new one]')
@@ -211,14 +219,14 @@ export function TerminalPane({ session, cwd }: { session: string; cwd: string })
         if (data === '\r' || data === '\n') void start()
         return
       }
-      writeTerminal(session, data).catch(() => {})
+      writeTerminal(id, data).catch(() => {})
     })
 
     // The pane's box follows the split it is in; the grid follows the box.
     const resized = new ResizeObserver(() => {
       if (el.clientWidth === 0 || el.clientHeight === 0) return
       fit.fit()
-      resizeTerminal(session, terminal.cols, terminal.rows).catch(() => {})
+      resizeTerminal(id, terminal.cols, terminal.rows).catch(() => {})
     })
     resized.observe(el)
 
@@ -244,7 +252,7 @@ export function TerminalPane({ session, cwd }: { session: string; cwd: string })
       unlistenExit?.()
       term.current = null
       terminal.dispose()
-      killTerminal(session).catch(() => {})
+      killTerminal(id).catch(() => {})
     }
   }, [session, cwd])
 

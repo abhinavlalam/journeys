@@ -294,7 +294,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 - tmux by absolute path, on a **private socket per vault** (`socket_for`, FNV-1a
   of the path), `new-session -A` with `terminalName`'s lowest free `journeys-<n>`.
   `end_orphans` ends servers whose sessions' folders are gone. Closing a tab
-  detaches; End session kills. `spawn_terminal` says whether it persisted.
+  detaches; End session kills. `spawn_terminal` says whether it persisted, and
+  runs off the main thread: so a pane's events and commands go by its own mount's
+  id, and a spawn that lands after its tab closed is detached as it arrives.
 - `.config/tmux.conf` is written once, then the user's: `status off`, `mouse off`
   (the wheel stays xterm's), `prefix None` with `C-b` unbound (readline's back).
 - `link_memory` makes `<vault>/.claude/memory` Claude Code's project memory, so it

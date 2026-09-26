@@ -39,6 +39,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::blocking;
+
 struct TerminalSession {
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
@@ -223,16 +225,24 @@ fn find_tmux() -> Option<String> {
         .find(|bin| std::path::Path::new(bin).is_file())
 }
 
+/// Start or reattach a session, **off the main thread**: ending orphaned servers,
+/// moving the agent's memory and starting tmux are process and disk work, and a
+/// command that is not `async` runs on the main thread, freezing the window. A tab
+/// closed while this is under way sends its detach first; the pane detaches the
+/// session again when this answers.
 #[tauri::command]
-pub fn spawn_terminal(
+pub async fn spawn_terminal(
     app: AppHandle,
-    state: State<TerminalState>,
     id: String,
     name: String,
     cwd: String,
     cols: u16,
     rows: u16,
 ) -> Result<bool, String> {
+    blocking(move || spawn(app, id, name, cwd, cols, rows)).await
+}
+
+fn spawn(app: AppHandle, id: String, name: String, cwd: String, cols: u16, rows: u16) -> Result<bool, String> {
     let pair = native_pty_system()
         .openpty(size(cols.max(2), rows.max(1)))
         .map_err(|e| e.to_string())?;
@@ -284,6 +294,7 @@ pub fn spawn_terminal(
     let killed = Arc::new(AtomicBool::new(false));
 
     {
+        let state = app.state::<TerminalState>();
         let mut sessions = state.sessions.lock().map_err(|e| e.to_string())?;
         // Reusing an id kills the old child first: dropping a Box<dyn Child>
         // neither kills nor reaps it.
@@ -404,13 +415,16 @@ pub fn kill_terminal(state: State<TerminalState>, id: String) -> Result<(), Stri
 /// server does not have is not an error: the answer either way is that there is no
 /// such session now.
 #[tauri::command]
-pub fn end_terminal(name: String, cwd: String) -> Result<(), String> {
-    let Some(bin) = find_tmux() else { return Ok(()) };
-    std::process::Command::new(bin)
-        .args(["-L", &socket_for(&cwd), "kill-session", "-t", &name])
-        .output()
-        .map_err(|e| e.to_string())?;
-    Ok(())
+pub async fn end_terminal(name: String, cwd: String) -> Result<(), String> {
+    blocking(move || {
+        let Some(bin) = find_tmux() else { return Ok(()) };
+        std::process::Command::new(bin)
+            .args(["-L", &socket_for(&cwd), "kill-session", "-t", &name])
+            .output()
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    })
+    .await
 }
 
 #[cfg(test)]
