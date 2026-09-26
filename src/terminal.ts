@@ -6,8 +6,9 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
 /**
- * Start or **reattach to** a session. `id` is the tab's, for the events; `name` is
- * the tmux session's, and is what makes it the same session next launch.
+ * Start or **reattach to** a session. `id` is the pane mount's, for the events and
+ * the commands after; `name` is the tmux session's, and is what makes it the same
+ * session next launch.
  *
  * Answers whether the session will outlive the window — false when tmux is not
  * installed and the shell is the app's own child, as it used to be for all of them.
