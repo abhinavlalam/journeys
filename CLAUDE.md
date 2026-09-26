@@ -37,7 +37,7 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 | `MarkdownEditor.tsx`, `JsonEditor.tsx`, `CsvEditor.tsx`, `TextEditor.tsx` | One language each; `TextEditor` is none, for a `.conf`, `.yaml` or `.txt` (as markdown, every `# comment` was a heading). |
 | `editorCommands.ts`, `editorComplete.ts`, `editorFold.ts`, `editorPreview.ts` | Keys that write syntax, the `[[` and `/` popups, folding, decorations. |
 | `FolderTree.tsx`, `rows.tsx`, `SidebarSection.tsx`, `useDrops.ts` | The left pane; `rows.tsx` is the one row shape everything lists with; `useDrops` is what is dropped onto the tree. |
-| `actions.ts`, `actionKinds.ts`, `useCollections.ts`, `tags.ts`, `frontmatter.ts` | `--keyword` collections, their declarations, tags, properties. |
+| `actions.ts`, `actionKinds.ts`, `useCollections.ts`, `tags.ts`, `properties.ts` | `--keyword` collections, their declarations, tags, properties. |
 | `calendar.ts`, `ics.ts`, `calendarSync.ts`, `useCalendarSync.ts`, `CalendarView.tsx` | The calendar. |
 | `crypto.ts`, `useLocks.ts`, `useAutoLock.ts` | Locked notes: the format and the passphrases held / asking and locking / the clock. |
 | `sync.ts`, `useSync.ts`, `src-tauri/src/sync.rs` | Git sync. |
@@ -71,15 +71,21 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   through `convertNote`.
 - **A file is not necessarily a note.** `fileKind` is the only place a file's kind
   is decided. `isNote` (`.md` and not encrypted) gates every piece of note
-  machinery — frontmatter, `path:`, link rewriting, the icon picker, the `+`.
+  machinery — page properties, `path::`, link rewriting, the icon picker, the `+`.
   `isTextFile` gates the corpus. A non-note keeps its extension in the tree and
   opens in a `file` tab with no buffer, because a buffer over a PDF is a file the
   first keystroke corrupts.
-- **The note carries what the app knows about it**: `icon:` and `path:` in its
-  frontmatter. `path:` is `knownPath`, rewritten by a move, a rename, a create and
-  a conversion. What a new note is given is one funnel, `endowNote`: its `path:`
-  and the icon of its folder's own note, read from disk. Today's page takes the
-  icon and not the `path:`, and only on the day it is made.
+- **A property is `key:: value`, a page's or a block's.** A note's page
+  properties are the `key:: value` lines it opens with; the first other line ends
+  them (`properties.ts`). A YAML `---` block is read as page properties too and
+  written *as YAML* — a skill must open with one — so nothing converts a note's
+  form behind its owner's back; a note with none is given the `::` form.
+- **The note carries what the app knows about it**: `icon::` and `path::`, the
+  app's own properties (`APP_PROPERTIES`, the one place they are named). `path::` is
+  `knownPath`, rewritten by a move, a rename, a create and a conversion. What a new
+  note is given is one funnel, `endowNote`: its `path::` and the icon of its
+  folder's own note, read from disk. Today's page takes the icon and not the
+  `path::`, and only on the day it is made.
 - **A setting that measures layout is in the app's own units** (steps, `em`, the
   leading), never pixels beside values derived from the type.
 - **Judge a feature by whether it is the right design**, not by how often it is
@@ -218,7 +224,7 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   inside a fresh `[[]]` takes all four characters.
 - JSON and CSV are coloured by scans, not grammars (`jsonPreview`, `csvPreview`).
   `.config/settings.json` is the one file with a Save; everything else autosaves.
-- A note opens focused with the caret below its frontmatter.
+- A note opens focused with the caret below its page properties.
 
 ## Collections, tags and properties
 

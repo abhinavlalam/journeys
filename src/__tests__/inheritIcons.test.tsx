@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { disk, fsModule, rememberVault, resetFakeVault } from './fakeVault'
 import { localDateStamp } from '../clock'
+import { readProperty } from '../properties'
 
 /**
  * **What a new note is given the moment it exists**, whichever way it was made.
@@ -98,12 +99,10 @@ describe('a note made in a folder that has an icon', () => {
     await makeNoteIn('Airport', 'Harbour')
 
     await waitFor(() =>
-      expect(disk.read('/v/Entities/Airport/Harbour.md')).toContain('icon: rocket')
+      expect(readProperty(disk.read('/v/Entities/Airport/Harbour.md') ?? '', 'icon')).toBe('rocket')
     )
     // And it still says where it is.
-    expect(disk.read('/v/Entities/Airport/Harbour.md')).toContain(
-      'path: Entities/Airport/Harbour'
-    )
+    expect(readProperty(disk.read('/v/Entities/Airport/Harbour.md') ?? '', 'path')).toBe('Entities/Airport/Harbour')
   })
 
   /** The path that wrote nothing at all: a link followed to a note that is not
@@ -117,8 +116,8 @@ describe('a note made in a folder that has an icon', () => {
 
     const made = '/v/Entities/Airport/Harbour City Terminal 1.md'
     // This path wrote *nothing* before: no icon, and no `path:` either.
-    await waitFor(() => expect(disk.read(made)).toContain('icon: rocket'))
-    expect(disk.read(made)).toContain('path: Entities/Airport/Harbour City Terminal 1')
+    await waitFor(() => expect(readProperty(disk.read(made) ?? '', 'icon')).toBe('rocket'))
+    expect(readProperty(disk.read(made) ?? '', 'path')).toBe('Entities/Airport/Harbour City Terminal 1')
   })
 
   it('does not, when the setting is off', { timeout: 40000 }, async () => {
@@ -149,7 +148,7 @@ describe('today’s page', () => {
     await openApp()
     fireEvent.keyDown(window, { key: 'O', metaKey: true, shiftKey: true })
     const day = localDateStamp()
-    await waitFor(() => expect(disk.read(`/v/Daily/${day}.md`)).toContain('icon: calendar'))
+    await waitFor(() => expect(readProperty(disk.read(`/v/Daily/${day}.md`) ?? '', 'icon')).toBe('calendar'))
     expect(disk.read(`/v/Daily/${day}.md`)).not.toContain('path:')
   })
 })

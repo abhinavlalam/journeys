@@ -1046,6 +1046,9 @@ describe('the mounted editor', () => {
     expect(caretOnOpen('---\nicon: x\n---\n\n# Reading\nbody\n')).toBe(16)
     // No blank line, so the title is the first thing past the block and is skipped.
     expect(caretOnOpen('---\nicon: x\n---\n# Reading\nbody\n')).toBe(26)
+    // The same, for page properties written as `key:: value`.
+    expect(caretOnOpen('icon:: x\n\n# Reading\nbody\n')).toBe(9)
+    expect(caretOnOpen('icon:: x\n# Reading\nbody\n')).toBe(19)
     // A title and nothing else: the end of the note, which is where typing goes.
     expect(caretOnOpen('# owner\n')).toBe(8)
     expect(caretOnOpen('# owner')).toBe(7)
@@ -1855,7 +1858,15 @@ describe('a property in the block at the top', () => {
     ])
   })
 
-  // The same rule `frontmatter.ts` reads by: an indented key belongs to the key
+  // The `key:: value` form, which is what the app writes: marked whole the same
+  // way, and each name the same way.
+  it('marks a block written as key:: value, and each name in it', () => {
+    const doc = 'icon:: compass\npath:: Areas/Plans\n\nbody\n'
+    expect(all(stateOf(doc, 36))).toContain('cm-md-frontmatter@0-33')
+    expect(properties(doc, 36)).toEqual(['cm-md-property@0-4', 'cm-md-property@15-19'])
+  })
+
+  // The same rule `properties.ts` reads by: an indented key belongs to the key
   // above it, and this app does not know what that means.
   it('leaves an indented key alone', () => {
     expect(properties('---\nmeta:\n  nested: yes\n---\n\nbody\n', 30)).toEqual([

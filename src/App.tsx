@@ -21,7 +21,7 @@ import { SettingsFile } from './SettingsFile'
 import { NoteSearch } from './NoteSearch'
 import { searchNotes } from './search'
 import { openExternal, revealInFinder } from './reveal'
-import { readProperty, withProperty } from './frontmatter'
+import { APP_PROPERTIES, readProperty, withProperty } from './properties'
 import { GraphView } from './GraphView'
 import { CollectionView } from './CollectionView'
 import { PropertyView } from './PropertyView'
@@ -303,7 +303,7 @@ export default function App() {
     // guess cannot drift from what lands on disk. Writing a property does not
     // change the tree, so no re-read follows to correct it.
     patch(new Set(files.map((file) => file.path)), (text) =>
-      withProperty(text, 'icon', icon)
+      withProperty(text, APP_PROPERTIES.icon, icon)
     )
     // `mutate` flushes the pending write first: one of these may be the note that
     // is open, and its buffer holds text a write behind its back would strand. The
@@ -313,7 +313,7 @@ export default function App() {
         // Together, not one after another: a folder that hands its icon down can
         // be twenty notes, and each write is a read and a write over IPC. They are
         // twenty different files, so there is no order to keep.
-        await Promise.all(files.map((file) => writeNoteProperty(file, 'icon', icon)))
+        await Promise.all(files.map((file) => writeNoteProperty(file, APP_PROPERTIES.icon, icon)))
       },
       // The re-read is what puts the new property in an open note's buffer.
       () => Promise.all(files.map((file) => buffers.reread(file)))
@@ -728,10 +728,10 @@ export default function App() {
     const inherited = await folderIcon(vault.vaultPath, file.path)
     if (!inherited) return
     // A note that already carries one — a declared default — keeps it.
-    if (readProperty(await readVaultFile(file).catch(() => ''), 'icon')) return
-    await writeNoteProperty(file, 'icon', inherited)
+    if (readProperty(await readVaultFile(file).catch(() => ''), APP_PROPERTIES.icon)) return
+    await writeNoteProperty(file, APP_PROPERTIES.icon, inherited)
     // The tree redraws on the write rather than at the next read of the vault.
-    patch(new Set([file.path]), (raw) => withProperty(raw, 'icon', inherited))
+    patch(new Set([file.path]), (raw) => withProperty(raw, APP_PROPERTIES.icon, inherited))
   }
 
   /**

@@ -5,7 +5,7 @@ import { buildNoteIndex, collectNotes } from './links'
 import { buildBacklinkIndex } from './links'
 import type { BacklinkIndex } from './links'
 import { buildNoteGraph, type NoteGraph, type NoteText } from './graph'
-import { propertyKeys, readProperty } from './frontmatter'
+import { APP_PROPERTIES, propertyKeys, readProperty } from './properties'
 import { collectTagLines, tagNames } from './tags'
 import { actionKeywords, collectLines, type CollectedLine } from './actions'
 
@@ -208,7 +208,7 @@ export function useVaultTexts({
   const icons = useMemo(() => {
     const found: Record<string, string> = {}
     for (const { note, text } of texts ?? []) {
-      const icon = readProperty(text, 'icon')
+      const icon = readProperty(text, APP_PROPERTIES.icon)
       if (icon) found[note.path] = icon
     }
     return found
@@ -225,7 +225,7 @@ export function useVaultTexts({
    *
    * One function, because it is one question asked of two syntaxes: `read` is the
    * only difference, and it comes from the module that owns that syntax —
-   * `propertyKeys` from `frontmatter.ts`, `actionKeywords` from `actions.ts`.
+   * `propertyKeys` from `properties.ts`, `actionKeywords` from `actions.ts`.
    */
   const countNames = (read: (text: string) => string[]) => {
     const found = new Map<string, { name: string; notes: number }>()

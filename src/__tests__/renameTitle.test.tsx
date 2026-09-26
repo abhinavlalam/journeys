@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
 import { localDateStamp } from '../clock'
+import { readProperty } from '../properties'
 
 /**
  * **Renaming a note by its title, and every link that pointed at it following.**
@@ -97,15 +98,15 @@ describe('renaming from the title', () => {
     await openApp()
     await open('target')
     renameTo('quarry')
-    await waitFor(() => expect(disk.read('/v/quarry.md')).toContain('path: quarry'))
+    await waitFor(() => expect(readProperty(disk.read('/v/quarry.md') ?? '', 'path')).toBe('quarry'))
 
     // The editor is holding the note as it is now, property and all.
     const editor = screen.getByTestId('editor') as HTMLTextAreaElement
-    await waitFor(() => expect(editor.value).toContain('path: quarry'))
+    await waitFor(() => expect(readProperty(editor.value, 'path')).toBe('quarry'))
 
     fireEvent.change(editor, { target: { value: `${editor.value}One more line.\n` } })
     await waitFor(() => expect(disk.read('/v/quarry.md')).toContain('One more line.'))
-    expect(disk.read('/v/quarry.md')).toContain('path: quarry')
+    expect(readProperty(disk.read('/v/quarry.md') ?? '', 'path')).toBe('quarry')
   })
 
   it('leaves a note that links to something else untouched', async () => {
@@ -149,7 +150,7 @@ describe('renaming from the title', () => {
     await waitFor(() => expect(disk.read('/v/index.md')).toContain('[[Areas/Roadmaps]]'))
     expect(disk.read('/v/index.md')).toContain('[[Q3]]')
     // And every note under it says where it now is.
-    await waitFor(() => expect(disk.read('/v/Areas/Roadmaps/Q3.md')).toContain('path: Areas/Roadmaps'))
+    await waitFor(() => expect(readProperty(disk.read('/v/Areas/Roadmaps/Q3.md') ?? '', 'path')).toBe('Areas/Roadmaps/Q3'))
   })
 
   it('abandons the rename on Escape, and keeps the name on a no-op', async () => {

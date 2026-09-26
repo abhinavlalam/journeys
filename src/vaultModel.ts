@@ -90,8 +90,8 @@ export const SETTINGS_FILE = 'settings.json'
  *
  * The tree holds more than notes now: a `.json` file in the vault opens in the
  * same pane, as text. Everything that treats a file as a *note* has to ask first,
- * because the note machinery writes YAML frontmatter — an `icon:`, a `path:` — and
- * frontmatter in a JSON file is a JSON file that no longer parses.
+ * because the note machinery writes page properties — an `icon::`, a `path::` — and
+ * those in a JSON file are a JSON file that no longer parses.
  *
  * **An encrypted note is not one**, in either spelling. What it says is the owner's
  * alone, so no note machinery reads it or writes into it — and v1's `.enc.md` ends

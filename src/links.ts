@@ -10,9 +10,9 @@
 // This module is **pure**: no filesystem, no React. It takes note text as input, so
 // the caller decides when to pay for reading the vault. Nothing here imports
 // `vault.ts`: what it needed from there lives in `vaultModel.ts` and
-// `frontmatter.ts`, so a test of this file mocks nothing — see `links.test.ts`.
+// `properties.ts`, so a test of this file mocks nothing — see `links.test.ts`.
 
-import { splitFrontmatter } from './frontmatter'
+import { splitPageProperties } from './properties'
 import {
   folderNoteRef,
   folderOf,
@@ -304,7 +304,7 @@ function readWikiLink(
  * table would be code with no caller.
  */
 export function parseNoteLinks(text: string): NoteLink[] {
-  const { prefix, body } = splitFrontmatter(text)
+  const { prefix, body } = splitPageProperties(text)
   const masked = maskCode(body)
   const links: NoteLink[] = []
 

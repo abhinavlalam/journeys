@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
+import { readProperty } from '../properties'
 
 /**
  * **A vault is a folder of files, and the tree shows them.** A PDF, a photograph
@@ -232,7 +233,7 @@ describe('a file dropped on a note', () => {
     // …and the file is in there with it.
     expect(disk.read('/v/roadmap/plan.pdf')).toBe('%PDF plan')
     // The note that moved knows where it is now.
-    expect(disk.read('/v/roadmap/roadmap.md')).toContain('path: roadmap')
+    expect(readProperty(disk.read('/v/roadmap/roadmap.md') ?? '', 'path')).toBe('roadmap')
   })
 
   /** **And the tab follows it.** Converting a note moved the buffer and left the

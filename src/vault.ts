@@ -9,7 +9,7 @@ import {
   remove,
 } from '@tauri-apps/plugin-fs'
 import { localDateStamp } from './clock'
-import { readProperty, withProperty } from './frontmatter'
+import { APP_PROPERTIES, readProperty, withProperty } from './properties'
 import { pathKey, retargetLinks } from './links'
 import type { NoteIndex, NoteMoves } from './links'
 import {
@@ -311,9 +311,6 @@ export function fileExists(file: VaultFile): Promise<boolean> {
   return vaultFs.exists(file.absolutePath)
 }
 
-/** The property that records where a note sits, from the vault root down. */
-const PATH_PROPERTY = 'path'
-
 /**
  * Write a note's own path into it, and into every note under it when it is a
  * folder that moved.
@@ -346,7 +343,7 @@ export async function writePathProperty(files: readonly VaultFile[]): Promise<st
     // `knownPath`, not the file's own: a nested note's file is
     // `Areas/Northwind/Northwind.md`, and the note is `Areas/Northwind`. The
     // doubled form named a page the tree never shows.
-    await vaultFs.writeText(file.absolutePath, withProperty(raw, PATH_PROPERTY, knownPath(file.path)))
+    await vaultFs.writeText(file.absolutePath, withProperty(raw, APP_PROPERTIES.path, knownPath(file.path)))
   }
   return unread
 }
@@ -366,13 +363,13 @@ export async function folderIcon(vaultPath: string, notePath: string): Promise<s
   if (!folder) return null
   const own = `${vaultPath}/${folderNotePath(folder)}`
   if (!(await vaultFs.exists(own))) return null
-  return readProperty(await vaultFs.readText(own).catch(() => ''), 'icon')
+  return readProperty(await vaultFs.readText(own).catch(() => ''), APP_PROPERTIES.icon)
 }
 
 /**
- * One frontmatter property on one note, written as plain text.
+ * One page property on one note, written as plain text.
  *
- * The transform is `frontmatter.ts`'s and is pure; this is the half that touches a
+ * The transform is `properties.ts`'s and is pure; this is the half that touches a
  * disk, through `vaultFs` like everything else here.
  *
  * A note that is not on disk yet is the ordinary case and not an error — a folder

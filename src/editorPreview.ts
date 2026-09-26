@@ -10,26 +10,13 @@ import { Decoration, WidgetType, type DecorationSet } from '@codemirror/view'
 import { getIndentUnit, syntaxTree } from '@codemirror/language'
 import { decorated } from './EditorHost'
 import type { SyntaxNodeRef } from '@lezer/common'
-import { PROPERTY_KEY } from './frontmatter'
+import { PROPERTY_KEY, splitPageProperties } from './properties'
 import { LEADING_CLOCK } from './clock'
 import { collectionSyntax, keywordAt } from './actions'
 import { checkMarkup } from './icons'
 import { TAG, tagAt } from './tags'
 import { linkLabelSpan } from './vaultModel'
 import type { CollectionOption } from './editorComplete'
-
-/**
- * The frontmatter block, if the note opens with one.
- *
- * Markdown reads `---` as a rule and the line under it as a setext heading, so
- * without a rule of its own this block renders as prose that happens to have
- * dashes around it — which is exactly how it read: three lines nobody could
- * identify as properties. Marked whole and set in mono, it reads as metadata.
- *
- * The same shape `vault.ts` and `frontmatter.ts` use, so one answer to "is there a
- * block here" rather than three.
- */
-const FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n---(\r?\n|$)/
 
 /** `[[Target]]` and `[[Target|Alias]]`, which CommonMark parses as plain text. */
 const WIKILINK = /\[\[([^\]\n]+)\]\]/g
@@ -299,7 +286,7 @@ class RuleWidget extends WidgetType {
 const ruleDeco = Decoration.replace({ widget: new RuleWidget('cm-md-rule') })
 
 /**
- * The frontmatter's `---`, which is a **fence** and not a divider. It drew as the
+ * A YAML block's `---`, which is a **fence** and not a divider. It drew as the
  * accent rule like any other row of dashes, so `icon: calendar` sat between the two
  * heaviest strokes on the page — rendered at a real vault's settings, the property
  * block was the first and loudest thing under every title. A fence bounds a block
@@ -462,7 +449,7 @@ function touched(state: EditorState, from: number, to: number): boolean {
 /** How far into a note the property block is looked for. It opens the note, so the
  *  search stops well past any real block rather than scanning a long note on every
  *  redraw. */
-const FRONTMATTER_REACH = 2000
+const PROPERTIES_REACH = 2000
 
 /**
  * The decorations for one span of the document: a class over each node that
@@ -485,21 +472,24 @@ export function livePreviewDecorations(
   /** Lines the syntax walk gave a hang to, so the sweep below does not double it. */
   const hung = new Set<number>()
 
-  // The property block at the top of the note, when the span reaches it. Its end is
-  // kept as the bound on the scan for property names below — the block's own `---`
-  // delimiters draw as lines like any other, which is the `HorizontalRule` and
-  // `SetextHeading2` cases further down.
-  let frontmatterEnd = 0
+  // The page properties at the top of the note, when the span reaches them, in
+  // either form — `splitPageProperties` is the one answer to where they end. Marked
+  // whole and set in mono, they read as metadata: markdown alone reads a YAML
+  // block's `---` as a rule and the line under it as a setext heading, which is
+  // prose between dashes nobody could identify as properties. The end is kept as
+  // the bound for a YAML block's own `---`, which draws as a fence — the
+  // `HorizontalRule` and `SetextHeading2` cases further down.
+  let propertiesEnd = 0
   if (from === 0) {
-    const block = FRONTMATTER.exec(state.doc.sliceString(0, Math.min(to, FRONTMATTER_REACH)))
-    if (block) {
-      frontmatterEnd = block[0].length
-      found.push(Decoration.mark({ class: 'cm-md-frontmatter' }).range(0, block[0].trimEnd().length))
+    const { prefix } = splitPageProperties(state.doc.sliceString(0, Math.min(to, PROPERTIES_REACH)))
+    if (prefix) {
+      propertiesEnd = prefix.length
+      found.push(Decoration.mark({ class: 'cm-md-frontmatter' }).range(0, prefix.trimEnd().length))
       // Each property's *name*, in the accent a timestamp gets — so a property
       // reads as a label with its value beside it rather than as one dim run. The
       // block's own mark already carries the mono face and the size; the name adds
       // the colour and the weight, which is the whole of what makes it a label.
-      for (let at = 0; at < frontmatterEnd; ) {
+      for (let at = 0; at < propertiesEnd; ) {
         const line = state.doc.lineAt(at)
         const key = PROPERTY_KEY.exec(line.text)
         if (key) found.push(propertyKey.range(line.from, line.from + key[1].length))
@@ -721,7 +711,7 @@ export function livePreviewDecorations(
         found.push(
           touched(state, node.from, node.to)
             ? markerMark.range(node.from, node.to)
-            : (node.from < frontmatterEnd ? fenceDeco : ruleDeco).range(node.from, node.to)
+            : (node.from < propertiesEnd ? fenceDeco : ruleDeco).range(node.from, node.to)
         )
         return
       }
@@ -748,7 +738,7 @@ export function livePreviewDecorations(
         found.push(
           touched(state, mark.from, mark.to)
             ? markerMark.range(mark.from, mark.to)
-            : (mark.from < frontmatterEnd ? fenceDeco : ruleDeco).range(mark.from, mark.to)
+            : (mark.from < propertiesEnd ? fenceDeco : ruleDeco).range(mark.from, mark.to)
         )
         return
       }
