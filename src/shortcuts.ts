@@ -266,6 +266,9 @@ export const EDITOR_COMBOS: ReadonlySet<string> = new Set(
     .filter((combo): combo is string => !!combo && combo.includes('+'))
 )
 
+/** The panel's own way in, and not an action anyone can rebind. */
+export const SETTINGS_COMBO = 'mod+,'
+
 /**
  * The rest, which is not in anyone's source tree here: what the webview takes above
  * the editor, what macOS takes above the window, and the panel's own way in.
@@ -273,9 +276,6 @@ export const EDITOR_COMBOS: ReadonlySet<string> = new Set(
  * Deliberately few. A guessed reservation refuses a shortcut that would have
  * worked, which is worse than letting one through.
  */
-/** The panel's own way in, and not an action anyone can rebind. */
-export const SETTINGS_COMBO = 'mod+,'
-
 export const RESERVED_COMBOS: readonly Reservation[] = [
   // The panel's own way in. Bindable otherwise, and then the gear is the only
   // route back to Settings — which is fine until the binding is forgotten.

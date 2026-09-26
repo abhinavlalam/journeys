@@ -171,12 +171,6 @@ export function openTab(ws: Workspace, request: TabRequest): Workspace {
   })
 }
 
-/**
- * The Terminal row's act: back to the terminal there is — the last one in reading
- * order — or a new one when there is none. Pressing the row to *return* to a shell
- * opened a fresh shell beside it, which read as `claude` restarting; a second shell
- * is asked for by name, from the row's menu.
- */
 /** The prefix every session this app owns is named with, on its own tmux socket. */
 const TERMINAL_PREFIX = 'journeys-'
 
@@ -204,6 +198,12 @@ export function terminalName(ws: Workspace): string {
   }
 }
 
+/**
+ * The Terminal row's act: back to the terminal there is — the last one in reading
+ * order — or a new one when there is none. Pressing the row to *return* to a shell
+ * opened a fresh shell beside it, which read as `claude` restarting; a second shell
+ * is asked for by name, from the row's menu.
+ */
 export function openTerminal(ws: Workspace): Workspace {
   const last = groups(ws.layout)
     .flatMap((group) => group.tabs.map((tab, index) => ({ group, tab, index })))

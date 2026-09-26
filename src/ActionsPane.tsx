@@ -30,8 +30,6 @@ interface ActionsPaneProps {
    *  is a `--keyword` the notes carry, so the click asks the vault rather than the
    *  disk. */
   onView: (kind: ViewKind, name: string) => void
-  /** The collection whose view is open, so its row reads as selected the way an
-   *  open file's does. There is no path to compare. */
   /** The page that is open — a collection's or a property's — so its row is marked. */
   viewing: { kind: ViewKind; name: string } | null
   /**

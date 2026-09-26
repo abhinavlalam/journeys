@@ -68,10 +68,6 @@ export function toggleMarker(marker: string): Command {
   }
 }
 
-/**
- * This app's combo notation into CodeMirror's. `mod+shift+t` is ours; `Mod-Shift-t`
- * is CodeMirror's, and it wants the modifiers in that order.
- */
 /** A `KeyboardEvent` in the same notation `cmKey` produces, so the two can be compared. */
 function keyNameOf(event: KeyboardEvent): string {
   const mods: string[] = []
@@ -82,6 +78,10 @@ function keyNameOf(event: KeyboardEvent): string {
   return [...mods, event.key.toLowerCase()].join('-')
 }
 
+/**
+ * This app's combo notation into CodeMirror's. `mod+shift+t` is ours; `Mod-Shift-t`
+ * is CodeMirror's, and it wants the modifiers in that order.
+ */
 function cmKey(combo: string): string | null {
   const parts = combo.toLowerCase().split('+')
   const key = parts.pop()
@@ -91,7 +91,6 @@ function cmKey(combo: string): string | null {
   return [...mods, key].join('-')
 }
 
-/** ⌘B/⌘I/⌘E, ahead of `defaultKeymap` so a future binding there cannot shadow them. */
 /**
  * A list line, and where the item's own text starts.
  *
@@ -323,6 +322,8 @@ export const continueIndent: Command = ({ state, dispatch }) => {
   return true
 }
 
+/** The keys that write syntax — Enter and Tab in a list, ⌘B/⌘I/⌘E, `[` and `<` over a
+ *  selection — ahead of `defaultKeymap`, so a binding there cannot shadow them. */
 export const formatKeymap = [
   // Ahead of the markdown keymap, whose Enter answers for the block the line is
   // in rather than for the line.

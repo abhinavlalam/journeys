@@ -4,7 +4,7 @@ import { agoWord, clockStart, daysAfter, daysBetween, leadingClock, localDateSta
 /**
  * The stamps are local-calendar, and the only way to prove it is from a zone that
  * is not UTC — on a UTC machine every wrong implementation passes. Node reads
- * `process.env.TZ` on each `Date` operation, so this file picks a zone (+05:30, no
+ * `process.env.TZ` on each `Date` operation, so this file picks a zone (+09:30, no
  * DST) rather than trusting the one it runs in. Vitest isolates a test file in its
  * own worker, and it is restored anyway.
  */

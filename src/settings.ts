@@ -145,7 +145,6 @@ export interface Settings {
   proseSize: number
   /** Unitless — the note's line height, and a tree row's height with it. */
   lineHeight: number
-  /** px — space *between* lines of a note, and between rows of the tree. */
   /** The weight the note's own text is set in. A face at 400 in one family reads
    *  heavier than another's, and this is the dial for that. */
   proseWeight: number
@@ -153,6 +152,7 @@ export interface Settings {
    *  `stroke-width` is in viewBox units, so the sheet turns this into one per grid
    *  — see `svg[data-grid]` — and every icon in the app moves together. */
   iconWeight: number
+  /** px — space *between* lines of a note, and between rows of the tree. */
   lineGap: number
   /** The same space between the panes' **rows** — the tree, the Actions section
    *  and the two sections at the end of a note. Its own number because a note's
@@ -223,6 +223,17 @@ export function faceStack(id: FaceId): string {
 }
 
 /**
+ * The note column's inset, **both sides**, in px.
+ *
+ * `--reading-width` is the column's outer box, so the text measure is that less
+ * this — which is why the number lives here and not in the sheet: `applySettings`
+ * writes it out as `--column-pad` (a side) and `SettingsPanel` takes it off the
+ * width for the character readout. It was `2.5rem` in four rules and `80` in one
+ * function, with nothing holding them together.
+ */
+export const COLUMN_PADDING = 80
+
+/**
  * Slider ends, and each one is a judgement rather than a limit of the CSS:
  *
  * - `proseSize` 12–24 px. `--fs-chrome` is 13 px and does not move, so under 12 the
@@ -247,17 +258,6 @@ export function faceStack(id: FaceId): string {
  * These are the clamps for storage too, not only for the slider: a hand-edited
  * `proseSize: 900` has to come back as 24, not render.
  */
-/**
- * The note column's inset, **both sides**, in px.
- *
- * `--reading-width` is the column's outer box, so the text measure is that less
- * this — which is why the number lives here and not in the sheet: `applySettings`
- * writes it out as `--column-pad` (a side) and `SettingsPanel` takes it off the
- * width for the character readout. It was `2.5rem` in four rules and `80` in one
- * function, with nothing holding them together.
- */
-export const COLUMN_PADDING = 80
-
 export const BOUNDS = {
   proseSize: { min: 12, max: 24, step: 0.5 },
   lineHeight: { min: 1.2, max: 2.2, step: 0.05 },

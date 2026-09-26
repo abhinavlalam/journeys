@@ -125,16 +125,6 @@ const MARKERS = new Set(['EmphasisMark', 'CodeMark', 'StrikethroughMark', 'Heade
 const BLOCK: Record<string, string> = { Blockquote: 'cm-md-quote' }
 
 /**
- * A real bullet in place of the `-`.
- *
- * Hiding the marker outright is what headings do, but a list cannot: with `- ` gone
- * the item loses its bullet *and* its indent, and reads as a bare paragraph. So the
- * marker is replaced rather than removed, and the glyph carries the width.
- *
- * Only ever for a bullet list. An ordered list's marker is `1.`, which is content —
- * a reader needs the number — so it is left exactly as typed.
- */
-/**
  * A task line: the list marker, then `[c]`, then a space or the line's end.
  *
  * **Obsidian's rule and not GFM's.** GFM parses exactly `[ ]` and `[x]` and gives
@@ -225,6 +215,16 @@ class CheckboxWidget extends WidgetType {
   }
 }
 
+/**
+ * A real bullet in place of the `-`.
+ *
+ * Hiding the marker outright is what headings do, but a list cannot: with `- ` gone
+ * the item loses its bullet *and* its indent, and reads as a bare paragraph. So the
+ * marker is replaced rather than removed, and the glyph carries the width.
+ *
+ * Only ever for a bullet list. An ordered list's marker is `1.`, which is content —
+ * a reader needs the number — so it is left exactly as typed.
+ */
 class BulletWidget extends WidgetType {
   box: string
   constructor(box: string) {
@@ -337,17 +337,6 @@ function fillsItsLine(state: EditorState, from: number, to: number): boolean {
  */
 const headingLine = Decoration.line({ class: 'cm-md-heading-line' })
 
-/**
- * A line that **opens with a clock** starts a journal entry, so it gets air above
- * it the way a heading does.
- *
- * Reported from the running app: a page of more than ten lines reads "weirdly full
- * and empty at the same time". Measured on a real daily note — nineteen lines, no
- * headings, every one the same size, weight and 4px apart. Dense, and with nothing
- * to rest on. A journal has structure the app can already see and was not drawing:
- * `12:00` starts a thing, the lines under it are its detail. Air above the clock
- * turns nineteen identical rows into the eight entries they are.
- */
 
 /**
  * Every collection's declaration, for the renderer.
@@ -669,15 +658,6 @@ export function livePreviewDecorations(
         hung.add(line.number)
         found.push(hangingLine(stepHang(level + 1)).range(line.from))
 
-        /**
-         * **The marker sits in the gap; the text sits on the grid.**
-         *
-         * Both markers get a box one indent step wide, less the gap, with what is
-         * in it right-aligned — so an item's text starts exactly where a line
-         * indented one step starts, and `9.` and `10.` put their text in the same
-         * column. The line's own hanging indent, below, keeps a wrapped item's
-         * second row under the first row's text.
-         */
         /**
          * **A task's box is always drawn, and never revealed.** A checkbox has to
          * be pressable whether or not the caret is in the line — the property that

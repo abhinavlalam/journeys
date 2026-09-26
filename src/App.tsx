@@ -216,11 +216,6 @@ export default function App() {
    */
   const liveText = useRef<{ path: string; text: string } | null>(null)
 
-  /**
-   * **One read of the vault, and everything derived from it** — the notes, their
-   * index, the icons, the graph, and what links here. `liveText` is the one input
-   * that is not the disk's: the open note as the editor has it.
-   */
   /** The vault's own `.config/settings.json`, and `localStorage` for the window
       before a vault is open. `useSettings` owns both. Above the vault read because
       the graph's hidden folders come from here. */
@@ -247,6 +242,11 @@ export default function App() {
   })
   const syncSentence = syncWord(sync)
 
+  /**
+   * **One read of the vault, and everything derived from it** — the notes, their
+   * index, the icons, the graph, and what links here. `liveText` is the one input
+   * that is not the disk's: the open note as the editor has it.
+   */
   const {
     notes,
     noteIndex,
@@ -345,10 +345,6 @@ export default function App() {
       as the tree's folders, so a group's chevron and the pair are one mechanism. */
   const groupPaths = kinds.map(groupKey)
 
-  /** What is inside the open note, when it is a nested one: the children the tree
-      draws under its row. Empty for a plain note, which is what takes the section
-      off the end of it. Memoised on the tree, like everything else derived from
-      it. */
 
   /** The matches, over the same corpus the graph and the backlinks are built from.
       `texts` and not `corpus`: the note being typed into is on the disk a moment
@@ -453,13 +449,11 @@ export default function App() {
   }
 
   /**
-   * Opening a note, wherever the click came from.
-   *
-   * `buffer.openNote` underneath, always — CLAUDE.md's second trap is that the
-   * bytes are read *before* the active file switches, and setting the file first
-   * makes the next keystroke save the previous note's text into the new one. That
-   * corrupted a file. This adds one thing: the graph gives the pane back. It
-   * *replaces* the editor, so without this a note would open invisibly behind it.
+   * Opening a note, wherever the click came from: its tab, or a new one of the kind
+   * the file is. The tab's `NotePane` reads the bytes before its editor mounts —
+   * CLAUDE.md's first trap under Notes, because setting the file first makes the
+   * next keystroke save the previous note's text into the new one. That corrupted
+   * a file.
    */
   function openNote(file: VaultFile) {
     // **Opening a note opens the folders above it**, by writing them into the one
@@ -575,23 +569,6 @@ export default function App() {
     openSettings: () => setSettingsOpen(true),
   })
 
-  // -------------------------------------------------------------------------
-  // Every note's text: the graph, and what links here
-  // -------------------------------------------------------------------------
-  //
-  // The data lives here and not in `GraphView` because this is the only component
-  // with a vault: `vault.ts` is the sole module allowed to import
-  // `@tauri-apps/plugin-fs`, and `readVaultFile` is reached from there. So App
-  // reads, App builds, and the views are handed finished structures.
-  //
-  // One read feeds both. Reading the vault is the expensive part and the two
-  // questions — what points at what, and what points *here* — are the same bytes
-  // answered twice.
-
-
-
-
-
   /**
    * Show a row where it lives on disk.
    *
@@ -603,7 +580,6 @@ export default function App() {
   const handleReveal = (absolutePath: string) =>
     void revealInFinder(absolutePath).catch((err: unknown) => setError(String(err)))
 
-  /** A node was clicked. */
   /**
    * A clicked link. The editor hands over the raw target and whether it came from
    * `[[…]]`; resolution is this side's job, because it needs the note index.
@@ -651,6 +627,7 @@ export default function App() {
     )
   }
 
+  /** A node was clicked. */
   function selectGraphNode(node: GraphNode) {
     const file = noteIndex.byKey.get(node.id)
     /**
@@ -757,14 +734,6 @@ export default function App() {
     patch(new Set([file.path]), (raw) => withProperty(raw, 'icon', inherited))
   }
 
-  /**
-   * **A file dragged in from outside, filed where it was dropped.**
-   *
-   * Copied, under its own name, and an existing file is never overwritten — the
-   * ones already there are named rather than silently replaced. The bytes come from
-   * the drop because that is the only form the webview has them in: a `File` from a
-   * drag carries no path this side of the process.
-   */
   /**
    * **Giving a note children turns it into a folder**, and everything holding its
    * old path follows: the buffer that may be editing it, the tab it is open in, and

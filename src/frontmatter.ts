@@ -49,6 +49,12 @@ export function readProperty(raw: string, key: string): string | null {
   return null
 }
 
+/** `key: value`, or `key:` for a value that is empty — a blank to fill, which a
+ *  declared default writes and a trailing space would leave in a file people diff. */
+function line(key: string, value: string): string {
+  return value === '' ? `${key}:` : `${key}: ${value}`
+}
+
 /**
  * `raw` with `key` set to `value`, or removed when `value` is null.
  *
@@ -64,12 +70,6 @@ export function readProperty(raw: string, key: string): string | null {
  * - **Removing the last line of a block** — the block goes with it, rather than
  *   leaving `---\n---` behind for the reader to wonder about.
  */
-/** `key: value`, or `key:` for a value that is empty — a blank to fill, which a
- *  declared default writes and a trailing space would leave in a file people diff. */
-function line(key: string, value: string): string {
-  return value === '' ? `${key}:` : `${key}: ${value}`
-}
-
 export function withProperty(raw: string, key: string, value: string | null): string {
   const block = BLOCK.exec(raw)
   const matcher = lineFor(key)
