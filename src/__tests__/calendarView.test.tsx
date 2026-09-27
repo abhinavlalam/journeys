@@ -146,7 +146,9 @@ describe('the calendar', () => {
     fireEvent.click(viewer().getByLabelText('Next month'))
     const [y, m] = today.split('-').map(Number)
     expect(viewer().getByText(monthName.format(new Date(y, m, 1)))).toBeTruthy()
-    expect(document.querySelector('.calendar-cell.today')).toBeNull()
+    // None of next month's own days is today. Today may still be on the page, as a
+    // day of this month in the first week's row — marked there, and outside.
+    expect(document.querySelector('.calendar-cell.today:not(.outside)')).toBeNull()
     fireEvent.click(viewer().getByText('Today'))
     expect(viewer().getByText(thisMonth)).toBeTruthy()
     expect(viewer().queryByText('Today')).toBeNull()
