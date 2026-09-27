@@ -4,9 +4,12 @@ import { useColumnWidths } from './columnWidths'
 import { ViewerHeader } from './ViewerHeader'
 import { countOf, NoteRow, READING, stepIn, RowIcon, Section } from './rows'
 import type { VaultFile } from './vaultModel'
+import { PROPERTY_TYPES, type PropertyType } from './properties'
 
 /**
- * A property: every note that carries it, and what each one says.
+ * A property: every value a note gives it, on its page or on a line, and what kind
+ * of value it is — the type is set here, for the whole vault, except on the app's
+ * own properties, whose meaning is the app's.
  *
  * **A collection's page one scale up**, and the same correction. Clicking `icon`
  * used to open — or write — `.config/actions/properties/icon.md`, and three of
@@ -24,6 +27,9 @@ export function PropertyView({
   values,
   icons,
   loading,
+  type,
+  appOwned,
+  onType,
   onOpen,
   onOpenLink,
 }: {
@@ -31,6 +37,10 @@ export function PropertyView({
   values: readonly { note: VaultFile; value: string }[]
   icons: Record<string, string>
   loading: boolean
+  type: PropertyType
+  /** `icon` or `path`: typed by the app, so there is nothing here to choose. */
+  appOwned: boolean
+  onType: (type: PropertyType) => void
   onOpen: (file: VaultFile) => void
   onOpenLink: (target: string) => void
 }) {
@@ -38,8 +48,23 @@ export function PropertyView({
   const { widths, gripFor } = useColumnWidths(table)
   return (
     <>
-      {/* `icon:` and not `icon`: the header names the syntax, as `--expense` does. */}
-      <ViewerHeader name={`${name}:`} status={values.length > 0 ? countOf(values.length, 'note') : ''} />
+      {/* `icon::` and not `icon`: the header names the syntax, as `#travel` does. */}
+      <ViewerHeader
+        name={`${name}::`}
+        status={[values.length > 0 ? countOf(values.length, 'value') : '', appOwned ? 'the app’s own' : '']
+          .filter(Boolean)
+          .join(' · ')}
+      >
+        {!appOwned && (
+          <span className="view-switch" role="group" aria-label="Type">
+            {PROPERTY_TYPES.map((one) => (
+              <button key={one} className="header-action" aria-pressed={type === one} onClick={() => onType(one)}>
+                {one}
+              </button>
+            ))}
+          </span>
+        )}
+      </ViewerHeader>
       <Section title="Values" count={values.length} startOpen>
         {values.length === 0 ? (
           <li style={{ paddingLeft: stepIn(1) }}>
@@ -65,8 +90,8 @@ export function PropertyView({
                 </tr>
               </thead>
               <tbody>
-                {values.map(({ note, value }) => (
-                  <tr key={note.path}>
+                {values.map(({ note, value }, at) => (
+                  <tr key={`${note.path}:${at}`}>
                     <td>
                       <button className="collection-source" onClick={() => onOpen(note)}>
                         <RowIcon icon={icons[note.path]} />

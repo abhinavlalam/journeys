@@ -1847,6 +1847,33 @@ describe('a horizontal rule', () => {
  * timestamp carries. The block around it is one dim mono run; without this a
  * property is that run and nothing in it reads as a label.
  */
+/**
+ * **A block property's name hides while the line is being read**: `amount:: 480`
+ * reads `480`, and with the caret on the line the name is back, as a marker. Not
+ * inside code, and not in the page's own block, whose names are marked instead.
+ */
+describe('a block property', () => {
+  const doc = 'icon:: book\n\n08:10 lunch amount:: 480 at:: [[Harbour Bistro]]\n`x:: 1`\n'
+  // `08:10 lunch ` is 12 long, and the line starts at 13.
+  const line = 13
+
+  it('hides its name while the caret is elsewhere, and marks it with the caret on the line', () => {
+    const away = all(stateOf(doc, 0))
+    expect(away).toContain(`hidden@${line + 12}-${line + 21}`)
+    expect(away).toContain(`hidden@${line + 25}-${line + 30}`)
+    const on = all(stateOf(doc, line + 3))
+    expect(on).toContain(`cm-md-marker@${line + 12}-${line + 21}`)
+    expect(on).toContain(`cm-md-marker@${line + 25}-${line + 30}`)
+  })
+
+  it('leaves code and the page block alone', () => {
+    const spansOf = all(stateOf(doc, 0))
+    const codeLine = doc.indexOf('`x::')
+    expect(spansOf.some((span) => span === `hidden@${codeLine + 1}-${codeLine + 5}`)).toBe(false)
+    expect(spansOf.some((span) => span.startsWith('hidden@0-'))).toBe(false)
+  })
+})
+
 describe('a property in the block at the top', () => {
   const properties = (doc: string, caret: number) =>
     all(stateOf(doc, caret)).filter((span) => span.startsWith('cm-md-property'))

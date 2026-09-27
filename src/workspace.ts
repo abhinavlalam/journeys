@@ -102,7 +102,7 @@ export function tabLabel(tab: Tab): string {
     case 'collection':
       return `--${tab.name}`
     case 'property':
-      return `${tab.name}:`
+      return `${tab.name}::`
     case 'tag':
       return `#${tab.name}`
     case 'calendar':

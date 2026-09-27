@@ -8,11 +8,18 @@
 // full of them. Nothing turns one form into the other behind anyone's back; a note
 // with no properties yet is given the `::` form.
 //
+// **Block properties** are the same `key:: value`, on a line of the note; a value
+// runs to the next `name::` on the line or its end (`blockProperties`).
+//
 // **Pure**: text in, text out. `vault.ts` does the reading and writing. A line-based
 // rewrite rather than a YAML library — `gray-matter` breaks in the webview, where
 // `Buffer` is undefined — so this handles the flat `key: value` a note carries and
 // leaves anything it does not understand *exactly* as it found it: the app must not
 // reformat a block it only came to change one line of.
+
+import { keywordAt } from './actions'
+import { proseLines } from './prose'
+import type { Entries } from './configEntries'
 
 /**
  * The properties the app itself keeps in a note, **defined here and nowhere else**:
@@ -20,6 +27,26 @@
  * the vault's own.
  */
 export const APP_PROPERTIES = { icon: 'icon', path: 'path' } as const
+
+/** Whether a name is one of the app's own properties, which the vault does not type. */
+export function isAppProperty(name: string): boolean {
+  return Object.values(APP_PROPERTIES).some((one) => one === name.toLowerCase())
+}
+
+/**
+ * **What a property's values are**, set on the property's own page and kept in the
+ * vault's `.config/properties.json`, one entry per property: `{ "amount": { "type":
+ * "number" } }`. Unset, or a word this list does not have, is `text`.
+ */
+export const PROPERTY_TYPES = ['text', 'number', 'date', 'link'] as const
+export type PropertyType = (typeof PROPERTY_TYPES)[number]
+export const PROPERTIES_FILE = 'properties.json'
+
+/** A property's type in those entries, by name whatever its case. */
+export function typeOf(entries: Entries, name: string): PropertyType {
+  const key = Object.keys(entries).find((one) => one.toLowerCase() === name.toLowerCase())
+  return PROPERTY_TYPES.find((one) => one === entries[key ?? '']?.type) ?? 'text'
+}
 
 /** A YAML block, and the one rule for where one ends. */
 const YAML = /^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/
@@ -66,6 +93,16 @@ function pageBlock(raw: string): PageBlock | null {
   return lines.length > 0 ? { end, lines, yaml: null, eol } : null
 }
 
+/** A block's `key: value` or `key:: value` lines as names and values, quotes off —
+ *  a value written by hand may carry them, and one `withProperty` writes does not. */
+function pageEntries(block: PageBlock | null): { name: string; value: string }[] {
+  const entry = new RegExp(`^([A-Za-z][\\w-]*)\\s*${block?.yaml ? ':' : '::'}\\s*(.*)$`)
+  return (block?.lines ?? []).flatMap((one) => {
+    const found = entry.exec(one)
+    return found ? [{ name: found[1], value: found[2].trim().replace(/^["'](.*)["']$/, '$1') }] : []
+  })
+}
+
 /** A top-level `key: value` or `key:: value` line of this block's form. */
 function lineFor(key: string, block: PageBlock | null): RegExp {
   return new RegExp(`^${key}\\s*${block?.yaml ? ':' : '::'}\\s*(.*)$`)
@@ -78,24 +115,9 @@ function line(key: string, value: string, block: PageBlock | null): string {
   return value === '' ? `${key}${sep}` : `${key}${sep} ${value}`
 }
 
-/**
- * The value of `key`, or null when the note has no such property.
- *
- * Quotes are stripped, because a value written by hand may carry them and a value
- * written by `withProperty` does not — a reader should not care which.
- */
+/** The value of page property `key`, or null when the note has none, or an empty one. */
 export function readProperty(raw: string, key: string): string | null {
-  const block = pageBlock(raw)
-  if (!block) return null
-  const matcher = lineFor(key, block)
-  for (const one of block.lines) {
-    const found = matcher.exec(one)
-    if (found) {
-      const value = found[1].trim()
-      return value ? value.replace(/^["'](.*)["']$/, '$1') : null
-    }
-  }
-  return null
+  return pageEntries(pageBlock(raw)).find((one) => one.name === key)?.value || null
 }
 
 /**
@@ -149,15 +171,58 @@ export function splitPageProperties(raw: string): { prefix: string; body: string
   return { prefix: raw.slice(0, end), body: raw.slice(end) }
 }
 
+/** A block property's label: a name and `::`, at the line's start or after a space. */
+const BLOCK_LABEL = /(^|\s)([A-Za-z][\w-]*)::/g
+
+/** One `key:: value` on a line: where its label starts, and its value's span. */
+export interface BlockProperty {
+  name: string
+  value: string
+  from: number
+  valueFrom: number
+  to: number
+}
+
 /**
- * Every page property a note names, in the order they are written.
+ * The `key:: value` properties one line carries, in order. **A value runs to the
+ * next label or the line's end**, so it may hold spaces, a `[[link]]`, anything but
+ * another `name::` — which is what lets it go without brackets.
  *
- * The names only: what a property *is* is a question the Actions pane answers, and
- * what one holds is the note's business. A note with no block has none.
+ * `prose` is the line with its code masked (`proseLines`), when the caller has it:
+ * a label is looked for there, so one inside a code span is not one, and the value
+ * is read off the line itself.
  */
-export function propertyKeys(raw: string): string[] {
-  return (pageBlock(raw)?.lines ?? []).flatMap((one) => {
-    const key = PROPERTY_KEY.exec(one)
-    return key ? [key[1]] : []
+export function blockProperties(line: string, prose = line): BlockProperty[] {
+  const labels = [...prose.matchAll(BLOCK_LABEL)].map((found) => ({
+    name: found[2],
+    from: (found.index ?? 0) + found[1].length,
+    end: (found.index ?? 0) + found[0].length,
+  }))
+  return labels.map((label, at) => {
+    const run = line.slice(label.end, at + 1 < labels.length ? labels[at + 1].from : line.length)
+    const valueFrom = label.end + run.length - run.trimStart().length
+    const value = run.trim()
+    return { name: label.name, value, from: label.from, valueFrom, to: valueFrom + value.length }
   })
+}
+
+/**
+ * **Every property a note carries**, in the order written: its page properties,
+ * then each block property on its lines — code left out, as it is for everything
+ * that reads a note for meaning. The Properties pages are made of these.
+ *
+ * Until the vault's collections are migrated, a line carrying a `--keyword` is a
+ * collection's, and its `label::<<value>>` fields are not read as block properties.
+ */
+export function noteProperties(raw: string): { name: string; value: string }[] {
+  const block = pageBlock(raw)
+  const lines = raw.split(/\r?\n/)
+  const prose = proseLines(raw)
+  const first = raw.slice(0, block?.end ?? 0).split('\n').length - 1
+  const found = pageEntries(block)
+  for (let at = first; at < lines.length; at++) {
+    if (keywordAt(prose[at])) continue
+    for (const one of blockProperties(lines[at], prose[at])) found.push({ name: one.name, value: one.value })
+  }
+  return found
 }

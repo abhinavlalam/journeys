@@ -514,7 +514,7 @@ describe('the Properties group', () => {
 
     fireEvent.click(pane().getByText('owner'))
     await waitFor(() =>
-      expect(document.querySelector('.viewer-title')!.textContent).toBe('owner:')
+      expect(document.querySelector('.viewer-title')!.textContent).toBe('owner::')
     )
     const rows = [...document.querySelectorAll('.collection-table tbody tr')].map((tr) =>
       [...tr.querySelectorAll('td')].map((td) => td.textContent?.trim())
@@ -529,6 +529,61 @@ describe('the Properties group', () => {
     expect(disk.has('/v/.config/actions/properties/owner.md')).toBe(false)
     // The row is marked as the open one.
     expect(pane().getByText('owner').closest('.file-row')!.className).toContain('selected')
+  })
+
+  /**
+   * **A block property is a property**: `amount:: 480` on a line is listed with the
+   * page ones, counted by the notes that carry it, and its page gives a row for
+   * every value — one per line, so a note that says it twice is there twice.
+   */
+  it('lists a block property with the page ones, a row per value', async () => {
+    disk.write('/v/roadmap.md', 'owner:: me\n\n08:10 lunch amount:: 480\n12:00 coffee amount:: 5\n')
+    disk.write('/v/inbox.md', '# Inbox\n\n- supplies amount:: 12\n')
+    await openApp()
+    await openActionsExpanded()
+    await waitFor(() => expect(rowLabels().some((text) => text === 'amount2')).toBe(true))
+    expect(rowLabels().some((text) => text === 'owner1')).toBe(true)
+
+    fireEvent.click(pane().getByText('amount'))
+    await waitFor(() => expect(document.querySelector('.viewer-title')!.textContent).toBe('amount::'))
+    const rows = [...document.querySelectorAll('.collection-table tbody tr')].map((tr) =>
+      [...tr.querySelectorAll('td')].map((td) => td.textContent?.trim())
+    )
+    expect(rows).toEqual([
+      ['inbox', '12'],
+      ['roadmap', '480'],
+      ['roadmap', '5'],
+    ])
+  })
+
+  /**
+   * **A property's type is set on its page**, for the whole vault, into
+   * `.config/properties.json` — beside whatever else the file holds. `icon` and
+   * `path` are the app's own, and their pages offer nothing to set.
+   */
+  it('sets a property’s type on its page, and offers none for the app’s own', async () => {
+    disk.write('/v/.config/properties.json', '{\n  "owner": { "type": "link", "note": "kept" }\n}\n')
+    disk.write('/v/roadmap.md', 'icon:: book\n\n08:10 lunch amount:: 480\n')
+    await openApp()
+    await openActionsExpanded()
+    await waitFor(() => expect(pane().getByText('amount')).toBeTruthy())
+
+    fireEvent.click(pane().getByText('amount'))
+    const type = await waitFor(() => screen.getByRole('group', { name: 'Type' }))
+    expect(within(type).getByRole('button', { name: 'text' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(within(type).getByRole('button', { name: 'number' }))
+    await waitFor(() =>
+      expect(JSON.parse(disk.read('/v/.config/properties.json')!)).toEqual({
+        amount: { type: 'number' },
+        owner: { type: 'link', note: 'kept' },
+      })
+    )
+    expect(within(type).getByRole('button', { name: 'number' }).getAttribute('aria-pressed')).toBe('true')
+
+    fireEvent.click(pane().getByText('icon'))
+    await waitFor(() => expect(document.querySelector('.viewer-title')!.textContent).toBe('icon::'))
+    expect(screen.queryByRole('group', { name: 'Type' })).toBeNull()
+    expect(document.querySelector('.save-status')?.textContent).toContain('the app’s own')
   })
 
   // `Status` and `status` are one property to anything reading the block, and the

@@ -9,8 +9,8 @@ import { Facet, type EditorState, type Range as CmRange } from '@codemirror/stat
 import { Decoration, WidgetType, type DecorationSet } from '@codemirror/view'
 import { getIndentUnit, syntaxTree } from '@codemirror/language'
 import { decorated } from './EditorHost'
-import type { SyntaxNodeRef } from '@lezer/common'
-import { PROPERTY_KEY, splitPageProperties } from './properties'
+import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common'
+import { blockProperties, PROPERTY_KEY, splitPageProperties } from './properties'
 import { LEADING_CLOCK } from './clock'
 import { collectionSyntax, keywordAt } from './actions'
 import { checkMarkup } from './icons'
@@ -446,6 +446,14 @@ function touched(state: EditorState, from: number, to: number): boolean {
   return state.selection.ranges.some((range) => range.from <= to && range.to >= from)
 }
 
+/** Whether `pos` is inside code — a fence, an indented block, or a backtick span. */
+function inCode(state: EditorState, pos: number): boolean {
+  for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, 1); node; node = node.parent) {
+    if (node.name === 'FencedCode' || node.name === 'CodeBlock' || node.name === 'InlineCode') return true
+  }
+  return false
+}
+
 /** How far into a note the property block is looked for. It opens the note, so the
  *  search stops well past any real block rather than scanning a long note on every
  *  redraw. */
@@ -553,6 +561,16 @@ export function livePreviewDecorations(
       // around it.
       else if (editing) found.push(markerMark.range(from, to))
       else found.push(hidden.range(from, to))
+    }
+    // **A block property's name is syntax too**: `amount:: 480` reads `480`, the
+    // bargain a collection's labels make above — back as a marker with the caret on
+    // the line. Not on a collection's line, whose labels are drawn above, nor in
+    // the page's own block, whose names are marked, nor in code.
+    if (!keyword && line.from >= propertiesEnd) {
+      for (const one of blockProperties(line.text)) {
+        if (inCode(state, line.from + one.from)) continue
+        found.push((editing ? markerMark : hidden).range(line.from + one.from, line.from + one.valueFrom))
+      }
     }
     // The tree down the left of an indented line: a trunk for each step it is in,
     // and an elbow on the innermost one, which is the step this line hangs off.

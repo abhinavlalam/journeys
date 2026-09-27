@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { propertyKeys, readProperty, splitPageProperties, withProperty } from '../properties'
+import { blockProperties, noteProperties, readProperty, splitPageProperties, withProperty } from '../properties'
+
+const propertyKeys = (raw: string) => noteProperties(raw).map((one) => one.name)
 
 /**
  * One page property, as plain text — in a YAML block, or in the `key:: value`
@@ -124,7 +126,7 @@ describe('splitting page properties off the body', () => {
  * the accent in the note are one rule — `PROPERTY_KEY`, exported from the same
  * module and used by both.
  */
-describe('propertyKeys', () => {
+describe('the names of the properties a note carries', () => {
   it('answers with the names, in the order written', () => {
     expect(propertyKeys('---\nicon: compass\ndate: 2026-09-12\n---\nbody\n')).toEqual([
       'icon',
@@ -169,8 +171,9 @@ describe('page properties written as key:: value', () => {
     expect(readProperty('# Plans\nicon:: book\n', 'icon')).toBeNull()
   })
 
+  // `later:: not one` is not a page property, but it is a property: a block's.
   it('names them, and splits them off the body', () => {
-    expect(propertyKeys(note)).toEqual(['icon', 'path'])
+    expect(propertyKeys(note)).toEqual(['icon', 'path', 'later'])
     expect(splitPageProperties(note)).toEqual({
       prefix: 'icon:: book\npath:: Areas/Plans\n',
       body: '\n# Plans\n\nlater:: not one\n',
@@ -194,5 +197,51 @@ describe('page properties written as key:: value', () => {
   // Code reads, and nothing converts a note's form behind its owner's back.
   it('leaves a YAML block YAML', () => {
     expect(withProperty('---\nname: summarise\n---\n', 'icon', 'zap')).toBe('---\nname: summarise\nicon: zap\n---\n')
+  })
+})
+
+/**
+ * **A block property** is the same `key:: value`, on a line. A value runs to the
+ * next label on the line or its end, so it holds spaces and a `[[link]]` without
+ * brackets around it; a label is a name and `::` at the line's start or after a
+ * space, so a `::` inside a value is text.
+ */
+describe('block properties', () => {
+  const line = '08:10 #expense lunch amount:: 480 EUR merchant:: [[Harbour Bistro]]'
+
+  it('reads each key:: value on a line, a value running to the next label', () => {
+    const found = blockProperties(line)
+    expect(found.map((one) => [one.name, one.value])).toEqual([
+      ['amount', '480 EUR'],
+      ['merchant', '[[Harbour Bistro]]'],
+    ])
+    expect(found.map((one) => line.slice(one.from, one.valueFrom))).toEqual(['amount:: ', 'merchant:: '])
+    expect(found.map((one) => line.slice(one.valueFrom, one.to))).toEqual(['480 EUR', '[[Harbour Bistro]]'])
+  })
+
+  it('takes a label only at the start or after a space, and an empty value as empty', () => {
+    expect(blockProperties('at:: 09:05 https://x.example/a::b ok').map((one) => [one.name, one.value])).toEqual([
+      ['at', '09:05 https://x.example/a::b ok'],
+    ])
+    expect(blockProperties('due::').map((one) => [one.name, one.value])).toEqual([['due', '']])
+    expect(blockProperties('Note: this is prose')).toEqual([])
+  })
+
+  it('are read after the page ones, with code and collection lines left out', () => {
+    const raw = [
+      'icon:: book',
+      '',
+      '08:10 #expense amount:: 480',
+      'in `x:: 1` code',
+      '```',
+      'y:: 2',
+      '```',
+      '09:42 --expense amount::<<12>>',
+      '',
+    ].join('\n')
+    expect(noteProperties(raw)).toEqual([
+      { name: 'icon', value: 'book' },
+      { name: 'amount', value: '480' },
+    ])
   })
 })

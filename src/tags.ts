@@ -5,7 +5,8 @@
 // because a note carries it, which is the arrangement Properties already has: the
 // pane lists what the notes say and the row opens a page asking the notes back.
 
-import { gatherLines, proseLines, type CollectedLine } from './actions'
+import { gatherLines, type CollectedLine } from './actions'
+import { proseLines } from './prose'
 
 /**
  * A tag is `#` and a word, and **the guards are most of the definition**.

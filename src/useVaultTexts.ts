@@ -5,7 +5,7 @@ import { buildNoteIndex, collectNotes } from './links'
 import { buildBacklinkIndex } from './links'
 import type { BacklinkIndex } from './links'
 import { buildNoteGraph, type NoteGraph, type NoteText } from './graph'
-import { APP_PROPERTIES, propertyKeys, readProperty } from './properties'
+import { APP_PROPERTIES, noteProperties, readProperty } from './properties'
 import { collectTagLines, tagNames } from './tags'
 import { actionKeywords, collectLines, type CollectedLine } from './actions'
 
@@ -215,8 +215,8 @@ export function useVaultTexts({
   }, [texts])
 
   /**
-   * The names in use, counted — a property a block declares and a `--keyword` a
-   * line carries alike.
+   * The names in use, counted — a property a note carries, on its page or on a
+   * line, and a `--keyword` a line carries alike.
    *
    * Case-insensitively the same name is the same thing — `Status` and `status` are
    * one key to anything reading a block — and the first spelling met is the one
@@ -225,7 +225,7 @@ export function useVaultTexts({
    *
    * One function, because it is one question asked of two syntaxes: `read` is the
    * only difference, and it comes from the module that owns that syntax —
-   * `propertyKeys` from `properties.ts`, `actionKeywords` from `actions.ts`.
+   * `noteProperties` from `properties.ts`, `actionKeywords` from `actions.ts`.
    */
   const countNames = (read: (text: string) => string[]) => {
     const found = new Map<string, { name: string; notes: number }>()
@@ -241,7 +241,7 @@ export function useVaultTexts({
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const properties = useMemo(() => countNames(propertyKeys), [texts])
+  const properties = useMemo(() => countNames((text) => noteProperties(text).map((one) => one.name)), [texts])
   /** The `--keyword`s the notes carry: a collection is written as a line, so this
    *  is what puts the ones in play in the pane beside the ones with a file. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -252,18 +252,19 @@ export function useVaultTexts({
   const tags = useMemo(() => countNames(tagNames), [texts])
 
   /**
-   * **What a property says in every note that carries it** — the property's page,
-   * the way `collected` is a collection's. Off the same one read, case-insensitive
-   * on the name for the reason `countNames` is, and a note that names the key with
-   * nothing after it is not carrying a value.
+   * **What a property says, everywhere it is said** — on a note's page and on its
+   * lines, one row each — the property's page, the way `collected` is a
+   * collection's. Off the same one read, case-insensitive on the name for the
+   * reason `countNames` is, and a name with nothing after it carries no value.
    */
   const propertyValues = useCallback(
     (name: string): { note: VaultFile; value: string }[] => {
+      const want = name.toLowerCase()
       const found: { note: VaultFile; value: string }[] = []
       for (const { note, text } of texts ?? []) {
-        const key = propertyKeys(text).find((k) => k.toLowerCase() === name.toLowerCase())
-        const value = key ? readProperty(text, key) : null
-        if (value) found.push({ note, value })
+        for (const one of noteProperties(text)) {
+          if (one.value && one.name.toLowerCase() === want) found.push({ note, value: one.value })
+        }
       }
       return found.sort((a, b) => a.note.path.localeCompare(b.note.path))
     },

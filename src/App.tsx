@@ -21,7 +21,16 @@ import { SettingsFile } from './SettingsFile'
 import { NoteSearch } from './NoteSearch'
 import { searchNotes } from './search'
 import { openExternal, revealInFinder } from './reveal'
-import { APP_PROPERTIES, readProperty, withProperty } from './properties'
+import {
+  APP_PROPERTIES,
+  isAppProperty,
+  PROPERTIES_FILE,
+  readProperty,
+  typeOf,
+  withProperty,
+  type PropertyType,
+} from './properties'
+import { useConfigEntries } from './useConfigEntries'
 import { GraphView } from './GraphView'
 import { CollectionView } from './CollectionView'
 import { PropertyView } from './PropertyView'
@@ -364,6 +373,15 @@ export default function App() {
    * What each collection declares, and the one place that writes it — the pane's
    * rows, the collection's own view and the editor's `--` popup all read it.
    */
+  /** Each property's type, from `.config/properties.json` — set on its page. */
+  const propertyTypes = useConfigEntries(vault.vaultPath, PROPERTIES_FILE, setError)
+  /** Under the spelling the file already has for the property, if it has one. */
+  const setPropertyType = (name: string, type: PropertyType) =>
+    propertyTypes.write(
+      Object.keys(propertyTypes.entries).find((one) => one.toLowerCase() === name.toLowerCase()) ?? name,
+      { type }
+    )
+
   const collections = useCollections({
     vaultPath: vault.vaultPath,
     revision: actionsRevision,
@@ -1159,6 +1177,9 @@ export default function App() {
                     values={propertyValues(tab.name)}
                     icons={icons}
                     loading={reading}
+                    type={typeOf(propertyTypes.entries, tab.name)}
+                    appOwned={isAppProperty(tab.name)}
+                    onType={(type) => void setPropertyType(tab.name, type)}
                     onOpen={(file) => void openNote(file)}
                     onOpenLink={(target) => void openLinkTarget(target, true)}
                   />

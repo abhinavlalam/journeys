@@ -38,6 +38,8 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 | `editorCommands.ts`, `editorComplete.ts`, `editorFold.ts`, `editorPreview.ts` | Keys that write syntax, the `[[` and `/` popups, folding, decorations. |
 | `FolderTree.tsx`, `rows.tsx`, `SidebarSection.tsx`, `useDrops.ts` | The left pane; `rows.tsx` is the one row shape everything lists with; `useDrops` is what is dropped onto the tree. |
 | `actions.ts`, `actionKinds.ts`, `useCollections.ts`, `tags.ts`, `properties.ts` | `--keyword` collections, their declarations, tags, properties. |
+| `prose.ts` | The one rule for what in a note is code (`maskCode`, `proseLines`), for everything that reads a note for meaning. |
+| `configEntries.ts`, `useConfigEntries.ts` | A `.config` file of entries keyed by name (`properties.json`): merged on write, never written over when unreadable. |
 | `calendar.ts`, `ics.ts`, `calendarSync.ts`, `useCalendarSync.ts`, `CalendarView.tsx` | The calendar. |
 | `crypto.ts`, `useLocks.ts`, `useAutoLock.ts` | Locked notes: the format and the passphrases held / asking and locking / the clock. |
 | `sync.ts`, `useSync.ts`, `src-tauri/src/sync.rs` | Git sync. |
@@ -79,7 +81,12 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   properties are the `key:: value` lines it opens with; the first other line ends
   them (`properties.ts`). A YAML `---` block is read as page properties too and
   written *as YAML* — a skill must open with one — so nothing converts a note's
-  form behind its owner's back; a note with none is given the `::` form.
+  form behind its owner's back; a note with none is given the `::` form. A
+  **block property** is `key:: value` on a line, its value running to the next
+  `name::` or the line's end (`blockProperties`); `noteProperties` is every
+  property a note carries, and the Properties pages are made of it. A property's
+  type is set on its page into `.config/properties.json`; `icon` and `path` are
+  the app's and take none.
 - **The note carries what the app knows about it**: `icon::` and `path::`, the
   app's own properties (`APP_PROPERTIES`, the one place they are named). `path::` is
   `knownPath`, rewritten by a move, a rename, a create and a conversion. What a new

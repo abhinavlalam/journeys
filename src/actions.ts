@@ -18,7 +18,8 @@
 //
 // **Pure**: a string in, a description out.
 
-import { maskCode } from './links'
+import { proseLines } from './prose'
+import { asObject } from './configEntries'
 
 /**
  * The dashes that open a keyword: `--`, and **the em dash macOS makes of it**.
@@ -156,21 +157,6 @@ const FIELD_LABEL = /[A-Za-z][\w-]*\s*::\s?/g
 /** `OPENER` as a search. Built once: `matchAll` species-constructs its own regex,
  *  so there is no `lastIndex` to share. */
 const KEYWORDS = new RegExp(OPENER, 'g')
-
-/**
- * A note's lines with everything that is **not prose** masked out: fenced blocks,
- * their delimiters and inline code become spaces.
- *
- * `maskCode`'s rule, the one the links read too. A vault holds shell in fences —
- * `--postprocessor-args`, `--sub-langs` — and a flag someone pasted is not a
- * collection they keep. This had a rule of its own, which closed a fence on any
- * run of backticks, so a fence holding a shorter one leaked what followed. Line
- * numbers are kept, because `collectLines` reads the *unmasked* line back out by
- * index.
- */
-export function proseLines(raw: string): string[] {
-  return maskCode(raw).split(/\r?\n/)
-}
 
 /**
  * Every `--keyword` the lines of a note carry, in the order written.
@@ -341,19 +327,6 @@ export function readCollections(text: string): Record<string, string> | null {
     if (typeof structure === 'string') found[name] = structure
   }
   return found
-}
-
-/** The JSON object a text holds, or null — which this file means as "do not
- *  overwrite", so a parse failure and a wrong shape are one answer. */
-export function asObject(text: string): Record<string, unknown> | null {
-  try {
-    const read: unknown = JSON.parse(text)
-    return read && typeof read === 'object' && !Array.isArray(read)
-      ? (read as Record<string, unknown>)
-      : null
-  } catch {
-    return null
-  }
 }
 
 /**
