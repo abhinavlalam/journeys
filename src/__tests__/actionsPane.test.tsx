@@ -558,31 +558,33 @@ describe('the Properties group', () => {
 
   /**
    * **A property's type is set on its page**, for the whole vault, into
-   * `.config/properties.json` — beside whatever else the file holds. `icon` and
-   * `path` are the app's own, and their pages offer nothing to set.
+   * `.config/properties.json` — beside whatever else the file holds, from a menu.
+   * `icon` and `path` are the app's own: their pages show their type, fixed.
    */
-  it('sets a property’s type on its page, and offers none for the app’s own', async () => {
-    disk.write('/v/.config/properties.json', '{\n  "owner": { "type": "link", "note": "kept" }\n}\n')
+  it('sets a property’s type from its page, and shows the app’s own fixed', async () => {
+    disk.write('/v/.config/properties.json', '{\n  "owner": { "type": "backlink", "note": "kept" }\n}\n')
     disk.write('/v/roadmap.md', 'icon:: book\n\n08:10 lunch amount:: 480\n')
     await openApp()
     await openActionsExpanded()
     await waitFor(() => expect(pane().getByText('amount')).toBeTruthy())
 
     fireEvent.click(pane().getByText('amount'))
-    const type = await waitFor(() => screen.getByRole('group', { name: 'Type' }))
-    expect(within(type).getByRole('button', { name: 'text' }).getAttribute('aria-pressed')).toBe('true')
-    fireEvent.click(within(type).getByRole('button', { name: 'number' }))
+    const type = () => screen.getByRole('combobox', { name: 'Type' }) as HTMLSelectElement
+    await waitFor(() => expect(type().value).toBe('text'))
+    expect([...type().options].map((one) => one.value)).toEqual(['text', 'number', 'date', 'backlink', 'url', 'icon', 'path'])
+    fireEvent.change(type(), { target: { value: 'number' } })
     await waitFor(() =>
       expect(JSON.parse(disk.read('/v/.config/properties.json')!)).toEqual({
         amount: { type: 'number' },
-        owner: { type: 'link', note: 'kept' },
+        owner: { type: 'backlink', note: 'kept' },
       })
     )
-    expect(within(type).getByRole('button', { name: 'number' }).getAttribute('aria-pressed')).toBe('true')
+    await waitFor(() => expect(type().value).toBe('number'))
 
     fireEvent.click(pane().getByText('icon'))
     await waitFor(() => expect(document.querySelector('.viewer-title')!.textContent).toBe('icon::'))
-    expect(screen.queryByRole('group', { name: 'Type' })).toBeNull()
+    expect(type().value).toBe('icon')
+    expect(type().disabled).toBe(true)
     expect(document.querySelector('.save-status')?.textContent).toContain('the app’s own')
   })
 

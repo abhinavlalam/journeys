@@ -3644,6 +3644,11 @@ button.folder-toggle {
   cursor: pointer;
 }
 
+/* The same menu in a page's header, where it takes the width of its longest word. */
+.viewer-header .header-select {
+  width: auto;
+}
+
 .settings-text-input {
   width: 100%;
   min-height: var(--field-h);

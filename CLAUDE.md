@@ -83,14 +83,15 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   written *as YAML* — a skill must open with one — so nothing converts a note's
   form behind its owner's back; a note with none is given the `::` form. A
   **block property** is `key:: value` on a line, and its value is **exactly its
-  type** (`blockProperties`): a number, a date, one `[[link]]`, or text — one word,
-  or a run between quotes (curly ones too; macOS types them). The owner's words may
+  type** (`blockProperties`, `PROPERTY_TYPES`): a number, a date, one
+  `[[backlink]]`, a url, an icon, or a path or text — one word, or a run between
+  quotes (curly ones too; macOS types them). The owner's words may
   follow any value. A value not of its type is not read, and its name stays on the
   line in `--alert`, so nothing vanishes unread; there is no fallback to text.
   `noteProperties` is every property a note carries, and the Properties pages are
-  made of it. A page property takes its whole line. A property's type is set on
-  its page into `.config/properties.json`; `icon` and `path` are the app's and
-  take none.
+  made of it. A page property takes its whole line. A property's type is chosen
+  from a menu on its page, into `.config/properties.json`; `icon` and `path` are
+  the app's, typed `icon` and `path`, and no entry retypes them.
 - **The note carries what the app knows about it**: `icon::` and `path::`, the
   app's own properties (`APP_PROPERTIES`, the one place they are named). `path::` is
   `knownPath`, rewritten by a move, a rename, a create and a conversion. What a new

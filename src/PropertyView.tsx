@@ -38,7 +38,7 @@ export function PropertyView({
   icons: Record<string, string>
   loading: boolean
   type: PropertyType
-  /** `icon` or `path`: typed by the app, so there is nothing here to choose. */
+  /** `icon` or `path`: typed by the app, so the type is shown and not chosen. */
   appOwned: boolean
   onType: (type: PropertyType) => void
   onOpen: (file: VaultFile) => void
@@ -55,15 +55,21 @@ export function PropertyView({
           .filter(Boolean)
           .join(' · ')}
       >
-        {!appOwned && (
-          <span className="view-switch" role="group" aria-label="Type">
-            {PROPERTY_TYPES.map((one) => (
-              <button key={one} className="header-action" aria-pressed={type === one} onClick={() => onType(one)}>
-                {one}
-              </button>
-            ))}
-          </span>
-        )}
+        {/* A menu, for a list that is a word each and grows. The app's own show
+            their type and cannot be changed. */}
+        <select
+          className="settings-select header-select"
+          aria-label="Type"
+          value={type}
+          disabled={appOwned}
+          onChange={(event) => onType(event.currentTarget.value as PropertyType)}
+        >
+          {PROPERTY_TYPES.map((one) => (
+            <option key={one} value={one}>
+              {one}
+            </option>
+          ))}
+        </select>
       </ViewerHeader>
       <Section title="Values" count={values.length} startOpen>
         {values.length === 0 ? (

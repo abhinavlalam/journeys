@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { blockProperties, noteProperties, readProperty, splitPageProperties, withProperty } from '../properties'
+import { blockProperties, noteProperties, readProperty, splitPageProperties, typeOf as typeIn, withProperty } from '../properties'
 
 const untyped = () => 'text' as const
 const propertyKeys = (raw: string) => noteProperties(raw, untyped).map((one) => one.name)
@@ -208,7 +208,7 @@ describe('page properties written as key:: value', () => {
  * of its type is not one, and says so (`valid`) rather than being read as text.
  */
 describe('block properties', () => {
-  const types = { currency: 'link', amount: 'number', account: 'link', merchant: 'link', due: 'date' } as const
+  const types = { currency: 'backlink', amount: 'number', account: 'backlink', merchant: 'backlink', due: 'date', site: 'url', mood: 'icon', home: 'path' } as const
   const typeOf = (name: string) => types[name as keyof typeof types] ?? 'text'
   const read = (line: string) => blockProperties(line, typeOf).map((one) => [one.name, one.value, one.valid])
 
@@ -248,6 +248,27 @@ describe('block properties', () => {
     expect(read('due:: 2026-09-27, then')).toEqual([['due', '2026-09-27', true]])
     expect(read('merchant:: Harbour Bistro')).toEqual([['merchant', '', false]])
     expect(read('note:: "never closed')).toEqual([['note', '', false]])
+  })
+
+  it('reads a url, an icon and a path, each exactly', () => {
+    expect(read('site:: https://example.org/menu. Then prose')).toEqual([['site', 'https://example.org/menu', true]])
+    expect(read('site:: example.org')).toEqual([['site', '', false]])
+    expect(read('mood:: sun today')).toEqual([['mood', 'sun', true]])
+    expect(read('mood:: ☀️ today')).toEqual([['mood', '☀️', true]])
+    expect(read('mood:: Sunny!')).toEqual([['mood', '', false]])
+    expect(read('home:: Areas/Plans then')).toEqual([['home', 'Areas/Plans', true]])
+    expect(read('home:: "Areas/Harbour View" then')).toEqual([['home', 'Areas/Harbour View', true]])
+  })
+
+  // `icon` and `path` are the app's own, and no entry in the vault retypes them.
+  it('types the app’s own properties as the app does', () => {
+    const entries = { icon: { type: 'number' }, owner: { type: 'backlink' } }
+    expect([typeIn(entries, 'icon'), typeIn(entries, 'Path'), typeIn(entries, 'OWNER'), typeIn(entries, 'other')]).toEqual([
+      'icon',
+      'path',
+      'backlink',
+      'text',
+    ])
   })
 
   it('takes a label only at the start or after a space, and nothing after one as empty', () => {

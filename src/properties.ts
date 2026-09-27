@@ -9,8 +9,8 @@
 // with no properties yet is given the `::` form.
 //
 // **Block properties** are the same `key:: value`, on a line of the note, where a
-// value is exactly what its type says — a number, a date, one link, or text: a word
-// or a quoted run — so the owner's own words can follow it (`blockProperties`).
+// value is exactly what its type says (`PROPERTY_TYPES`), so the owner's own words
+// can follow it (`blockProperties`).
 //
 // **Pure**: text in, text out. `vault.ts` does the reading and writing. A line-based
 // rewrite rather than a YAML library — `gray-matter` breaks in the webview, where
@@ -38,13 +38,23 @@ export function isAppProperty(name: string): boolean {
  * **What a property's values are**, set on the property's own page and kept in the
  * vault's `.config/properties.json`, one entry per property: `{ "amount": { "type":
  * "number" } }`. Unset, or a word this list does not have, is `text`.
+ *
+ * `backlink` is a page, `[[…]]`, so it links the page back; `url` is an address on
+ * the web; `icon` and `path` are what the app's own two properties hold, and a vault
+ * may give its own properties those types too.
  */
-export const PROPERTY_TYPES = ['text', 'number', 'date', 'link'] as const
+export const PROPERTY_TYPES = ['text', 'number', 'date', 'backlink', 'url', 'icon', 'path'] as const
 export type PropertyType = (typeof PROPERTY_TYPES)[number]
 export const PROPERTIES_FILE = 'properties.json'
 
-/** A property's type in those entries, by name whatever its case. */
+/** The app's own properties' types, which no entry in the vault changes. */
+const APP_TYPES: Record<string, PropertyType> = { [APP_PROPERTIES.icon]: 'icon', [APP_PROPERTIES.path]: 'path' }
+
+/** A property's type — the app's for its own, else the entries', by name whatever
+ *  its case. */
 export function typeOf(entries: Entries, name: string): PropertyType {
+  const own = APP_TYPES[name.toLowerCase()]
+  if (own) return own
   const key = Object.keys(entries).find((one) => one.toLowerCase() === name.toLowerCase())
   return PROPERTY_TYPES.find((one) => one === entries[key ?? '']?.type) ?? 'text'
 }
@@ -181,15 +191,24 @@ const STOP = String.raw`(?=$|[\s,;:!?)\]]|\.(?!\d))`
 
 /**
  * **What a value of each type is**, from where it begins — exactly that, so the
- * owner's own words can follow it on the line. A link is one `[[…]]`; text is one
- * word (a `[[link]]` counts as one) unless it is quoted, which is `QUOTED`.
+ * owner's own words can follow it on the line. A backlink is one `[[…]]`; a url
+ * runs to the next space, less the punctuation of the sentence around it; an icon
+ * is a key (`book`) or an emoji; text and a path are one word (a `[[link]]` counts
+ * as one) unless they are quoted, which is `QUOTED`.
  */
+const WORD = /^(?:\[\[[^\]\n]+\]\]|[^\s"“”]\S*)/
 const VALUE: Record<PropertyType, RegExp> = {
   number: new RegExp(String.raw`^-?\d+(?:\.\d+)?${STOP}`),
   date: new RegExp(String.raw`^\d{4}-\d{2}-\d{2}${STOP}`),
-  link: /^\[\[[^\]\n]+\]\]/,
-  text: /^(?:\[\[[^\]\n]+\]\]|[^\s"“”]\S*)/,
+  backlink: /^\[\[[^\]\n]+\]\]/,
+  url: /^https?:\/\/\S*[^\s.,;:!?)\]]/,
+  icon: /^(?:[a-z][a-z0-9-]*|[^\x00-\x7F\s]{1,4})(?=$|\s)/,
+  path: WORD,
+  text: WORD,
 }
+
+/** The types whose longer values are written between quotes. */
+const QUOTABLE: readonly PropertyType[] = ['text', 'path']
 
 /** Text between quotes, which is how text longer than a word is written: `"`, or the
  *  curly pair macOS types in its place, as it types `—` for `--`. */
@@ -214,7 +233,8 @@ export interface BlockProperty {
 
 /**
  * The `key:: value` properties one line carries, in order, each **as its type reads
- * it** — a number, a date, one link, or text: a word, or a run between quotes. Read
+ * it** — a number, a date, one backlink, a url, an icon, or a path or text: a word,
+ * or a run between quotes. Read
  * left to right, so a `name::` inside a quoted value or a link is not a label, and a
  * value's end is where the line goes back to being prose.
  *
@@ -236,7 +256,7 @@ export function blockProperties(
     const at: BlockProperty = { name: hit[2], value: '', valid: true, from: hit.index + hit[1].length, valueFrom: start, valueTo: start, to: start }
     // Nothing yet, or the next label straight after this one: a property not filled in.
     if (rest.trim() !== '' && !NEXT_LABEL.test(rest)) {
-      const quoted = type === 'text' ? QUOTED.exec(rest) : null
+      const quoted = QUOTABLE.includes(type) ? QUOTED.exec(rest) : null
       const plain = quoted ? null : VALUE[type].exec(rest)
       if (quoted) Object.assign(at, { value: quoted[1], valueFrom: start + 1, valueTo: start + 1 + quoted[1].length, to: start + quoted[0].length })
       else if (plain) Object.assign(at, { value: plain[0], valueTo: start + plain[0].length, to: start + plain[0].length })
