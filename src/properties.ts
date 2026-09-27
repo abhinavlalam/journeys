@@ -271,6 +271,22 @@ export function blockProperties(
 }
 
 /**
+ * **A line as it reads**: each block property's name and quotes left out, as the
+ * editor draws the line with the caret elsewhere — for a page quoting the line, so
+ * the page draws what the note draws. A value not of its type keeps its name.
+ */
+export function readBlock(line: string, typeOf: (name: string) => PropertyType): string {
+  let out = ''
+  let at = 0
+  for (const one of blockProperties(line, typeOf)) {
+    if (!one.valid) continue
+    out += line.slice(at, one.from) + line.slice(one.valueFrom, one.valueTo)
+    at = one.to
+  }
+  return out + line.slice(at)
+}
+
+/**
  * **Every property a note carries**, in the order written: its page properties,
  * then each block property on its lines — code left out, as it is for everything
  * that reads a note for meaning. The Properties pages are made of these.

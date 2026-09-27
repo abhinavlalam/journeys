@@ -1,7 +1,6 @@
 import { useRef } from 'react'
 import { leadingClock } from './clock'
 import { useColumnWidths } from './columnWidths'
-import { readFields, type TemplateField } from './actions'
 import type { CollectedNote } from './useVaultTexts'
 import { linkLabelSpan, type VaultFile } from './vaultModel'
 
@@ -19,13 +18,12 @@ interface Row {
 const SUM_DECIMALS = 2
 
 /**
- * A collection as a table: a row per collected line, a column per field its
- * declaration names.
+ * Gathered lines as a table: a row per line, a column per property the page's
+ * structure names — a tag's properties, or a collection's fields.
  *
- * **The declaration is the schema**, so this component adds no idea of its own
- * about what a line contains — `readFields` answers that, and it answers partially
- * on purpose. A blank cell is a line that did not say, which is the ordinary state
- * of a note and not an error to point at.
+ * **The structure is the schema**, so this component adds no idea of its own about
+ * what a line contains — `valuesOf` answers that, and a blank cell is a line that
+ * did not say, which is the ordinary state of a note and not an error to point at.
  *
  * Two columns nobody declares. **`when`** comes free: a journal line opens with a
  * clock and `leadingClock` already reads it, so the table can say when without the
@@ -41,12 +39,19 @@ const SUM_DECIMALS = 2
  * a file. The row opens the note instead.
  */
 export function CollectionTable({
-  fields,
+  columns,
+  valuesOf,
+  summable,
   notes,
   onOpen,
   onOpenLink,
 }: {
-  fields: readonly TemplateField[]
+  columns: readonly string[]
+  /** A line's values, by column. */
+  valuesOf: (text: string) => Record<string, string>
+  /** Which columns are summed: a tag's `number` properties. Without it, a column
+   *  whose values all read as numbers — a collection's, which has no types. */
+  summable?: (column: string) => boolean
   notes: readonly CollectedNote[]
   onOpen: (file: VaultFile) => void
   onOpenLink: (target: string) => void
@@ -56,13 +61,13 @@ export function CollectionTable({
       note,
       text: line.text,
       when: leadingClock(line.text),
-      values: readFields(line.text, fields),
+      values: valuesOf(line.text),
     }))
   )
   // A column of blanks is a column nobody is using: the declaration may name a
   // field the notes have not started carrying yet, and an empty column is a header
   // that only takes width.
-  const shown = fields.filter((field) => rows.some((row) => row.values[field.name]))
+  const shown = columns.filter((column) => rows.some((row) => row.values[column]))
   const dated = rows.some((row) => row.when)
   /**
    * **A sum under every column that is numbers**, because a ledger's one question is
@@ -74,12 +79,15 @@ export function CollectionTable({
    * amounts. Commas are thousands separators, which is how people write money.
    */
   const sums = Object.fromEntries(
-    shown.flatMap((field) => {
-      const given = rows.map((row) => row.values[field.name]).filter(Boolean)
+    shown.flatMap((column) => {
+      const given = rows.map((row) => row.values[column]).filter(Boolean)
       const numbers = given.map((value) => Number(value.replace(/,/g, '')))
-      if (given.length < 2 || numbers.some((one) => !Number.isFinite(one))) return []
+      const sums = summable
+        ? summable(column)
+        : given.length >= 2 && numbers.every((one) => Number.isFinite(one))
+      if (!sums || given.length === 0) return []
       const sum = numbers.reduce((total, one) => total + one, 0)
-      return [[field.name, String(Number(sum.toFixed(SUM_DECIMALS)))]]
+      return [[column, String(Number(sum.toFixed(SUM_DECIMALS)))]]
     })
   ) as Record<string, string>
   const summed = Object.keys(sums).length > 0
@@ -105,10 +113,10 @@ export function CollectionTable({
               {gripFor('when')}
             </th>
           )}
-          {shown.map((field) => (
-            <th key={field.name} data-col={field.name} style={{ width: widths?.[field.name] }}>
-              {field.name}
-              {gripFor(field.name)}
+          {shown.map((column) => (
+            <th key={column} data-col={column} style={{ width: widths?.[column] }}>
+              {column}
+              {gripFor(column)}
             </th>
           ))}
         </tr>
@@ -125,9 +133,9 @@ export function CollectionTable({
               </button>
             </td>
             {dated && <td className="collection-when">{row.when ?? ''}</td>}
-            {shown.map((field) => (
-              <td key={field.name}>
-                <Cell value={row.values[field.name]} onOpenLink={onOpenLink} />
+            {shown.map((column) => (
+              <td key={column}>
+                <Cell value={row.values[column]} onOpenLink={onOpenLink} />
               </td>
             ))}
           </tr>
@@ -138,8 +146,8 @@ export function CollectionTable({
           <tr className="collection-sum">
             <td>sum</td>
             {dated && <td />}
-            {shown.map((field) => (
-              <td key={field.name}>{sums[field.name] ?? ''}</td>
+            {shown.map((column) => (
+              <td key={column}>{sums[column] ?? ''}</td>
             ))}
           </tr>
         </tfoot>

@@ -263,9 +263,15 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 - A tag is `#` + a word with a letter, after start or whitespace, outside code, and
   folded to lower case (the only folded name). A property keeps the first spelling
   met.
+- **A tag's structure is a list of properties** (`tags.json`, `propertiesOf`), one
+  per row on its page: `+` adds, `×` removes, a row opens the property's page, where
+  its type is. The Actions pane's `+` declares a tag. With a structure and lines the
+  page has a Table above the Lines — sections, not a mode — and a page quoting a
+  line reads it as the note does (`readBlock`: names and quotes left out).
 - `CollectionTable` is read-only (a cell edit is a write through a partial parse),
-  leads with the note, adds `when`, sums numeric columns, and resizes columns
-  (`useColumnWidths`: auto until the first drag, then fixed).
+  takes its columns and a reader of a line's values, leads with the note, adds
+  `when`, sums a tag's `number` columns (a collection's by sniffing, until they go),
+  and resizes columns (`useColumnWidths`: auto until the first drag, then fixed).
 - **No second `--keyword` inside a structure**: every line would join a phantom
   collection.
 

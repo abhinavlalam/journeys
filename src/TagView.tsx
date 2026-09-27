@@ -1,48 +1,156 @@
+import { useState } from 'react'
+import { CollectionTable } from './CollectionTable'
+import { PlusIcon } from './icons'
+import { blockProperties, readBlock, type PropertyType } from './properties'
 import { ViewerHeader } from './ViewerHeader'
-import { countOf, GatheredNotes, readable, Section } from './rows'
+import { countOf, GatheredNotes, NameField, NoteRow, readable, RowIcon, Section, stepIn } from './rows'
 import type { CollectedNote } from './useVaultTexts'
 import type { VaultFile } from './vaultModel'
 
+/** A property's name, as the notes write one. */
+const PROPERTY_NAME = /^[A-Za-z][\w-]*$/
+
 /**
- * A tag's page: every line in the vault carrying `#name`, under the note it is in.
+ * A tag's page: the properties its lines carry, and every line in the vault carrying
+ * `#name`, under the note it is in.
  *
  * **A tag has no file, and its page is the question asked of the notes** — the
- * correction collections and properties have each already had, applied to the one
- * kind that had not needed it yet. A `.config/actions/tags/travel.md` would be an
- * empty page named after a thing; the thing is the eleven lines that say `#travel`.
+ * correction collections and properties have each already had. A
+ * `.config/actions/tags/travel.md` would be an empty page named after a thing; the
+ * thing is the eleven lines that say `#travel`.
  *
- * Drawn as the collection page's Lines section, because it *is* that section —
- * `GatheredNotes`, the one list both pages draw. What it has not got is a
- * Structure and a table: a tag declares nothing, so there are no fields to read out
- * of a line and nothing to tabulate. `readable` renders the entry, for the reason
- * the backlink lines take it: a quotation reads as the note reads.
+ * **Its structure is a list of properties**, one per row: `+` adds one, `×` takes
+ * one off, and a row opens the property's own page, where its type is set. With a
+ * structure and lines, a **Table** reads each line's values in its columns — the
+ * same table a collection draws, summing the `number` ones — above the Lines, which
+ * keep the sentences. The two are sections to open and shut, not a mode to be in:
+ * the collection page's bargain.
  */
 export function TagView({
   name,
   collected,
+  properties,
+  typeOf,
   icons,
   loading,
+  onProperties,
+  onOpenProperty,
   onOpen,
+  onOpenLink,
 }: {
   name: string
   /** Null while the vault is still being read. */
   collected: CollectedNote[] | null
+  /** The tag's structure: the properties its lines carry, in order. */
+  properties: readonly string[]
+  typeOf: (property: string) => PropertyType
   icons: Record<string, string>
   loading: boolean
+  onProperties: (next: string[]) => void
+  onOpenProperty: (property: string) => void
   onOpen: (file: VaultFile) => void
+  onOpenLink: (target: string) => void
 }) {
   const notes = collected ?? []
   const total = notes.reduce((sum, one) => sum + one.lines.length, 0)
+  const [adding, setAdding] = useState<string | null>(null)
+  const table = properties.length > 0 && notes.length > 0
+
+  /** A name typed in the field, added unless it is not a name or is there already. */
+  function add() {
+    const typed = (adding ?? '').trim()
+    setAdding(null)
+    const taken = properties.some((one) => one.toLowerCase() === typed.toLowerCase())
+    if (PROPERTY_NAME.test(typed) && !taken) onProperties([...properties, typed])
+  }
+
+  /** A line's values, by the structure's own spelling of each property. */
+  function valuesOf(text: string): Record<string, string> {
+    const found = new Map(
+      blockProperties(text, typeOf)
+        .filter((one) => one.valid && one.value)
+        .map((one) => [one.name.toLowerCase(), one.value])
+    )
+    return Object.fromEntries(properties.map((one) => [one, found.get(one.toLowerCase()) ?? '']))
+  }
 
   return (
     <>
-      {/* `#travel` and not `travel`: the header names the syntax, as `--expense`
-          and `icon:` do on the other two pages. */}
+      {/* `#travel` and not `travel`: the header names the syntax, as `icon::` does
+          on a property's page. */}
       <ViewerHeader name={`#${name}`} status={total > 0 ? countOf(total, 'line') : ''} />
-      <Section title="Lines" count={total} startOpen>
-        <GatheredNotes notes={collected} icons={icons} loading={loading} onOpen={onOpen} head={readable} />
+      <Section
+        title="Properties"
+        count={properties.length}
+        startOpen
+        actions={
+          <button
+            aria-label="Add a property"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => setAdding((current) => current ?? '')}
+          >
+            <PlusIcon />
+          </button>
+        }
+      >
+        {properties.map((one) => (
+          <li key={one} className="note-row" style={{ paddingLeft: stepIn(1) }}>
+            <NoteRow
+              icon={<RowIcon icon="list" />}
+              name={one}
+              trailing={<span className="row-count">{typeOf(one)}</span>}
+              onClick={() => onOpenProperty(one)}
+            />
+            <span className="folder-actions">
+              <button aria-label={`Remove ${one}`} onClick={() => onProperties(properties.filter((kept) => kept !== one))}>
+                ×
+              </button>
+            </span>
+          </li>
+        ))}
+        {adding !== null && (
+          <li style={{ paddingLeft: stepIn(1) }}>
+            <NameField
+              value={adding}
+              placeholder="Property name…"
+              onChange={setAdding}
+              onSubmit={add}
+              onCancel={() => setAdding(null)}
+              onBlur={() => setAdding(null)}
+            />
+          </li>
+        )}
+        {properties.length === 0 && adding === null && (
+          <li style={{ paddingLeft: stepIn(1) }}>
+            <NoteRow icon={<RowIcon />} name="No properties yet: + adds one." disabled />
+          </li>
+        )}
+      </Section>
+      {table && (
+        <Section title="Table" count={total} startOpen>
+          <li className="collection-table-box">
+            <CollectionTable
+              columns={properties}
+              valuesOf={valuesOf}
+              summable={(column) => typeOf(column) === 'number'}
+              notes={notes}
+              onOpen={onOpen}
+              onOpenLink={onOpenLink}
+            />
+          </li>
+        </Section>
+      )}
+      <Section title="Lines" count={total} startOpen={!table}>
+        {/* Each line as the note reads it: properties' names and quotes left out,
+            links as their names. */}
+        <GatheredNotes
+          notes={collected}
+          icons={icons}
+          loading={loading}
+          onOpen={onOpen}
+          head={(text) => readable(readBlock(text, typeOf))}
+        />
       </Section>
     </>
   )
 }
-

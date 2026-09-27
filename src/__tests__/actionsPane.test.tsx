@@ -149,13 +149,13 @@ describe('the Config group', () => {
     const offered = [...document.querySelectorAll('.context-menu button')].map(
       (button) => button.textContent
     )
-    // **Neither Property nor Tag is here**, and for the same reason: each exists
-    // because a note carries it, so there is nothing for a `+` to write. Property
-    // *was* offered for a while, writing a default into `properties.json` for every
-    // new note to start with; no vault ever used it, and a template stamped into
-    // every new note is a data-collection mechanism in a journal, so it went. Config
-    // is the one kind with files the `+` still refuses: those arrive with the app.
-    expect(offered).toEqual(['Collection', 'Skill'])
+    // **Property is not here**: it exists because a note carries it, and there is
+    // nothing for a `+` to write. It *was* offered for a while, writing a default
+    // into `properties.json` for every new note to start with; a template stamped
+    // into every new note is a data-collection mechanism in a journal, so it went.
+    // A Tag is here, because a tag's structure is written — into `tags.json`.
+    // Config is the one kind with files the `+` refuses: those arrive with the app.
+    expect(offered).toEqual(['Collection', 'Skill', 'Tag'])
   })
 
   /** Each kind's own `+`, on its own group row: the rail's asks which kind, and
@@ -279,14 +279,26 @@ describe('the + ', () => {
     )
   })
 
-  /** It used to write `.config/actions/tags/Later.md`, and an empty page named
-   *  after a thing is not the thing — the third time this app has made that
-   *  correction, after collections and properties. */
-  it('does not offer a tag at all, because a tag has no file', async () => {
+  /** **A tag's `+` declares it**: an entry in `tags.json`, folded to the tag's
+   *  one spelling, and its page opened, where its properties are added. It used to
+   *  write `.config/actions/tags/Later.md`, and an empty page named after a thing is
+   *  not the thing — so still no file of its own. */
+  it('declares a tag into tags.json and opens its page, writing no file of its own', async () => {
     await openApp()
-    await openActions()
+    await openActionsExpanded()
     fireEvent.click(screen.getByLabelText('New action'))
-    expect(screen.queryByText('Tag')).toBeNull()
+    fireEvent.click(screen.getByText('Tag'))
+    const field = screen.getByPlaceholderText('Tag name…')
+    fireEvent.change(field, { target: { value: '#Travel' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+
+    await waitFor(() =>
+      expect(JSON.parse(disk.read('/v/.config/tags.json')!)).toEqual({ travel: { properties: [] } })
+    )
+    await waitFor(() => expect(document.querySelector('.viewer-title')!.textContent).toBe('#travel'))
+    // Listed from the moment it is declared, with no note carrying it yet.
+    expect(pane().getByText('travel')).toBeTruthy()
+    expect(disk.paths().some((path) => path.includes('/tags/'))).toBe(false)
   })
 
   it('writes a skill where skills live', async () => {

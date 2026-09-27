@@ -31,6 +31,7 @@ import {
   type PropertyType,
 } from './properties'
 import { useConfigEntries } from './useConfigEntries'
+import { propertiesOf, TAGS_FILE } from './tags'
 import { GraphView } from './GraphView'
 import { CollectionView } from './CollectionView'
 import { PropertyView } from './PropertyView'
@@ -258,6 +259,8 @@ export default function App() {
    */
   /** Each property's type, from `.config/properties.json` — set on its page. */
   const propertyTypes = useConfigEntries(vault.vaultPath, PROPERTIES_FILE, setError)
+  /** Each tag's structure, from `.config/tags.json` — set on its page. */
+  const tagStructures = useConfigEntries(vault.vaultPath, TAGS_FILE, setError)
 
   const {
     notes,
@@ -428,8 +431,18 @@ export default function App() {
     if (!type || !vault.vaultPath) return
 
     // **A declaring kind's `+` writes an entry, not a file**, and lands on the page
-    // where the rest of it is read: a collection's structure goes into
-    // `collections.json` with no shape yet.
+    // where the rest of it is read: a tag's structure goes into `tags.json`, and a
+    // collection's into `collections.json`, with no shape yet.
+    if (declares(type) && type.key === 'tag') {
+      const tag = typed.trim().replace(/^#/, '').toLowerCase()
+      if (!/^[\w/-]*[a-z][\w/-]*$/.test(tag)) {
+        if (tag) setError(`#${tag} is not a tag: a tag is one word, with a letter in it.`)
+        return
+      }
+      await tagStructures.write(tag, { properties: propertiesOf(tagStructures.entries, tag) })
+      view('tag', tag)
+      return
+    }
     if (declares(type)) {
       const name = safeName(typed)
       if (!name) return
@@ -1011,7 +1024,7 @@ export default function App() {
                   ? { kind: active.kind, name: active.name }
                   : null
               }
-              declared={{ collection: collections.declared }}
+              declared={{ collection: collections.declared, tag: Object.keys(tagStructures.entries) }}
               openGroups={folders.open}
               onToggleGroup={folders.toggle}
               onNew={startNamingAction}
@@ -1192,9 +1205,14 @@ export default function App() {
                   <TagView
                     name={tab.name}
                     collected={collectTag(tab.name)}
+                    properties={propertiesOf(tagStructures.entries, tab.name)}
+                    typeOf={(property) => typeOf(propertyTypes.entries, property)}
                     icons={icons}
                     loading={reading}
+                    onProperties={(next) => void tagStructures.write(tab.name.toLowerCase(), { properties: next })}
+                    onOpenProperty={(property) => view('property', property)}
                     onOpen={(file) => void openNote(file)}
+                    onOpenLink={(target) => void openLinkTarget(target, true)}
                   />
                 )
               case 'collection':

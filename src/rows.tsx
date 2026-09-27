@@ -223,11 +223,14 @@ export function Section({
   title,
   count,
   startOpen,
+  actions,
   children,
 }: {
   title: string
   count: number
   startOpen: boolean
+  /** Controls on the heading, beside the toggle: a `+` that adds to the section. */
+  actions?: ReactNode
   children: ReactNode
 }) {
   const [open, setOpen] = useState(startOpen)
@@ -238,6 +241,7 @@ export function Section({
         open={open}
         onToggle={() => setOpen((shown) => !shown)}
         trailing={<span className="row-count">{count}</span>}
+        actions={actions && <span className="folder-actions">{actions}</span>}
       />
       {open && (
         <ul className="file-list folder-children" style={guideAt(0)}>

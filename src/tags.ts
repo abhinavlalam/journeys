@@ -7,6 +7,7 @@
 
 import { gatherLines, type CollectedLine } from './actions'
 import { proseLines } from './prose'
+import type { Entries } from './configEntries'
 
 /**
  * A tag is `#` and a word, and **the guards are most of the definition**.
@@ -81,4 +82,18 @@ export function tagAt(line: string, offset: number): string | null {
     if (offset >= at && offset <= at + hit[2].length + 1) return hit[2].toLowerCase()
   }
   return null
+}
+
+/**
+ * **A tag's structure**: the properties its lines carry, one per line on its page,
+ * in `.config/tags.json` — `{ "expense": { "properties": ["amount", "merchant"] } }`,
+ * keyed by the tag's folded name. What each property's values are is the
+ * property's own type, set on its page; a tag only says which it takes.
+ */
+export const TAGS_FILE = 'tags.json'
+
+/** The properties a tag's structure names, in order; none for a tag with none. */
+export function propertiesOf(entries: Entries, tag: string): string[] {
+  const listed = entries[tag.toLowerCase()]?.properties
+  return Array.isArray(listed) ? listed.filter((one): one is string => typeof one === 'string') : []
 }

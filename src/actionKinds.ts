@@ -49,16 +49,16 @@ export const BUILT_IN_KINDS: readonly ActionKind[] = [
   // properties, which is the mistake the first had already corrected.
   { key: 'collection', label: 'Collections', singular: 'Collection', dir: null, icon: 'archive', declares: true, views: true, creatable: true },
   { key: 'skill', label: 'Skills', singular: 'Skill', dir: '.claude/skills', entry: SKILL_FILE, icon: 'zap', creatable: true },
-  // **No folder and no `+`, the arrangement Properties has.** A tag exists because a
-  // note carries `#word`, so a file named after one is an empty page named after a
-  // thing — the correction collections and properties have both already had. Its
-  // row opens the notes that say it.
-  { key: 'tag', label: 'Tags', singular: 'Tag', dir: null, icon: 'tag', views: true },
+  // **No folder, and a `+` that declares.** A tag exists because a note carries
+  // `#word`, or because its structure is in `tags.json` — a file named after one is
+  // an empty page named after a thing, the correction collections and properties
+  // have both already had. Its row opens the notes that say it, and its properties.
+  { key: 'tag', label: 'Tags', singular: 'Tag', dir: null, icon: 'tag', declares: true, views: true, creatable: true },
   // No folder and no `+`: a property exists when a note carries it, and its page
-  // is every note that does with the value each gives. It declared for a while —
-  // `properties.json`, what a new note starts with — and that is gone with the
-  // feature: a template stamped into every new note is a data-collection mechanism
-  // in a journal, and no vault ever wrote the file.
+  // is every value the notes give it, and its type — `properties.json` holds the
+  // types and nothing else. It once declared what a new note starts with, and that
+  // is gone for good: a template stamped into every new note is a data-collection
+  // mechanism in a journal.
   { key: 'property', label: 'Properties', singular: 'Property', dir: null, icon: 'list', views: true },
   { key: 'config', label: 'Config', singular: 'Config note', dir: CONFIG_DIR, icon: 'key' },
 ]

@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { collectionSyntax, templateFields } from './actions'
+import { collectionSyntax, readFields, templateFields } from './actions'
 import { CollectionTable } from './CollectionTable'
 import { ViewerHeader } from './ViewerHeader'
 import { countOf, GatheredNotes, NameField, readable, stepIn, Section } from './rows'
@@ -117,7 +117,8 @@ export function CollectionView({
               own padding is the step in that a row's `paddingLeft` gives. */}
           <li className="collection-table-box">
             <CollectionTable
-              fields={fields}
+              columns={fields.map((field) => field.name)}
+              valuesOf={(text) => readFields(text, fields)}
               notes={notes}
               onOpen={onOpen}
               onOpenLink={onOpenLink}
