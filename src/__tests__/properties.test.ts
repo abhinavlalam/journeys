@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { blockProperties, noteProperties, readProperty, splitPageProperties, withProperty } from '../properties'
 
-const propertyKeys = (raw: string) => noteProperties(raw).map((one) => one.name)
+const untyped = () => 'text' as const
+const propertyKeys = (raw: string) => noteProperties(raw, untyped).map((one) => one.name)
 
 /**
  * One page property, as plain text — in a YAML block, or in the `key:: value`
@@ -201,37 +202,69 @@ describe('page properties written as key:: value', () => {
 })
 
 /**
- * **A block property** is the same `key:: value`, on a line. A value runs to the
- * next label on the line or its end, so it holds spaces and a `[[link]]` without
- * brackets around it; a label is a name and `::` at the line's start or after a
- * space, so a `::` inside a value is text.
+ * **A block property** is the same `key:: value`, on a line, and its value is
+ * exactly what its type says — a number, a date, one link, or text: one word, or a
+ * run between quotes — so the words around it are the owner's. Strict: a value not
+ * of its type is not one, and says so (`valid`) rather than being read as text.
  */
 describe('block properties', () => {
-  const line = '08:10 #expense lunch amount:: 480 EUR merchant:: [[Harbour Bistro]]'
+  const types = { currency: 'link', amount: 'number', account: 'link', merchant: 'link', due: 'date' } as const
+  const typeOf = (name: string) => types[name as keyof typeof types] ?? 'text'
+  const read = (line: string) => blockProperties(line, typeOf).map((one) => [one.name, one.value, one.valid])
 
-  it('reads each key:: value on a line, a value running to the next label', () => {
-    const found = blockProperties(line)
-    expect(found.map((one) => [one.name, one.value])).toEqual([
-      ['amount', '480 EUR'],
-      ['merchant', '[[Harbour Bistro]]'],
+  it('reads a whole entry, each value ending where its type does', () => {
+    const line =
+      '08:40 #expense spent currency:: [[EUR]] amount:: 1240 using account::[[Northwind Card]] at merchant:: [[Harbour Bistro]] for description:: "two [[Lakeside Pies]] and a [[Ginger Beer]]"'
+    expect(read(line)).toEqual([
+      ['currency', '[[EUR]]', true],
+      ['amount', '1240', true],
+      ['account', '[[Northwind Card]]', true],
+      ['merchant', '[[Harbour Bistro]]', true],
+      ['description', 'two [[Lakeside Pies]] and a [[Ginger Beer]]', true],
     ])
-    expect(found.map((one) => line.slice(one.from, one.valueFrom))).toEqual(['amount:: ', 'merchant:: '])
-    expect(found.map((one) => line.slice(one.valueFrom, one.to))).toEqual(['480 EUR', '[[Harbour Bistro]]'])
+    // The words between are the line's own: nothing of them is in a value.
+    const found = blockProperties(line, typeOf)
+    const gaps = found.slice(1).map((one, at) => line.slice(found[at].to, one.from).trim())
+    expect(gaps).toEqual(['', 'using', 'at', 'for'])
   })
 
-  it('takes a label only at the start or after a space, and an empty value as empty', () => {
-    expect(blockProperties('at:: 09:05 https://x.example/a::b ok').map((one) => [one.name, one.value])).toEqual([
-      ['at', '09:05 https://x.example/a::b ok'],
+  it('reads text as one word, or as the run between quotes, the curly ones too', () => {
+    expect(read('category:: food at lunch')).toEqual([['category', 'food', true]])
+    expect(read('note:: “smart quotes from macOS” then prose')).toEqual([['note', 'smart quotes from macOS', true]])
+    // A label inside quotes is part of the value, not the next property.
+    expect(read('note:: "see a:: b" and x:: y')).toEqual([
+      ['note', 'see a:: b', true],
+      ['x', 'y', true],
     ])
-    expect(blockProperties('due::').map((one) => [one.name, one.value])).toEqual([['due', '']])
-    expect(blockProperties('Note: this is prose')).toEqual([])
+    // The quotes are outside the value's own span, so the editor can hide them.
+    const quoted = blockProperties('note:: "a b" c', typeOf)[0]
+    expect(['note:: "a b" c'.slice(quoted.valueFrom, quoted.valueTo), quoted.to]).toEqual(['a b', 12])
   })
 
-  it('are read after the page ones, with code and collection lines left out', () => {
+  it('refuses what is not of the type, and leaves an unclosed quote unread', () => {
+    expect(read('amount:: about 1200')).toEqual([['amount', '', false]])
+    expect(read('amount:: 12.5x')).toEqual([['amount', '', false]])
+    expect(read('amount:: 12.50.')).toEqual([['amount', '12.50', true]])
+    expect(read('due:: 2026-09-27, then')).toEqual([['due', '2026-09-27', true]])
+    expect(read('merchant:: Harbour Bistro')).toEqual([['merchant', '', false]])
+    expect(read('note:: "never closed')).toEqual([['note', '', false]])
+  })
+
+  it('takes a label only at the start or after a space, and nothing after one as empty', () => {
+    expect(read('at:: 09:05 https://x.example/a::b ok')).toEqual([['at', '09:05', true]])
+    expect(read('due::')).toEqual([['due', '', true]])
+    expect(read('due:: amount:: 3')).toEqual([
+      ['due', '', true],
+      ['amount', '3', true],
+    ])
+    expect(read('Note: this is prose')).toEqual([])
+  })
+
+  it('are read after the page ones, with code, collection lines and invalid values left out', () => {
     const raw = [
       'icon:: book',
       '',
-      '08:10 #expense amount:: 480',
+      '08:10 #expense amount:: 480 amount:: lots',
       'in `x:: 1` code',
       '```',
       'y:: 2',
@@ -239,7 +272,7 @@ describe('block properties', () => {
       '09:42 --expense amount::<<12>>',
       '',
     ].join('\n')
-    expect(noteProperties(raw)).toEqual([
+    expect(noteProperties(raw, typeOf)).toEqual([
       { name: 'icon', value: 'book' },
       { name: 'amount', value: '480' },
     ])

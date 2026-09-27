@@ -5,7 +5,8 @@ import { buildNoteIndex, collectNotes } from './links'
 import { buildBacklinkIndex } from './links'
 import type { BacklinkIndex } from './links'
 import { buildNoteGraph, type NoteGraph, type NoteText } from './graph'
-import { APP_PROPERTIES, noteProperties, readProperty } from './properties'
+import { APP_PROPERTIES, noteProperties, readProperty, typeOf } from './properties'
+import type { Entries } from './configEntries'
 import { collectTagLines, tagNames } from './tags'
 import { actionKeywords, collectLines, type CollectedLine } from './actions'
 
@@ -109,6 +110,7 @@ export function useVaultTexts({
   viewOpen,
   liveVersion,
   liveText,
+  types,
   onError,
 }: {
   root: VaultFolder | null
@@ -135,6 +137,8 @@ export function useVaultTexts({
    */
   liveVersion: number
   liveText: { current: LiveText | null }
+  /** Each property's type, which is where a block property's value ends. */
+  types: Entries
   onError: (message: string) => void
 }): VaultTexts {
   const [texts, setTexts] = useState<NoteText[] | null>(null)
@@ -240,8 +244,12 @@ export function useVaultTexts({
     return [...found.values()].sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const properties = useMemo(() => countNames((text) => noteProperties(text).map((one) => one.name)), [texts])
+  const typed = useCallback((name: string) => typeOf(types, name), [types])
+  const properties = useMemo(
+    () => countNames((text) => noteProperties(text, typed).map((one) => one.name)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [texts, typed]
+  )
   /** The `--keyword`s the notes carry: a collection is written as a line, so this
    *  is what puts the ones in play in the pane beside the ones with a file. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -262,13 +270,13 @@ export function useVaultTexts({
       const want = name.toLowerCase()
       const found: { note: VaultFile; value: string }[] = []
       for (const { note, text } of texts ?? []) {
-        for (const one of noteProperties(text)) {
+        for (const one of noteProperties(text, typed)) {
           if (one.value && one.name.toLowerCase() === want) found.push({ note, value: one.value })
         }
       }
       return found.sort((a, b) => a.note.path.localeCompare(b.note.path))
     },
-    [texts]
+    [texts, typed]
   )
 
   /**

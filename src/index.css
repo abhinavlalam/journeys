@@ -4440,6 +4440,12 @@ button.folder-toggle {
   font-weight: var(--fw-strong);
 }
 
+/* A block property whose value is not of its type: its name stays on the line, in
+   the colour a JSON file's unmatched bracket takes, and nothing else changes. */
+.markdown-editor .cm-md-property-invalid {
+  color: var(--alert);
+}
+
 /* **A mark inside a sentence changes one thing about the text, and never its
    size.** The clock and the `--keyword` sit in the middle of a journal line, and
    for a build they differed from the prose around them in three ways at once — the

@@ -8,8 +8,9 @@
 // full of them. Nothing turns one form into the other behind anyone's back; a note
 // with no properties yet is given the `::` form.
 //
-// **Block properties** are the same `key:: value`, on a line of the note; a value
-// runs to the next `name::` on the line or its end (`blockProperties`).
+// **Block properties** are the same `key:: value`, on a line of the note, where a
+// value is exactly what its type says — a number, a date, one link, or text: a word
+// or a quoted run — so the owner's own words can follow it (`blockProperties`).
 //
 // **Pure**: text in, text out. `vault.ts` does the reading and writing. A line-based
 // rewrite rather than a YAML library — `gray-matter` breaks in the webview, where
@@ -174,36 +175,79 @@ export function splitPageProperties(raw: string): { prefix: string; body: string
 /** A block property's label: a name and `::`, at the line's start or after a space. */
 const BLOCK_LABEL = /(^|\s)([A-Za-z][\w-]*)::/g
 
-/** One `key:: value` on a line: where its label starts, and its value's span. */
+/** Where a number or a date stops: the line's end, a space, punctuation, or a full
+ *  stop that is not a decimal point. */
+const STOP = String.raw`(?=$|[\s,;:!?)\]]|\.(?!\d))`
+
+/**
+ * **What a value of each type is**, from where it begins — exactly that, so the
+ * owner's own words can follow it on the line. A link is one `[[…]]`; text is one
+ * word (a `[[link]]` counts as one) unless it is quoted, which is `QUOTED`.
+ */
+const VALUE: Record<PropertyType, RegExp> = {
+  number: new RegExp(String.raw`^-?\d+(?:\.\d+)?${STOP}`),
+  date: new RegExp(String.raw`^\d{4}-\d{2}-\d{2}${STOP}`),
+  link: /^\[\[[^\]\n]+\]\]/,
+  text: /^(?:\[\[[^\]\n]+\]\]|[^\s"“”]\S*)/,
+}
+
+/** Text between quotes, which is how text longer than a word is written: `"`, or the
+ *  curly pair macOS types in its place, as it types `—` for `--`. */
+const QUOTED = /^["“]([^"”\n]*)["”]/
+
+/** A label at the very start: the value before it was left empty. */
+const NEXT_LABEL = /^[A-Za-z][\w-]*::/
+
+/** One `key:: value` on a line. */
 export interface BlockProperty {
   name: string
+  /** The value, quotes off; `''` when there is none, or none of the property's type. */
   value: string
+  /** False when what follows the label is not a value of the property's type. */
+  valid: boolean
+  /** The label's start; the value's own span, inside any quotes; the end of it all. */
   from: number
   valueFrom: number
+  valueTo: number
   to: number
 }
 
 /**
- * The `key:: value` properties one line carries, in order. **A value runs to the
- * next label or the line's end**, so it may hold spaces, a `[[link]]`, anything but
- * another `name::` — which is what lets it go without brackets.
+ * The `key:: value` properties one line carries, in order, each **as its type reads
+ * it** — a number, a date, one link, or text: a word, or a run between quotes. Read
+ * left to right, so a `name::` inside a quoted value or a link is not a label, and a
+ * value's end is where the line goes back to being prose.
  *
- * `prose` is the line with its code masked (`proseLines`), when the caller has it:
- * a label is looked for there, so one inside a code span is not one, and the value
- * is read off the line itself.
+ * `typeOf` is each property's type (`.config/properties.json`). `prose` is the line
+ * with its code masked (`proseLines`) when the caller has it: labels are looked for
+ * there, so one in a code span is not one, and values are read off the line itself.
  */
-export function blockProperties(line: string, prose = line): BlockProperty[] {
-  const labels = [...prose.matchAll(BLOCK_LABEL)].map((found) => ({
-    name: found[2],
-    from: (found.index ?? 0) + found[1].length,
-    end: (found.index ?? 0) + found[0].length,
-  }))
-  return labels.map((label, at) => {
-    const run = line.slice(label.end, at + 1 < labels.length ? labels[at + 1].from : line.length)
-    const valueFrom = label.end + run.length - run.trimStart().length
-    const value = run.trim()
-    return { name: label.name, value, from: label.from, valueFrom, to: valueFrom + value.length }
-  })
+export function blockProperties(
+  line: string,
+  typeOf: (name: string) => PropertyType,
+  prose = line
+): BlockProperty[] {
+  const found: BlockProperty[] = []
+  const label = new RegExp(BLOCK_LABEL)
+  for (let hit = label.exec(prose); hit; hit = label.exec(prose)) {
+    const start = line.length - line.slice(hit.index + hit[0].length).trimStart().length
+    const rest = line.slice(start)
+    const type = typeOf(hit[2])
+    const at: BlockProperty = { name: hit[2], value: '', valid: true, from: hit.index + hit[1].length, valueFrom: start, valueTo: start, to: start }
+    // Nothing yet, or the next label straight after this one: a property not filled in.
+    if (rest.trim() !== '' && !NEXT_LABEL.test(rest)) {
+      const quoted = type === 'text' ? QUOTED.exec(rest) : null
+      const plain = quoted ? null : VALUE[type].exec(rest)
+      if (quoted) Object.assign(at, { value: quoted[1], valueFrom: start + 1, valueTo: start + 1 + quoted[1].length, to: start + quoted[0].length })
+      else if (plain) Object.assign(at, { value: plain[0], valueTo: start + plain[0].length, to: start + plain[0].length })
+      else at.valid = false
+    }
+    found.push(at)
+    // Past a value, so nothing inside it is a label; an empty one takes nothing,
+    // and the search goes on from the label, with the space the next one needs.
+    if (at.to > start) label.lastIndex = at.to
+  }
+  return found
 }
 
 /**
@@ -211,10 +255,11 @@ export function blockProperties(line: string, prose = line): BlockProperty[] {
  * then each block property on its lines — code left out, as it is for everything
  * that reads a note for meaning. The Properties pages are made of these.
  *
+ * A block value that is not of its property's type is not one, and is left out.
  * Until the vault's collections are migrated, a line carrying a `--keyword` is a
  * collection's, and its `label::<<value>>` fields are not read as block properties.
  */
-export function noteProperties(raw: string): { name: string; value: string }[] {
+export function noteProperties(raw: string, typeOf: (name: string) => PropertyType): { name: string; value: string }[] {
   const block = pageBlock(raw)
   const lines = raw.split(/\r?\n/)
   const prose = proseLines(raw)
@@ -222,7 +267,9 @@ export function noteProperties(raw: string): { name: string; value: string }[] {
   const found = pageEntries(block)
   for (let at = first; at < lines.length; at++) {
     if (keywordAt(prose[at])) continue
-    for (const one of blockProperties(lines[at], prose[at])) found.push({ name: one.name, value: one.value })
+    for (const one of blockProperties(lines[at], typeOf, prose[at])) {
+      if (one.valid) found.push({ name: one.name, value: one.value })
+    }
   }
   return found
 }

@@ -256,6 +256,9 @@ export default function App() {
    * index, the icons, the graph, and what links here. `liveText` is the one input
    * that is not the disk's: the open note as the editor has it.
    */
+  /** Each property's type, from `.config/properties.json` — set on its page. */
+  const propertyTypes = useConfigEntries(vault.vaultPath, PROPERTIES_FILE, setError)
+
   const {
     notes,
     noteIndex,
@@ -282,6 +285,7 @@ export default function App() {
     viewOpen: viewVisible,
     liveVersion,
     liveText,
+    types: propertyTypes.entries,
     onError: setError,
   })
 
@@ -373,8 +377,6 @@ export default function App() {
    * What each collection declares, and the one place that writes it — the pane's
    * rows, the collection's own view and the editor's `--` popup all read it.
    */
-  /** Each property's type, from `.config/properties.json` — set on its page. */
-  const propertyTypes = useConfigEntries(vault.vaultPath, PROPERTIES_FILE, setError)
   /** Under the spelling the file already has for the property, if it has one. */
   const setPropertyType = (name: string, type: PropertyType) =>
     propertyTypes.write(
@@ -1148,6 +1150,7 @@ export default function App() {
                     // that have declared a structure, since `--` is also how you
                     // find out which exist. A declared one completes to its line.
                     completable={collections.completable}
+                    propertyTypes={propertyTypes.entries}
                     root={vault.root}
                     icons={icons}
                     backlinks={backlinks}

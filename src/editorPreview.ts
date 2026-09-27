@@ -10,7 +10,8 @@ import { Decoration, WidgetType, type DecorationSet } from '@codemirror/view'
 import { getIndentUnit, syntaxTree } from '@codemirror/language'
 import { decorated } from './EditorHost'
 import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common'
-import { blockProperties, PROPERTY_KEY, splitPageProperties } from './properties'
+import { blockProperties, PROPERTY_KEY, splitPageProperties, typeOf } from './properties'
+import type { Entries } from './configEntries'
 import { LEADING_CLOCK } from './clock'
 import { collectionSyntax, keywordAt } from './actions'
 import { checkMarkup } from './icons'
@@ -340,6 +341,15 @@ export const collectionDeclarations = Facet.define<
   () => CollectionOption[]
 >({ combine: (values) => values[0] ?? (() => []) })
 
+/**
+ * Each property's type, for the renderer: where a block property's value ends, and
+ * whether it is one of its type. A getter, as the declarations are, because the
+ * extension list is built once and the vault's `properties.json` arrives later.
+ */
+export const propertyTypes = Facet.define<() => Entries, () => Entries>({
+  combine: (values) => values[0] ?? (() => ({})),
+})
+
 function declarationFor(state: EditorState, name: string): string | null {
   const lower = name.toLowerCase()
   return (
@@ -348,6 +358,9 @@ function declarationFor(state: EditorState, name: string): string | null {
       .find((one) => one.name.toLowerCase() === lower)?.declaration ?? null
   )
 }
+
+/** A block property whose value is not of its type: its name, in the alert colour. */
+const invalidProperty = Decoration.mark({ class: 'cm-md-property-invalid' })
 
 /** `--expense` itself, in the app's one label format. */
 const collectionMark = Decoration.mark({ class: 'cm-md-collection' })
@@ -562,14 +575,24 @@ export function livePreviewDecorations(
       else if (editing) found.push(markerMark.range(from, to))
       else found.push(hidden.range(from, to))
     }
-    // **A block property's name is syntax too**: `amount:: 480` reads `480`, the
-    // bargain a collection's labels make above — back as a marker with the caret on
-    // the line. Not on a collection's line, whose labels are drawn above, nor in
-    // the page's own block, whose names are marked, nor in code.
+    // **A block property's name is syntax too**: `amount:: 480` reads `480`, and a
+    // quoted value reads without its quotes — the bargain a collection's labels make
+    // above, back as markers with the caret on the line. **A value not of its type
+    // keeps its name, marked**, caret or not: a value that is not read must not
+    // vanish from the line as though it were. Not on a collection's line, whose
+    // labels are drawn above, nor in the page's own block, nor in code.
     if (!keyword && line.from >= propertiesEnd) {
-      for (const one of blockProperties(line.text)) {
+      const types = state.facet(propertyTypes)()
+      for (const one of blockProperties(line.text, (name) => typeOf(types, name))) {
         if (inCode(state, line.from + one.from)) continue
-        found.push((editing ? markerMark : hidden).range(line.from + one.from, line.from + one.valueFrom))
+        const label = { from: line.from + one.from, to: line.from + one.valueFrom }
+        if (!one.valid) {
+          found.push(invalidProperty.range(label.from, label.to))
+          continue
+        }
+        const syntax = editing ? markerMark : hidden
+        found.push(syntax.range(label.from, label.to))
+        if (one.to > one.valueTo) found.push(syntax.range(line.from + one.valueTo, line.from + one.to))
       }
     }
     // The tree down the left of an indented line: a trunk for each step it is in,

@@ -80,6 +80,7 @@ import {
   isLinkClick,
   linkTargetAt,
   livePreviewDecorations,
+  propertyTypes,
   taskAt,
   toggledTask,
 } from '../editorPreview'
@@ -1864,6 +1865,35 @@ describe('a block property', () => {
     const on = all(stateOf(doc, line + 3))
     expect(on).toContain(`cm-md-marker@${line + 12}-${line + 21}`)
     expect(on).toContain(`cm-md-marker@${line + 25}-${line + 30}`)
+  })
+
+  // Types from `.config/properties.json`, which the editor reads through a facet.
+  const typed = (doc: string, caret: number) =>
+    EditorState.create({
+      doc,
+      selection: EditorSelection.single(caret),
+      extensions: [markdown({ base: markdownLanguage }), propertyTypes.of(() => ({ amount: { type: 'number' } }))],
+    })
+
+  it('hides a quoted value’s quotes with its name, and brings both back on the line', () => {
+    const quoted = 'intro\n\nlunch note:: "two burgers" and a coke\n'
+    const at = quoted.indexOf('note::')
+    expect(all(typed(quoted, 0))).toEqual(
+      expect.arrayContaining([`hidden@${at}-${at + 8}`, `hidden@${at + 19}-${at + 20}`])
+    )
+    expect(all(typed(quoted, at + 2))).toEqual(
+      expect.arrayContaining([`cm-md-marker@${at}-${at + 8}`, `cm-md-marker@${at + 19}-${at + 20}`])
+    )
+  })
+
+  it('keeps the name of a value that is not of its type, marked, caret or not', () => {
+    const wrong = 'intro\n\nlunch amount:: about 1200\n'
+    const at = wrong.indexOf('amount::')
+    for (const caret of [0, at + 2]) {
+      const spans = all(typed(wrong, caret))
+      expect(spans).toContain(`cm-md-property-invalid@${at}-${at + 9}`)
+      expect(spans.some((span) => span.startsWith(`hidden@${at}-`))).toBe(false)
+    }
   })
 
   it('leaves code and the page block alone', () => {

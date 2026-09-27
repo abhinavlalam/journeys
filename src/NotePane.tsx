@@ -16,6 +16,7 @@ import type { VaultFile, VaultFolder } from './vaultModel'
 import type { Settings } from './settings'
 import type { useVaultTexts } from './useVaultTexts'
 import type { CollectionOption } from './editorComplete'
+import type { Entries } from './configEntries'
 
 interface NotePaneProps {
   /** The tab's id — what this pane's buffer is registered under. */
@@ -34,6 +35,8 @@ interface NotePaneProps {
   settingsOpen: boolean
   notes: ComponentProps<typeof MarkdownEditor>['notes']
   completable: CollectionOption[]
+  /** Each property's type, for where a block property's value ends. */
+  propertyTypes: Entries
   root: VaultFolder | null
   icons: Record<string, string>
   backlinks: ReturnType<typeof useVaultTexts>['backlinks']
@@ -73,6 +76,7 @@ export function NotePane({
   settingsOpen,
   notes,
   completable,
+  propertyTypes,
   root,
   icons,
   backlinks,
@@ -239,6 +243,7 @@ export function NotePane({
           insertTimeCombo={settingsOpen ? null : settings.shortcuts.insertTime}
           notes={notes}
           collections={completable}
+          propertyTypes={propertyTypes}
           dailyFolder={settings.dailyFolder}
           indentWidth={settings.indentWidth}
           onOpenLink={onOpenLink}

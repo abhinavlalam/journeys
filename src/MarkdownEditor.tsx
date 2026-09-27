@@ -33,6 +33,7 @@ import type { CollectionOption } from './editorComplete'
 import {
   collectionAt,
   collectionDeclarations,
+  propertyTypes,
   isCollectionClick,
   isLinkClick,
   isTagClick,
@@ -45,6 +46,7 @@ import {
 } from './editorPreview'
 import { splitPageProperties } from './properties'
 import type { VaultFile } from './vaultModel'
+import type { Entries } from './configEntries'
 
 interface MarkdownEditorProps {
   /**
@@ -70,6 +72,9 @@ interface MarkdownEditorProps {
   /** The vault's collections, for the `--` picker: a declared one completes to the
       line it declares. Read through a ref, like the notes. */
   collections?: CollectionOption[]
+  /** Each property's type, for where a block property's value ends. Through a ref,
+      like the collections. */
+  propertyTypes?: Entries
   /** Spaces per indent level, from the settings. Applied through a compartment, so
       moving the slider does not remount the editor. */
   indentWidth?: number
@@ -105,6 +110,7 @@ function markdownExtensions(
   insertTime: () => string | null,
   getNotes: () => VaultFile[],
   getCollections: () => CollectionOption[],
+  getTypes: () => Entries,
   getDailyFolder: () => string,
   openLink: (target: string, wiki: boolean) => void,
   openCollection: (keyword: string) => void,
@@ -114,6 +120,7 @@ function markdownExtensions(
     // The declarations, for the renderer — an empty field hides with its lead-in,
     // and only the declaration knows which prose led into which field.
     collectionDeclarations.of(getCollections),
+    propertyTypes.of(getTypes),
     /**
      * A press on a link follows it, as it does in Obsidian's live preview. The
      * caret still lands anywhere else, so text stays editable by clicking into it
@@ -260,6 +267,7 @@ export function MarkdownEditor({
   insertTimeCombo,
   notes = [],
   collections = [],
+  propertyTypes: types = {},
   indentWidth = 2,
   onOpenLink,
   onOpenCollection,
@@ -289,6 +297,10 @@ export function MarkdownEditor({
   useEffect(() => {
     collectionsRef.current = collections
   }, [collections])
+  const typesRef = useRef(types)
+  useEffect(() => {
+    typesRef.current = types
+  }, [types])
   const dailyFolderRef = useRef(dailyFolder)
   useEffect(() => {
     dailyFolderRef.current = dailyFolder
@@ -305,6 +317,7 @@ export function MarkdownEditor({
     () => comboRef.current,
     () => notesRef.current,
     () => collectionsRef.current,
+    () => typesRef.current,
     () => dailyFolderRef.current,
     (target, wiki) => openLinkRef.current?.(target, wiki),
     (keyword) => openCollectionRef.current?.(keyword),
