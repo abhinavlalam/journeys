@@ -1164,6 +1164,7 @@ export default function App() {
                     // find out which exist. A declared one completes to its line.
                     completable={collections.completable}
                     propertyTypes={propertyTypes.entries}
+                    tagStructures={tagStructures.entries}
                     root={vault.root}
                     icons={icons}
                     backlinks={backlinks}

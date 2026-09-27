@@ -1,4 +1,4 @@
-// The three things `[[`, `/` and `--` open, and how the popup they share looks.
+// What `[[`, `/`, `--` and a tag's line open, and how the popup they share looks.
 //
 // CodeMirror's own autocomplete draws both: it places the tooltip, moves the
 // selection on the arrows, takes Enter and dismisses on Escape. So there is no
@@ -12,6 +12,9 @@ import { declarationSnippet, DECLARED_KEYWORD, KEYWORD_PREFIX } from './actions'
 import { localDateStamp, localTimeStamp } from './clock'
 import { matchNotes } from './links'
 import { knownPath, noteName } from './vaultModel'
+import { blockProperties, PROPERTY_NAME, typeOf } from './properties'
+import { propertiesOf, TAG, tagNames } from './tags'
+import type { Entries } from './configEntries'
 import type { VaultFile } from './vaultModel'
 
 /**
@@ -210,6 +213,37 @@ export function collectionSource(getCollections: () => CollectionOption[]) {
     // CodeMirror filters these against what has been typed — the labels carry the
     // `--`, and `from` is at it, so `--exp` narrows to `--expense` on its own.
     return options.length ? { from: before.from, options } : null
+  }
+}
+
+/**
+ * **The properties a tag takes, offered on its line**: every one the moment
+ * `#expense ` is typed, and then as a name is — `cu`, which CodeMirror narrows to
+ * `currency` — each written `currency:: ` by Tab. Only the ones the line does not
+ * carry yet, and never while a value is being typed: after a `name::`, or inside
+ * quotes. The detail is the property's type, which says how to write the value.
+ */
+const TYPING_NAME = new RegExp(`${PROPERTY_NAME}$`)
+const AFTER_TAG = new RegExp(String.raw`${TAG.source}\s$`)
+
+export function propertySource(getTags: () => Entries, getTypes: () => Entries) {
+  return (context: CompletionContext): CompletionResult | null => {
+    const line = context.state.doc.lineAt(context.pos)
+    const before = line.text.slice(0, context.pos - line.from)
+    const typed = TYPING_NAME.exec(before)?.[0] ?? ''
+    const lead = before.slice(0, before.length - typed.length)
+    // A name starts after a space, and not in a value: straight after `name::`, or
+    // inside a `[[` or a quote still open. With nothing typed, only after the tag.
+    const inValue = /::\s*$|\[\[[^\]]*$/.test(lead) || (lead.match(/["“”]/g) ?? []).length % 2 === 1
+    if (!/\s$/.test(lead) || inValue || (!typed && !AFTER_TAG.test(before))) return null
+    const typeOfName = (name: string) => typeOf(getTypes(), name)
+    const carried = new Set(blockProperties(line.text, typeOfName).map((one) => one.name.toLowerCase()))
+    const names = [...new Set(tagNames(before).flatMap((tag) => propertiesOf(getTags(), tag)))]
+    const options: Completion[] = names
+      .filter((name) => !carried.has(name.toLowerCase()))
+      // `boost` keeps the structure's order: CodeMirror sorts a tie by label.
+      .map((name, at) => ({ label: name, type: 'property', detail: typeOfName(name), apply: `${name}:: `, boost: -at }))
+    return options.length ? { from: context.pos - typed.length, options, validFor: /^[\w-]*$/ } : null
   }
 }
 

@@ -91,7 +91,8 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   `noteProperties` is every property a note carries, and the Properties pages are
   made of it. A page property takes its whole line. A property's type is chosen
   from a menu on its page, into `.config/properties.json`; `icon` and `path` are
-  the app's, typed `icon` and `path`, and no entry retypes them.
+  the app's, typed `icon` and `path`, and no entry retypes them. Every pattern for
+  a name is built from `PROPERTY_NAME`.
 - **The note carries what the app knows about it**: `icon::` and `path::`, the
   app's own properties (`APP_PROPERTIES`, the one place they are named). `path::` is
   `knownPath`, rewritten by a move, a rename, a create and a conversion. What a new
@@ -201,12 +202,16 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 - **Presses are `mousedown`** for links, keywords, tags and checkboxes: the pressed
   span is replaced before release, so no `click` ever fires. Position from
   `posAtDOM` on the pressed node.
-- **`markdown({ addKeymap: false })`**: its keymap is `Prec.high` and outranks
-  anything passed; the one array in `MarkdownEditor` is the whole precedence.
-  Tab: snippet field → list item (markdown's content-column rule, at most three
+- **`markdown({ addKeymap: false })`** and **`autocompletion({ defaultKeymap:
+  false })`**: each adds its keys above anything passed; the one array in
+  `MarkdownEditor` is the whole precedence (its props reach the extensions through
+  one `latest` ref). Enter over a property's name is a new line, since a line may
+  end at its tag. Tab: a popup's pick → snippet field → list item (markdown's content-column rule, at most three
   past it) → block (a line heading a deeper run) → one indent width. Enter keeps a
   line's own indent (`continueIndent`). **Test keys through the real keymap**; a
-  command tested by direct call is a binding nobody tested.
+  command tested by direct call is a binding nobody tested. A popup refuses keys
+  for its first 75 ms (`interactionDelay`), so a key test moves `Date.now` past it,
+  or an Enter test passes for the wrong reason.
 - **Hanging indent is a length** on `.cm-md-hang`: a list item by
   `(level + 1) × --indent-step`, indented prose by its spaces × `--space-w`. A
   marker's box is one step wide, the gap inside it; the inherited `text-indent`
@@ -268,6 +273,10 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   its type is. The Actions pane's `+` declares a tag. With a structure and lines the
   page has a Table above the Lines — sections, not a mode — and a page quoting a
   line reads it as the note does (`readBlock`: names and quotes left out).
+- **A tag's line is offered its properties** (`propertySource`): all of them after
+  `#tag `, then narrowed as a name is typed, in the structure's order, never inside
+  a value (after `name::`, in an open `[[` or quote), and never one the line
+  already carries.
 - `CollectionTable` is read-only (a cell edit is a write through a partial parse),
   takes its columns and a reader of a line's values, leads with the note, adds
   `when`, sums a tag's `number` columns (a collection's by sniffing, until they go),

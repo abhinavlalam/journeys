@@ -1,14 +1,11 @@
 import { useState } from 'react'
 import { CollectionTable } from './CollectionTable'
 import { PlusIcon } from './icons'
-import { blockProperties, readBlock, type PropertyType } from './properties'
+import { blockProperties, PROPERTY_NAME, readBlock, type PropertyType } from './properties'
 import { ViewerHeader } from './ViewerHeader'
 import { countOf, GatheredNotes, NameField, NoteRow, readable, RowIcon, Section, stepIn } from './rows'
 import type { CollectedNote } from './useVaultTexts'
 import type { VaultFile } from './vaultModel'
-
-/** A property's name, as the notes write one. */
-const PROPERTY_NAME = /^[A-Za-z][\w-]*$/
 
 /**
  * A tag's page: the properties its lines carry, and every line in the vault carrying
@@ -61,7 +58,7 @@ export function TagView({
     const typed = (adding ?? '').trim()
     setAdding(null)
     const taken = properties.some((one) => one.toLowerCase() === typed.toLowerCase())
-    if (PROPERTY_NAME.test(typed) && !taken) onProperties([...properties, typed])
+    if (new RegExp(`^${PROPERTY_NAME}$`).test(typed) && !taken) onProperties([...properties, typed])
   }
 
   /** A line's values, by the structure's own spelling of each property. */

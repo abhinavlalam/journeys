@@ -12,19 +12,24 @@
 // by hand unbolds, and the markers are hidden by a decoration rather than consumed
 // by a parser — so there is always a caret position between them.
 
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import { type Extension } from '@codemirror/state'
 import { EditorView, keymap, placeholder } from '@codemirror/view'
 import { markdown, markdownKeymap, markdownLanguage } from '@codemirror/lang-markdown'
 import {
+  acceptCompletion,
   autocompletion,
+  closeCompletion,
+  completionKeymap,
   nextSnippetField,
   prevSnippetField,
+  selectedCompletion,
 } from '@codemirror/autocomplete'
 import { EditorHost } from './EditorHost'
 import { formatKeymap, insertTimeKeymap } from './editorCommands'
 import {
   collectionSource,
+  propertySource,
   completionAppearance,
   slashSource,
   wikiLinkSource,
@@ -72,9 +77,10 @@ interface MarkdownEditorProps {
   /** The vault's collections, for the `--` picker: a declared one completes to the
       line it declares. Read through a ref, like the notes. */
   collections?: CollectionOption[]
-  /** Each property's type, for where a block property's value ends. Through a ref,
-      like the collections. */
+  /** Each property's type, for where a block property's value ends. */
   propertyTypes?: Entries
+  /** Each tag's structure, for the properties its line is offered. */
+  tagStructures?: Entries
   /** Spaces per indent level, from the settings. Applied through a compartment, so
       moving the slider does not remount the editor. */
   indentWidth?: number
@@ -106,16 +112,9 @@ interface MarkdownEditorProps {
  * `markdownLanguage` and not the CommonMark base: task lists and strikethrough are
  * GFM, and a vault written in Obsidian is full of both.
  */
-function markdownExtensions(
-  insertTime: () => string | null,
-  getNotes: () => VaultFile[],
-  getCollections: () => CollectionOption[],
-  getTypes: () => Entries,
-  getDailyFolder: () => string,
-  openLink: (target: string, wiki: boolean) => void,
-  openCollection: (keyword: string) => void,
-  openTag: (tag: string) => void
-): Extension[] {
+function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension[] {
+  const getCollections = () => latest.current.collections ?? []
+  const getTypes = () => latest.current.propertyTypes ?? {}
   return [
     // The declarations, for the renderer — an empty field hides with its lead-in,
     // and only the declaration knows which prose led into which field.
@@ -173,7 +172,7 @@ function markdownExtensions(
           const tag = at == null ? null : tagNameAt(view.state, at)
           if (!tag) return false
           event.preventDefault()
-          openTag(tag)
+          latest.current.onOpenTag?.(tag)
           return true
         }
         const link = isLinkClick(event.target)
@@ -193,35 +192,52 @@ function markdownExtensions(
           const keyword = collectionAt(view.state, pos)
           if (!keyword) return false
           event.preventDefault()
-          openCollection(keyword)
+          latest.current.onOpenCollection?.(keyword)
           return true
         }
         const found = linkTargetAt(view.state, pos)
         if (!found) return false
         event.preventDefault()
-        openLink(found.target, found.wiki)
+        latest.current.onOpenLink?.(found.target, found.wiki)
         return true
       },
     }),
     placeholder('Start writing…'),
     completionAppearance,
+    // Its keys are in the one array below, not at the `Prec.highest` it adds them at.
     autocompletion({
+      defaultKeymap: false,
       override: [
-        wikiLinkSource(getNotes),
-        slashSource(getDailyFolder),
+        wikiLinkSource(() => latest.current.notes ?? []),
+        slashSource(() => latest.current.dailyFolder ?? ''),
         collectionSource(getCollections),
+        propertySource(() => latest.current.tagStructures ?? {}, getTypes),
       ],
     }),
     // Ahead of everything, and rebuilt from a getter each keypress so a rebind in
     // the settings panel takes effect without remounting the editor.
     keymap.of([
+      // **Enter over a property's name is a new line**, not the name: the box opens
+      // as a line's tag is typed, and a line that ends there is an ordinary one. Tab
+      // takes the name. Ahead of the popup's own keys, whose Enter would take it.
+      {
+        key: 'Enter',
+        run: (view) => {
+          if (selectedCompletion(view.state)?.type === 'property') closeCompletion(view)
+          return false
+        },
+      },
+      // The popup's arrows, Enter and Escape, which decline while it is shut.
+      ...completionKeymap,
+      // Tab takes what the popup offers, when it offers something.
+      { key: 'Tab', run: acceptCompletion },
       // **Ahead of the list commands**, because a completed declaration leaves the
       // caret in a snippet field and Tab has to move to the next hole rather than
       // indent the line it is on. Both decline when no field is active, so Tab is
       // the list's again the moment the structure is filled in.
       { key: 'Tab', run: nextSnippetField },
       { key: 'Shift-Tab', run: prevSnippetField },
-      insertTimeKeymap(insertTime),
+      insertTimeKeymap(() => latest.current.insertTimeCombo ?? null),
       ...formatKeymap,
       // `@codemirror/lang-markdown`'s own: Enter continues a list, Backspace
       // removes the marker. These sit ahead of the host's `defaultKeymap`, whose
@@ -261,68 +277,15 @@ export function caretOnOpen(text: string): number {
   return Math.min(past, text.length)
 }
 
-export function MarkdownEditor({
-  initialMarkdown,
-  onChange,
-  insertTimeCombo,
-  notes = [],
-  collections = [],
-  propertyTypes: types = {},
-  indentWidth = 2,
-  onOpenLink,
-  onOpenCollection,
-  onOpenTag,
-  dailyFolder = '',
-}: MarkdownEditorProps) {
-  // Everything the extension list closes over is pinned to the mount, so each of
-  // these arrives through a ref: a note created since, a rebound combo, a fresh
-  // `onOpenLink` from a re-render.
-  const openLinkRef = useRef(onOpenLink)
-  useEffect(() => {
-    openLinkRef.current = onOpenLink
-  }, [onOpenLink])
-  const openCollectionRef = useRef(onOpenCollection)
-  useEffect(() => {
-    openCollectionRef.current = onOpenCollection
-  }, [onOpenCollection])
-  const openTagRef = useRef(onOpenTag)
-  useEffect(() => {
-    openTagRef.current = onOpenTag
-  }, [onOpenTag])
-  const notesRef = useRef(notes)
-  useEffect(() => {
-    notesRef.current = notes
-  }, [notes])
-  const collectionsRef = useRef(collections)
-  useEffect(() => {
-    collectionsRef.current = collections
-  }, [collections])
-  const typesRef = useRef(types)
-  useEffect(() => {
-    typesRef.current = types
-  }, [types])
-  const dailyFolderRef = useRef(dailyFolder)
-  useEffect(() => {
-    dailyFolderRef.current = dailyFolder
-  }, [dailyFolder])
-  const comboRef = useRef(insertTimeCombo ?? null)
-  useEffect(() => {
-    comboRef.current = insertTimeCombo ?? null
-  }, [insertTimeCombo])
-
-  // Built once, for the same reason the host mounts once: this is the language, and
-  // the language does not change under an open document.
+export function MarkdownEditor(props: MarkdownEditorProps) {
+  // The extension list is built once, for the reason the host mounts once, so what
+  // it reads — the notes, the combo, a fresh `onOpenLink` — is this render's props,
+  // through one ref.
+  const latest = useRef(props)
+  latest.current = props
   const extensionsRef = useRef<Extension[] | null>(null)
-  extensionsRef.current ??= markdownExtensions(
-    () => comboRef.current,
-    () => notesRef.current,
-    () => collectionsRef.current,
-    () => typesRef.current,
-    () => dailyFolderRef.current,
-    (target, wiki) => openLinkRef.current?.(target, wiki),
-    (keyword) => openCollectionRef.current?.(keyword),
-    (tag) => openTagRef.current?.(tag)
-  )
+  extensionsRef.current ??= markdownExtensions(latest)
+  const { initialMarkdown, onChange, indentWidth = 2 } = props
 
   return (
     <EditorHost

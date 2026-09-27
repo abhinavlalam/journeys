@@ -37,6 +37,8 @@ interface NotePaneProps {
   completable: CollectionOption[]
   /** Each property's type, for where a block property's value ends. */
   propertyTypes: Entries
+  /** Each tag's structure, for the properties its line is offered. */
+  tagStructures: Entries
   root: VaultFolder | null
   icons: Record<string, string>
   backlinks: ReturnType<typeof useVaultTexts>['backlinks']
@@ -77,6 +79,7 @@ export function NotePane({
   notes,
   completable,
   propertyTypes,
+  tagStructures,
   root,
   icons,
   backlinks,
@@ -244,6 +247,7 @@ export function NotePane({
           notes={notes}
           collections={completable}
           propertyTypes={propertyTypes}
+          tagStructures={tagStructures}
           dailyFolder={settings.dailyFolder}
           indentWidth={settings.indentWidth}
           onOpenLink={onOpenLink}

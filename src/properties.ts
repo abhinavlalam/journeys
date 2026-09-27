@@ -62,8 +62,13 @@ export function typeOf(entries: Entries, name: string): PropertyType {
 /** A YAML block, and the one rule for where one ends. */
 const YAML = /^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/
 
-/** A page property line: a name, `::`, and whatever follows as its value. */
-const PAGE_LINE = /^[A-Za-z][\w-]*::/
+/** What a property is called, and so the one spelling every pattern for a name —
+ *  here, on a tag's page, in the editor's popup — is built from. */
+export const PROPERTY_NAME = String.raw`[A-Za-z][\w-]*`
+
+/** A label at the very start: a page property's line, or — straight after a block
+ *  property's label — the next label, so that value was left empty. */
+const LEADING_LABEL = new RegExp(`^${PROPERTY_NAME}::`)
 
 /**
  * A property's **name** at the start of a line — no leading space, so a nested YAML
@@ -74,7 +79,7 @@ const PAGE_LINE = /^[A-Za-z][\w-]*::/
  * and `editorPreview` marks a name with it, so the list in the Actions pane and the
  * colour in the note cannot disagree about what counts.
  */
-export const PROPERTY_KEY = /^([A-Za-z][\w-]*)(?=\s*:)/
+export const PROPERTY_KEY = new RegExp(String.raw`^(${PROPERTY_NAME})(?=\s*:)`)
 
 /** The block a note opens with, in either form, or null. */
 interface PageBlock {
@@ -97,7 +102,7 @@ function pageBlock(raw: string): PageBlock | null {
     const next = raw.indexOf('\n', end)
     const stop = next === -1 ? raw.length : next + 1
     const line = raw.slice(end, stop).replace(/\r?\n$/, '')
-    if (!PAGE_LINE.test(line)) break
+    if (!LEADING_LABEL.test(line)) break
     lines.push(line)
     end = stop
   }
@@ -183,7 +188,7 @@ export function splitPageProperties(raw: string): { prefix: string; body: string
 }
 
 /** A block property's label: a name and `::`, at the line's start or after a space. */
-const BLOCK_LABEL = /(^|\s)([A-Za-z][\w-]*)::/g
+const BLOCK_LABEL = new RegExp(String.raw`(^|\s)(${PROPERTY_NAME})::`, 'g')
 
 /** Where a number or a date stops: the line's end, a space, punctuation, or a full
  *  stop that is not a decimal point. */
@@ -213,9 +218,6 @@ const QUOTABLE: readonly PropertyType[] = ['text', 'path']
 /** Text between quotes, which is how text longer than a word is written: `"`, or the
  *  curly pair macOS types in its place, as it types `—` for `--`. */
 const QUOTED = /^["“]([^"”\n]*)["”]/
-
-/** A label at the very start: the value before it was left empty. */
-const NEXT_LABEL = /^[A-Za-z][\w-]*::/
 
 /** One `key:: value` on a line. */
 export interface BlockProperty {
@@ -255,7 +257,7 @@ export function blockProperties(
     const type = typeOf(hit[2])
     const at: BlockProperty = { name: hit[2], value: '', valid: true, from: hit.index + hit[1].length, valueFrom: start, valueTo: start, to: start }
     // Nothing yet, or the next label straight after this one: a property not filled in.
-    if (rest.trim() !== '' && !NEXT_LABEL.test(rest)) {
+    if (rest.trim() !== '' && !LEADING_LABEL.test(rest)) {
       const quoted = QUOTABLE.includes(type) ? QUOTED.exec(rest) : null
       const plain = quoted ? null : VALUE[type].exec(rest)
       if (quoted) Object.assign(at, { value: quoted[1], valueFrom: start + 1, valueTo: start + 1 + quoted[1].length, to: start + quoted[0].length })

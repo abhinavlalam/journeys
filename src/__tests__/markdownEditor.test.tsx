@@ -74,7 +74,8 @@ import {
   wrapWith,
 } from '../editorCommands'
 import { localDateStamp, localTimeStamp } from '../clock'
-import { collectionSource, slashSource, wikiLinkSource } from '../editorComplete'
+import { collectionSource, propertySource, slashSource, wikiLinkSource } from '../editorComplete'
+import { completionStatus, startCompletion } from '@codemirror/autocomplete'
 import { foldMarkerFor, indentRange } from '../editorFold'
 import {
   isLinkClick,
@@ -2029,6 +2030,93 @@ describe('a click on a link', () => {
  * of declaring one, so what is pinned here is that the declaration on the page and
  * the line the editor writes are the same string.
  */
+/**
+ * **The properties a tag takes, offered on its line**: all of them as `#expense ` is
+ * typed, then narrowed as a name is — CodeMirror filters what is offered by what
+ * was typed from `from` — and each written `name:: ` by Tab. Enter over one is a
+ * new line: a line that ends at its tag is an ordinary line.
+ */
+describe('the properties a tag’s line is offered', () => {
+  const TAGS = { expense: { properties: ['currency', 'amount', 'merchant'] } }
+  const TYPES = { amount: { type: 'number' }, merchant: { type: 'backlink' } }
+  const offered = (doc: string, at = doc.length) => {
+    const state = stateOf(doc, at)
+    const result = propertySource(() => TAGS, () => TYPES)({ state, pos: at, explicit: false } as never)
+    return result && { from: result.from, options: result.options.map((one) => [one.label, one.detail, one.apply]) }
+  }
+
+  it('offers every property straight after the tag, each with its type', () => {
+    expect(offered('08:40 #expense ')).toEqual({
+      from: 15,
+      options: [
+        ['currency', 'text', 'currency:: '],
+        ['amount', 'number', 'amount:: '],
+        ['merchant', 'backlink', 'merchant:: '],
+      ],
+    })
+  })
+
+  it('offers them again as a name is typed, from its start, less the ones the line has', () => {
+    expect(offered('08:40 #expense spent currency:: [[EUR]] am')).toEqual({
+      from: 40,
+      options: [
+        ['amount', 'number', 'amount:: '],
+        ['merchant', 'backlink', 'merchant:: '],
+      ],
+    })
+  })
+
+  it('offers nothing while a value is typed, on a line with no tag, or for a tag with no structure', () => {
+    expect(offered('08:40 #expense amount:: 12')).toBeNull()
+    expect(offered('08:40 #expense detail:: "two bu')).toBeNull()
+    expect(offered('08:40 #expense merchant:: [[Harbour Bi')).toBeNull()
+    expect(offered('08:40 lunch with Mira ')).toBeNull()
+    expect(offered('08:40 #travel ')).toBeNull()
+    // With nothing typed, only right after the tag: not after every space.
+    expect(offered('08:40 #expense lunch ')).toBeNull()
+  })
+
+  /**
+   * Through the real keymap: the popup opened on a mounted editor, then the key. A
+   * popup refuses any key for its first 75ms (`interactionDelay`), so the clock is
+   * moved past it: pressed sooner, Enter makes a new line whatever the keymap says.
+   * jsdom has no `Range.getClientRects`, which the popup's placement reads.
+   */
+  async function popupOver(doc: string) {
+    Range.prototype.getClientRects = () => [] as unknown as DOMRectList
+    const { container } = render(
+      <MarkdownEditor initialMarkdown={doc} onChange={() => {}} notes={NOTES} tagStructures={TAGS} propertyTypes={TYPES} />
+    )
+    const view = viewOf(container)
+    view.dispatch({ selection: { anchor: doc.length } })
+    startCompletion(view)
+    await vi.waitFor(() => expect(completionStatus(view.state)).toBe('active'))
+    const opened = Date.now()
+    vi.spyOn(Date, 'now').mockReturnValue(opened + 1000)
+    return view
+  }
+  afterEach(() => vi.restoreAllMocks())
+
+  it('writes the name on Tab', async () => {
+    const view = await popupOver('08:40 #expense ')
+    fireEvent.keyDown(view.contentDOM, { key: 'Tab' })
+    expect(view.state.doc.toString()).toBe('08:40 #expense currency:: ')
+  })
+
+  it('starts a new line on Enter, and writes no name', async () => {
+    const view = await popupOver('08:40 #expense ')
+    fireEvent.keyDown(view.contentDOM, { key: 'Enter' })
+    expect(view.state.doc.toString()).toBe('08:40 #expense \n')
+    expect(completionStatus(view.state)).toBeNull()
+  })
+
+  it('leaves Enter taking any other popup’s pick: a note from `[[`', async () => {
+    const view = await popupOver('see [[Roadm')
+    fireEvent.keyDown(view.contentDOM, { key: 'Enter' })
+    expect(view.state.doc.toString()).toBe('see [[Roadmap]]')
+  })
+})
+
 describe('the `--` collection picker', () => {
   const COLLECTIONS = [
     { name: 'expense', declaration: '--expense <<amount>> on [[<<merchant>>]] using <<method>>' },
