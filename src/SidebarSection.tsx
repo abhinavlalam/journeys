@@ -36,7 +36,16 @@ export function SidebarSection({
         name={name}
         open={open}
         onToggle={onToggle}
-        actions={actions && <span className="folder-actions">{actions}</span>}
+        actions={
+          actions && (
+            // **A press opens a shut section first**: its controls open a field or
+            // rows inside it, and a shut section draws none — a search opened there
+            // was a search nobody could see.
+            <span className="folder-actions" onClickCapture={() => !open && onToggle()}>
+              {actions}
+            </span>
+          )
+        }
       />
       {open && (
         <ul

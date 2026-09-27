@@ -246,7 +246,7 @@ describe('block properties', () => {
     expect(read('amount:: 12.5x')).toEqual([['amount', '', false]])
     expect(read('amount:: 12.50.')).toEqual([['amount', '12.50', true]])
     expect(read('due:: 2026-09-27, then')).toEqual([['due', '2026-09-27', true]])
-    expect(read('merchant:: Harbour Bistro')).toEqual([['merchant', '', false]])
+    expect(read('merchant:: Harbour')).toEqual([['merchant', '', false]])
     expect(read('note:: "never closed')).toEqual([['note', '', false]])
   })
 

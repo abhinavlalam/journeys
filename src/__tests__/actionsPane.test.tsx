@@ -378,6 +378,20 @@ describe('the controls, in this section', () => {
     expect(pane().getByText('Tags')).toBeTruthy()
   })
 
+  it('opens a shut section when one of its controls is pressed, so the field it opens is seen', async () => {
+    seeded()
+    await openApp()
+    await openActionsExpanded()
+    fireEvent.click(screen.getByLabelText('Collapse Actions'))
+    expect(pane().queryByText('Tags')).toBeNull()
+    fireEvent.click(screen.getByLabelText('Search in actions'))
+    expect(screen.getByLabelText('Search actions')).toBeTruthy()
+
+    fireEvent.click(screen.getByLabelText('Collapse Notes'))
+    fireEvent.click(screen.getByLabelText('New note'))
+    expect(screen.getByPlaceholderText('Note title…')).toBeTruthy()
+  })
+
   it('shuts both groups and opens them again', async () => {
     seeded()
     await openApp()
