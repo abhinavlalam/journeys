@@ -5,9 +5,9 @@ import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } f
 
 /**
  * **A tag's page**: its structure — the properties its lines carry, one per row —
- * then a table of those values once there are lines, then the lines themselves as
- * the note reads them. The structure is `.config/tags.json`; each property's type
- * is its own, in `properties.json`, and a `number` column is summed.
+ * then its lines, as a table of those values or as the sentences the note reads,
+ * the tag's own choice. The structure and the choice are `.config/tags.json`; each
+ * property's type is its own, in `properties.json`, and a `number` column is summed.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -68,7 +68,7 @@ describe('a tag’s page', () => {
 
   it('quotes each line as the note reads it, names and quotes left out', async () => {
     await openTag()
-    fireEvent.click(await waitFor(() => viewer().getByLabelText('Expand Lines')))
+    fireEvent.click(await waitFor(() => viewer().getByRole('button', { name: 'List' })))
     await waitFor(() => expect(viewer().getByText('08:40 #expense lunch 480 at Harbour Bistro')).toBeTruthy())
     expect(viewer().getByText('12:00 #expense coffee 5 with Mira Vance after')).toBeTruthy()
   })
@@ -103,6 +103,35 @@ describe('a tag’s page', () => {
 
     fireEvent.click(viewer().getByLabelText('Remove detail'))
     await waitFor(() => expect(tags()).toEqual(['amount', 'merchant', 'category', 'venue']))
+  })
+
+  /** A table for a tag with a structure until it is told otherwise, and the choice
+   *  is the tag's, kept beside its structure — the timeline will draw it too. */
+  it('draws its lines as a table or a list, and keeps the choice in tags.json', async () => {
+    await openTag()
+    const view = (name: string) => viewer().getByRole('button', { name })
+    await waitFor(() => expect(document.querySelector('.line-table')).toBeTruthy())
+    expect(view('Table').getAttribute('aria-pressed')).toBe('true')
+
+    fireEvent.click(view('List'))
+    await waitFor(() => expect(JSON.parse(disk.read('/v/.config/tags.json')!).expense).toEqual({ properties: ['amount', 'merchant', 'detail'], view: 'list' }))
+    expect(document.querySelector('.line-table')).toBeNull()
+    expect(viewer().getByText('08:40 #expense lunch 480 at Harbour Bistro')).toBeTruthy()
+
+    fireEvent.click(view('Table'))
+    await waitFor(() => expect(JSON.parse(disk.read('/v/.config/tags.json')!).expense.view).toBe('table'))
+    expect(document.querySelector('.line-table')).toBeTruthy()
+  })
+
+  it('is a list for a tag with no structure', async () => {
+    disk.write('/v/Daily/2026-09-25.md', '09:00 #reading the second chapter\n')
+    const { default: App } = await import('../App')
+    render(<App />)
+    await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
+    fireEvent.click(screen.getByLabelText('Expand all actions'))
+    fireEvent.click(await waitFor(() => pane().getByText('reading')))
+    await waitFor(() => expect(viewer().getByText('09:00 #reading the second chapter')).toBeTruthy())
+    expect(viewer().getByRole('button', { name: 'List' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('opens a property’s own page from its row, where its type is set', async () => {

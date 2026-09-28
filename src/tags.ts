@@ -139,6 +139,18 @@ export function tagAt(line: string, offset: number): string | null {
  */
 export const TAGS_FILE = 'tags.json'
 
+/** How a tag draws its lines — as the sentences, or as a table of their values —
+ *  on its page, and later the timeline. A tag's own choice, in its entry. */
+export const LINE_VIEWS = ['list', 'table'] as const
+export type LineView = (typeof LINE_VIEWS)[number]
+
+/** The tag's chosen view, or, with none chosen, a table for a tag with properties
+ *  and a list for one without. */
+export function viewOf(entries: Entries, tag: string): LineView {
+  const chosen = entries[tag.toLowerCase()]?.view
+  return LINE_VIEWS.find((one) => one === chosen) ?? (propertiesOf(entries, tag).length > 0 ? 'table' : 'list')
+}
+
 /** The properties a tag's structure names, in order; none for a tag with none. */
 export function propertiesOf(entries: Entries, tag: string): string[] {
   const listed = entries[tag.toLowerCase()]?.properties

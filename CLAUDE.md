@@ -266,9 +266,12 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   keeps the first spelling met.
 - **A tag's structure is a list of properties** (`tags.json`, `propertiesOf`), one
   per row on its page: `+` adds, `×` removes, a row opens the property's page, where
-  its type is. The Actions pane's `+` declares a tag. With a structure and lines the
-  page has a Table above the Lines — sections, not a mode — and a page quoting a
-  line reads it as the note does (`readBlock`: names and quotes left out).
+  its type is. The Actions pane's `+` declares a tag. **Its lines are a list or a
+  table**, switched in the page's header and kept as `view` in its `tags.json`
+  entry (`viewOf`: unchosen, a table for a tag with properties) — the tag's own way
+  of being drawn, which the timeline is to read too, and not the calendar. It was
+  both at once, as two sections, until the owner asked for the choice. A page
+  quoting a line reads it as the note does (`readBlock`: names and quotes left out).
 - **A tag's line is offered its properties** (`propertySource`): all of them after
   `#tag `, then narrowed as a name is typed, in the structure's order, never inside
   a value (after `name::`, in an open `[[` or quote), and never one the line

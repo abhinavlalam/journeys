@@ -32,7 +32,7 @@ import {
 } from './properties'
 import { useConfigEntries } from './useConfigEntries'
 import { readEntries } from './configEntries'
-import { propertiesOf, TAG_NAME, TAGS_FILE } from './tags'
+import { propertiesOf, TAG_NAME, TAGS_FILE, viewOf } from './tags'
 import { GraphView } from './GraphView'
 import { PropertyView } from './PropertyView'
 import { TagView } from './TagView'
@@ -1185,6 +1185,8 @@ export default function App() {
                     name={tab.name}
                     collected={collectTag(tab.name)}
                     properties={propertiesOf(tagStructures.entries, tab.name)}
+                    view={viewOf(tagStructures.entries, tab.name)}
+                    onView={(next) => void tagStructures.write(tab.name.toLowerCase(), { view: next })}
                     typeOf={(property) => typeOf(propertyTypes.entries, property)}
                     icons={icons}
                     loading={reading}

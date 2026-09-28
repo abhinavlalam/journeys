@@ -4,6 +4,7 @@ import { PlusIcon } from './icons'
 import { blockProperties, PROPERTY_NAME, readBlock, type PropertyType } from './properties'
 import { ViewerHeader } from './ViewerHeader'
 import { countOf, GatheredNotes, NameField, NoteRow, readable, RowIcon, Section, stepIn } from './rows'
+import { LINE_VIEWS, type LineView } from './tags'
 import type { CollectedNote } from './useVaultTexts'
 import type { VaultFile } from './vaultModel'
 
@@ -16,18 +17,20 @@ import type { VaultFile } from './vaultModel'
  * thing is the eleven lines that say `#travel`.
  *
  * **Its structure is a list of properties**, one per row: `+` adds one, `×` takes
- * one off, and a row opens the property's own page, where its type is set. With a
- * structure and lines, a **Table** reads each line's values in its columns, summing
- * the `number` ones, above the Lines, which keep the sentences. The two are
- * sections to open and shut, not a mode to be in.
+ * one off, and a row opens the property's own page, where its type is set. Its
+ * lines are drawn **as a list or a table**, the tag's own choice from the header:
+ * the list keeps the sentences, the table reads each line's values into columns and
+ * sums the `number` ones.
  */
 export function TagView({
   name,
   collected,
   properties,
+  view,
   typeOf,
   icons,
   loading,
+  onView,
   onProperties,
   onError,
   onOpenProperty,
@@ -39,9 +42,11 @@ export function TagView({
   collected: CollectedNote[] | null
   /** The tag's structure: the properties its lines carry, in order. */
   properties: readonly string[]
+  view: LineView
   typeOf: (property: string) => PropertyType
   icons: Record<string, string>
   loading: boolean
+  onView: (next: LineView) => void
   onProperties: (next: string[]) => void
   onError: (message: string) => void
   onOpenProperty: (property: string) => void
@@ -51,7 +56,6 @@ export function TagView({
   const notes = collected ?? []
   const total = notes.reduce((sum, one) => sum + one.lines.length, 0)
   const [adding, setAdding] = useState<string | null>(null)
-  const table = properties.length > 0 && notes.length > 0
 
   /**
    * A name typed in the field — `with::` as `with`, the way a line writes it — added
@@ -83,7 +87,15 @@ export function TagView({
     <>
       {/* `#travel` and not `travel`: the header names the syntax, as `icon::` does
           on a property's page. */}
-      <ViewerHeader name={`#${name}`} status={total > 0 ? countOf(total, 'line') : ''} />
+      <ViewerHeader name={`#${name}`} status={total > 0 ? countOf(total, 'line') : ''}>
+        <span className="view-switch" role="group" aria-label="View">
+          {LINE_VIEWS.map((one) => (
+            <button key={one} className="header-action" aria-pressed={view === one} onClick={() => onView(one)}>
+              {one === 'list' ? 'List' : 'Table'}
+            </button>
+          ))}
+        </span>
+      </ViewerHeader>
       <Section
         title="Properties"
         count={properties.length}
@@ -131,8 +143,8 @@ export function TagView({
           </li>
         )}
       </Section>
-      {table && (
-        <Section title="Table" count={total} startOpen>
+      <Section title="Lines" count={total} startOpen>
+        {view === 'table' && notes.length > 0 ? (
           <li className="line-table-box">
             <LineTable
               columns={properties}
@@ -143,18 +155,17 @@ export function TagView({
               onOpenLink={onOpenLink}
             />
           </li>
-        </Section>
-      )}
-      <Section title="Lines" count={total} startOpen={!table}>
-        {/* Each line as the note reads it: properties' names and quotes left out,
-            links as their names. */}
-        <GatheredNotes
-          notes={collected}
-          icons={icons}
-          loading={loading}
-          onOpen={onOpen}
-          head={(text) => readable(readBlock(text, typeOf))}
-        />
+        ) : (
+          // Each line as the note reads it: properties' names and quotes left out,
+          // links as their names. Also what a table with no lines says instead.
+          <GatheredNotes
+            notes={collected}
+            icons={icons}
+            loading={loading}
+            onOpen={onOpen}
+            head={(text) => readable(readBlock(text, typeOf))}
+          />
+        )}
       </Section>
     </>
   )
