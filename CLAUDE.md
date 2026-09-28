@@ -260,7 +260,7 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   never hides.
 - **`collectionSyntax` is the one rule for which spans are the app's**, read by
   the editor and by every page quoting a line. `readFields` is partial and never
-  complains; `fillFields` is its inverse and drops empty `|` parts.
+  complains.
 - **Collections, tags and properties are pages, not files** (`dir: null`, `views`).
   An empty file named after a thing is not the thing. `gatherLines` is the one
   rule for an entry and the run nested under it. Skills are
@@ -289,15 +289,20 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 - Feeds are secret iCal addresses (`calendarFeeds: {name, url}[]`). `ics.ts` parses
   (TZID via `Intl`, RRULE, EXDATE, RECURRENCE-ID, first VALARM); `recurrences`
   serves feeds and typed `repeats::` alike.
-- **One source of truth**: sync writes `--event` lines into daily notes and the
-  view reads every `--event` line back. Synced lines carry no `repeats::`.
+- **One source of truth**: sync writes `#event` lines into daily notes and the
+  view reads every `#event` line back. Synced lines carry no `repeats::`.
   Dedupe is day + clock + title (`eventKey`).
+- **An event's line is `clock #event title name:: value…`** (`eventText`, read back
+  by `readEvent`): the title is the words before the first property, so words added
+  after one leave it the same event; the properties are the `#event` structure's,
+  in its order (`EVENT_PROPERTIES` until the vault has one), a value of more than
+  one word quoted (`textProperty`).
 - **Sync takes back only what is wholly the calendar's**: its `source::` names a
   feed, the feed no longer has it, nothing is nested under it, and it is exactly
-  its fields (`untouched`). An empty name is never a source.
+  its values (`untouched`). An empty name is never a source.
 - `useCalendarSync` runs on vault open, on a new feed, every `calendarMinutes`
-  and on a stale focus. `declarationNow` reads the file at that moment: the
-  pane's copy may not be read yet, and "not read" is not "not declared".
+  and on a stale focus. The sync reads `tags.json` at that moment: the pane's
+  copy may not be read yet, and "not read" is not "not declared".
 - The fetch is `curl` in Rust, off the main thread, scheme-checked.
 - Nothing about the week is assumed (`firstWeekday` from `Intl.Locale`).
 

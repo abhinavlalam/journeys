@@ -1,52 +1,63 @@
 import { describe, expect, it } from 'vitest'
-import { collectLines, fillFields, readFields, templateFields } from '../actions'
 import {
   dueReminders,
   EVENT,
-  EVENT_STRUCTURE,
+  EVENT_PROPERTIES,
   eventLine,
+  eventText,
   firstWeekday,
   leadOf,
   monthGrid,
   parseRepeats,
+  readEvent,
   readEvents,
   shiftMonth,
+  untouched,
 } from '../calendar'
 import { parseIcs, occurrences } from '../ics'
+import { collectTagLines } from '../tags'
 import type { CollectedNote } from '../useVaultTexts'
 
 const note = (path: string, text: string): CollectedNote => ({
   note: { path, absolutePath: `/v/${path}`, name: path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/, '') },
-  lines: collectLines(text, EVENT),
+  lines: collectTagLines(text, EVENT),
 })
+const text = () => 'text' as const
+const format = { properties: EVENT_PROPERTIES, typeOf: text }
 
 /**
- * `fillFields` is `readFields` the other way round, and the test is that round
- * trip: what is written is read back as the same values.
+ * `eventText` is `readEvent` the other way round, and the test is that round trip:
+ * what is written is read back as the same parts.
  */
-describe('fillFields', () => {
-  it('fills every slot by name and reads back what it wrote', () => {
-    const values = { what: 'Dentist', with: 'Mira Vance', at: 'Clinic', source: 'Fable Weekly', repeats: '', reminder: '1 day' }
-    const line = fillFields(EVENT_STRUCTURE, values)
-    expect(line).toBe('--event <<Dentist>> | with:: <<Mira Vance>> | at:: <<Clinic>> | source:: <<Fable Weekly>> | reminder:: <<1 day>>')
-    expect(readFields(line, templateFields(EVENT_STRUCTURE))).toEqual({
-      what: 'Dentist',
-      with: 'Mira Vance',
-      at: 'Clinic',
-      source: 'Fable Weekly',
-      reminder: '1 day',
+describe('an event’s line', () => {
+  it('is written in the structure’s order, a value of more than a word quoted, and read back', () => {
+    const parts = { clock: '19:00', what: 'Dentist', fields: { reminder: '1 day', at: 'Clinic', with: 'Mira Vance', source: 'Fable Weekly' } }
+    const line = eventText(EVENT_PROPERTIES, parts)
+    expect(line).toBe('19:00 #event Dentist with:: "Mira Vance" at:: Clinic source:: "Fable Weekly" reminder:: "1 day"')
+    expect(readEvent(line, text)).toEqual(parts)
+    expect(eventText(EVENT_PROPERTIES, { clock: '', what: 'Walk', fields: {} })).toBe('#event Walk')
+  })
+
+  it('takes its title from the words before its first property, the tag anywhere among them', () => {
+    expect(readEvent('19:00 Dinner #event with:: "Ravi Iyer" and bring wine', text)).toEqual({
+      clock: '19:00',
+      what: 'Dinner',
+      fields: { with: 'Ravi Iyer' },
     })
+    // The tag by the tag's own rule: any case, and `#events` is another tag.
+    expect(readEvent('#Event Walk #events', text).what).toBe('Walk #events')
   })
 
-  it('leaves out a part with nothing in it, and keeps the first part', () => {
-    expect(fillFields(EVENT_STRUCTURE, { what: 'Walk' })).toBe('--event <<Walk>>')
-    expect(fillFields(EVENT_STRUCTURE, {})).toBe('--event <<>>')
+  it('writes only what the structure lists, and a quote inside a value as an apostrophe', () => {
+    const fields = { with: 'Mira "M" Vance', at: 'Clinic' }
+    expect(eventText(['at'], { clock: '', what: 'Checkup', fields })).toBe('#event Checkup at:: Clinic')
+    expect(eventText(['with'], { clock: '', what: 'Checkup', fields })).toBe('#event Checkup with:: "Mira \'M\' Vance"')
   })
 
-  it('keeps a labelled slot`s default and a value`s own pipe', () => {
-    const expense = '--expense spent currency::<<EUR>> amount::<<>> | for:: <<>>'
-    expect(fillFields(expense, { amount: '480' })).toBe('--expense spent currency::<<EUR>> amount::<<480>>')
-    expect(fillFields(EVENT_STRUCTURE, { what: 'A | B', at: 'C' })).toBe('--event <<A | B>> | at:: <<C>>')
+  it('is untouched only while it is exactly what its values write', () => {
+    expect(untouched(format, '09:30 #event Standup source:: Work')).toBe(true)
+    expect(untouched(format, '09:30 #event Standup source:: Work and bring the notes')).toBe(false)
+    expect(untouched(format, '09:30 #event Standup source:: Work note:: late')).toBe(false)
   })
 })
 
@@ -56,14 +67,14 @@ describe('eventLine', () => {
 
   it('opens with the clock as a range on one day', () => {
     const one = first('BEGIN:VEVENT\nUID:a\nDTSTART:20260924T093000\nDTEND:20260924T100000\nSUMMARY:Standup\nEND:VEVENT')
-    expect(eventLine(EVENT_STRUCTURE, one, 'Work')).toBe('09:30 to 10:00 --event <<Standup>> | source:: <<Work>>')
+    expect(eventLine(EVENT_PROPERTIES, one, 'Work')).toBe('09:30 to 10:00 #event Standup source:: Work')
   })
 
   it('has no clock for an all-day event, and only a start for one that runs past midnight', () => {
     const day = first('BEGIN:VEVENT\nUID:b\nDTSTART;VALUE=DATE:20260924\nSUMMARY:Offsite\nLOCATION:Goa\nEND:VEVENT')
-    expect(eventLine(EVENT_STRUCTURE, day, '')).toBe('--event <<Offsite>> | at:: <<Goa>>')
+    expect(eventLine(EVENT_PROPERTIES, day, '')).toBe('#event Offsite at:: Goa')
     const late = first('BEGIN:VEVENT\nUID:c\nDTSTART:20260924T230000\nDTEND:20260925T010000\nSUMMARY:Flight\nEND:VEVENT')
-    expect(eventLine(EVENT_STRUCTURE, late, '')).toBe('23:00 --event <<Flight>>')
+    expect(eventLine(EVENT_PROPERTIES, late, '')).toBe('23:00 #event Flight')
   })
 
   it('carries the people and the reminder, and not the rule', () => {
@@ -82,8 +93,8 @@ describe('eventLine', () => {
         'END:VEVENT',
       ].join('\n')
     )
-    expect(eventLine(EVENT_STRUCTURE, one, 'Work')).toBe(
-      '10:00 --event <<Sync>> | with:: <<Mira Vance, Ravi Iyer>> | source:: <<Work>> | reminder:: <<30 minutes>>'
+    expect(eventLine(EVENT_PROPERTIES, one, 'Work')).toBe(
+      '10:00 #event Sync with:: "Mira Vance, Ravi Iyer" source:: Work reminder:: "30 minutes"'
     )
   })
 })
@@ -109,14 +120,14 @@ describe('parseRepeats', () => {
 
 describe('readEvents', () => {
   const journal = [
-    note('Daily/2026-09-24.md', ['# Thursday', '09:30 to 10:00 --event <<Standup>> | source:: <<Work>> | repeats:: <<daily>>', '--event <<Offsite>> | at:: <<Goa>>'].join('\n')),
-    note('Daily/2026-09-25.md', ['09:30 to 10:00 --event <<Standup>> | source:: <<Work>>', '19:00 --event <<Dinner>> | with:: <<Mira Vance>> | reminder:: <<2 days>>'].join('\n')),
-    note('Daily/2026-09-20.md', '08:00 --event <<Run>> | repeats:: <<every 2 days>>'),
-    note('Areas/Plans.md', '--event <<Not on a day>>'),
+    note('Daily/2026-09-24.md', ['# Thursday', '09:30 to 10:00 #event Standup source:: Work repeats:: daily', '#event Offsite at:: Goa'].join('\n')),
+    note('Daily/2026-09-25.md', ['09:30 to 10:00 #event Standup source:: Work', '19:00 #event Dinner with:: "Mira Vance" reminder:: "2 days"'].join('\n')),
+    note('Daily/2026-09-20.md', '08:00 #event Run repeats:: "every 2 days"'),
+    note('Areas/Plans.md', '#event Not on a day'),
   ]
 
   it('puts a line on its note`s day, all-day first, and only from daily notes', () => {
-    const events = readEvents(journal, EVENT_STRUCTURE, 'Daily', '2026-09-24', '2026-09-24')
+    const events = readEvents(journal, text, 'Daily', '2026-09-24', '2026-09-24')
     expect(events.filter((one) => one.day === '2026-09-24').map((one) => [one.what, one.clock, one.repeated])).toEqual([
       ['Offsite', '', false],
       ['Run', '08:00', true],
@@ -129,7 +140,7 @@ describe('readEvents', () => {
   })
 
   it('repeats a line onto later days, but not over a line that says the same', () => {
-    const events = readEvents(journal, EVENT_STRUCTURE, 'Daily', '2026-09-25', '2026-09-26')
+    const events = readEvents(journal, text, 'Daily', '2026-09-25', '2026-09-26')
     expect(events.map((one) => `${one.day} ${one.clock} ${one.what}${one.repeated ? ' *' : ''}`)).toEqual([
       // The 25th's own Standup line, not the 24th's repeat of it.
       '2026-09-25 09:30 to 10:00 Standup',
@@ -141,7 +152,7 @@ describe('readEvents', () => {
   })
 
   it('reads a case-different folder as the daily folder', () => {
-    expect(readEvents(journal, EVENT_STRUCTURE, 'daily', '2026-09-25', '2026-09-25')).toHaveLength(2)
+    expect(readEvents(journal, text, 'daily', '2026-09-25', '2026-09-25')).toHaveLength(2)
   })
 })
 
@@ -155,8 +166,8 @@ describe('reminders', () => {
 
   it('is due inside the lead and before the start', () => {
     const events = readEvents(
-      [note('Daily/2026-09-25.md', '19:00 --event <<Dinner>> | reminder:: <<2 days>>')],
-      EVENT_STRUCTURE,
+      [note('Daily/2026-09-25.md', '19:00 #event Dinner reminder:: "2 days"')],
+      text,
       'Daily',
       '2026-09-01',
       '2026-09-30'
@@ -195,10 +206,10 @@ describe('the month page', () => {
 
 describe('a repeat with a reminder', () => {
   it('is followed past the page by its own lead, so the reminder can come due', () => {
-    const weekly = [note('Daily/2026-09-21.md', '10:00 --event <<Sync>> | repeats:: <<weekly>> | reminder:: <<2 weeks>>')]
-    const days = (to: string) => readEvents(weekly, EVENT_STRUCTURE, 'Daily', '2026-09-21', to).map((one) => one.day)
+    const weekly = [note('Daily/2026-09-21.md', '10:00 #event Sync repeats:: weekly reminder:: "2 weeks"')]
+    const days = (to: string) => readEvents(weekly, text, 'Daily', '2026-09-21', to).map((one) => one.day)
     expect(days('2026-09-27')).toEqual(['2026-09-21', '2026-09-28', '2026-10-05'])
-    const plain = [note('Daily/2026-09-21.md', '10:00 --event <<Sync>> | repeats:: <<weekly>>')]
-    expect(readEvents(plain, EVENT_STRUCTURE, 'Daily', '2026-09-21', '2026-09-27').map((one) => one.day)).toEqual(['2026-09-21'])
+    const plain = [note('Daily/2026-09-21.md', '10:00 #event Sync repeats:: weekly')]
+    expect(readEvents(plain, text, 'Daily', '2026-09-21', '2026-09-27').map((one) => one.day)).toEqual(['2026-09-21'])
   })
 })

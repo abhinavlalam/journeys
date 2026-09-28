@@ -5,6 +5,7 @@ import {
   createNote,
   ensureDailyNote,
   folderIcon,
+  readConfigFile,
   readVaultFile,
   safeName,
   vaultFileRef,
@@ -31,13 +32,14 @@ import {
   type PropertyType,
 } from './properties'
 import { useConfigEntries } from './useConfigEntries'
+import { readEntries } from './configEntries'
 import { propertiesOf, TAGS_FILE } from './tags'
 import { GraphView } from './GraphView'
 import { CollectionView } from './CollectionView'
 import { PropertyView } from './PropertyView'
 import { TagView } from './TagView'
 import { CalendarView } from './CalendarView'
-import { EVENT, EVENT_STRUCTURE, eventLine } from './calendar'
+import { EVENT, EVENT_PROPERTIES, eventLine } from './calendar'
 import { syncEvents } from './calendarSync'
 import { fetchFeed } from './calendarFeed'
 import { occurrences, parseIcs } from './ics'
@@ -549,18 +551,22 @@ export default function App() {
   const openToday = () => openDay()
   /**
    * **Sync**: every feed in `calendarFeeds`, read for the days the calendar shows,
-   * written into those days' notes as `--event` lines. The `event` collection is
-   * declared on the first sync if the vault has not, so the lines are read by the
-   * same structure they were written with; after that the structure is the
-   * vault's. A day made here is a note born like any other and takes the folder's
+   * written into those days' notes as `#event` lines. The tag's structure is read
+   * from the file at that moment — the pane's copy may not be read yet, and "not
+   * read" is not "not declared" — and declared on the first sync if the vault has
+   * none; after that it is the vault's. A day made here is a note born like any other and takes the folder's
    * icon; the notes written are patched into the corpus and re-read by any editor
    * holding one, or the next keystroke would save the text from before the sync.
    */
   async function syncCalendar() {
     if (!vault.vaultPath) return
-    const declared = await collections.declarationNow(EVENT)
-    const declaration = declared ?? EVENT_STRUCTURE
-    if (!declared) await collections.declare(EVENT, declaration)
+    const declared = readEntries((await readConfigFile(vault.vaultPath, TAGS_FILE)) ?? '')
+    if (!declared) throw new Error(`${TAGS_FILE} could not be read as JSON, so the calendar was left alone.`)
+    if (!declared[EVENT]) await tagStructures.write(EVENT, { properties: EVENT_PROPERTIES })
+    const format = {
+      properties: declared[EVENT] ? propertiesOf(declared, EVENT) : EVENT_PROPERTIES,
+      typeOf: (name: string) => typeOf(propertyTypes.entries, name),
+    }
     const today = localDateStamp()
     const from = dayDate(today)
     const to = dayDate(daysAfter(today, settings.calendarDays))
@@ -576,11 +582,11 @@ export default function App() {
       // Never an empty name: a hand-typed line with no `source::` is nobody's feed.
       for (const one of [name, feed.name]) if (one) sources.add(one)
       for (const one of occurrences(feed, from, to)) {
-        byDay.get(localDateStamp(one.start))?.push(eventLine(declaration, one, name || feed.name))
+        byDay.get(localDateStamp(one.start))?.push(eventLine(format.properties, one, name || feed.name))
       }
     }
     await vault.mutate(
-      (v) => syncEvents(v, settings.dailyFolder, declaration, byDay, sources),
+      (v) => syncEvents(v, settings.dailyFolder, format, byDay, sources),
       async ({ changed, created }) => {
         for (const file of created) await inheritIcon(file)
         for (const { file, text } of changed) patch(new Set([file.path]), () => text)
@@ -1062,7 +1068,7 @@ export default function App() {
                 onClick={() => setWs((current) => toggleTab(current, { kind: 'graph' }))}
               />
             </li>
-            {/* The days ahead, read out of the `--event` lines in the journal. */}
+            {/* The days ahead, read out of the `#event` lines in the journal. */}
             <li style={{ paddingLeft: stepIn(1) }}>
               <NoteRow
                 icon={<RowIcon icon="calendar" />}
@@ -1235,8 +1241,8 @@ export default function App() {
               case 'calendar':
                 return (
                   <CalendarView
-                    collected={collect(EVENT)}
-                    declaration={collections.declarationOf(EVENT) ?? EVENT_STRUCTURE}
+                    collected={collectTag(EVENT)}
+                    propertyTypes={propertyTypes.entries}
                     dailyFolder={settings.dailyFolder}
                     days={settings.calendarDays}
                     feeds={settings.calendarFeeds.length}

@@ -106,17 +106,6 @@ export function useCollections({
       null,
 
     /**
-     * The structure a name has **on disk, read now**, rather than from what the pane
-     * last read. The calendar syncs as the vault opens, before that read has landed,
-     * and taking "not read yet" for "not declared" would write the default over the
-     * owner's own structure.
-     */
-    declarationNow: async (name: string): Promise<string | null> => {
-      const found = await read()
-      const key = Object.keys(found).find((one) => one.toLowerCase() === name.toLowerCase())
-      return key ? found[key] : null
-    },
-    /**
      * Writes a collection's structure, keeping every other entry.
      *
      * **A file it cannot parse is a file it will not overwrite.** Someone may edit

@@ -219,6 +219,13 @@ const QUOTABLE: readonly PropertyType[] = ['text', 'path']
  *  curly pair macOS types in its place, as it types `—` for `--`. */
 const QUOTED = /^["“]([^"”\n]*)["”]/
 
+/** `name:: value` for a text value — one word as it is, more between quotes — as
+ *  `blockProperties` reads it back. Nothing escapes a quote, so one inside is `'`. */
+export function textProperty(name: string, value: string): string {
+  const text = value.replace(/["“”]/g, "'")
+  return `${name}:: ${/\s/.test(text) ? `"${text}"` : text}`
+}
+
 /** One `key:: value` on a line. */
 export interface BlockProperty {
   name: string

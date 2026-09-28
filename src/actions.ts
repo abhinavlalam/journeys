@@ -487,42 +487,6 @@ function holesOf(declaration: string): Hole[] {
 }
 
 /**
- * A line written from a declaration and values for its fields — `readFields` the
- * other way round, for the one thing in the app that writes a collected line on
- * the user's behalf (the calendar's sync).
- *
- * A slot takes its field's value, or keeps what the declaration wrote inside it
- * when that is a default (`currency::<<EUR>>`); a slot that names itself and has no
- * value comes out empty. **A `|` divides a structure into parts, and a part whose
- * every slot came out empty is left out** — an event nobody is `with::` should not
- * carry ` | with:: <<>>` down a journal. The first part always stays, because the
- * keyword is in it. `readFields` reads a line with parts missing exactly as it
- * reads a full one, since a literal it cannot find is a field it skips.
- */
-export function fillFields(declaration: string, values: Record<string, string>): string {
-  const keyword = DECLARED_KEYWORD.exec(declaration)?.[0].trim() ?? ''
-  const body = declaration.replace(DECLARED_KEYWORD, '')
-  const holes = holesOf(declaration)
-  const valueOf = (hole: Hole) => values[hole.name] ?? (isLabelled(hole.opens) ? hole.inner : '')
-  // Parts are cut on the *declaration's* pipes, before any value — whose own `|`
-  // is text — goes in. A slot stands in as its index, between NULs, until then.
-  let marked = ''
-  let read = 0
-  holes.forEach((hole, at) => {
-    marked += `${body.slice(read, hole.from)}\u0000${at}\u0000`
-    read = hole.to
-  })
-  marked += body.slice(read)
-  const slots = /\u0000(\d+)\u0000/g
-  const kept = marked.split('|').filter((part, at) => {
-    const own = [...part.matchAll(slots)].map((slot) => holes[Number(slot[1])])
-    return at === 0 || own.length === 0 || own.some((hole) => valueOf(hole) !== '')
-  })
-  const line = kept.join('|').replace(slots, (_, at) => `<<${valueOf(holes[Number(at)])}>>`)
-  return `${keyword}${line}`.replace(/\s+$/, '')
-}
-
-/**
  * The values one line gives for those fields.
  *
  * **The brackets are the bounds, and that is the whole parser.** A value is what

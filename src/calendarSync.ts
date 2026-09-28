@@ -1,8 +1,8 @@
 // Writing the feeds' occurrences into the daily notes — the one place the calendar
 // touches the disk, through `vault.ts` like everything else.
 
-import { collectLines, readFields, templateFields } from './actions'
-import { EVENT, lineKey, untouched } from './calendar'
+import { EVENT, lineKey, readEvent, untouched, type EventFormat } from './calendar'
+import { collectTagLines } from './tags'
 import { ensureDailyNote, fileExists, readVaultFile, vaultFileRef, writeVaultFile } from './vault'
 import type { VaultFile } from './vaultModel'
 
@@ -34,11 +34,11 @@ export interface Synced {
 export async function syncEvents(
   vaultPath: string,
   folder: string,
-  declaration: string,
+  format: EventFormat,
   byDay: ReadonlyMap<string, readonly string[]>,
   sources: ReadonlySet<string>
 ): Promise<Synced> {
-  const fields = templateFields(declaration)
+  const keyOf = (line: string) => lineKey(format.typeOf, line)
   const out: Synced = { changed: [], created: [] }
   for (const [day, lines] of byDay) {
     const page = vaultFileRef(vaultPath, `${folder}/${day}.md`)
@@ -48,24 +48,24 @@ export async function syncEvents(
     else if (!(await fileExists(page))) continue
     const text = created ? '' : await readVaultFile(file)
 
-    const wanted = new Set(lines.map((line) => lineKey(fields, line)))
+    const wanted = new Set(lines.map(keyOf))
     const gone = new Set(
-      collectLines(text, EVENT)
+      collectTagLines(text, EVENT)
         .filter(
           (entry) =>
             entry.below.length === 0 &&
-            sources.has(readFields(entry.text, fields).source ?? '') &&
-            !wanted.has(lineKey(fields, entry.text)) &&
-            untouched(declaration, entry.text)
+            sources.has(readEvent(entry.text, format.typeOf).fields.source ?? '') &&
+            !wanted.has(keyOf(entry.text)) &&
+            untouched(format, entry.text)
         )
         .map((entry) => entry.at)
     )
     const kept = gone.size === 0 ? text : text.split('\n').filter((_, at) => !gone.has(at)).join('\n')
 
-    const have = new Set(collectLines(kept, EVENT).map((one) => lineKey(fields, one.text)))
+    const have = new Set(collectTagLines(kept, EVENT).map((one) => keyOf(one.text)))
     const fresh: string[] = []
     for (const line of lines) {
-      const key = lineKey(fields, line)
+      const key = keyOf(line)
       if (have.has(key)) continue
       have.add(key)
       fresh.push(line)

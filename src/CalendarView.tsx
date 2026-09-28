@@ -12,6 +12,8 @@ import {
   shiftMonth,
   type CalendarEvent,
 } from './calendar'
+import { typeOf } from './properties'
+import type { Entries } from './configEntries'
 import type { CollectedNote } from './useVaultTexts'
 import type { VaultFile } from './vaultModel'
 
@@ -24,7 +26,7 @@ const VIEWS: readonly { key: View; label: string }[] = [
 ]
 
 /**
- * The calendar: every `--event` line in the daily notes — the ones the sync wrote
+ * The calendar: every `#event` line in the daily notes — the ones the sync wrote
  * from a feed and the ones typed by hand alike — read two ways. **Agenda** is the
  * days ahead, each with its events and, first, whatever has a reminder due.
  * **Month** is the traditional page, seven wide, any month. A row or a chip opens
@@ -34,7 +36,7 @@ const VIEWS: readonly { key: View; label: string }[] = [
  */
 export function CalendarView({
   collected,
-  declaration,
+  propertyTypes,
   dailyFolder,
   days,
   feeds,
@@ -46,8 +48,8 @@ export function CalendarView({
 }: {
   /** Null while the vault is still being read. */
   collected: CollectedNote[] | null
-  /** The `--event` structure the lines are read by. */
-  declaration: string
+  /** Each property's type, which is where its value ends. */
+  propertyTypes: Entries
   dailyFolder: string
   /** How many days the agenda shows, today first. */
   days: number
@@ -72,8 +74,8 @@ export function CalendarView({
   const from = [grid[0], today].sort()[0]
   const to = [grid[grid.length - 1], shown[shown.length - 1]].sort()[1]
   const events = useMemo(
-    () => (collected ? readEvents(collected, declaration, dailyFolder, from, to) : []),
-    [collected, declaration, dailyFolder, from, to]
+    () => (collected ? readEvents(collected, (name) => typeOf(propertyTypes, name), dailyFolder, from, to) : []),
+    [collected, propertyTypes, dailyFolder, from, to]
   )
   const ahead = events.filter((one) => one.day >= today && one.day <= shown[shown.length - 1])
   const due = dueReminders(events, now)
