@@ -120,11 +120,90 @@ mod secrets;
 mod sync;
 mod terminal;
 
+/// **A quit waits for the page to write what is being typed.** On macOS tao ends the
+/// app straight from `applicationWillTerminate`, with no event anything could hold
+/// it on, so the typing in a note's last 800ms of autosave went with it. ⌘Q and a
+/// window's close come here instead: the page is asked to flush, and answers `quit`,
+/// or `stay` when a write failed and it has said so. A page that never answers gets
+/// a few seconds, not the power to keep the app open. The Dock's Quit and a logout
+/// still go straight to terminate.
+#[cfg(desktop)]
+mod quit {
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    use std::time::Duration;
+    use tauri::{AppHandle, Emitter};
+
+    /// Each request is a generation, so a `stay` or a later request outdates the
+    /// fallback an earlier one started.
+    static ASKED: AtomicU64 = AtomicU64::new(0);
+    /// Set once the page has said `quit`, so the close that exit makes is let through.
+    pub static LEAVING: AtomicBool = AtomicBool::new(false);
+    const ANSWER_WITHIN: Duration = Duration::from_secs(3);
+
+    pub fn ask(app: &AppHandle) {
+        let asked = ASKED.fetch_add(1, Ordering::SeqCst) + 1;
+        let _ = app.emit("quit-requested", ());
+        let app = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(ANSWER_WITHIN);
+            if ASKED.load(Ordering::SeqCst) == asked {
+                LEAVING.store(true, Ordering::SeqCst);
+                app.exit(0);
+            }
+        });
+    }
+
+    #[tauri::command]
+    pub fn quit(app: AppHandle) {
+        LEAVING.store(true, Ordering::SeqCst);
+        app.exit(0);
+    }
+
+    #[tauri::command]
+    pub fn stay() {
+        ASKED.fetch_add(1, Ordering::SeqCst);
+    }
+
+    /// The default menu with its Quit swapped for one that asks first: the stock
+    /// item sends `terminate:`, which is the path with no event on it.
+    #[cfg(target_os = "macos")]
+    pub fn menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+        use tauri::menu::{Menu, MenuItem, MenuItemKind};
+        let menu = Menu::default(app)?;
+        if let Some(MenuItemKind::Submenu(app_menu)) = menu.items()?.first() {
+            let stock = app_menu.items()?.into_iter().find(|item| {
+                matches!(item, MenuItemKind::Predefined(one) if one.text().is_ok_and(|text| text.starts_with("Quit")))
+            });
+            if let Some(stock) = stock {
+                app_menu.remove(&stock)?;
+                let name = format!("Quit {}", app.package_info().name);
+                app_menu.append(&MenuItem::with_id(app, "quit", name, true, Some("CmdOrCtrl+Q"))?)?;
+            }
+        }
+        Ok(menu)
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
     #[cfg(target_os = "android")]
     let builder = builder.plugin(secrets::init());
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(quit::menu).on_menu_event(|app, event| {
+        if event.id() == "quit" {
+            quit::ask(app);
+        }
+    });
+    #[cfg(desktop)]
+    let builder = builder.on_window_event(|window, event| {
+        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            if !quit::LEAVING.load(std::sync::atomic::Ordering::SeqCst) {
+                api.prevent_close();
+                quit::ask(tauri::Manager::app_handle(window));
+            }
+        }
+    });
     builder
         .manage(terminal::TerminalState::default())
         .invoke_handler(tauri::generate_handler![
@@ -143,7 +222,11 @@ pub fn run() {
             terminal::write_terminal,
             terminal::resize_terminal,
             terminal::kill_terminal,
-            terminal::end_terminal
+            terminal::end_terminal,
+            #[cfg(desktop)]
+            quit::quit,
+            #[cfg(desktop)]
+            quit::stay
         ])
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

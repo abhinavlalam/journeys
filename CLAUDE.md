@@ -113,6 +113,12 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   commit whose note changed underneath it.
 - **A write the app makes to an open note reaches its buffer** (`reread`), and
   declines while a save is queued: pending typing outranks a property.
+- **A quit writes the open notes first** (`quit.ts`, `lib.rs`'s `quit`). On macOS
+  tao ends the app from `applicationWillTerminate`, with no event to hold it on, and
+  the last 800ms of autosave went with it. So ⌘Q (the menu's own Quit replaces the
+  stock one) and a window's close ask the page, which flushes and answers `quit`,
+  or `stay` when a write failed and it has said so. Unanswered, the app quits after
+  three seconds. The Dock's Quit and a logout still terminate directly.
 - **A queued save follows a move** with the buffer's note and `loadedPath`.
   `followFolder` takes the move map, not a prefix: a folder rename changes its own
   note's basename, and a prefix swap names a file that does not exist.

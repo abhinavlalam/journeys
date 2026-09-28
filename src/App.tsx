@@ -16,6 +16,7 @@ import { FileView } from './FileView'
 import type { VaultFile, VaultFolder } from './vaultModel'
 import { FolderTree, useDropTarget } from './FolderTree'
 import { ActionsPane, branchKey, headsOf } from './ActionsPane'
+import { onQuit } from './quit'
 import { BUILT_IN_KINDS, creatable, declares, createAction, groupKey, type ViewKind } from './actionKinds'
 import { SettingsFile } from './SettingsFile'
 import { NoteSearch } from './NoteSearch'
@@ -194,6 +195,13 @@ export default function App() {
     },
   })
   bufferOps.current = { flush: buffers.flushPendingSave, close: () => setWs(emptyWorkspace()) }
+  // **A quit writes the open notes first** (`quit.ts`). Only with the app's bridge:
+  // a test, or the page opened outside the app, has no quit to wait for.
+  useEffect(() => {
+    if (!('__TAURI_INTERNALS__' in window)) return
+    const off = onQuit(() => bufferOps.current.flush(), setError)
+    return () => void off.then((unlisten) => unlisten())
+  }, [])
 
   const folders = useFolderOpenState(vault.vaultPath, SECTIONS)
 
