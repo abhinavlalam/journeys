@@ -41,6 +41,7 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 | `prose.ts` | The one rule for what in a note is code (`maskCode`, `proseLines`), for everything that reads a note for meaning. |
 | `configEntries.ts`, `useConfigEntries.ts` | A `.config` file of entries keyed by name (`properties.json`): merged on write, never written over when unreadable. |
 | `calendar.ts`, `ics.ts`, `calendarSync.ts`, `useCalendarSync.ts`, `CalendarView.tsx` | The calendar. |
+| `timeline.ts` / `TimelineView.tsx` | The daily notes as each day happened / its page. |
 | `crypto.ts`, `useLocks.ts`, `useAutoLock.ts` | Locked notes: the format and the passphrases held / asking and locking / the clock. |
 | `sync.ts`, `useSync.ts`, `src-tauri/src/sync.rs` | Git sync. |
 | `terminal.ts`, `TerminalPane.tsx`, `src-tauri/src/terminal.rs` | The terminal. |
@@ -319,6 +320,21 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   copy may not be read yet, and "not read" is not "not declared".
 - The fetch is `curl` in Rust, off the main thread, scheme-checked.
 - Nothing about the week is assumed (`firstWeekday` from `Intl.Locale`).
+
+## The timeline
+
+- **The daily notes as each day happened**, oldest first and today at the bottom;
+  the page opens at its end. The owner writes a day by kind — a line of tags alone
+  heads a group (`#timeline`, `#expense`, `#diet`), its entries nested under it —
+  and the timeline reads it by clock across the groups: untimed first as written,
+  then by start, a tie as written. What is nested under an entry is its detail.
+- **A moment and a block read apart**: one clock is a dot on the rail, a range
+  (`to`, `-`, `–`, `—`) a bar with its length, and one that ends before it starts
+  ran past midnight.
+- A tag drawn as a table (`tablesOf`) shows its entry's fields in place of its
+  properties in the sentence (`wordsOf`, `fieldsOf`), and the day closes on its
+  `number` fields' totals (`totalsOf`). A timeline is one more memo over the one
+  read (`useVaultTexts`' `timeline`), so it follows typing as the graph does.
 
 ## Sync
 

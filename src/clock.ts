@@ -84,3 +84,15 @@ export function agoWord(then: number, now = Date.now()): string {
   if (ms > -DAY_MS) return relative.format(Math.round(ms / HOUR_MS), 'hour')
   return relative.format(Math.round(ms / DAY_MS), 'day')
 }
+
+/** A day as a heading's date: `Wednesday 24 Sept`. */
+export const longDay = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'short' })
+
+/** `Today · Wednesday 24 Sept` within a day of today either way, the date alone
+ *  further off — the agenda's heading and the timeline's. */
+export function dayTitle(day: string, today: string): string {
+  const date = longDay.format(dayDate(day))
+  if (Math.abs(daysBetween(today, day)) > 1) return date
+  const word = relativeDay(day, today)
+  return `${word.charAt(0).toUpperCase()}${word.slice(1)} · ${date}`
+}

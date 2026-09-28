@@ -2813,7 +2813,8 @@ button.folder-toggle {
    a box — the treatment the open row and a section's heading already take. `em`
    nowhere in here, so no font-size to declare. */
 .line-link,
-.line-source {
+.line-source,
+.timeline-tag {
   -webkit-app-region: no-drag;
   padding: 0;
   border: none;
@@ -2844,8 +2845,122 @@ button.folder-toggle {
    which row is under which, drawn at the centre of a chevron's box — which a row
    leaves empty and a table does not, so the elbow ran through its `when` header. */
 .folder-children > li.line-table-box::before,
-.folder-children > li.line-table-box::after {
+.folder-children > li.line-table-box::after,
+.folder-children > li.timeline-box::before,
+.folder-children > li.timeline-box::after {
   content: none;
+}
+
+/* ---- The timeline ---- */
+
+/* **A day is one grid**: the clock, the rail, what was said, its group — so every
+   clock sits in one column and every sentence starts on one line. In the reading
+   face at the reading size: this is the journal being read, not a row of chrome. */
+.timeline-box {
+  --timeline-when: 12ch;
+  --timeline-rail: 1em;
+  padding: 0.25rem 0 0.5rem;
+  font-size: var(--fs-prose);
+  line-height: var(--line-height-prose);
+}
+
+.timeline-entries {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline-entry {
+  display: grid;
+  grid-template-columns: var(--timeline-when) var(--timeline-rail) 1fr auto;
+  column-gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.15rem var(--pane-inset) 0.15rem 0;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.timeline-entry:hover {
+  background: var(--bg-hover);
+}
+
+.timeline-when {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* How long a block lasted, under its span, a tone further back. */
+.timeline-length {
+  display: block;
+  color: var(--text-faint);
+}
+
+/* **The rail: a hairline down the day, a dot for a moment, a bar for a block of
+   time**, so the two read apart at a glance — the one difference the clock column
+   alone made easy to miss. */
+.timeline-rail {
+  position: relative;
+  align-self: stretch;
+  justify-self: center;
+  border-left: 1px solid var(--border);
+}
+
+.timeline-rail::after {
+  content: '';
+  position: absolute;
+  top: 0.5em;
+  left: 0;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: var(--radius-sm);
+  background: var(--text-faint);
+  transform: translateX(-50%);
+}
+
+.timeline-entry.block .timeline-rail::after {
+  top: 0.35em;
+  bottom: 0.35em;
+  width: 0.35em;
+  height: auto;
+  background: var(--mark);
+}
+
+.timeline-what {
+  min-width: 0;
+  color: var(--text);
+}
+
+/* A table tag's fields, beside what the entry says: the value in the text's own
+   tone and its name a step back, as a label outside a sentence reads. */
+.timeline-fields {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 0.75rem;
+}
+
+.timeline-field-name {
+  color: var(--text-faint);
+}
+
+/* What is nested under an entry: its detail, as written, a tone back. */
+.timeline-below {
+  display: block;
+  white-space: pre-wrap;
+  color: var(--text-faint);
+}
+
+.timeline-group {
+  color: var(--text-faint);
+}
+
+/* The day's totals close the day, on the sentences' column. */
+.timeline-totals {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 0.75rem;
+  margin: 0.25rem 0 0 calc(var(--timeline-when) + var(--timeline-rail) + 1rem);
+  color: var(--text-dim);
 }
 
 /* ---- Lines under a row ---- */

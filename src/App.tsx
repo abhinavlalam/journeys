@@ -33,7 +33,8 @@ import {
 } from './properties'
 import { useConfigEntries } from './useConfigEntries'
 import { readEntries } from './configEntries'
-import { propertiesOf, TAG_NAME, TAGS_FILE, viewOf } from './tags'
+import { propertiesOf, tablesOf, TAG_NAME, TAGS_FILE, viewOf } from './tags'
+import { TimelineView } from './TimelineView'
 import { GraphView } from './GraphView'
 import { PropertyView } from './PropertyView'
 import { TagView } from './TagView'
@@ -142,7 +143,8 @@ export default function App() {
       shown?.kind === 'graph' ||
       shown?.kind === 'property' ||
       shown?.kind === 'tag' ||
-      shown?.kind === 'calendar'
+      shown?.kind === 'calendar' ||
+      shown?.kind === 'timeline'
     )
   })
   /** Bumped, at most a few times a second, by a keystroke while such a view shows;
@@ -275,6 +277,7 @@ export default function App() {
     properties,
     propertyValues,
     collectTag,
+    timeline,
     tags,
     graph,
     backlinks,
@@ -284,6 +287,7 @@ export default function App() {
   } = useVaultTexts({
     root: vault.root,
     graphHides: settings.graphHides,
+    dailyFolder: settings.dailyFolder,
     vaultPath: vault.vaultPath,
     openPath: focusedNote?.path ?? null,
     // A view derived from the corpus is open, so the open note's *typed* text is
@@ -1068,6 +1072,17 @@ export default function App() {
                 onClick={() => setWs((current) => openTab(current, { kind: 'calendar' }))}
               />
             </li>
+            {/* The daily notes as each day happened, today at the bottom. */}
+            <li style={{ paddingLeft: stepIn(1) }}>
+              <NoteRow
+                icon={<RowIcon icon="clock" />}
+                name="Timeline"
+                className={active?.kind === 'timeline' ? 'selected' : undefined}
+                aria-label="Timeline"
+                aria-pressed={active?.kind === 'timeline'}
+                onClick={() => setWs((current) => openTab(current, { kind: 'timeline' }))}
+              />
+            </li>
             {/* The vault's sync, in one sentence, and the way to its settings. */}
             <li style={{ paddingLeft: stepIn(1) }}>
               <NoteRow
@@ -1204,6 +1219,18 @@ export default function App() {
                     onOpenProperty={(property) => view('property', property)}
                     onOpen={(file) => void openNote(file)}
                     onOpenLink={(target) => void openLinkTarget(target, true)}
+                  />
+                )
+              case 'timeline':
+                return (
+                  <TimelineView
+                    days={timeline}
+                    tables={tablesOf(tagStructures.entries)}
+                    typeOf={(name) => typeOf(propertyTypes.entries, name)}
+                    loading={reading}
+                    onOpen={(file) => void openNote(file)}
+                    onOpenLink={(target) => void openLinkTarget(target, true)}
+                    onOpenTag={(tag) => view('tag', tag)}
                   />
                 )
               case 'calendar':

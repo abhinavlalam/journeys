@@ -8,6 +8,7 @@ import { buildNoteGraph, type NoteGraph, type NoteText } from './graph'
 import { APP_PROPERTIES, noteProperties, readProperty, typeOf } from './properties'
 import type { Entries } from './configEntries'
 import { collectTagLines, tagNames, type CollectedLine } from './tags'
+import { timelineDays, type TimelineDay } from './timeline'
 
 /** One note and the entries it holds, which is what a tag's page draws. */
 export interface CollectedNote {
@@ -51,6 +52,8 @@ interface VaultTexts {
    * pane's. Memoised per corpus, so the vault is walked once per tag per read.
    */
   collectTag: (tag: string) => CollectedNote[] | null
+  /** The daily notes as each day happened, oldest first — see `timeline.ts`. */
+  timeline: TimelineDay[] | null
   tags: { name: string; notes: number }[]
   graph: NoteGraph | null
   backlinks: BacklinkIndex | null
@@ -89,6 +92,7 @@ interface VaultTexts {
 export function useVaultTexts({
   root,
   graphHides,
+  dailyFolder,
   vaultPath,
   openPath,
   viewOpen,
@@ -100,6 +104,8 @@ export function useVaultTexts({
   root: VaultFolder | null
   /** Folders the graph leaves out — `settings.graphHides`, see `buildNoteGraph`. */
   graphHides: readonly string[]
+  /** Where the daily notes live — `settings.dailyFolder` — for the timeline. */
+  dailyFolder: string
   vaultPath: string | null
   /** The open note, because switching notes is when `liveText` becomes the disk's
    *  business again — see `corpus`. */
@@ -298,6 +304,7 @@ export function useVaultTexts({
   )
 
   const collectTag = useMemo(() => tagLines(corpus), [corpus])
+  const timeline = useMemo(() => (corpus ? timelineDays(corpus, dailyFolder) : null), [corpus, dailyFolder])
 
   const patch = (paths: ReadonlySet<string>, change: (text: string) => string) =>
     setTexts(
@@ -314,6 +321,7 @@ export function useVaultTexts({
     properties,
     propertyValues,
     collectTag,
+    timeline,
     tags,
     graph,
     backlinks,

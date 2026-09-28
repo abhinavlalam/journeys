@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { ViewerHeader } from './ViewerHeader'
 import { countOf, NoteRow, READING, RowIcon, Section, stepIn } from './rows'
 import { ChevronIcon } from './icons'
-import { clockStart, dayDate, daysAfter, daysBetween, localDateStamp, relativeDay } from './clock'
+import { clockStart, dayDate, dayTitle, daysAfter, localDateStamp, longDay, relativeDay } from './clock'
 import {
   dueReminders,
   firstWeekday,
@@ -265,14 +265,6 @@ function MonthPage({
   )
 }
 
-const longDay = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'short' })
 const weekdayName = new Intl.DateTimeFormat(undefined, { weekday: 'short' })
 const monthName = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' })
 
-/** `Today · Wednesday 24 Sept` for the first two days, the date alone after. */
-function dayTitle(day: string, today: string): string {
-  const date = longDay.format(dayDate(day))
-  if (daysBetween(today, day) > 1) return date
-  const word = relativeDay(day, today)
-  return `${word.charAt(0).toUpperCase()}${word.slice(1)} · ${date}`
-}

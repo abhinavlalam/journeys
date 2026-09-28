@@ -21,6 +21,8 @@ export type Tab =
   /** A tag's page: every line in the vault carrying `#name`. */
   | { kind: 'tag'; id: number; name: string }
   | { kind: 'calendar'; id: number }
+  /** The daily notes as each day happened. */
+  | { kind: 'timeline'; id: number }
   | { kind: 'settingsFile'; id: number }
   /** A file the pane shows rather than edits — a PDF, an image, anything else.
    *  It carries the file for the same reason a note tab does: the tab follows it
@@ -103,6 +105,8 @@ export function tabLabel(tab: Tab): string {
       return `#${tab.name}`
     case 'calendar':
       return 'Calendar'
+    case 'timeline':
+      return 'Timeline'
     case 'settingsFile':
       return SETTINGS_FILE
     case 'terminal':

@@ -151,6 +151,16 @@ export function viewOf(entries: Entries, tag: string): LineView {
   return LINE_VIEWS.find((one) => one === chosen) ?? (propertiesOf(entries, tag).length > 0 ? 'table' : 'list')
 }
 
+/** Every tag drawn as a table, with its structure — what a table-view entry shows
+ *  as fields. */
+export function tablesOf(entries: Entries): Record<string, string[]> {
+  return Object.fromEntries(
+    Object.keys(entries)
+      .filter((tag) => viewOf(entries, tag) === 'table')
+      .map((tag) => [tag.toLowerCase(), propertiesOf(entries, tag)])
+  )
+}
+
 /** The properties a tag's structure names, in order; none for a tag with none. */
 export function propertiesOf(entries: Entries, tag: string): string[] {
   const listed = entries[tag.toLowerCase()]?.properties

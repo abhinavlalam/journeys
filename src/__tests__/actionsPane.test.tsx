@@ -99,6 +99,7 @@ describe('where the buttons are', () => {
     expect(labels('.pane-section:nth-of-type(3) .file-list')).toEqual([
       'Open the note graph',
       'Calendar',
+      'Timeline',
       'Sync',
       'Terminal',
       'Settings',
