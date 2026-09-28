@@ -2875,9 +2875,17 @@ button.folder-toggle {
   grid-template-columns: var(--timeline-when) var(--timeline-rail) 1fr auto;
   column-gap: 0.5rem;
   align-items: baseline;
-  padding: 0.15rem var(--pane-inset) 0.15rem 0;
+  padding-right: var(--pane-inset);
   border-radius: var(--radius);
   cursor: pointer;
+}
+
+/* The row's air is inside its cells, so the rail's cell spans the whole row and the
+   hairline runs unbroken down the day. On the row, it broke at every entry. */
+.timeline-when,
+.timeline-what,
+.timeline-group {
+  padding: 0.15rem 0;
 }
 
 .timeline-entry:hover {
@@ -2906,10 +2914,12 @@ button.folder-toggle {
   border-left: 1px solid var(--border);
 }
 
+/* Centred on the first line's middle: the cell's air, then half a line, less half
+   the dot. */
 .timeline-rail::after {
   content: '';
   position: absolute;
-  top: 0.5em;
+  top: calc(0.15rem + (var(--line-height-prose) - 0.5) * 0.5em);
   left: 0;
   width: 0.5em;
   height: 0.5em;
