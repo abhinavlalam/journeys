@@ -1,7 +1,6 @@
 // **What in a note is code**, and so not prose: the one rule, for everything that
-// reads a note's text for meaning — links, tags, keywords, block properties. A flag
-// pasted into a fence is not a collection, a `[[link]]` in a code sample is not a
-// backlink, and `key:: value` in a snippet is not a property.
+// reads a note's text for meaning — links, tags, block properties. A `#include` in
+// a fence is not a tag, a `[[link]]` in a code sample is not a backlink, and `key:: value` in a snippet is not a property.
 //
 // Its own module because every reader needs it and none of them owns it: it sat
 // in `links.ts`, and the properties would have had to import the links to read a
@@ -16,8 +15,8 @@ function blank(run: string): string {
  * into it are still offsets into the original.
  *
  * Without this, every markdown link in every code sample in the vault becomes a
- * backlink. **The one rule for what is code** — the keywords and the tags read it
- * too, through `proseLines`, or a flag in a fence is a collection. Handles fences of
+ * backlink. **The one rule for what is code** — the tags and the properties read it
+ * too, through `proseLines`, or a `#include` in a fence is a tag. Handles fences of
  * three or more backticks or tildes, **at any indent**, because one under a list
  * item sits as deep as the item's text; closed by a run of the same character at
  * least as long, so a fence can hold a shorter one; unclosed, to the end of the
@@ -63,7 +62,7 @@ export function maskCode(text: string): string {
  *
  * From backtick to backtick, copying the text between in one piece, and the
  * paragraph's end found once per paragraph: every vault read runs this over every
- * note several times — links, keywords, tags — and a copy of the rest of the note
+ * note several times — links, tags, properties — and a copy of the rest of the note
  * per backtick made it the slowest part of reading one.
  */
 function maskInlineCode(text: string): string {
@@ -107,9 +106,9 @@ function maskInlineCode(text: string): string {
  * A note's lines with everything that is **not prose** masked out: fenced blocks,
  * their delimiters and inline code become spaces.
  *
- * `maskCode`'s rule, the one the links read too. A vault holds shell in fences —
- * `--postprocessor-args`, `--sub-langs` — and a flag someone pasted is not a
- * collection they keep. This had a rule of its own, which closed a fence on any
+ * `maskCode`'s rule, the one the links read too. A vault holds shell and C in
+ * fences — `#!/bin/sh`, `#include` — and a line someone pasted is not a tag they
+ * keep. This had a rule of its own, which closed a fence on any
  * run of backticks, so a fence holding a shorter one leaked what followed. Line
  * numbers are kept, because `collectLines` reads the *unmasked* line back out by
  * index.

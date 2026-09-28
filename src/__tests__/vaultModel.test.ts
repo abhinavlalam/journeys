@@ -93,7 +93,7 @@ describe('the path a note is known by', () => {
 
 /**
  * What a wikilink shows. One function because three renderers had answered it three
- * ways — the editor the name alone, a collection's page and its table the whole
+ * ways — the editor the name alone, a gathered page and its table the whole
  * target — so one link read two different ways in one app.
  */
 describe('linkLabelSpan', () => {

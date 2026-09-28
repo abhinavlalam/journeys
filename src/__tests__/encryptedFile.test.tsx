@@ -187,8 +187,8 @@ describe('renaming beside a locked note', () => {
 
 /**
  * **Unlocked is not in play.** A note open in its own editor is still its owner's
- * alone: the one read of the vault leaves it out, so search, the collections, the
- * tags and the graph are built without it, and nothing the app does to other notes
+ * alone: the one read of the vault leaves it out, so search, the tags and the
+ * graph are built without it, and nothing the app does to other notes
  * writes into it.
  */
 describe('an unlocked encrypted note', () => {

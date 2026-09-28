@@ -212,7 +212,7 @@ export function dueReminders(events: readonly CalendarEvent[], now: number): Cal
  *
  * **No `repeats::`, on purpose.** The feed already says when each occurrence is,
  * with its count, its end and the instances that were moved or dropped, and the
- * sync writes each on its day; a `repeats:: <<daily>>` on those lines would have
+ * sync writes each on its day; a `repeats:: daily` on those lines would have
  * the calendar carry a series on past the day the feed ends it. `repeats::` is
  * how a line *typed* into a note says it recurs, where there is no feed to ask.
  */

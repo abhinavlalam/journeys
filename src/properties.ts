@@ -18,7 +18,6 @@
 // leaves anything it does not understand *exactly* as it found it: the app must not
 // reformat a block it only came to change one line of.
 
-import { keywordAt } from './actions'
 import { proseLines } from './prose'
 import type { Entries } from './configEntries'
 
@@ -301,8 +300,6 @@ export function readBlock(line: string, typeOf: (name: string) => PropertyType):
  * that reads a note for meaning. The Properties pages are made of these.
  *
  * A block value that is not of its property's type is not one, and is left out.
- * Until the vault's collections are migrated, a line carrying a `--keyword` is a
- * collection's, and its `label::<<value>>` fields are not read as block properties.
  */
 export function noteProperties(raw: string, typeOf: (name: string) => PropertyType): { name: string; value: string }[] {
   const block = pageBlock(raw)
@@ -311,7 +308,6 @@ export function noteProperties(raw: string, typeOf: (name: string) => PropertyTy
   const first = raw.slice(0, block?.end ?? 0).split('\n').length - 1
   const found = pageEntries(block)
   for (let at = first; at < lines.length; at++) {
-    if (keywordAt(prose[at])) continue
     for (const one of blockProperties(lines[at], typeOf, prose[at])) {
       if (one.valid) found.push({ name: one.name, value: one.value })
     }

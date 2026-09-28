@@ -19,7 +19,6 @@ import {
   retargetLinks,
 } from '../links'
 import { buildNoteGraph } from '../graph'
-import { actionKeywords } from '../actions'
 import { tagNames } from '../tags'
 
 const targets = (text: string) => parseNoteLinks(text).map((l) => l.target)
@@ -278,7 +277,6 @@ describe('code, as links, keywords and tags all read it', () => {
     it(`leaves out a nested and a list-held fence, with ${ending} endings`, () => {
       const text = note.join(eol)
       expect(targets(text)).toEqual(['Outside'])
-      expect(actionKeywords(text)).toEqual(['real'])
       expect(tagNames(text)).toEqual(['real'])
     })
   }

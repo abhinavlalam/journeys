@@ -13,11 +13,9 @@ import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common'
 import { blockProperties, PROPERTY_KEY, splitPageProperties, typeOf } from './properties'
 import type { Entries } from './configEntries'
 import { LEADING_CLOCK } from './clock'
-import { collectionSyntax, keywordAt } from './actions'
 import { checkMarkup } from './icons'
 import { TAG, tagAt } from './tags'
 import { linkLabelSpan } from './vaultModel'
-import type { CollectionOption } from './editorComplete'
 
 /** `[[Target]]` and `[[Target|Alias]]`, which CommonMark parses as plain text. */
 const WIKILINK = /\[\[([^\]\n]+)\]\]/g
@@ -43,25 +41,6 @@ const BARE = /<?((?:https?:\/\/|www\.|mailto:)[^\s<>()]+|[\w.+-]+@[\w-]+\.[\w.-]
  */
 export function isLinkClick(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest('.cm-md-link') !== null
-}
-
-/**
- * Was the press on a collection's keyword? `.cm-md-collection` is on it whether or
- * not the line is being edited, so the answer does not depend on where the caret
- * happens to be — the same property that makes `.cm-md-link` usable.
- */
-export function isCollectionClick(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest('.cm-md-collection') !== null
-}
-
-/** The collection named at `pos`, or null. `linkTargetAt`'s shape, and read the
- *  same way: off the line's own text, which is where the keyword is defined. */
-export function collectionAt(state: EditorState, pos: number): string | null {
-  const line = state.doc.lineAt(pos)
-  const keyword = keywordAt(line.text)
-  if (!keyword) return null
-  const offset = pos - line.from
-  return offset >= keyword.from && offset <= keyword.to ? keyword.name : null
 }
 
 /**
@@ -92,7 +71,7 @@ export function isTagClick(target: EventTarget | null): boolean {
   return target instanceof Element && !!target.closest('.cm-md-tag')
 }
 
-/** The tag at `pos`, read off the line's own text — `collectionAt`'s shape. */
+/** The tag at `pos`, read off the line's own text — `linkTargetAt`'s shape. */
 export function tagNameAt(state: EditorState, pos: number): string | null {
   const line = state.doc.lineAt(pos)
   return tagAt(line.text, pos - line.from)
@@ -135,7 +114,7 @@ function taskState(mark: string): 'open' | 'done' | 'other' {
 
 /**
  * The task on the line `pos` is in, or null — read off the line's own text, the
- * shape `linkTargetAt` and `collectionAt` already have.
+ * shape `linkTargetAt` already has.
  *
  * `from` is the `[`, so the state character is the one byte at `from + 1`. That is
  * the whole of what a press rewrites: **one character**, which is what keeps this
@@ -327,43 +306,17 @@ const headingLine = Decoration.line({ class: 'cm-md-heading-line' })
 
 
 /**
- * Every collection's declaration, for the renderer.
- *
- * The editor already holds these for the `--` popup; this hands them to the
- * decorations, which are a pure function of the state and had no other way to
- * see them. A *getter*, because the extension list is built once and the vault's
- * declarations arrive later and change — the decorations call it each time they
- * compute. With none provided (a test's bare state) it answers an empty list, and
- * a collection line renders as it did before there was a declaration to read.
- */
-export const collectionDeclarations = Facet.define<
-  () => CollectionOption[],
-  () => CollectionOption[]
->({ combine: (values) => values[0] ?? (() => []) })
-
-/**
  * Each property's type, for the renderer: where a block property's value ends, and
- * whether it is one of its type. A getter, as the declarations are, because the
- * extension list is built once and the vault's `properties.json` arrives later.
+ * whether it is one of its type. A *getter*, because the extension list is built
+ * once and the vault's `properties.json` arrives later and changes; with none (a
+ * test's bare state) every property is text.
  */
 export const propertyTypes = Facet.define<() => Entries, () => Entries>({
   combine: (values) => values[0] ?? (() => ({})),
 })
 
-function declarationFor(state: EditorState, name: string): string | null {
-  const lower = name.toLowerCase()
-  return (
-    state
-      .facet(collectionDeclarations)()
-      .find((one) => one.name.toLowerCase() === lower)?.declaration ?? null
-  )
-}
-
 /** A block property whose value is not of its type: its name, in the alert colour. */
 const invalidProperty = Decoration.mark({ class: 'cm-md-property-invalid' })
-
-/** `--expense` itself, in the app's one label format. */
-const collectionMark = Decoration.mark({ class: 'cm-md-collection' })
 
 /** Gone from the layout entirely — not `visibility`, which would leave its width. */
 const hidden = Decoration.replace({})
@@ -534,54 +487,13 @@ export function livePreviewDecorations(
       )
     }
 
-    /**
-     * **A collection line's labels are syntax, so they hide.**
-     *
-     * `09:42 --expense spent currency:: EUR amount:: 480` reads as
-     * `09:42 --expense spent EUR 480`: the `key::` that tells the app which value
-     * is which has done its job by the time the line is read, and the words around
-     * it — `spent`, `at`, `using` — are the sentence and stay.
-     *
-     * The same bargain `**bold**` makes: put the caret on the line and every label
-     * is back, because a line you cannot see the structure of is a line you cannot
-     * correct. Per *line* and not per label — the labels are scattered through one
-     * sentence, and revealing one of them mid-edit would be worse than either.
-     *
-     * `::` and not `:`, which is the convention a vault already writes and the only
-     * one that is unambiguous: `Note: this` is prose, and a line's opening clock is
-     * full of single colons.
-     */
-    // **An empty field hides with its lead-in**, and only while the caret is
-    // elsewhere: with the caret on the line every character is back, the
-    // connective prose included, because the declaration's readings are for
-    // reading and the line is being edited. So the declaration is handed over only
-    // for the untouched case.
-    const keyword = keywordAt(line.text)
     const editing = touched(state, line.from, line.to)
-    const declaration = keyword && !editing ? declarationFor(state, keyword.name) : null
-    for (const part of collectionSyntax(line.text, declaration)) {
-      const from = line.from + part.from
-      const to = line.from + part.to
-      // **The keyword takes the app's label format**, the one a property's name,
-      // the clock and a JSON key take: it is a piece of the line the app itself
-      // reads, which is what that format means. It does not hide with the rest —
-      // `--expense` is what the line *is*, and a sentence that stops saying so
-      // reads as prose that happens to be collected.
-      if (part.kind === 'keyword') found.push(collectionMark.range(from, to))
-      // Revealed, it is `.cm-md-marker` like every other piece of syntax the caret
-      // brings back — a `**`, a `#`, a fence. It was coming back as plain prose,
-      // which read as the labels being part of the sentence rather than the frame
-      // around it.
-      else if (editing) found.push(markerMark.range(from, to))
-      else found.push(hidden.range(from, to))
-    }
-    // **A block property's name is syntax too**: `amount:: 480` reads `480`, and a
-    // quoted value reads without its quotes — the bargain a collection's labels make
-    // above, back as markers with the caret on the line. **A value not of its type
-    // keeps its name, marked**, caret or not: a value that is not read must not
-    // vanish from the line as though it were. Not on a collection's line, whose
-    // labels are drawn above, nor in the page's own block, nor in code.
-    if (!keyword && line.from >= propertiesEnd) {
+    // **A block property's name is syntax**: `amount:: 480` reads `480`, and a
+    // quoted value reads without its quotes — the bargain `**bold**` makes, per line,
+    // back as markers with the caret on it. **A value not of its type keeps its
+    // name, marked**, caret or not: a value that is not read must not vanish from
+    // the line as though it were. Not in the page's own block, nor in code.
+    if (line.from >= propertiesEnd) {
       const types = state.facet(propertyTypes)()
       for (const one of blockProperties(line.text, (name) => typeOf(types, name))) {
         if (inCode(state, line.from + one.from)) continue
@@ -648,10 +560,9 @@ export function livePreviewDecorations(
   }
 
   /**
-   * **`#tag` is marked, and always** — the property `.cm-md-collection` has and for
-   * the same reason: the mark is what makes the span pressable, and a tag goes
-   * somewhere. Nothing hides, because `#` *is* the tag: unlike a link's brackets or
-   * a slot's, the mark is the first character of the word and removing it would
+   * **`#tag` is marked, and always**: the mark is what makes the span pressable,
+   * and a tag goes somewhere. Nothing hides, because `#` *is* the tag: unlike a
+   * link's brackets, the mark is the first character of the word and removing it would
    * leave a different word behind.
    *
    * Not a node in any grammar the editor has, so it is a scan of the span — the
@@ -692,7 +603,7 @@ export function livePreviewDecorations(
         /**
          * **A task's box is always drawn, and never revealed.** A checkbox has to
          * be pressable whether or not the caret is in the line — the property that
-         * makes `.cm-md-collection` usable, for the same reason — and a `[x]` that
+         * makes `.cm-md-tag` usable, for the same reason — and a `[x]` that
          * turned back into three characters the moment you clicked into the item
          * would be un-pressable exactly while it was being written.
          */
@@ -802,20 +713,6 @@ export function livePreviewDecorations(
         // shortcut-reference `Link`; marking that put two overlapping marks on
         // every wikilink, so a `URL` child is what makes this a link of its own.
         if (node.name === 'Link' && !node.node.getChild('URL')) return
-        // **A URL inside a slot is the slot's value, not an autolink.** Markdown
-        // reads `<<https://…>>` as `<`, an Autolink `<https://…>`, `>` — so the
-        // slot's inner brackets were the link's, the second-last `>` was coloured
-        // as part of the URL and the wrong pair was hidden. Reported in those
-        // words. The slot's brackets are the app's own syntax and win: the link is
-        // what lies between them, and `collectionSyntax` deals with the brackets.
-        if (
-          node.name === 'Autolink' &&
-          state.sliceDoc(node.from - 1, node.from) === '<' &&
-          state.sliceDoc(node.to, node.to + 1) === '>'
-        ) {
-          found.push(Decoration.mark({ class: 'cm-md-link' }).range(node.from + 1, node.to - 1))
-          return
-        }
         found.push(Decoration.mark({ class: 'cm-md-link' }).range(node.from, node.to))
         if (touched(state, node.from, node.to)) return
         for (let child = node.node.firstChild; child; child = child.nextSibling) {

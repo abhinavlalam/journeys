@@ -226,7 +226,7 @@ function tailFrom(path: string, names: number): number {
  * The span of a wikilink's inner text that is **shown**; the rest is syntax.
  *
  * Three readers asked this and answered it three ways: the editor showed the name
- * alone, while a collection's page and its table showed the whole target — so one
+ * alone, while a gathered page and its table showed the whole target — so one
  * link read as a name in the note and as a run of folders on the page quoting it.
  * "The page draws what the note draws", and now off one function.
  *

@@ -281,7 +281,7 @@ describe('block properties', () => {
     expect(read('Note: this is prose')).toEqual([])
   })
 
-  it('are read after the page ones, with code, collection lines and invalid values left out', () => {
+  it('are read after the page ones, with code and invalid values left out', () => {
     const raw = [
       'icon:: book',
       '',
@@ -290,7 +290,6 @@ describe('block properties', () => {
       '```',
       'y:: 2',
       '```',
-      '09:42 --expense amount::<<12>>',
       '',
     ].join('\n')
     expect(noteProperties(raw, typeOf)).toEqual([

@@ -5,17 +5,16 @@ import type { ReactNode, RefObject } from 'react'
 const MIN_WIDTH = 44
 
 /**
- * Resizable columns for the tables a collection, a property and a tag draw.
+ * Resizable columns for the tables a property and a tag draw.
  *
- * **One hook, because it is one table in three places.** `CollectionTable` and
+ * **One hook, because it is one table in two places.** `LineTable` and
  * `PropertyView` already share the markup and the classes — "the same object", as
  * the sheet puts it — so a grip written into one of them would be the fourth copy
  * of a row this app has spent effort keeping to one.
  *
  * **Auto until the first drag, then fixed.** The natural widths are what a table
- * should open at: `readFields` is partial, so a column's content is whatever the
- * notes happen to say, and a set of guessed widths would be wrong for every
- * collection. The first grab therefore *measures* every column and freezes it at
+ * should open at: a column's content is whatever the notes happen to say, and a
+ * set of guessed widths would be wrong for every tag. The first grab therefore *measures* every column and freezes it at
  * what it already had — so the one being dragged is the only thing that moves, and
  * the table does not jump under the pointer as the browser re-flows the rest. That
  * is also why the widths are per mounted table and not saved: they belong to the

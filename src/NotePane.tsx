@@ -15,7 +15,6 @@ import { TextEditor } from './TextEditor'
 import type { VaultFile, VaultFolder } from './vaultModel'
 import type { Settings } from './settings'
 import type { useVaultTexts } from './useVaultTexts'
-import type { CollectionOption } from './editorComplete'
 import type { Entries } from './configEntries'
 
 interface NotePaneProps {
@@ -34,7 +33,6 @@ interface NotePaneProps {
   settings: Settings
   settingsOpen: boolean
   notes: ComponentProps<typeof MarkdownEditor>['notes']
-  completable: CollectionOption[]
   /** Each property's type, for where a block property's value ends. */
   propertyTypes: Entries
   /** Each tag's structure, for the properties its line is offered. */
@@ -48,7 +46,6 @@ interface NotePaneProps {
   onOpen: (file: VaultFile) => void
   onOpenLink: (target: string, wiki: boolean) => void
   onOpenTag: (tag: string) => void
-  onOpenCollection: (keyword: string) => void
   onRename: (file: VaultFile, name: string) => void
   /** Locks an encrypted note again: its tab closes and its passphrase is forgotten. */
   onLock: (file: VaultFile) => void
@@ -77,7 +74,6 @@ export function NotePane({
   settings,
   settingsOpen,
   notes,
-  completable,
   propertyTypes,
   tagStructures,
   root,
@@ -86,7 +82,6 @@ export function NotePane({
   treeProps,
   onOpen,
   onOpenLink,
-  onOpenCollection,
   onOpenTag,
   onRename,
   onLock,
@@ -245,14 +240,12 @@ export function NotePane({
           onChange={handleEditorChange}
           insertTimeCombo={settingsOpen ? null : settings.shortcuts.insertTime}
           notes={notes}
-          collections={completable}
           propertyTypes={propertyTypes}
           tagStructures={tagStructures}
           dailyFolder={settings.dailyFolder}
           caretAtEnd={isDailyNote(file.path, settings.dailyFolder)}
           indentWidth={settings.indentWidth}
           onOpenLink={onOpenLink}
-          onOpenCollection={onOpenCollection}
           onOpenTag={onOpenTag}
         />
       )}

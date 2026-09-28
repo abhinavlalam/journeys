@@ -322,7 +322,7 @@ describe('sizes', () => {
  * disappears gradually as it scrolls up rather than at a hard edge. It is
  * *positioned*, so it paints over the in-flow content beneath it — and it reaches
  * `--header-fade` past the header itself. The editor never noticed, its first line
- * sitting lower; a collection's page begins with a section, and at prose 13.5 the
+ * sitting lower; a tag's page begins with a section, and at prose 13.5 the
  * band was opaque to 76px while the heading ran 69.20–89.45, so its top half was
  * painted out. Reported as the heading disappearing into the title.
  *
@@ -330,7 +330,7 @@ describe('sizes', () => {
  * the clearance is it, so the two cannot drift.
  */
 describe('the header’s fade band', () => {
-  /** Two things can be first on the page — a collection's section and a journal
+  /** Two things can be first on the page — a tag's section and a journal
    *  page's row of steps — and the rule names both. */
   it('is cleared by the first section, off the token the band is built from', () => {
     const root = rules().find((rule) => rule.selector === ':root')!
@@ -861,13 +861,13 @@ describe('a scheme', () => {
 
 describe('a mark inside a sentence', () => {
   /**
-   * **Changes one thing about the text, and never its size.** The clock and the
-   * keyword sit in the middle of a journal line; a run set a step smaller there
+   * **Changes one thing about the text, and never its size.** The clock and a
+   * tag sit in the middle of a journal line; a run set a step smaller there
    * reads as the line being squeezed — reported as "vertically squished" — and a
    * bold run beside a dim one is three formats on one line. Colour only.
    */
   it('keeps the prose’s size and weight', () => {
-    for (const cls of ['.cm-md-stamp', '.cm-md-collection']) {
+    for (const cls of ['.cm-md-stamp', '.cm-md-tag']) {
       for (const rule of rules().filter((rule) => rule.selector.includes(cls))) {
         expect(rule.body, rule.selector).not.toMatch(/font-size:/)
         expect(rule.body, rule.selector).not.toMatch(/font-weight:/)

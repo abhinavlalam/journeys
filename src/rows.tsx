@@ -37,7 +37,7 @@ export const READING = 'Reading the vault…'
  * Opens a note from a click on the **lines** under a row, unless that click was the
  * end of a selection someone was making.
  *
- * The quoted lines under a backlink, and the lines a collection gathers, are the
+ * The quoted lines under a backlink, and the lines a tag gathers, are the
  * bulk of what there is to click at, and clicking them did nothing at all. They
  * are still selectable text, so a drag that ends in a click is a selection and not
  * a request to go somewhere.
@@ -212,8 +212,8 @@ export function GroupRow({ name, open, onToggle, icon, trailing, actions }: Grou
  * One collapsible section of rows in the reading pane: the tree's folder row with
  * the app's label on it, and a list of rows under it.
  *
- * **Two panes draw this.** The end of a note has Inside and Backlinks; a
- * collection's view has the line it declares and the lines it collects. They are
+ * **Two panes draw this.** The end of a note has Inside and Backlinks; a tag's
+ * page has its properties, its table and its lines. They are
  * the same object — a labelled, countable list of the left pane's own rows on the
  * note's column — so this lives beside the rows themselves rather than in either
  * one of them.
@@ -260,7 +260,7 @@ export function Section({
 /**
  * A line of a note as the note **reads** it, for the two places that quote one.
  *
- * The lines under a backlink and the lines a collection gathers are quotations, and
+ * The lines under a backlink and the lines a tag gathers are quotations, and
  * a quotation showing `[[Entities/Cafes/Bean Street/Lakeside Arrival]]` is showing bytes
  * where the editor shows a sentence — forty-five characters of folders at the end
  * of every note that linked there. Off `linkLabelSpan`, so what a link shows is one
@@ -276,14 +276,13 @@ export const readable = (text: string) =>
   })
 
 /**
- * The notes a page gathers lines from, a row per note with its lines beneath — which
- * a collection's Lines section and a tag's page both are. They were written out
- * twice and had already drifted: the tag page read a `[[link]]` in a line nested
- * under an entry as its name, and the collection page showed that line's bytes.
+ * The notes a page gathers lines from, a row per note with its lines beneath. It
+ * was written out twice and had already drifted: one page read a `[[link]]` in a
+ * line nested under an entry as its name, and the other showed that line's bytes.
  *
  * An entry and the run under it are **one block**, `pre-wrap` keeping the indent
- * that says which line is under which. `head` draws the entry, because a collection
- * hides its own syntax and a tag has none; what is nested under it reads as the
+ * that says which line is under which. `head` draws the entry, because a page may
+ * read it as the note does (`readBlock`); what is nested under it reads as the
  * note reads. The lines open the note too, since they are what there is to click at.
  */
 export function GatheredNotes({
@@ -336,8 +335,8 @@ export function GatheredNotes({
 /**
  * `1 line`, `3 lines`, `12 notes` — the status word a view page puts in its header.
  *
- * Three copies of this existed, two of them identical: a collection's page and a
- * tag's both counted lines and a property's counted notes. One function, and the
+ * Three copies of this existed, two of them identical: the line-gathering pages
+ * counted lines and a property's counted notes. One function, and the
  * noun is the argument.
  */
 export const countOf = (n: number, one: string, many = `${one}s`) =>

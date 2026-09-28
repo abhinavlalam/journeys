@@ -52,7 +52,7 @@ async function openTag() {
 describe('a tag’s page', () => {
   it('lists its properties with their types, and tabulates its lines, summing the numbers', async () => {
     await openTag()
-    const rows = () => [...document.querySelectorAll('.collection-table tbody tr')].map((tr) =>
+    const rows = () => [...document.querySelectorAll('.line-table tbody tr')].map((tr) =>
       [...tr.querySelectorAll('td')].map((td) => td.textContent?.trim())
     )
     await waitFor(() => expect(rows()).toHaveLength(2))
@@ -62,7 +62,7 @@ describe('a tag’s page', () => {
       ['2026-09-24', '08:40', '480', 'Harbour Bistro', ''],
       ['2026-09-24', '12:00', '5', '', 'with Mira Vance'],
     ])
-    const sum = [...document.querySelectorAll('.collection-sum td')].map((td) => td.textContent)
+    const sum = [...document.querySelectorAll('.line-sum td')].map((td) => td.textContent)
     expect(sum).toEqual(['sum', '', '485', '', ''])
   })
 

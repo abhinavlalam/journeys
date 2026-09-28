@@ -18,8 +18,8 @@ interface Row {
 const SUM_DECIMALS = 2
 
 /**
- * Gathered lines as a table: a row per line, a column per property the page's
- * structure names — a tag's properties, or a collection's fields.
+ * Gathered lines as a table: a row per line, a column per property a tag's
+ * structure names.
  *
  * **The structure is the schema**, so this component adds no idea of its own about
  * what a line contains — `valuesOf` answers that, and a blank cell is a line that
@@ -38,7 +38,7 @@ const SUM_DECIMALS = 2
  * through a parse that is allowed to be partial, and that is where an app corrupts
  * a file. The row opens the note instead.
  */
-export function CollectionTable({
+export function LineTable({
   columns,
   valuesOf,
   summable,
@@ -49,9 +49,8 @@ export function CollectionTable({
   columns: readonly string[]
   /** A line's values, by column. */
   valuesOf: (text: string) => Record<string, string>
-  /** Which columns are summed: a tag's `number` properties. Without it, a column
-   *  whose values all read as numbers — a collection's, which has no types. */
-  summable?: (column: string) => boolean
+  /** Which columns are summed: a tag's `number` properties. */
+  summable: (column: string) => boolean
   notes: readonly CollectedNote[]
   onOpen: (file: VaultFile) => void
   onOpenLink: (target: string) => void
@@ -70,32 +69,22 @@ export function CollectionTable({
   const shown = columns.filter((column) => rows.some((row) => row.values[column]))
   const dated = rows.some((row) => row.when)
   /**
-   * **A sum under every column that is numbers**, because a ledger's one question is
-   * "how much". 21 expense lines and no way to see the total without reading them
-   * was the finding; a read-only table stays read-only, and a footer row is a
-   * *reading* of the rows rather than a write into any note. A column counts when
-   * at least two of its values parse and none of the non-blank ones fails to — one
-   * number is not a total, and a column that is mostly words is not a column of
-   * amounts. Commas are thousands separators, which is how people write money.
+   * **A sum under every `number` column**, because a ledger's one question is "how
+   * much", and a footer row is a *reading* of the rows rather than a write into any
+   * note. A `number` value is exactly a number, so each one parses.
    */
-  const sums = Object.fromEntries(
-    shown.flatMap((column) => {
-      const given = rows.map((row) => row.values[column]).filter(Boolean)
-      const numbers = given.map((value) => Number(value.replace(/,/g, '')))
-      const sums = summable
-        ? summable(column)
-        : given.length >= 2 && numbers.every((one) => Number.isFinite(one))
-      if (!sums || given.length === 0) return []
-      const sum = numbers.reduce((total, one) => total + one, 0)
-      return [[column, String(Number(sum.toFixed(SUM_DECIMALS)))]]
+  const sums: Record<string, string> = Object.fromEntries(
+    shown.filter(summable).map((column) => {
+      const sum = rows.reduce((total, row) => total + (Number(row.values[column]) || 0), 0)
+      return [column, String(Number(sum.toFixed(SUM_DECIMALS)))]
     })
-  ) as Record<string, string>
+  )
   const summed = Object.keys(sums).length > 0
   const table = useRef<HTMLTableElement>(null)
   const { widths, gripFor } = useColumnWidths(table)
 
   return (
-    <table className="collection-table" ref={table} data-sized={widths ? '' : undefined}>
+    <table className="line-table" ref={table} data-sized={widths ? '' : undefined}>
       <thead>
         <tr>
           {/* **Where it was written comes first.** A gathered line is a quotation,
@@ -128,11 +117,11 @@ export function CollectionTable({
           // away.
           <tr key={`${row.note.path}:${at}`} title={row.text}>
             <td>
-              <button className="collection-source" onClick={() => onOpen(row.note)}>
+              <button className="line-source" onClick={() => onOpen(row.note)}>
                 {row.note.name}
               </button>
             </td>
-            {dated && <td className="collection-when">{row.when ?? ''}</td>}
+            {dated && <td className="line-when">{row.when ?? ''}</td>}
             {shown.map((column) => (
               <td key={column}>
                 <Cell value={row.values[column]} onOpenLink={onOpenLink} />
@@ -143,7 +132,7 @@ export function CollectionTable({
       </tbody>
       {summed && (
         <tfoot>
-          <tr className="collection-sum">
+          <tr className="line-sum">
             <td>sum</td>
             {dated && <td />}
             {shown.map((column) => (
@@ -159,12 +148,8 @@ export function CollectionTable({
 /**
  * One value.
  *
- * **A link is a link because the value is one**, not because the declaration said
- * so. A slot holds whatever was typed between its brackets, `[[Lakeside Deli]]`
- * included — so `merchant:: <<[[Lakeside Deli]]>>` is a link and `merchant:: <<cash>>`
- * is a word, decided by the note rather than by a flag in the schema. The
- * declaration used to carry a `wiki` bit for this, which asked someone to write
- * `[[<<>>]]` and then meant the link's own target was `<<Lakeside Deli>>`.
+ * **A link is a link because the value is one**: `merchant:: [[Lakeside Deli]]` is a
+ * link and a text `note:: cash` is a word, decided by the note.
  *
  * The **alias** shows where the line gave one — `[[Bistro|the office]]` reads as
  * "the office" and opens `Bistro`, the bargain every link in this app makes. An
@@ -183,7 +168,7 @@ export function Cell({
   if (!link) return <>{value}</>
   const shown = linkLabelSpan(link[1])
   return (
-    <button className="collection-link" onClick={() => onOpenLink(link[1].split('|')[0].trim())}>
+    <button className="line-link" onClick={() => onOpenLink(link[1].split('|')[0].trim())}>
       {link[1].slice(shown.from, shown.to).trim()}
     </button>
   )

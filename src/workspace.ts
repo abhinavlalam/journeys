@@ -6,8 +6,8 @@
 // **A note is open in one place at a time.** Two editors on one buffer is two
 // copies of a text that have to be kept in step on every keystroke, which is a
 // document model this app does not have; opening a note that is already open, in
-// any group, focuses the tab it has. The other kinds — the graph, a collection's
-// page, a property's, the settings file — are the same everywhere, so the same rule
+// any group, focuses the tab it has. The other kinds — the graph, a tag's page, a
+// property's, the settings file — are the same everywhere, so the same rule
 // costs nothing and there is one rule.
 
 import { pathKey } from './links'
@@ -17,7 +17,6 @@ import { SETTINGS_FILE, type VaultFile } from './vaultModel'
 export type Tab =
   | { kind: 'note'; id: number; file: VaultFile }
   | { kind: 'graph'; id: number }
-  | { kind: 'collection'; id: number; name: string }
   | { kind: 'property'; id: number; name: string }
   /** A tag's page: every line in the vault carrying `#name`. */
   | { kind: 'tag'; id: number; name: string }
@@ -80,7 +79,6 @@ function tabKey(tab: TabRequest | Tab): string {
     case 'note':
     case 'file':
       return `${tab.kind}:${pathKey(tab.file.path)}`
-    case 'collection':
     case 'property':
     case 'tag':
       return `${tab.kind}:${tab.name.toLowerCase()}`
@@ -99,8 +97,6 @@ export function tabLabel(tab: Tab): string {
       return tab.file.name
     case 'graph':
       return 'Graph'
-    case 'collection':
-      return `--${tab.name}`
     case 'property':
       return `${tab.name}::`
     case 'tag':

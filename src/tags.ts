@@ -1,11 +1,10 @@
-// Tags: `#word` written into a note's prose.
+// Tags: `#word` written into a note's prose, and the lines that carry one.
 //
-// The third thing a note's text declares about itself, beside a `--keyword` on a
-// line and a `key:` in its block — and the one with no file anywhere. A tag exists
-// because a note carries it, which is the arrangement Properties already has: the
-// pane lists what the notes say and the row opens a page asking the notes back.
+// A tag exists because a note carries it, which is the arrangement Properties
+// already has: the pane lists what the notes say and the row opens a page asking
+// the notes back. A tag has no file; its structure, if it has one, is an entry in
+// `tags.json`.
 
-import { gatherLines, type CollectedLine } from './actions'
 import { proseLines } from './prose'
 import type { Entries } from './configEntries'
 
@@ -25,7 +24,8 @@ import type { Entries } from './configEntries'
  * `/` is a tag character, so `#todo/urgent` is one tag and nests the way Obsidian's
  * do. `-` and `_` are the two word separators a tag is written with.
  */
-export const TAG = /(^|\s)#([\w/-]*[A-Za-z][\w/-]*)/g
+export const TAG_NAME = String.raw`[\w/-]*[A-Za-z][\w/-]*`
+export const TAG = new RegExp(String.raw`(^|\s)#(${TAG_NAME})`, 'g')
 
 /**
  * Every tag the lines of a note carry, in the order written.
@@ -36,7 +36,7 @@ export const TAG = /(^|\s)#([\w/-]*[A-Za-z][\w/-]*)/g
  * matched only if it carries a letter, which `#ef476f` does — so the mask is doing
  * real work there.)
  *
- * The names only, the arrangement `actionKeywords` and `propertyKeys` have, so the
+ * The names only, the arrangement `propertyKeys` has, so the
  * list in the pane and the lines a tag's page shows cannot disagree about what
  * counts.
  *
@@ -58,8 +58,55 @@ export function tagNames(raw: string): string[] {
   )
 }
 
-/** The lines carrying `#tag`, each with the run nested under it — `collectLines`'
- *  own rule, through the `gatherLines` both of them read. */
+/** A gathered line: an entry, and what is written under it. */
+export interface CollectedLine {
+  /** The line itself, its own indent and trailing space off. */
+  text: string
+  /** The lines nested under it, in order, with **the entry's indent removed and
+   *  nothing else touched**, so a page can print the nesting as it was written. */
+  below: string[]
+  /** 0-based line number in the note: two identical lines in one note are two. */
+  at: number
+}
+
+/** A line's indent, or **-1 for a blank one**, which must not end the run below an
+ *  entry and so has to be told apart from a line at indent 0. */
+function indentOrBlank(line: string): number {
+  return line.trim() === '' ? -1 : line.length - line.trimStart().length
+}
+
+/**
+ * Every line `wanted` accepts, **with the run nested under it**: the one rule for
+ * an entry and what belongs to it. `wanted` is handed the line with its code
+ * masked, so a `#tag` inside a fence or a backtick span is not one; the text kept
+ * is the line itself.
+ *
+ * The run continues while the lines are deeper than the entry's own and ends at the
+ * first one back at its level — the rule the eye uses. A blank line does not break
+ * it, since a nested block can hold one, and trailing blanks are dropped.
+ */
+export function gatherLines(raw: string, wanted: (prose: string) => boolean): CollectedLine[] {
+  const lines = raw.split(/\r?\n/)
+  // Masked in one pass: the run below an entry is gathered looking forward, and
+  // cannot re-count fences as it goes.
+  const prose = proseLines(raw)
+  const found: CollectedLine[] = []
+  for (let at = 0; at < lines.length; at++) {
+    if (!wanted(prose[at])) continue
+    const indent = indentOrBlank(lines[at])
+    const below: string[] = []
+    for (let next = at + 1; next < lines.length; next++) {
+      const deeper = indentOrBlank(lines[next])
+      if (deeper !== -1 && deeper <= indent) break
+      below.push(lines[next].slice(indent).replace(/\s+$/, ''))
+    }
+    while (below.length > 0 && below[below.length - 1].trim() === '') below.pop()
+    found.push({ text: lines[at].trim(), below, at })
+  }
+  return found
+}
+
+/** The lines carrying `#tag`, each with the run nested under it. */
 export function collectTagLines(raw: string, tag: string): CollectedLine[] {
   const want = tag.toLowerCase()
   return gatherLines(raw, (prose) =>
@@ -70,8 +117,8 @@ export function collectTagLines(raw: string, tag: string): CollectedLine[] {
 /**
  * The tag at `offset` in a line, or null — so a press can open its page.
  *
- * `linkTargetAt` and `collectionAt`'s shape, read off the line's own text for the
- * same reason: the tag is not a node in any grammar the editor has.
+ * `linkTargetAt`'s shape, read off the line's own text for the same reason: the tag
+ * is not a node in any grammar the editor has.
  */
 export function tagAt(line: string, offset: number): string | null {
   for (const hit of line.matchAll(TAG)) {

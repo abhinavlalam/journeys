@@ -14,7 +14,7 @@ import type { VaultFile } from './vaultModel'
 
 /** The two pages a row can open instead of a file. Code, not data: each is a
  *  view the app draws, so a vault cannot declare one. */
-export type ViewKind = 'collection' | 'property' | 'tag'
+export type ViewKind = 'property' | 'tag'
 
 export interface ActionKind {
   key: string
@@ -33,26 +33,21 @@ export interface ActionKind {
   /** The kind's items are **folders** holding this file — a skill is
    *  `<name>/SKILL.md` — and a row is named for its folder. */
   entry?: string
-  /** The `+` writes an entry in `collections.json` rather than a file. Only a
-   *  collection does. */
+  /** The `+` writes an entry in `tags.json` rather than a file. Only a tag does. */
   declares?: true
   /** The row opens a page of what the notes say, not a file. */
   views?: true
-  /** Whether the `+` makes one. Said outright: a collection has no folder and is
-   *  made, Config has a folder and is not — its files arrive with the app. */
+  /** Whether the `+` makes one. Said outright: a tag has no folder and is made,
+   *  Config has a folder and is not — its files arrive with the app. */
   creatable?: true
 }
 
 export const BUILT_IN_KINDS: readonly ActionKind[] = [
-  // `views`: the row opens a page of what the notes say, not a file. A collection
-  // and a property both do — the second was three empty `.md`s named after
-  // properties, which is the mistake the first had already corrected.
-  { key: 'collection', label: 'Collections', singular: 'Collection', dir: null, icon: 'archive', declares: true, views: true, creatable: true },
   { key: 'skill', label: 'Skills', singular: 'Skill', dir: '.claude/skills', entry: SKILL_FILE, icon: 'zap', creatable: true },
   // **No folder, and a `+` that declares.** A tag exists because a note carries
   // `#word`, or because its structure is in `tags.json` — a file named after one is
-  // an empty page named after a thing, the correction collections and properties
-  // have both already had. Its row opens the notes that say it, and its properties.
+  // an empty page named after a thing. `views`: its row opens the notes that say
+  // it, and its properties, not a file.
   { key: 'tag', label: 'Tags', singular: 'Tag', dir: null, icon: 'tag', declares: true, views: true, creatable: true },
   // No folder and no `+`: a property exists when a note carries it, and its page
   // is every value the notes give it, and its type — `properties.json` holds the
@@ -86,9 +81,8 @@ export const inDir = (kind: ActionKind, file: string) => (kind.dir ? `${kind.dir
  *
  * Here rather than in the pane because `App` owns the name field — the `+` that
  * starts it is in the header, beside the tree's own — and this is the half that
- * touches a disk. **A kind with no folder has no file to make**: a collection's
- * structure is an entry in `collections.json` and a property is whatever the notes
- * carry; a null `dir` would otherwise splice a stray `name.md` into the vault root.
+ * touches a disk. **A kind with no folder has no file to make**: a tag's structure
+ * is an entry in `tags.json` and a property is whatever the notes carry; a null `dir` would otherwise splice a stray `name.md` into the vault root.
  */
 export async function createAction(
   vaultPath: string,

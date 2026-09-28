@@ -7,7 +7,6 @@ import {
   folderIcon,
   readConfigFile,
   readVaultFile,
-  safeName,
   vaultFileRef,
   writeNoteProperty,
   writePathProperty,
@@ -33,9 +32,8 @@ import {
 } from './properties'
 import { useConfigEntries } from './useConfigEntries'
 import { readEntries } from './configEntries'
-import { propertiesOf, TAGS_FILE } from './tags'
+import { propertiesOf, TAG_NAME, TAGS_FILE } from './tags'
 import { GraphView } from './GraphView'
-import { CollectionView } from './CollectionView'
 import { PropertyView } from './PropertyView'
 import { TagView } from './TagView'
 import { CalendarView } from './CalendarView'
@@ -44,7 +42,6 @@ import { syncEvents } from './calendarSync'
 import { fetchFeed } from './calendarFeed'
 import { occurrences, parseIcs } from './ics'
 import { dayDate, daysAfter, localDateStamp } from './clock'
-import { useCollections } from './useCollections'
 import { Resizer } from './Resizer'
 import { useContextMenu } from './useContextMenu'
 import { useFolderOpenState } from './useFolderOpenState'
@@ -105,7 +102,7 @@ const SECTIONS = ['section:notes', 'section:actions', 'section:applications'] as
 /**
  * How long the typing-to-a-view refresh waits, in milliseconds.
  *
- * A keystroke while a collection's page is open beside the note has to reach that
+ * A keystroke while a tag's page is open beside the note has to reach that
  * page, and every keystroke re-rendering the whole shell is what a throttle is for:
  * four times a second is faster than anyone reads a table and cheap enough to be
  * invisible. It was `250` written into the timer with the reason in a comment
@@ -127,7 +124,7 @@ export default function App() {
   /**
    * **What stands in the reading pane**: groups of tabs, split into panes, one
    * group focused. It was one `pane` flag naming what replaced the editor — the
-   * graph, a collection, the settings file — and it is a tree now, whose every
+   * graph, a page, the settings file — and it is a tree now, whose every
    * operation is a pure function in `workspace.ts`. Nothing here decides what
    * "open" means; it asks.
    */
@@ -142,7 +139,6 @@ export default function App() {
     const shown = group.tabs[group.active]
     return (
       shown?.kind === 'graph' ||
-      shown?.kind === 'collection' ||
       shown?.kind === 'property' ||
       shown?.kind === 'tag' ||
       shown?.kind === 'calendar'
@@ -161,9 +157,8 @@ export default function App() {
     }, LIVE_REFRESH_MS)
   }
   const open = (tab: TabRequest) => setWs((current) => openTab(current, tab))
-  /** Opens a collection's, a property's or a tag's page: the same act from a row in
-   *  the pane, a keyword or a `#tag` pressed in a note, or the `+` that has just
-   *  declared one. */
+  /** Opens a property's or a tag's page: the same act from a row in the pane, a
+   *  `#tag` pressed in a note, or the `+` that has just declared one. */
   const view = (kind: ViewKind, name: string) => open({ kind, name })
 
   /**
@@ -269,9 +264,7 @@ export default function App() {
     noteIndex,
     icons,
     properties,
-    collections: keywordsInUse,
     propertyValues,
-    collect,
     collectTag,
     tags,
     graph,
@@ -285,8 +278,8 @@ export default function App() {
     vaultPath: vault.vaultPath,
     openPath: focusedNote?.path ?? null,
     // A view derived from the corpus is open, so the open note's *typed* text is
-    // wanted rather than the disk's: a `--expense` line written seconds ago has to
-    // be in the collection it names.
+    // wanted rather than the disk's: an `#expense` line written seconds ago has to
+    // be on the page of the tag it names.
     viewOpen: viewVisible,
     liveVersion,
     liveText,
@@ -378,24 +371,12 @@ export default function App() {
   const [namingAction, setNamingAction] = useState<string | null>(null)
   const [actionName, setActionName] = useState('')
 
-  /**
-   * What each collection declares, and the one place that writes it — the pane's
-   * rows, the collection's own view and the editor's `--` popup all read it.
-   */
   /** Under the spelling the file already has for the property, if it has one. */
   const setPropertyType = (name: string, type: PropertyType) =>
     propertyTypes.write(
       Object.keys(propertyTypes.entries).find((one) => one.toLowerCase() === name.toLowerCase()) ?? name,
       { type }
     )
-
-  const collections = useCollections({
-    vaultPath: vault.vaultPath,
-    revision: actionsRevision,
-    inUse: keywordsInUse,
-    onWritten: actionWritten,
-    onError: setError,
-  })
 
   /** The Terminal row's menu: a second shell, under the next free session name. */
   const [terminalMenu, openTerminalMenu] = useContextMenu(() => [
@@ -432,12 +413,11 @@ export default function App() {
     const type = kinds.find((one) => one.key === kind)
     if (!type || !vault.vaultPath) return
 
-    // **A declaring kind's `+` writes an entry, not a file**, and lands on the page
-    // where the rest of it is read: a tag's structure goes into `tags.json`, and a
-    // collection's into `collections.json`, with no shape yet.
-    if (declares(type) && type.key === 'tag') {
+    // **A tag's `+` writes an entry, not a file**, and lands on the page where the
+    // rest of it is read: its structure goes into `tags.json`, with no properties yet.
+    if (declares(type)) {
       const tag = typed.trim().replace(/^#/, '').toLowerCase()
-      if (!/^[\w/-]*[a-z][\w/-]*$/.test(tag)) {
+      if (!new RegExp(`^${TAG_NAME}$`).test(tag)) {
         if (tag) setError(`#${tag} is not a tag: a tag is one word, with a letter in it.`)
         return
       }
@@ -445,14 +425,6 @@ export default function App() {
       view('tag', tag)
       return
     }
-    if (declares(type)) {
-      const name = safeName(typed)
-      if (!name) return
-      await collections.declare(name, '')
-      view('collection', name)
-      return
-    }
-
     const made = await createAction(vault.vaultPath, type, typed).catch((err: unknown) => {
       setError(String(err))
       return null
@@ -1024,20 +996,19 @@ export default function App() {
               onError={setError}
               onView={view}
               viewing={
-                active?.kind === 'collection' ||
                 active?.kind === 'property' ||
                 active?.kind === 'tag'
                   ? { kind: active.kind, name: active.name }
                   : null
               }
-              declared={{ collection: collections.declared, tag: Object.keys(tagStructures.entries) }}
+              declared={{ tag: Object.keys(tagStructures.entries) }}
               openGroups={folders.open}
               onToggleGroup={folders.toggle}
               onNew={startNamingAction}
               query={searching === 'actions' ? query : ''}
-              // What the notes *use*, per kind: a property in a block, a
-              // `--keyword` at the start of a line. Both read off the one vault read.
-              used={{ property: properties, collection: keywordsInUse, tag: tags }}
+              // What the notes *use*, per kind: a property, a `#tag`. Both read off
+              // the one vault read.
+              used={{ property: properties, tag: tags }}
               revision={actionsRevision}
               naming={namingAction}
               typed={actionName}
@@ -1165,10 +1136,6 @@ export default function App() {
                     settings={settings}
                     settingsOpen={settingsOpen}
                     notes={notes}
-                    // Every collection the vault has: the ones in use and the ones
-                    // that have declared a structure, since `--` is also how you
-                    // find out which exist. A declared one completes to its line.
-                    completable={collections.completable}
                     propertyTypes={propertyTypes.entries}
                     tagStructures={tagStructures.entries}
                     root={vault.root}
@@ -1177,10 +1144,6 @@ export default function App() {
                     treeProps={treeProps}
                     onOpen={(file) => void openNote(file)}
                     onOpenLink={(target, wiki) => void openLinkTarget(target, wiki)}
-                    // A `--keyword` in a note names a collection and nothing else
-                    // does, so pressing it is the shortest way to ask what else in
-                    // the vault says that. The same act the pane's row performs.
-                    onOpenCollection={(keyword) => view('collection', keyword)}
                     onOpenTag={(tag) => view('tag', tag)}
                     onRename={(file, name) => void renameNote(file, name)}
                     onLock={(file) => void locks.lockNotes([file.path])}
@@ -1221,22 +1184,6 @@ export default function App() {
                     onOpenProperty={(property) => view('property', property)}
                     onOpen={(file) => void openNote(file)}
                     onOpenLink={(target) => void openLinkTarget(target, true)}
-                  />
-                )
-              case 'collection':
-                return (
-                  <CollectionView
-                    keyword={tab.name}
-                    collected={collect(tab.name)}
-                    declaration={collections.declarationOf(tab.name)}
-                    icons={icons}
-                    loading={reading}
-                    onOpen={(file) => void openNote(file)}
-                    // A field declared inside `[[ ]]` holds a note's name: the same
-                    // funnel a link in the editor goes through, so a name with no
-                    // note yet is offered the same way.
-                    onOpenLink={(target) => void openLinkTarget(target, true)}
-                    onDeclare={(line) => void collections.declare(tab.name, line)}
                   />
                 )
               case 'calendar':

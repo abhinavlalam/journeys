@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CollectionTable } from './CollectionTable'
+import { LineTable } from './LineTable'
 import { PlusIcon } from './icons'
 import { blockProperties, PROPERTY_NAME, readBlock, type PropertyType } from './properties'
 import { ViewerHeader } from './ViewerHeader'
@@ -11,17 +11,15 @@ import type { VaultFile } from './vaultModel'
  * A tag's page: the properties its lines carry, and every line in the vault carrying
  * `#name`, under the note it is in.
  *
- * **A tag has no file, and its page is the question asked of the notes** — the
- * correction collections and properties have each already had. A
+ * **A tag has no file, and its page is the question asked of the notes**. A
  * `.config/actions/tags/travel.md` would be an empty page named after a thing; the
  * thing is the eleven lines that say `#travel`.
  *
  * **Its structure is a list of properties**, one per row: `+` adds one, `×` takes
  * one off, and a row opens the property's own page, where its type is set. With a
- * structure and lines, a **Table** reads each line's values in its columns — the
- * same table a collection draws, summing the `number` ones — above the Lines, which
- * keep the sentences. The two are sections to open and shut, not a mode to be in:
- * the collection page's bargain.
+ * structure and lines, a **Table** reads each line's values in its columns, summing
+ * the `number` ones, above the Lines, which keep the sentences. The two are
+ * sections to open and shut, not a mode to be in.
  */
 export function TagView({
   name,
@@ -135,8 +133,8 @@ export function TagView({
       </Section>
       {table && (
         <Section title="Table" count={total} startOpen>
-          <li className="collection-table-box">
-            <CollectionTable
+          <li className="line-table-box">
+            <LineTable
               columns={properties}
               valuesOf={valuesOf}
               summable={(column) => typeOf(column) === 'number'}

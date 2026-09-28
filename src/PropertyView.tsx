@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { Cell } from './CollectionTable'
+import { Cell } from './LineTable'
 import { useColumnWidths } from './columnWidths'
 import { ViewerHeader } from './ViewerHeader'
 import { countOf, NoteRow, READING, stepIn, RowIcon, Section } from './rows'
@@ -11,16 +11,15 @@ import { PROPERTY_TYPES, type PropertyType } from './properties'
  * of value it is — the type is set here, for the whole vault, except on the app's
  * own properties, whose meaning is the app's.
  *
- * **A collection's page one scale up**, and the same correction. Clicking `icon`
- * used to open — or write — `.config/actions/properties/icon.md`, and three of
+ * **A page, not a file.** Clicking `icon` used to open — or write — `.config/actions/properties/icon.md`, and three of
  * those sat in a vault at zero bytes: an empty page named after a thing is not the
  * thing. The thing is thirty-three notes saying `icon: calendar`, `icon: person`,
  * `icon: work`, which is a question asked of the notes and answered here.
  *
  * Presentational and given no filesystem — the values arrive off the one vault
- * read, so this mounts under a test with no disk at all. The table is the
- * collection table's own classes, because it is the same object: rows read out of
- * notes, the note leading, the note opening on a click, a `[[link]]` value a link.
+ * read, so this mounts under a test with no disk at all. The table is `LineTable`'s
+ * own classes, because it is the same object: rows read out of notes, the note
+ * leading, the note opening on a click, a `[[link]]` value a link.
  */
 export function PropertyView({
   name,
@@ -81,8 +80,8 @@ export function PropertyView({
             />
           </li>
         ) : (
-          <li className="collection-table-box">
-            <table className="collection-table" ref={table} data-sized={widths ? '' : undefined}>
+          <li className="line-table-box">
+            <table className="line-table" ref={table} data-sized={widths ? '' : undefined}>
               <thead>
                 <tr>
                   <th data-col="note" style={{ width: widths?.note }}>
@@ -99,7 +98,7 @@ export function PropertyView({
                 {values.map(({ note, value }, at) => (
                   <tr key={`${note.path}:${at}`}>
                     <td>
-                      <button className="collection-source" onClick={() => onOpen(note)}>
+                      <button className="line-source" onClick={() => onOpen(note)}>
                         <RowIcon icon={icons[note.path]} />
                         {note.name}
                       </button>

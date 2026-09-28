@@ -26,11 +26,10 @@ interface ActionsPaneProps {
   /** The open file, so its row reads as selected. */
   selectedPath: string | null
   onSelect: (file: VaultFile) => void
-  /** Shows what a collection collects. A collection has no file to open — its row
-   *  is a `--keyword` the notes carry, so the click asks the vault rather than the
-   *  disk. */
+  /** Shows a tag's or a property's page. Neither has a file to open — its row is a
+   *  name the notes carry, so the click asks the vault rather than the disk. */
   onView: (kind: ViewKind, name: string) => void
-  /** The page that is open — a collection's or a property's — so its row is marked. */
+  /** The page that is open — a tag's or a property's — so its row is marked. */
   viewing: { kind: ViewKind; name: string } | null
   /**
    * The groups the user has **opened** — `useFolderOpenState`'s own `open` set and
@@ -59,22 +58,20 @@ interface ActionsPaneProps {
   /**
    * What the **declaring** kind has declared, by name and keyed by kind — rows of
    * their own before any note carries one, because declaring is how you set one up.
-   * One kind declares: a collection declares a line's structure. Keyed by kind
-   * rather than a bare list so a second one could, without the prop changing shape.
+   * One kind declares: a tag declares its structure. Keyed by kind rather than a
+   * bare list so a second one could, without the prop changing shape.
    */
   declared: Partial<Record<string, readonly string[]>>
   /**
    * The names the vault's notes **use**, per kind, and how many notes use each.
    *
    * A group with an entry here is the **union** of the files that define one of its
-   * kind and the names in play: a property typed into a note's block turns up
-   * under Properties, and a `--keyword` written on a line turns up under
-   * Collections. What clicking one does is the kind's business — a property with no
-   * file yet gets one, which is the `+`'s act minus the typing; a collection has no
-   * file to get, so it opens the lines it collects.
+   * kind and the names in play: a property a note carries turns up under
+   * Properties, and a `#tag` written on a line under Tags. Clicking one opens its
+   * page, which is the notes asked back.
    *
    * Keyed by kind rather than one list per kind, because it is one mechanism: the
-   * *reading* differs (a block's keys, a line's opener) and that belongs to the
+   * *reading* differs (a property's name, a tag) and that belongs to the
    * module that owns the syntax, not here.
    */
   used: Partial<Record<string, readonly { name: string; notes: number }[]>>
@@ -195,8 +192,8 @@ export function ActionsPane({
     }))
     const inPlay = [
       ...(used[kind.key] ?? []),
-      // A declared collection is a collection: it has a row from the moment its
-      // structure is written, with no note carrying it yet.
+      // A declared tag is a tag: it has a row from the moment its structure is
+      // written, with no note carrying it yet.
       ...(declares(kind) ? (declared[kind.key] ?? []).map((name) => ({ name, notes: 0 })) : []),
     ]
     if (inPlay.length === 0) return rows

@@ -155,12 +155,12 @@ describe('a second vault', () => {
 
 /**
  * **A config file that is there and cannot be read is not absent.** Read as absent,
- * `settings.json` was written over with the settings in force, and
- * `collections.json` — which the calendar asks for `--event` before it syncs — with
- * that one declaration and none of the vault's others.
+ * `settings.json` was written over with the settings in force, and the structures
+ * file — which the calendar asks for `#event` before it syncs — with that one
+ * declaration and none of the vault's others.
  */
 describe('a config file that cannot be read', () => {
-  const COLLECTIONS = `/v/${CONFIG_DIR}/actions/collections.json`
+  const TAGS = `/v/${CONFIG_DIR}/tags.json`
 
   it('is said, and settings.json is not written over', async () => {
     const mine = JSON.stringify({ ...DEFAULT_SETTINGS, proseSize: 21 })
@@ -171,17 +171,20 @@ describe('a config file that cannot be read', () => {
     expect(disk.read(CONFIG)).toBe(mine)
   })
 
-  it('is said, and collections.json keeps every declaration', async () => {
-    const declared = JSON.stringify({ expense: { structure: '--expense amount::<<>>', fields: ['amount'] } })
-    disk.write(COLLECTIONS, declared)
-    disk.corrupt(COLLECTIONS)
+  it('is said, and tags.json keeps every structure', async () => {
+    const declared = JSON.stringify({ expense: { properties: ['amount'] } })
+    disk.write(TAGS, declared)
+    disk.corrupt(TAGS)
     disk.write(
       CONFIG,
       JSON.stringify({ ...DEFAULT_SETTINGS, calendarFeeds: [{ name: 'Work', url: 'https://calendar.example/ical/abc/basic.ics' }] })
     )
     await openApp()
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('could not be read'))
-    expect(disk.read(COLLECTIONS)).toBe(declared)
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('tags.json'))
+    expect(disk.read(TAGS)).toBe(declared)
+    // Nor is the calendar synced under a structure it could not read.
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(fetched).not.toHaveBeenCalled()
   })
 })
 

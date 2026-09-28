@@ -69,8 +69,8 @@ describe('tagNames', () => {
 })
 
 describe('collectTagLines', () => {
-  /** `collectLines`' own rule, through the `gatherLines` both of them read: the run
-   *  nested under an entry comes with it, and a blank line does not break it. */
+  /** `gatherLines`' rule: the run nested under an entry comes with it, and a blank
+   *  line does not break it. */
   it('gathers the line and the run nested under it', () => {
     const note = ['# Monday', '', '- #travel to Harbour City', '  - terminal 1', '', '  - gate 14', '- #food later', ''].join('\n')
     const found = collectTagLines(note, 'travel')
@@ -89,6 +89,34 @@ describe('collectTagLines', () => {
 
   it('gathers nothing for a tag no line carries', () => {
     expect(collectTagLines('# Monday\n\nnothing here\n', 'travel')).toEqual([])
+  })
+
+  it('stops the run at the entry’s own level, and keeps the nesting relative to it', () => {
+    const note = ['09:42 #expense lunch', '  - taxi 240', '    - tipped', '10:00 standup'].join('\n')
+    expect(collectTagLines(note, 'expense')[0].below).toEqual(['  - taxi 240', '    - tipped'])
+    // The entry's own indent comes off and nothing else does.
+    const nested = ['  - 09:42 #expense at the airport', '    - taxi 240', '      - tipped'].join('\n')
+    expect(collectTagLines(nested, 'expense')[0].below).toEqual(['  - taxi 240', '    - tipped'])
+  })
+
+  it('drops the blank lines on the end of a run, and an entry may have none', () => {
+    const note = ['#watching a series', '  - s01', '', '', 'Something else', '#watching and this'].join('\n')
+    expect(collectTagLines(note, 'watching')).toEqual([
+      { text: '#watching a series', below: ['  - s01'], at: 0 },
+      { text: '#watching and this', below: [], at: 5 },
+    ])
+  })
+
+  /** A fence *under* an entry is its content; an entry inside one is not an entry. */
+  it('finds no entry inside code, and keeps a fence that is under one', () => {
+    expect(collectTagLines(['```sh', 'echo #build', '```'].join('\n'), 'build')).toEqual([])
+    expect(collectTagLines('Ran `#build` by hand', 'build')).toEqual([])
+    const under = ['#note how it runs', '  ```sh', '  npm ci', '  ```', 'done'].join('\n')
+    expect(collectTagLines(under, 'note')[0].below).toEqual(['  ```sh', '  npm ci', '  ```'])
+  })
+
+  it('makes one entry of a line that says its tag twice', () => {
+    expect(collectTagLines('09:00 #expense twice #expense again', 'expense')).toHaveLength(1)
   })
 })
 

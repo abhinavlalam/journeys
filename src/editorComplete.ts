@@ -1,4 +1,4 @@
-// What `[[`, `/`, `--` and a tag's line open, and how the popup they share looks.
+// What `[[`, `/` and a tag's line open, and how the popup they share looks.
 //
 // CodeMirror's own autocomplete draws both: it places the tooltip, moves the
 // selection on the arrows, takes Enter and dismisses on Escape. So there is no
@@ -6,9 +6,7 @@
 // offer, and `completionAppearance` says what it looks like.
 
 import { EditorView } from '@codemirror/view'
-import { snippetCompletion } from '@codemirror/autocomplete'
 import type { Completion, CompletionContext, CompletionResult } from '@codemirror/autocomplete'
-import { declarationSnippet, DECLARED_KEYWORD, KEYWORD_PREFIX } from './actions'
 import { localDateStamp, localTimeStamp } from './clock'
 import { matchNotes } from './links'
 import { knownPath, noteName } from './vaultModel'
@@ -72,8 +70,8 @@ function inlineOptions(dailyFolder: string): Completion[] {
  * The `/` menu, on the same completion machinery as the `[[` picker — so CodeMirror
  * draws both, and there is one popup in this app rather than two.
  *
- * **It opens wherever a `/` opens a word**, which is the rule `--` already uses: at
- * the start of a line, or after a space. That guard is what keeps `http://` and
+ * **It opens wherever a `/` opens a word**, the rule a tag's `#` has: at the start
+ * of a line, or after a space. That guard is what keeps `http://` and
  * `Areas/Northwind` from opening a menu — the old rule was "first thing on the
  * line", which kept them out by keeping the menu out of a sentence altogether.
  *
@@ -165,54 +163,6 @@ export function wikiLinkSource(getNotes: () => VaultFile[]) {
       filter: false,
       options,
     }
-  }
-}
-
-/** A collection the popup can offer: its name, and the line it declares if it has
- *  declared one. */
-export interface CollectionOption {
-  name: string
-  declaration: string | null
-}
-
-/**
- * The `--` collection picker.
- *
- * **A declared collection completes the whole line.** Its file holds one line
- * saying how its lines are written — `--expense <<amount>> on [[<<merchant>>]] using
- * <<method>>` — and this inserts it as a snippet, so the caret lands in `amount` and
- * Tab moves to `merchant`. That is the point of declaring one: the structure is
- * filled in rather than remembered.
- *
- * A collection with no declaration still completes its own name, because the popup
- * is also how you find out which collections a vault has.
- *
- * `(^|\s)` in front, as `OPENER` has it: the dashes have to open a word, or every
- * `stroke--width` in prose would open a menu. `matchBefore` cannot look behind its
- * own match, so the character before is checked here.
- */
-export function collectionSource(getCollections: () => CollectionOption[]) {
-  return (context: CompletionContext): CompletionResult | null => {
-    // The same rule `OPENER` opens with, em dash included — see `KEYWORD_PREFIX`.
-    const before = context.matchBefore(KEYWORD_PREFIX)
-    if (!before) return null
-    const ahead = before.from === 0 ? '' : context.state.sliceDoc(before.from - 1, before.from)
-    if (ahead !== '' && !/\s/.test(ahead)) return null
-
-    const options: Completion[] = getCollections().map((one) =>
-      one.declaration
-        ? snippetCompletion(declarationSnippet(one.declaration), {
-            label: `--${one.name}`,
-            // The structure itself, so the popup shows what will be written.
-            // Trimmed here rather than in the rule: the popup wants it tidy and
-            // `templateFields` needs the whitespace exactly as written.
-            detail: one.declaration.replace(DECLARED_KEYWORD, '').trimStart(),
-          })
-        : { label: `--${one.name}`, apply: `--${one.name} ` }
-    )
-    // CodeMirror filters these against what has been typed — the labels carry the
-    // `--`, and `from` is at it, so `--exp` narrows to `--expense` on its own.
-    return options.length ? { from: before.from, options } : null
   }
 }
 

@@ -12,9 +12,8 @@ import { BUILT_IN_KINDS, creatable } from '../actionKinds'
  * up on disk, which is the part a later change to how they are *processed* has to
  * keep working.
  *
- * **Collections are the exception and have their own file**: a collection is not a
- * file at all, so nothing here writes one. `collections.test.tsx` covers what its
- * rows do instead.
+ * **Tags and properties are the exception**: neither is a file, so nothing here
+ * writes one. `tagPage.test.tsx` covers what a tag's row opens.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -38,7 +37,7 @@ async function openApp() {
 
 /** The Actions section is always on screen, open to begin with. */
 const openActions = async () => {
-  await waitFor(() => expect(screen.getByText('Collections')).toBeTruthy())
+  await waitFor(() => expect(screen.getByText('Tags')).toBeTruthy())
 }
 
 /**
@@ -155,7 +154,7 @@ describe('the Config group', () => {
     // into every new note is a data-collection mechanism in a journal, so it went.
     // A Tag is here, because a tag's structure is written — into `tags.json`.
     // Config is the one kind with files the `+` refuses: those arrive with the app.
-    expect(offered).toEqual(['Collection', 'Skill', 'Tag'])
+    expect(offered).toEqual(['Skill', 'Tag'])
   })
 
   /** Each kind's own `+`, on its own group row: the rail's asks which kind, and
@@ -184,7 +183,7 @@ describe('the pane', () => {
     fireEvent.click(screen.getByLabelText('Collapse Notes'))
     // The tree's rows are gone — its icon buttons are the part only it has.
     await waitFor(() => expect(screen.queryByLabelText('Icon for roadmap')).toBeNull())
-    expect(pane().getByText('Collections')).toBeTruthy()
+    expect(pane().getByText('Tags')).toBeTruthy()
     expect(screen.getByTestId('editor')).toBeTruthy()
 
     fireEvent.click(screen.getByLabelText('Expand Notes'))
@@ -429,7 +428,7 @@ describe('the controls, in this section', () => {
     seeded()
     await openApp()
     await openActions()
-    await waitFor(() => expect(pane().getByText('Collections')).toBeTruthy())
+    await waitFor(() => expect(pane().getByText('Tags')).toBeTruthy())
     expect(pane().queryByText('reading')).toBeNull()
     expect(pane().queryByText('summarise')).toBeNull()
 
@@ -439,53 +438,12 @@ describe('the controls, in this section', () => {
   })
 })
 
-/**
- * **A collection is what the notes carry, and nothing else.**
- *
- * Properties are a union — the names in use *and* the files defining them — and
- * Collections was built the same way, which put an empty
- * `.config/actions/collections/expense.md` on disk the moment a row was clicked. A
- * collection has no file: its rows are the `--keyword`s the lines carry, and what
- * clicking one does is `collections.test.tsx`.
- */
-describe('the Collections group', () => {
-  it('lists a keyword the notes use, and counts the notes', async () => {
-    disk.write('/v/roadmap.md', '# Roadmap\n\n- --reading The Nutmeg\n')
-    disk.write('/v/standup.md', '# Standup\n\n--reading again\n--errands milk\n')
-    await openApp()
-    await openActionsExpanded()
-
-    await waitFor(() => expect(pane().getByText('reading')).toBeTruthy())
-    expect(rowLabels().some((text) => text === 'reading2')).toBe(true)
-    expect(rowLabels().some((text) => text === 'errands1')).toBe(true)
-  })
-
-  /**
-   * **A declared collection has a row before any note carries it**, because
-   * declaring the structure is how one is set up: write `--expense <amount>` on the
-   * page, then start writing the lines.
-   */
-  it('lists a collection that has only declared a structure', async () => {
-    disk.write(
-      '/v/.config/actions/collections.json',
-      JSON.stringify({ expense: { structure: '--expense amount::<<>>', fields: ['amount'] } })
-    )
-    await openApp()
-    await openActionsExpanded()
-
-    await waitFor(() => expect(pane().getByText('expense')).toBeTruthy())
-    // No count: no note carries it yet, and the row is still a row.
-    expect(rowLabels().some((text) => text === 'expense')).toBe(true)
-  })
-
-  /** One row for a collection that is both declared and in use — the union
-   *  Properties has, over a declaration rather than an empty page. */
-  it('shows one row when a collection is declared and in use', async () => {
-    disk.write(
-      '/v/.config/actions/collections.json',
-      JSON.stringify({ expense: { structure: '--expense amount::<<>>', fields: ['amount'] } })
-    )
-    disk.write('/v/roadmap.md', '# Roadmap\n\n09:42 --expense on [[Harbour Bistro]]\n')
+/** One row for a tag that is both declared and in use: the union Properties has,
+ *  over a declaration rather than an empty page. */
+describe('the Tags group', () => {
+  it('shows one row when a tag is declared and in use', async () => {
+    disk.write('/v/.config/tags.json', JSON.stringify({ expense: { properties: ['amount'] } }))
+    disk.write('/v/roadmap.md', '# Roadmap\n\n09:42 #expense on [[Harbour Bistro]]\n')
     await openApp()
     await openActionsExpanded()
 
@@ -528,7 +486,7 @@ describe('the Properties group', () => {
 
   /**
    * **The row opens the property's page**: every note carrying it, with the value
-   * each one gives — the note leading, as a collection's table leads with it. It
+   * each one gives — the note leading, as a tag's table leads with it. It
    * used to write an empty file named after the property and open that.
    */
   it('opens the property’s page, a note and its value per row', async () => {
@@ -542,15 +500,15 @@ describe('the Properties group', () => {
     await waitFor(() =>
       expect(document.querySelector('.viewer-title')!.textContent).toBe('owner::')
     )
-    const rows = [...document.querySelectorAll('.collection-table tbody tr')].map((tr) =>
+    const rows = [...document.querySelectorAll('.line-table tbody tr')].map((tr) =>
       [...tr.querySelectorAll('td')].map((td) => td.textContent?.trim())
     )
     expect(rows).toEqual([
       ['inbox', 'Mira Vance'],
       ['roadmap', 'me'],
     ])
-    // A `[[link]]` value is a link, as it is in a collection's table.
-    expect(document.querySelector('.collection-table .collection-link')!.textContent).toBe('Mira Vance')
+    // A `[[link]]` value is a link, as it is in a tag's table.
+    expect(document.querySelector('.line-table .line-link')!.textContent).toBe('Mira Vance')
     // And nothing was written: the page is a question asked of the notes.
     expect(disk.has('/v/.config/actions/properties/owner.md')).toBe(false)
     // The row is marked as the open one.
@@ -572,7 +530,7 @@ describe('the Properties group', () => {
 
     fireEvent.click(pane().getByText('amount'))
     await waitFor(() => expect(document.querySelector('.viewer-title')!.textContent).toBe('amount::'))
-    const rows = [...document.querySelectorAll('.collection-table tbody tr')].map((tr) =>
+    const rows = [...document.querySelectorAll('.line-table tbody tr')].map((tr) =>
       [...tr.querySelectorAll('td')].map((td) => td.textContent?.trim())
     )
     expect(rows).toEqual([

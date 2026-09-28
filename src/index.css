@@ -90,7 +90,7 @@
      from its edge, and two columns need rather more than that between them or the
      values run together. */
   --column-gap: 1.1rem;
-  /* The widest a table cell may grow before it is clipped — see `.collection-table
+  /* The widest a table cell may grow before it is clipped — see `.line-table
      td`. A phrase, in the unit a measure is stated in. */
   --cell-max: 16ch;
   /* How tall the `[[` picker may grow: about twelve rows, after which it scrolls.
@@ -163,7 +163,7 @@
 
      It is a token because something has to *clear* it: the band is positioned, so
      it paints over the in-flow content under it. The editor never noticed — its
-     first line sits lower — but a collection's page starts with a section, and the
+     first line sits lower — but a tag's page starts with a section, and the
      top half of its heading was painted out. Reported as the heading disappearing
      into the title. */
   --header-fade: 1.7rem;
@@ -1989,7 +1989,7 @@ button.folder-toggle {
    its own size or smaller: blowing a 200px thumbnail up to the pane's width is the
    app inventing detail it does not have. The shell's radius and a hairline, because
    an image is an object on the page — the one other thing that takes them is the
-   collection table. */
+   line table. */
 .file-image {
   max-width: 100%;
   max-height: 100%;
@@ -2344,7 +2344,7 @@ button.folder-toggle {
   white-space: nowrap;
 }
 
-/* The month page, in the app's own materials: the lifted ground the collection
+/* The month page, in the app's own materials: the lifted ground the line
    table takes, hairlines between the days (the grid's gap over `--border`), the
    months either side on the page's own ground, today's number in the mark. A day
    grows with what it holds. It is the first thing under the header, so it clears
@@ -2661,7 +2661,7 @@ button.folder-toggle {
   cursor: default;
 }
 
-/* ---- A collection as a table ---- */
+/* ---- A tag's lines as a table ---- */
 
 /* **The app's one table**, and it takes its measurements from the same tokens as
    every row: the note's size and leading, `--row-h` for a row's height, the pane's
@@ -2672,7 +2672,7 @@ button.folder-toggle {
    notes, so the columns do the work. One hairline under the heading row, because a
    heading that does not separate itself reads as the first row of data. The
    *ground* is the box's, below. */
-.collection-table {
+.line-table {
   /* **Columns hug their content.** At `width: 100%` the browser hands the spare
      width to the columns in proportion, so `when` came out 174px wide for five
      characters and the eye had to travel between them — measured. A table of
@@ -2685,7 +2685,7 @@ button.folder-toggle {
   text-align: left;
 }
 
-.collection-table th {
+.line-table th {
   padding: 0 var(--column-gap) 0.15rem 0;
   border-bottom: 1px solid var(--border);
   color: var(--mark);
@@ -2699,7 +2699,7 @@ button.folder-toggle {
    `--mark` — it is the table's own reading of its rows, not one of them, and the
    header is the other thing on the page that is about the columns rather than in
    them. `tfoot` sits after `tbody` in the markup, so the hairline is its top edge. */
-.collection-table .collection-sum td {
+.line-table .line-sum td {
   border-top: 1px solid var(--border);
   color: var(--mark);
   font-weight: var(--fw-strong);
@@ -2711,15 +2711,15 @@ button.folder-toggle {
    its content, so a drag would not hold; under `fixed` from the start, the natural
    widths — the right thing to open at, since a column's content is whatever the
    notes happen to say — are lost. So: auto until asked, fixed after. */
-.collection-table[data-sized] {
+.line-table[data-sized] {
   table-layout: fixed;
   width: auto;
 }
 
 /* A narrowed column clips rather than overflowing into its neighbour. The row still
    carries the whole line as its `title`, so nothing is hidden with no way back. */
-.collection-table[data-sized] th,
-.collection-table[data-sized] td {
+.line-table[data-sized] th,
+.line-table[data-sized] td {
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -2741,7 +2741,7 @@ button.folder-toggle {
   transition: opacity var(--motion);
 }
 
-.collection-table th:hover > .column-grip,
+.line-table th:hover > .column-grip,
 .column-grip:hover {
   opacity: 1;
 }
@@ -2754,7 +2754,7 @@ button.folder-toggle {
    column instead of the row — `Lakeside Deli` became three lines tall and, with cells
    on the baseline, dragged `09:42` down to the last of them. A row of values is
    read across, so the row stays one line and the *table* scrolls if it must. */
-.collection-table td {
+.line-table td {
   height: var(--row-h);
   padding: 0 var(--column-gap) 0 0;
   vertical-align: baseline;
@@ -2786,9 +2786,9 @@ button.folder-toggle {
 
    The inset is the same on every side and it is a row step — the table sits where
    a row would, one step in under the heading, and the card's left edge is the
-   column's. `.collection-table` had the gap below; it is the card's now, since a
+   column's. `.line-table` had the gap below; it is the card's now, since a
    gap inside a card is padding. */
-.collection-table-box {
+.line-table-box {
   overflow-x: auto;
   padding: 0.5rem 1rem;
   margin-bottom: var(--row-gap);
@@ -2803,7 +2803,7 @@ button.folder-toggle {
    nothing else says it is a time; a clock in a column called `when` has a header
    doing that, and colouring it again made three of the seven columns accent — the
    labels shouting over the values, which is backwards for a table. */
-.collection-table .collection-when {
+.line-table .line-when {
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -2812,8 +2812,8 @@ button.folder-toggle {
 /* A cell that opens something is a control, so it says so by colour rather than by
    a box — the treatment the open row and a section's heading already take. `em`
    nowhere in here, so no font-size to declare. */
-.collection-link,
-.collection-source {
+.line-link,
+.line-source {
   -webkit-app-region: no-drag;
   padding: 0;
   border: none;
@@ -2828,88 +2828,29 @@ button.folder-toggle {
   transition: color var(--motion);
 }
 
-.collection-link:hover,
-.collection-source:hover {
+.line-link:hover,
+.line-source:hover {
   color: var(--accent-soft);
   text-decoration: underline;
 }
 
 /* The note a row came from is context rather than content: one tier down, like the
    count beside a heading. */
-.collection-source {
+.line-source {
   color: var(--text-dim);
 }
 
-/* ---- A collection's declared structure ---- */
-
 /* **No guide down a thing that is not a list of rows.** The trunk and its elbow say
-   which row is under which, and they are drawn at the centre of a chevron's box —
-   which a row leaves empty and these two do not, so the elbow ran through the first
-   letters of the structure and through the table's `when` header. A single block
-   has no sibling for a trunk to point at either. */
-.folder-children > li.collection-structure::before,
-.folder-children > li.collection-structure::after,
-.folder-children > li.collection-table-box::before,
-.folder-children > li.collection-table-box::after {
+   which row is under which, drawn at the centre of a chevron's box — which a row
+   leaves empty and a table does not, so the elbow ran through its `when` header. */
+.folder-children > li.line-table-box::before,
+.folder-children > li.line-table-box::after {
   content: none;
-}
-
-/* **The structure is a line, not a name.** It was a row's `row-name`, which is one
-   clipped line — so the single string this page exists to show ended in an ellipsis
-   at `using account::<<…`. A line wraps, hangs its continuation under its own first
-   word, and is a control because pressing it opens the field that edits it. */
-/* `.file-list li > button` — the rule every row in every pane is — clips its one
-   line with an ellipsis, and this button sits in exactly that slot. So the selector
-   has to reach as far, or the structure ends at `using account::<<…` again. */
-.file-list li > button.collection-line {
-  -webkit-app-region: no-drag;
-  display: block;
-  width: 100%;
-  overflow: visible;
-  white-space: normal;
-  text-overflow: clip;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font-family: inherit;
-  font-weight: inherit;
-  font-size: inherit;
-  line-height: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-/* A wrapped line hangs under its own text rather than under the margin, the way a
-   list item's second row does — one indent step, the app's own unit for it. */
-.collection-line .collection-line-text {
-  display: inline-block;
-  white-space: normal;
-  padding-left: var(--indent-step);
-  text-indent: calc(-1 * var(--indent-step));
-}
-
-.collection-line:hover .collection-line-text {
-  text-decoration: underline;
-}
-
-/* The brackets of a slot, and the prose between the fields, on a declared
-   structure. **A structure is about its fields**, so they take the app's label
-   format and everything around them steps back — it read the other way round for a
-   build, `spent` and `at` and `using` the brightest thing on the line and
-   `currency::` the faintest, which is the schema hiding behind its scaffolding. */
-.collection-syntax {
-  color: var(--text-faint);
-}
-
-/* Nothing declared yet: the same tier the empty Lines row takes. */
-.collection-empty {
-  color: var(--text-faint);
 }
 
 /* ---- Lines under a row ---- */
 
-/* What a note mentions, and what a collection gathers: the same object twice, so
+/* What a note mentions, and what a tag gathers: the same object twice, so
    one rule dresses both.
 
    **The indent is the row's own name column** — a chevron's box, an icon's box and
@@ -2957,18 +2898,10 @@ button.folder-toggle {
 /* A collected entry is the whole of what was written: the line, and the lines
    nested under it, indented as they are in the file. So the whitespace is content
    — `pre-wrap` — and wrapping is on, because this *is* the thing being read and
-   clipping it would hide the half of the line the keyword was about. */
+   clipping it would hide the half of the line the tag was about. */
 .collected-lines li {
   white-space: pre-wrap;
   margin-bottom: var(--row-gap);
-}
-
-/* **The entry reads above its own detail.** The `li` is one block — the line and
-   whatever is nested under it — and a backlink's tier is right for the nesting,
-   which is context. The entry itself is what the page gathered, so it takes the
-   note's own colour and the run under it stays where it was. */
-.collected-lines .collection-line-text {
-  color: var(--text);
 }
 
 /* ---- The settings panel ---- */
@@ -4447,9 +4380,6 @@ button.folder-toggle {
    as a ground. A link carries the same colour, which is the trade — they stay apart
    because a link is underlined and a label never is. */
 .markdown-editor .cm-md-property,
-/* A field's label on a declared structure, which is the same kind of word as a
-   property's name. */
-.collection-label,
 .json-editor .cm-json-key,
 .settings-group {
   color: var(--mark);
@@ -4463,27 +4393,24 @@ button.folder-toggle {
 }
 
 /* **A mark inside a sentence changes one thing about the text, and never its
-   size.** The clock and the `--keyword` sit in the middle of a journal line, and
-   for a build they differed from the prose around them in three ways at once — the
-   clock a step *smaller* and dim, the keyword bold and accent — so one line carried
+   size.** The clock and a `#tag` sit in the middle of a journal line, and for a
+   build they differed from the prose around them in three ways at once — the
+   clock a step *smaller* and dim, the mark bold and accent — so one line carried
    three formats, and the smaller run read as the line being squeezed: a 12px
    x-height in a row of 13px ones is what "vertically squished" is. Reported in
    those words. So both are the prose's own size and weight and take a colour, and
    nothing else: the clock steps back to `--text-dim`, because when is a dimmer fact
-   than what, and the keyword takes the mark, because it says what the line *is*.
+   than what, and the tag takes the mark, because it says what the line *is*.
    Bold is for a label that stands *outside* a sentence — a property's name, a JSON
-   key, a field's label on the structure page — where there is no prose beside it
-   to be heavier than. */
-/* **A `#tag` reads exactly as a `--keyword` does**, and for the same reasons: it is
-   a word the app itself reads, it names something, and it goes somewhere. So it
+   key — where there is no prose beside it to be heavier than. */
+/* **A `#tag` takes the mark and nothing else**: it is a word the app itself reads,
+   it names something, and it goes somewhere. So it
    takes the mark's colour and nothing else — the prose's own size and weight, since
    a run set smaller or bolder is a second format inside a sentence — and no
    underline, because the underline is what separates "goes somewhere" from "names
    something" and a tag is both. The `#` stays visible: unlike a link's brackets, it
    *is* the tag, and hiding it would leave a different word on the line. */
-.markdown-editor .cm-md-collection,
-.markdown-editor .cm-md-tag,
-.collection-keyword {
+.markdown-editor .cm-md-tag {
   color: var(--mark);
   cursor: pointer;
 }

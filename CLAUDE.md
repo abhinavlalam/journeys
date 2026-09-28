@@ -1,7 +1,7 @@
 # Journeys
 
 A desktop journal over a folder of `.md` files: the tree on the left, the note on
-the right, typing saves it. Around that: backlinks, a graph, search, collections,
+the right, typing saves it. Around that: backlinks, a graph, search, tags,
 a calendar, locked notes, git sync and a terminal. Tauri 2 (Rust + system webview)
 wrapping Vite + React + TypeScript; the editor is CodeMirror 6.
 
@@ -35,9 +35,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 | `NotePane.tsx`, `useNoteBuffer.ts`, `useBuffers.ts` | A note tab, its buffer, and the one door to every open buffer. |
 | `EditorHost.tsx` | The editor minus the language: box, gutters, folding, caret, `decorated()`. |
 | `MarkdownEditor.tsx`, `JsonEditor.tsx`, `CsvEditor.tsx`, `TextEditor.tsx` | One language each; `TextEditor` is none, for a `.conf`, `.yaml` or `.txt` (as markdown, every `# comment` was a heading). |
-| `editorCommands.ts`, `editorComplete.ts`, `editorFold.ts`, `editorPreview.ts` | Keys that write syntax, the `[[` and `/` popups, folding, decorations. |
+| `editorCommands.ts`, `editorComplete.ts`, `editorFold.ts`, `editorPreview.ts` | Keys that write syntax, the `[[`, `/` and property popups, folding, decorations. |
 | `FolderTree.tsx`, `rows.tsx`, `SidebarSection.tsx`, `useDrops.ts` | The left pane; `rows.tsx` is the one row shape everything lists with; `useDrops` is what is dropped onto the tree. |
-| `actions.ts`, `actionKinds.ts`, `useCollections.ts`, `tags.ts`, `properties.ts` | `--keyword` collections, their declarations, tags, properties. |
+| `tags.ts`, `properties.ts`, `actionKinds.ts`, `TagView.tsx`, `PropertyView.tsx`, `LineTable.tsx` | Tags and their structures, properties and their types, the Actions pane's kinds, and their pages. |
 | `prose.ts` | The one rule for what in a note is code (`maskCode`, `proseLines`), for everything that reads a note for meaning. |
 | `configEntries.ts`, `useConfigEntries.ts` | A `.config` file of entries keyed by name (`properties.json`): merged on write, never written over when unreadable. |
 | `calendar.ts`, `ics.ts`, `calendarSync.ts`, `useCalendarSync.ts`, `CalendarView.tsx` | The calendar. |
@@ -58,8 +58,8 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   nothing parses and regenerates a note. (v1's WYSIWYG escaped `[[links]]` and
   rewrote lists.)
 - **One read of the vault.** `useVaultTexts` reads every text note on vault change
-  and on window focus; the index, icons, graph, backlinks, search, collections,
-  tags and properties are memos over it. A new cross-note fact is a memo, never a
+  and on window focus; the index, icons, graph, backlinks, search, tags and
+  properties are memos over it. A new cross-note fact is a memo, never a
   second pass. `patch` changes a text without a read (an icon write changes no
   tree). The open note's editor text replaces its row through `liveText`;
   `liveVersion` re-takes it while a derived view is on screen beside the note.
@@ -138,7 +138,7 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   note's own row. Passphrases live in `crypto.ts` memory for the window; a vault
   change locks everything; a move carries the unlock.
 - **Its owner's alone, unlocked or not.** The vault read skips it (no search,
-  collections, tags, properties, backlinks or calendar), the graph drops it after
+  tags, properties, backlinks or calendar), the graph drops it after
   the walk, and `isNote` refuses it, so nothing writes into it. An icon picked for
   a `.enc.md` once wrote plain text over its ciphertext.
 - **Locked from the moment it is made, or never.** A plain note synced once stays
@@ -202,14 +202,14 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 - **`EditorHost` is the editor minus the language**, and every file type mounts
   it: typography is not per file type. `decorated(compute)` redraws when the
   syntax tree changes too, or a long note's end never renders.
-- **Presses are `mousedown`** for links, keywords, tags and checkboxes: the pressed
+- **Presses are `mousedown`** for links, tags and checkboxes: the pressed
   span is replaced before release, so no `click` ever fires. Position from
   `posAtDOM` on the pressed node.
 - **`markdown({ addKeymap: false })`** and **`autocompletion({ defaultKeymap:
   false })`**: each adds its keys above anything passed; the one array in
   `MarkdownEditor` is the whole precedence (its props reach the extensions through
   one `latest` ref). Enter over a property's name is a new line, since a line may
-  end at its tag. Tab: a popup's pick → snippet field → list item (markdown's content-column rule, at most three
+  end at its tag. Tab: a popup's pick → list item (markdown's content-column rule, at most three
   past it) → block (a line heading a deeper run) → one indent width. Enter keeps a
   line's own indent (`continueIndent`). **Test keys through the real keymap**; a
   command tested by direct call is a binding nobody tested. A popup refuses keys
@@ -235,12 +235,12 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   which checks the scheme in Rust.
 - **One mark per line.** A mark inside a sentence changes colour and nothing else
   — not size, weight, family or line. The clock is `--text-dim` and tabular; a
-  keyword and a link take `--mark`, underlined only under the pointer.
+  tag and a link take `--mark`, underlined only under the pointer.
 - Tasks are a scan of the line (Obsidian's states, any single character); the
   checkbox replaces the bullet and is always drawn. Done text is `--text-dim`, not
   struck (`~~` is its own syntax).
-- `/` opens where `--` does (line start or after a space) and offers blocks only
-  where a block can begin. `[`/`<` over a selection make a link/slot. Backspace
+- `/` opens where a tag's `#` does (line start or after a space) and offers blocks
+  only where a block can begin. `[` over a selection makes a link. Backspace
   inside a fresh `[[]]` takes all four characters.
 - JSON and CSV are coloured by scans, not grammars (`jsonPreview`, `csvPreview`).
   `.config/settings.json` is the one file with a Save; everything else autosaves.
@@ -248,31 +248,16 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   opens at its end (`caretAtEnd`), where the day's next line goes, scrolled into
   sight (`scrollTo`).
 
-## Collections, tags and properties
+## Tags and properties
 
-- **`--keyword` anywhere in a line** after start or whitespace; `proseLines` masks
-  code first, with `maskCode` — the one rule for what is code, which the links read
-  too (two rules disagreed about fences in lists and fences in fences). macOS turns `--` into `—`, so `DASHES` reads `--`, `—` and `–`, and
-  what the app writes is always `--`.
-- **A collection's declaration is its schema**: one line in
-  `.config/actions/collections.json` (`structure` is the authority; `fields` is
-  re-derived on every read, for agents reading the file). A file it cannot parse
-  is never overwritten.
-- **Slots**: `label::<<default>>`. `<<`/`>>` because a single `<x>` is a markdown
-  autolink; `>>` ends a value, so values may hold anything. `::` decides a label
-  (`:` is prose). Snippet fields are numbered, or same-named slots fill together.
-  Brackets and labels hide when the caret is elsewhere; values stay; the keyword
-  never hides.
-- **`collectionSyntax` is the one rule for which spans are the app's**, read by
-  the editor and by every page quoting a line. `readFields` is partial and never
-  complains.
-- **Collections, tags and properties are pages, not files** (`dir: null`, `views`).
-  An empty file named after a thing is not the thing. `gatherLines` is the one
-  rule for an entry and the run nested under it. Skills are
-  `.claude/skills/<name>/SKILL.md`, made valid; Config is `.config`.
-- A tag is `#` + a word with a letter, after start or whitespace, outside code, and
-  folded to lower case (the only folded name). A property keeps the first spelling
-  met.
+- **Tags and properties are pages, not files** (`dir: null`, `views`). An empty
+  file named after a thing is not the thing. `gatherLines` is the one rule for an
+  entry and the run nested under it. Skills are `.claude/skills/<name>/SKILL.md`,
+  made valid; Config is `.config`.
+- A tag is `#` + a word with a letter (`TAG_NAME`), after start or whitespace,
+  outside code (`proseLines`, off `maskCode` — the one rule for what is code, which
+  the links read too), and folded to lower case (the only folded name). A property
+  keeps the first spelling met.
 - **A tag's structure is a list of properties** (`tags.json`, `propertiesOf`), one
   per row on its page: `+` adds, `×` removes, a row opens the property's page, where
   its type is. The Actions pane's `+` declares a tag. With a structure and lines the
@@ -282,12 +267,10 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   `#tag `, then narrowed as a name is typed, in the structure's order, never inside
   a value (after `name::`, in an open `[[` or quote), and never one the line
   already carries.
-- `CollectionTable` is read-only (a cell edit is a write through a partial parse),
-  takes its columns and a reader of a line's values, leads with the note, adds
-  `when`, sums a tag's `number` columns (a collection's by sniffing, until they go),
-  and resizes columns (`useColumnWidths`: auto until the first drag, then fixed).
-- **No second `--keyword` inside a structure**: every line would join a phantom
-  collection.
+- `LineTable` is read-only (a cell edit is a write through a partial parse), takes
+  its columns and a reader of a line's values, leads with the note, adds `when`,
+  sums a tag's `number` columns, and resizes columns (`useColumnWidths`: auto until
+  the first drag, then fixed).
 
 ## The calendar
 
@@ -456,7 +439,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 - Removed on purpose, so they are not rebuilt: vault-declared kinds
   (`kinds.json`), default properties stamped into new notes, the `runs:` registry,
   the old `calendar` action kind, `fitToBox`, line numbers off notes, a serif
-  display family.
+  display family, and `--keyword` collections with their `<<slots>>` and
+  `collections.json` (2026-09-28: a tag's structure and typed `::` properties do
+  their work, and the vault was migrated).
 - **Still open**: at `--fw-prose` 600, `####` and below stop reading as headings;
   folders are not pickable; the graph's layout repels every pair of nodes each step
   (`stepLayout`), fine at hundreds of notes and slow at thousands.

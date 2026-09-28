@@ -21,25 +21,13 @@ import {
   autocompletion,
   closeCompletion,
   completionKeymap,
-  nextSnippetField,
-  prevSnippetField,
   selectedCompletion,
 } from '@codemirror/autocomplete'
 import { EditorHost } from './EditorHost'
 import { formatKeymap, insertTimeKeymap } from './editorCommands'
+import { propertySource, completionAppearance, slashSource, wikiLinkSource } from './editorComplete'
 import {
-  collectionSource,
-  propertySource,
-  completionAppearance,
-  slashSource,
-  wikiLinkSource,
-} from './editorComplete'
-import type { CollectionOption } from './editorComplete'
-import {
-  collectionAt,
-  collectionDeclarations,
   propertyTypes,
-  isCollectionClick,
   isLinkClick,
   isTagClick,
   isTaskClick,
@@ -74,9 +62,6 @@ interface MarkdownEditorProps {
   /** Every note in the vault, for the `[[` picker. Read through a ref, so a note
       created since this mounted is still offered. */
   notes?: VaultFile[]
-  /** The vault's collections, for the `--` picker: a declared one completes to the
-      line it declares. Read through a ref, like the notes. */
-  collections?: CollectionOption[]
   /** Each property's type, for where a block property's value ends. */
   propertyTypes?: Entries
   /** Each tag's structure, for the properties its line is offered. */
@@ -91,9 +76,6 @@ interface MarkdownEditorProps {
       `Notes/Roadmap.md` from `[Roadmap](Notes/Roadmap.md)`. The caller resolves it;
       this editor knows nothing about the vault. */
   onOpenLink?: (target: string, wiki: boolean) => void
-  /** A click on a `--keyword`, with its name. A collection is a page, and the
-      keyword is the only place in a note that names one. */
-  onOpenCollection?: (keyword: string) => void
   /** A `#tag` was pressed: its page is every line in the vault carrying it. */
   onOpenTag?: (tag: string) => void
   /** Where today's note lives, for the `/` menu's Today. Through a ref like the
@@ -116,12 +98,8 @@ interface MarkdownEditorProps {
  * GFM, and a vault written in Obsidian is full of both.
  */
 function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension[] {
-  const getCollections = () => latest.current.collections ?? []
   const getTypes = () => latest.current.propertyTypes ?? {}
   return [
-    // The declarations, for the renderer — an empty field hides with its lead-in,
-    // and only the declaration knows which prose led into which field.
-    collectionDeclarations.of(getCollections),
     propertyTypes.of(getTypes),
     /**
      * A press on a link follows it, as it does in Obsidian's live preview. The
@@ -169,7 +147,7 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
           })
           return true
         }
-        /** A press on a `#tag` opens its page, the same act a `--keyword` gets. */
+        /** A press on a `#tag` opens its page. */
         if (isTagClick(event.target)) {
           const at = event.target instanceof Node ? view.posAtDOM(event.target) : null
           const tag = at == null ? null : tagNameAt(view.state, at)
@@ -178,26 +156,13 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
           latest.current.onOpenTag?.(tag)
           return true
         }
-        const link = isLinkClick(event.target)
-        // **A keyword goes somewhere too**, and the somewhere is a page rather than
-        // a note: `--expense` in a line is the only place a collection is named, so
-        // pressing it is the shortest way to ask what else says that. Same event,
-        // same reason — the mark is on the keyword whether the line is being edited
-        // or not, so the span survives the press either way.
-        if (!link && !isCollectionClick(event.target)) return false
+        if (!isLinkClick(event.target)) return false
         // **From the node, not the coordinates.** The test above has already said
         // the press landed on the mark's own element, so `posAtDOM` answers from
         // the thing that was pressed rather than from where the pointer was — no
         // measuring, and nothing to be wrong about at the edges of a glyph.
         const pos = event.target instanceof Node ? view.posAtDOM(event.target) : null
         if (pos == null) return false
-        if (!link) {
-          const keyword = collectionAt(view.state, pos)
-          if (!keyword) return false
-          event.preventDefault()
-          latest.current.onOpenCollection?.(keyword)
-          return true
-        }
         const found = linkTargetAt(view.state, pos)
         if (!found) return false
         event.preventDefault()
@@ -213,7 +178,6 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
       override: [
         wikiLinkSource(() => latest.current.notes ?? []),
         slashSource(() => latest.current.dailyFolder ?? ''),
-        collectionSource(getCollections),
         propertySource(() => latest.current.tagStructures ?? {}, getTypes),
       ],
     }),
@@ -234,12 +198,6 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
       ...completionKeymap,
       // Tab takes what the popup offers, when it offers something.
       { key: 'Tab', run: acceptCompletion },
-      // **Ahead of the list commands**, because a completed declaration leaves the
-      // caret in a snippet field and Tab has to move to the next hole rather than
-      // indent the line it is on. Both decline when no field is active, so Tab is
-      // the list's again the moment the structure is filled in.
-      { key: 'Tab', run: nextSnippetField },
-      { key: 'Shift-Tab', run: prevSnippetField },
       insertTimeKeymap(() => latest.current.insertTimeCombo ?? null),
       ...formatKeymap,
       // `@codemirror/lang-markdown`'s own: Enter continues a list, Backspace

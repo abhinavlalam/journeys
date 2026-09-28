@@ -29,7 +29,7 @@ export function localTimeStamp(now = new Date()): string {
  * time and not two times.
  *
  * **One rule, three readers**: the mark the editor draws over it, the `when` column
- * a collection's table opens with, and anything later that wants to know when a
+ * a tag's table opens with, and anything later that wants to know when a
  * line happened. It was private to `editorPreview.ts`, where only the mark could
  * see it.
  */

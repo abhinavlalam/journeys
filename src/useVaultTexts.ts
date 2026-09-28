@@ -7,10 +7,9 @@ import type { BacklinkIndex } from './links'
 import { buildNoteGraph, type NoteGraph, type NoteText } from './graph'
 import { APP_PROPERTIES, noteProperties, readProperty, typeOf } from './properties'
 import type { Entries } from './configEntries'
-import { collectTagLines, tagNames } from './tags'
-import { actionKeywords, collectLines, type CollectedLine } from './actions'
+import { collectTagLines, tagNames, type CollectedLine } from './tags'
 
-/** One note and the entries it holds, which is what a collection's view draws. */
+/** One note and the entries it holds, which is what a tag's page draws. */
 export interface CollectedNote {
   note: VaultFile
   lines: CollectedLine[]
@@ -44,28 +43,13 @@ interface VaultTexts {
   /** What a property says in every note that carries it — its page. */
   propertyValues: (name: string) => { note: VaultFile; value: string }[]
   /**
-   * Every `--keyword` the vault's lines carry, and how many notes carry it.
+   * The lines carrying a tag, grouped by the note each is in, or null while the
+   * vault is being read. Off `corpus`, so a line typed seconds ago is in it.
    *
-   * The same derivation as `properties`, over the same one read: a collection is
-   * written as `--name` at the start of a line, so the Collections group lists what
-   * the notes are using and not only what has been defined.
+   * **A function of the tag, not the one open page**: two panes can show two tags,
+   * and the one not focused went blank when this answered only for the focused
+   * pane's. Memoised per corpus, so the vault is walked once per tag per read.
    */
-  collections: { name: string; notes: number }[]
-  /**
-   * What the open collection collects, grouped by the note it is written in, or
-   * null when no collection is open.
-   *
-   * **A collection is a view, not a file.** It is derived here for the reason
-   * everything else is: the bytes are already in hand, and a second pass over the
-   * vault to answer one more cross-note question is the thing this file exists to
-   * stop. Off `corpus`, so a `--expense` line typed seconds ago is in it.
-   *
-   * **A function of the keyword, not the one open collection**: two panes can show
-   * two collections, and the one in the pane that is not focused went blank when
-   * this answered only for the focused pane's. Memoised per corpus, so a page asks
-   * as often as it renders and the vault is walked once per keyword per read.
-   */
-  collect: (keyword: string) => CollectedNote[] | null
   collectTag: (tag: string) => CollectedNote[] | null
   tags: { name: string; notes: number }[]
   graph: NoteGraph | null
@@ -121,7 +105,7 @@ export function useVaultTexts({
    *  business again — see `corpus`. */
   openPath: string | null
   /**
-   * A view derived from the corpus is open — the graph, or a collection.
+   * A view derived from the corpus is open — the graph, or a tag's page.
    *
    * Either can be opened on a line typed seconds ago, which is on neither the disk
    * nor the buffer; this is what re-takes `liveText` at that moment. It was
@@ -131,7 +115,7 @@ export function useVaultTexts({
   /**
    * **Bumped by a keystroke while a view is on screen beside the note.** With one
    * pane, opening the view was the moment to re-take the live text; with two, the
-   * collection page can sit beside the note being typed into, and nothing changed
+   * tag's page can sit beside the note being typed into, and nothing changed
    * to re-take it — the page held the disk's text until the window was refocused.
    * `App` bumps this, throttled, only while such a view is showing.
    */
@@ -167,7 +151,7 @@ export function useVaultTexts({
     }
     // Every note, not only the folder notes: a plain page carries an icon too. **Not
     // an encrypted one, unlocked or not**: what it says is the owner's alone, so
-    // search, the collections, the tags, the properties, the backlinks and the graph
+    // search, the tags, the properties, the backlinks and the graph
     // are all built without it — and the live text never joins, having no row here.
     const all = collectNotes(root).filter((note) => !isEncrypted(note.path))
     async function read() {
@@ -220,7 +204,7 @@ export function useVaultTexts({
 
   /**
    * The names in use, counted — a property a note carries, on its page or on a
-   * line, and a `--keyword` a line carries alike.
+   * line, and a `#tag` a line carries alike.
    *
    * Case-insensitively the same name is the same thing — `Status` and `status` are
    * one key to anything reading a block — and the first spelling met is the one
@@ -229,7 +213,7 @@ export function useVaultTexts({
    *
    * One function, because it is one question asked of two syntaxes: `read` is the
    * only difference, and it comes from the module that owns that syntax —
-   * `noteProperties` from `properties.ts`, `actionKeywords` from `actions.ts`.
+   * `noteProperties` from `properties.ts`, `tagNames` from `tags.ts`.
    */
   const countNames = (read: (text: string) => string[]) => {
     const found = new Map<string, { name: string; notes: number }>()
@@ -250,19 +234,14 @@ export function useVaultTexts({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [texts, typed]
   )
-  /** The `--keyword`s the notes carry: a collection is written as a line, so this
-   *  is what puts the ones in play in the pane beside the ones with a file. */
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const collections = useMemo(() => countNames(actionKeywords), [texts])
-  /** The `#tag`s the notes carry. The third syntax `countNames` is asked of, and
-   *  the reading comes from the module that owns it, as the other two do. */
+  /** The `#tag`s the notes carry. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const tags = useMemo(() => countNames(tagNames), [texts])
 
   /**
    * **What a property says, everywhere it is said** — on a note's page and on its
-   * lines, one row each — the property's page, the way `collected` is a
-   * collection's. Off the same one read, case-insensitive on the name for the
+   * lines, one row each — the property's page, the way `collectTag` is a tag's.
+   * Off the same one read, case-insensitive on the name for the
    * reason `countNames` is, and a name with nothing after it carries no value.
    */
   const propertyValues = useCallback(
@@ -309,22 +288,7 @@ export function useVaultTexts({
     [corpus, noteIndex]
   )
 
-  /**
-   * The open page's lines, per note, memoised per name.
-   *
-   * **Only the open one**: gathering every collection and every tag on each read
-   * would be a pass over the whole vault per name to answer a question nobody has
-   * asked yet. A note with no line is left out rather than listed empty — the page
-   * lists where the lines are.
-   *
-   * One function for both, because a collection and a tag differ only in which
-   * lines they gather, and two copies of this are two pages that could disagree
-   * about what the corpus says. Defined outside the component, so it is plainly a
-   * function of its arguments.
-   */
-  const collect = useMemo(() => gathered(corpus, collectLines), [corpus])
-  /** The same, for a tag: one function, two syntaxes — see `gathered`. */
-  const collectTag = useMemo(() => gathered(corpus, collectTagLines), [corpus])
+  const collectTag = useMemo(() => tagLines(corpus), [corpus])
 
   const patch = (paths: ReadonlySet<string>, change: (text: string) => string) =>
     setTexts(
@@ -340,8 +304,6 @@ export function useVaultTexts({
     icons,
     properties,
     propertyValues,
-    collections,
-    collect,
     collectTag,
     tags,
     graph,
@@ -352,11 +314,12 @@ export function useVaultTexts({
   }
 }
 
-/** See `collect`. `gather` is the per-note rule; the cache is per name. */
-function gathered(
-  corpus: readonly { note: VaultFile; text: string }[] | null,
-  gather: (text: string, name: string) => CollectedLine[]
-): (name: string) => CollectedNote[] | null {
+/**
+ * See `collectTag`. **Only the page asked for**: gathering every tag on each read
+ * would be a pass over the vault per tag to answer a question nobody has asked. A
+ * note with no line is left out rather than listed empty.
+ */
+function tagLines(corpus: readonly { note: VaultFile; text: string }[] | null): (tag: string) => CollectedNote[] | null {
   const cache = new Map<string, CollectedNote[]>()
   return (name: string) => {
     if (!corpus) return null
@@ -365,7 +328,7 @@ function gathered(
     if (hit) return hit
     const found: CollectedNote[] = []
     for (const { note, text } of corpus) {
-      const lines = gather(text, name)
+      const lines = collectTagLines(text, name)
       if (lines.length > 0) found.push({ note, lines })
     }
     cache.set(key, found)

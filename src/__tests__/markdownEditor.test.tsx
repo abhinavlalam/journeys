@@ -69,12 +69,11 @@ import {
   outdentListItem,
   toggleMarker,
   deleteWikiLinkPair,
-  wrapInSlot,
   wrapInWikiLink,
   wrapWith,
 } from '../editorCommands'
 import { localDateStamp, localTimeStamp } from '../clock'
-import { collectionSource, propertySource, slashSource, wikiLinkSource } from '../editorComplete'
+import { propertySource, slashSource, wikiLinkSource } from '../editorComplete'
 import { completionStatus, startCompletion } from '@codemirror/autocomplete'
 import { foldMarkerFor, indentRange } from '../editorFold'
 import {
@@ -369,8 +368,8 @@ describe('Live Preview', () => {
   })
 
   /**
-   * **A `#tag` is marked, and always.** `.cm-md-collection`'s property and for its
-   * reason: the mark is what makes the span pressable, and a tag goes somewhere.
+   * **A `#tag` is marked, and always**: the mark is what makes the span pressable,
+   * and a tag goes somewhere.
    * Nothing hides, because `#` *is* the tag — unlike a link's brackets, removing it
    * would leave a different word on the line.
    */
@@ -410,7 +409,7 @@ describe('Live Preview', () => {
 
   /**
    * **Never revealed.** A checkbox has to be pressable whether or not the caret is
-   * in the line — `.cm-md-collection`'s property, for the same reason — and a box
+   * in the line — `.cm-md-tag`'s property, for the same reason — and a box
    * that turned back into three characters when you clicked into the item would be
    * un-pressable exactly while it was being written.
    */
@@ -800,74 +799,6 @@ describe('Tab inside a list', () => {
     expect(after.doc).toBe('- one\n- two\n')
     // And at the margin there is nowhere to go.
     expect(run(outdentListItem, stateOf('- one\n', 5, 5, 6)).handled).toBe(false)
-  })
-})
-
-/**
- * **Pressing a `--keyword` opens its collection.**
- *
- * A collection is a page rather than a file, and the keyword in a line is the only
- * place in a note that names one — so the press is the shortest way to ask what
- * else in the vault says that.
- *
- * Mounted, and with a **real `mousedown` on the real span**, because that is the
- * only thing that would have caught the bug this shares its handler with: a `click`
- * needs the press and the release on the same element, and pressing a marked span
- * puts the caret in the line, which redraws it. A test calling the handler directly
- * passed throughout while the app took two presses.
- */
-describe('pressing a keyword', () => {
-  const pressed = (doc: string, selector: string) => {
-    const opened: string[] = []
-    const links: string[] = []
-    const { container } = render(
-      <MarkdownEditor
-        initialMarkdown={doc}
-        onChange={() => {}}
-        onOpenCollection={(keyword) => opened.push(keyword)}
-        onOpenLink={(target) => links.push(target)}
-      />
-    )
-    const span = container.querySelector(selector)
-    expect(span, `no ${selector} in the rendered line`).toBeTruthy()
-    fireEvent.mouseDown(span as Element, { button: 0 })
-    return { opened, links }
-  }
-
-  it('opens the collection the keyword names', () => {
-    const { opened, links } = pressed('09:42 --expense on [[Lakeside Deli]]\n', '.cm-md-collection')
-    expect(opened).toEqual(['expense'])
-    expect(links).toEqual([])
-  })
-
-  /** The keyword sits wherever the sentence puts it, and the mark is on it either
-   *  way — including on the line the caret is already in, where the syntax around
-   *  it is revealed and every other span on the line has been replaced. */
-  it('opens it from the middle of a sentence, caret on the line or not', () => {
-    expect(
-      pressed('10:00 - Making --release-notes for [[Journeys]]\n', '.cm-md-collection').opened
-    ).toEqual(['release-notes'])
-  })
-
-  /** A link on the same line is still a link: two marks, two destinations. */
-  it('leaves a link on the same line to the link', () => {
-    const { opened, links } = pressed('09:42 --expense on [[Lakeside Deli]]\n', '.cm-md-link')
-    expect(links).toEqual(['Lakeside Deli'])
-    expect(opened).toEqual([])
-  })
-
-  /** Ordinary prose puts the caret where it was pressed, as it always did. */
-  it('does nothing for a press on the words around it', () => {
-    const opened: string[] = []
-    const { container } = render(
-      <MarkdownEditor
-        initialMarkdown={'09:42 --expense on [[Lakeside Deli]]\n'}
-        onChange={() => {}}
-        onOpenCollection={(keyword) => opened.push(keyword)}
-      />
-    )
-    fireEvent.mouseDown(container.querySelector('.cm-line') as Element, { button: 0 })
-    expect(opened).toEqual([])
   })
 })
 
@@ -1283,30 +1214,6 @@ const note = (path: string) => ({
   name: (path.split('/').pop() ?? path).replace(/\.md$/, ''),
 })
 const NOTES = [note('Roadmap.md'), note('Notes/Reading list.md'), note('Areas/Health.md')]
-
-describe('a URL inside a slot', () => {
-  /** Markdown reads `<<https://…>>` as `<` + an Autolink + `>`, which made the
-   *  slot's inner brackets the link's own. The slot wins: the link is the value. */
-  it('is the slot’s value, with neither bracket hidden as the link’s', () => {
-    const found = all(stateOf('link::<<https://x.test/a>>\n\nelsewhere', 30))
-    expect(found).toContain('cm-md-link@8-24')
-    expect(found.filter((one) => one.startsWith('hidden@'))).toEqual([])
-    expect(found.some((one) => one.startsWith('cm-md-link@7-'))).toBe(false)
-  })
-})
-
-describe('`<` over a selection', () => {
-  it('makes it a slot in one press, and keeps the selection over the value', () => {
-    const out = run(wrapInSlot, stateOf('spent 480 today', 6, 9))
-    expect(out.handled).toBe(true)
-    expect(out.doc).toBe('spent <<480>> today')
-    expect([out.from, out.to]).toEqual([8, 11])
-  })
-
-  it('declines with nothing selected, so a plain `<` still types', () => {
-    expect(run(wrapInSlot, stateOf('a < b', 2)).handled).toBe(false)
-  })
-})
 
 describe('Backspace between the brackets', () => {
   /** The second `[` writes `[]]` in one keystroke; one Backspace takes it back.
@@ -1978,10 +1885,6 @@ describe('the clock a journal line opens with', () => {
   /**
    * A bullet before it means no stamp: the pattern is anchored to the line's start,
    * so `- 12:08 note` is a list item that happens to open with a time.
-   *
-   * Worth knowing that an *action* is read past a bullet — `- --calendar …` parses
-   * — so the two syntaxes disagree about this. Nothing depends on the disagreement
-   * yet, and this test is where it is written down.
    */
   it('does not mark a stamp that a bullet comes before', () => {
     expect(all(stateOf('- 12:08 note\n', 0))).toEqual(['bullet@0-2', 'cm-md-hang@0-0'])
@@ -2021,15 +1924,6 @@ describe('a click on a link', () => {
   })
 })
 
-/**
- * **The `--` collection picker, and what a declaration is for.**
- *
- * A collection's page declares one line — `--expense <<amount>> on [[<<merchant>>]]
- * using <<method>>` — and typing `--expense` in a note completes to it as a snippet:
- * the caret lands in `amount` and Tab moves to `merchant`. That is the whole point
- * of declaring one, so what is pinned here is that the declaration on the page and
- * the line the editor writes are the same string.
- */
 /**
  * **The properties a tag takes, offered on its line**: all of them as `#expense ` is
  * typed, then narrowed as a name is — CodeMirror filters what is offered by what
@@ -2117,89 +2011,6 @@ describe('the properties a tag’s line is offered', () => {
   })
 })
 
-describe('the `--` collection picker', () => {
-  const COLLECTIONS = [
-    { name: 'expense', declaration: '--expense <<amount>> on [[<<merchant>>]] using <<method>>' },
-    { name: 'errands', declaration: null },
-  ]
-  const dashes = (doc: string, at: number, collections = COLLECTIONS) => {
-    const state = stateOf(doc, at)
-    return collectionSource(() => collections)({
-      state,
-      pos: at,
-      explicit: false,
-      matchBefore: (expr: RegExp) => {
-        const line = state.doc.lineAt(at)
-        const text = line.text.slice(0, at - line.from)
-        const found = new RegExp(`(?:${expr.source})$`).exec(text)
-        return found ? { from: at - found[0].length, to: at, text: found[0] } : null
-      },
-    } as never)
-  }
-
-  it('offers every collection, from the dashes', () => {
-    const result = dashes('09:42 --', 8)!
-    expect(result.options.map((one) => one.label)).toEqual(['--expense', '--errands'])
-    // Over the `--` itself, so what is typed is replaced rather than appended to.
-    expect(result.from).toBe(6)
-  })
-
-  /** The structure, minus the keyword the label already carries: the popup shows
-   *  what will be written. */
-  it('shows the structure beside the name', () => {
-    expect(dashes('--', 2)!.options[0].detail).toBe('<<amount>> on [[<<merchant>>]] using <<method>>')
-    expect(dashes('--', 2)!.options[1].detail).toBeUndefined()
-  })
-
-  it('writes the declared line, with the caret in the first hole', () => {
-    const option = dashes('09:42 --exp', 11)!.options[0]
-    // A snippet, not a string: the holes are stops, which a plain insert has none of.
-    expect(typeof option.apply).toBe('function')
-
-    let state = stateOf('09:42 --exp', 11)
-    const editor = {
-      state,
-      dispatch: (tr: Transaction) => {
-        state = tr.state
-      },
-    }
-    ;(option.apply as (e: unknown, c: unknown, from: number, to: number) => void)(
-      editor,
-      option,
-      6,
-      11
-    )
-    // The brackets land as **literal text the line keeps**, and the fields are
-    // between them: you type into a slot, not over it.
-    expect(state.doc.toString()).toBe(
-      '09:42 --expense <<amount>> on [[<<merchant>>]] using <<method>>'
-    )
-    // The first field is what the declaration wrote inside the brackets, selected
-    // so typing replaces it — and the brackets are outside the selection.
-    expect(state.sliceDoc(state.selection.main.from, state.selection.main.to)).toBe('amount')
-  })
-
-  /** A collection with no declaration still completes its own name — the popup is
-   *  also how you find out which collections a vault has. */
-  it('writes the name alone for a collection with no structure', () => {
-    expect(dashes('--err', 5)!.options[1].apply).toBe('--errands ')
-  })
-
-  /** `OPENER`'s rule, so the popup and the parser agree about where an action can
-   *  start: the dashes have to open a word. */
-  it('opens only where the dashes open a word', () => {
-    expect(dashes('stroke--width', 8)).toBeNull()
-    // At the start of a line, after a space, and after a bullet: all word openings.
-    expect(dashes('--', 2)).toBeTruthy()
-    expect(dashes('- --', 4)).toBeTruthy()
-    expect(dashes('12:00 to 12:30 --', 17)).toBeTruthy()
-  })
-
-  it('offers nothing when the vault has no collections', () => {
-    expect(dashes('--', 2, [])).toBeNull()
-  })
-})
-
 /**
  * **Following a link takes one press, and the press is the point.**
  *
@@ -2273,86 +2084,3 @@ describe('following a link in the note', () => {
   })
 })
 
-/**
- * **A collection line's labels are syntax, so they hide.**
- *
- * `key::` tells the app which value is which; by the time the line is being *read*
- * it has done its job, and the words around it are the sentence. The same bargain
- * `**bold**` makes: the caret on the line brings every label back, because a line
- * whose structure you cannot see is a line you cannot correct.
- */
-describe('a collection line', () => {
-  /** What the line looks like with the hidden runs taken out — which is what the
-   *  reader sees, since a hidden decoration takes no width. */
-  const rendered = (doc: string, caretAt: number) => {
-    const state = stateOf(doc, caretAt)
-    const cuts: [number, number][] = []
-    const iter = livePreviewDecorations(state, 0, state.doc.length).iter()
-    while (iter.value) {
-      const spec = iter.value.spec as { widget?: unknown; class?: string }
-      if (!spec.widget && !spec.class && iter.from !== iter.to) cuts.push([iter.from, iter.to])
-      iter.next()
-    }
-    let out = doc
-    for (const [from, to] of cuts.reverse()) out = out.slice(0, from) + out.slice(to)
-    return out
-  }
-
-  const LINE =
-    '09:42 --expense spent currency:: EUR amount:: 480 at merchant:: [[Bistro]] using account:: Northbank'
-
-  it('hides the labels and keeps the sentence', () => {
-    // The caret parked on another line, so nothing here is being edited. The
-    // link's own brackets are hidden by the rule that has always hidden them,
-    // which is why `[[Bistro]]` reads as `Bistro`.
-    expect(rendered(`${LINE}\n\nelsewhere`, LINE.length + 8)).toContain(
-      '09:42 --expense spent EUR 480 at Bistro using Northbank'
-    )
-  })
-
-  it('brings them back when the caret is on the line', () => {
-    expect(rendered(`${LINE}\n\nelsewhere`, 20)).toContain(
-      '09:42 --expense spent currency:: EUR amount:: 480 at merchant:: Bistro using account:: Northbank'
-    )
-  })
-
-  /** Only a collection line: `::` in ordinary prose is ordinary prose. */
-  it('leaves a line with no keyword alone', () => {
-    const prose = 'Ratio:: about nine to one, they said.'
-    expect(rendered(`${prose}\n\nelsewhere`, prose.length + 8)).toContain(prose)
-  })
-
-  /**
-   * **The keyword takes the app's label format** — the one a property's name, the
-   * clock and a JSON key take, because it is a piece of the line the app itself
-   * reads. It does *not* hide with the labels: `--expense` is what the line is, and
-   * a sentence that stops saying so reads as prose that happens to be collected.
-   */
-  it('marks the keyword, whether the caret is on the line or not', () => {
-    const marked = (caret: number) =>
-      all(stateOf(`${LINE}\n\nelsewhere`, caret)).filter((one) => one.startsWith('cm-md-collection'))
-    // `--expense` is six characters in, and ten long.
-    expect(marked(LINE.length + 8)).toEqual(['cm-md-collection@6-15'])
-    expect(marked(20)).toEqual(['cm-md-collection@6-15'])
-  })
-
-  /**
-   * **A slot is a guide for typing the line, not part of it.** While the caret is on
-   * the line `<<>>` says where a value goes and — two characters wide at each end —
-   * where one ends and the next label begins, which is the whole of what it is for.
-   * Once the caret leaves there is nothing left to guide, so it goes with the labels.
-   */
-  it('shows a slot while the line is being edited, and hides the brackets after', () => {
-    const fresh = '09:42 --expense spent amount::<<480>> using account::<<cash>>'
-    const doc = `${fresh}\n\nelsewhere`
-    expect(rendered(doc, 10)).toContain(fresh)
-    // The brackets go; what was typed between them is the sentence, and stays.
-    expect(rendered(doc, fresh.length + 8)).toContain('09:42 --expense spent 480 using cash')
-  })
-
-  /** A single colon is prose — `Note: this` — and a clock is full of them. */
-  it('hides only a doubled colon', () => {
-    const line = '09:42 --expense spent amount: 480'
-    expect(rendered(`${line}\n\nelsewhere`, line.length + 8)).toContain(line)
-  })
-})

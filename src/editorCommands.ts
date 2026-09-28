@@ -224,8 +224,8 @@ function blockAt(state: EditorState): { line: Line; indent: number; last: Line }
  *   *second*.)
  * - **An item with lines nested under it.** A list item and its children are one
  *   thing on screen: nesting the parent and leaving the children where they are
- *   turns one subtree into two siblings. The run is the same rule `collectLines`
- *   gathers a `--keyword` block with — lines deeper than the first, blanks not
+ *   turns one subtree into two siblings. The run is the same rule `gatherLines`
+ *   gathers a tagged line's block with — lines deeper than the first, blanks not
  *   breaking it — so "block" means the same thing in both places.
  *
  * `first` is what the depth is decided from, because a list's rules are about where
@@ -349,10 +349,6 @@ export const formatKeymap = [
   // The other half of that: the second `[` writes `[]]`, so Backspace between the
   // pairs takes what one keystroke made.
   { key: 'Backspace', run: deleteWikiLinkPair },
-  // `<` over a selection makes it a slot in one press — `<<word>>` — because a
-  // single `<word>` is an autolink in markdown, so there is no half-way step for
-  // a second press to complete. With no selection a plain `<` types.
-  { key: '<', run: wrapInSlot },
   // A second press wraps again: one `*` is italic, two are bold, and `~` twice is
   // `~~struck~~` — GFM for the last one, since CommonMark has no strikethrough.
   { key: '*', run: wrapWith('*') },
@@ -387,29 +383,6 @@ export function wrapWith(mark: string): Command {
     )
     return true
   }
-}
-
-/**
- * `<` over a selection: the selected text becomes a slot's value, `<<value>>`, and
- * stays selected inside the brackets — so a value picked out of a sentence is
- * marked as one with a single keystroke, the way `[` makes a link. Asked for in
- * exactly those words. Both brackets at once, unlike `[`: `<word>` is an autolink
- * and never a step on the way to anything.
- */
-export function wrapInSlot(view: EditorView): boolean {
-  const { from, to } = view.state.selection.main
-  if (from === to) return false
-  view.dispatch(
-    view.state.update({
-      changes: [
-        { from, to: from, insert: '<<' },
-        { from: to, to, insert: '>>' },
-      ],
-      selection: { anchor: from + 2, head: to + 2 },
-      scrollIntoView: true,
-    })
-  )
-  return true
 }
 
 /**

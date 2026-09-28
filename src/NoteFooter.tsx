@@ -110,7 +110,7 @@ export function NoteFooter({
                   which read as a backlink that needed two clicks. */}
               <ul className="backlink-lines" onClick={() => opensNote(() => onOpen(note))}>
                 {/* A quotation reads as the note reads, so a link in one is its
-                    name — `readable`, the same answer the collection page gives. */}
+                    name — `readable`, the same answer a tag's page gives. */}
                 {mentions.map((line) => (
                   <li key={line}>{readable(line)}</li>
                 ))}
