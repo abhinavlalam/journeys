@@ -215,10 +215,11 @@ export function EditorHost({
     // into the document's positions, where a `\r\n` the caller counted as two is one.
     const anchor = Math.min(initialSelection, initialText.length)
     const breaks = initialText.slice(0, anchor).split(lineBreak).length - 1
+    const head = anchor - breaks * (lineBreak.length - 1)
     const view = new EditorView({
       state: EditorState.create({
         doc: initialText,
-        selection: { anchor: anchor - breaks * (lineBreak.length - 1) },
+        selection: { anchor: head },
         extensions: [
           EditorState.lineSeparator.of(lineBreak),
           ...extensions,
@@ -226,6 +227,8 @@ export function EditorHost({
         ],
       }),
       parent: root,
+      // In sight: a caret placed at the end of a long day is otherwise below the fold.
+      scrollTo: EditorView.scrollIntoView(head, { y: 'nearest' }),
     })
     viewRef.current = view
     // **Focused, so the caret is visible.** CodeMirror draws it only for a focused

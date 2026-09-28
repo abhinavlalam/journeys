@@ -7,7 +7,7 @@ import { JsonEditor } from './JsonEditor'
 import { NoteFooter } from './NoteFooter'
 import { FolderTree } from './FolderTree'
 import { backlinksTo, childrenOf, folderWithNote, trailTo } from './links'
-import { dailyNeighbours } from './daily'
+import { dailyNeighbours, isDailyNote } from './daily'
 import { ChevronIcon } from './icons'
 import { fileKind, isEncrypted, isNote } from './vaultModel'
 import { CsvEditor } from './CsvEditor'
@@ -249,6 +249,7 @@ export function NotePane({
           propertyTypes={propertyTypes}
           tagStructures={tagStructures}
           dailyFolder={settings.dailyFolder}
+          caretAtEnd={isDailyNote(file.path, settings.dailyFolder)}
           indentWidth={settings.indentWidth}
           onOpenLink={onOpenLink}
           onOpenCollection={onOpenCollection}

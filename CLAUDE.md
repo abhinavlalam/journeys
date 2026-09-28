@@ -244,7 +244,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   inside a fresh `[[]]` takes all four characters.
 - JSON and CSV are coloured by scans, not grammars (`jsonPreview`, `csvPreview`).
   `.config/settings.json` is the one file with a Save; everything else autosaves.
-- A note opens focused with the caret below its page properties.
+- A note opens focused with the caret below its page properties; a daily note
+  opens at its end (`caretAtEnd`), where the day's next line goes, scrolled into
+  sight (`scrollTo`).
 
 ## Collections, tags and properties
 

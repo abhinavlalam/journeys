@@ -81,6 +81,24 @@ async function open(name: string) {
   )
 }
 
+/** **A daily note opens at its end**, where the day's next line goes; any other note
+ *  below its title, where it is read from. */
+describe('where the caret starts', () => {
+  it('is the end of a daily note, and the top of any other', { timeout: 40000 }, async () => {
+    const today = 'icon:: sun\n\n# Monday\n\n08:10 woke\n09:00 #event Standup\n'
+    disk.write('/v/Daily/2026-09-28.md', today)
+    await openApp()
+    fireEvent.click(sidebar().getByText('Daily'))
+    await open('2026-09-28')
+    await waitFor(() => expect(shown()).toBe(today))
+    expect(view().state.selection.main.head).toBe(today.length)
+
+    await open('alpha')
+    await waitFor(() => expect(shown()).toBe('alpha text\n'))
+    expect(view().state.selection.main.head).toBe(0)
+  })
+})
+
 describe('a buffer that outlives its editor', () => {
   it('hands the text back when the tab returns, and writes it as the tab leaves', { timeout: 40000 }, async () => {
     await openApp()

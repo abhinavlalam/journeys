@@ -81,6 +81,9 @@ interface MarkdownEditorProps {
   propertyTypes?: Entries
   /** Each tag's structure, for the properties its line is offered. */
   tagStructures?: Entries
+  /** Open with the caret at the end, not below the title: a daily note is a log,
+      and its next line goes at the bottom. */
+  caretAtEnd?: boolean
   /** Spaces per indent level, from the settings. Applied through a compartment, so
       moving the slider does not remount the editor. */
   indentWidth?: number
@@ -290,7 +293,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
   return (
     <EditorHost
       initialText={initialMarkdown}
-      initialSelection={caretOnOpen(initialMarkdown)}
+      initialSelection={props.caretAtEnd ? initialMarkdown.length : caretOnOpen(initialMarkdown)}
       onChange={onChange}
       extensions={extensionsRef.current}
       ariaLabel="Markdown source"
