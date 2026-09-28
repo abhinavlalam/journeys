@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { readVaultFile } from './vault'
-import { isEncrypted, type VaultFile, type VaultFolder } from './vaultModel'
+import { isEncrypted, isNote, type VaultFile, type VaultFolder } from './vaultModel'
 import { buildNoteIndex, collectNotes } from './links'
 import { buildBacklinkIndex } from './links'
 import type { BacklinkIndex } from './links'
@@ -193,14 +193,23 @@ export function useVaultTexts({
    * editor. Derived from `texts`, which is what makes it free — the bytes are
    * already here. It was a second full read of the vault of its own.
    */
+  /**
+   * **The notes among the texts**: what every cross-note answer is made of. The
+   * texts are every text file, for search; a `.conf` or a `.yaml` is not a note, and
+   * a `#comment` in one was a tag, its `key: value` lines were properties, and its
+   * links were backlinks and edges. A note's link *to* a text file still resolves
+   * and still draws it.
+   */
+  const noteTexts = useMemo(() => texts?.filter(({ note }) => isNote(note.path)) ?? null, [texts])
+
   const icons = useMemo(() => {
     const found: Record<string, string> = {}
-    for (const { note, text } of texts ?? []) {
+    for (const { note, text } of noteTexts ?? []) {
       const icon = readProperty(text, APP_PROPERTIES.icon)
       if (icon) found[note.path] = icon
     }
     return found
-  }, [texts])
+  }, [noteTexts])
 
   /**
    * The names in use, counted — a property a note carries, on its page or on a
@@ -217,7 +226,7 @@ export function useVaultTexts({
    */
   const countNames = (read: (text: string) => string[]) => {
     const found = new Map<string, { name: string; notes: number }>()
-    for (const { text } of texts ?? []) {
+    for (const { text } of noteTexts ?? []) {
       for (const name of new Set(read(text))) {
         const at = name.toLowerCase()
         const seen = found.get(at)
@@ -232,11 +241,11 @@ export function useVaultTexts({
   const properties = useMemo(
     () => countNames((text) => noteProperties(text, typed).map((one) => one.name)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [texts, typed]
+    [noteTexts, typed]
   )
   /** The `#tag`s the notes carry. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const tags = useMemo(() => countNames(tagNames), [texts])
+  const tags = useMemo(() => countNames(tagNames), [noteTexts])
 
   /**
    * **What a property says, everywhere it is said** — on a note's page and on its
@@ -248,14 +257,14 @@ export function useVaultTexts({
     (name: string): { note: VaultFile; value: string }[] => {
       const want = name.toLowerCase()
       const found: { note: VaultFile; value: string }[] = []
-      for (const { note, text } of texts ?? []) {
+      for (const { note, text } of noteTexts ?? []) {
         for (const one of noteProperties(text, typed)) {
           if (one.value && one.name.toLowerCase() === want) found.push({ note, value: one.value })
         }
       }
       return found.sort((a, b) => a.note.path.localeCompare(b.note.path))
     },
-    [texts, typed]
+    [noteTexts, typed]
   )
 
   /**
@@ -269,14 +278,14 @@ export function useVaultTexts({
    * note's edges into a built graph was twenty lines and its own set of invariants.
    */
   const corpus = useMemo(() => {
-    if (!texts) return null
+    if (!noteTexts) return null
     const live = liveText.current
-    if (!live) return texts
-    return texts.map((row) =>
+    if (!live) return noteTexts
+    return noteTexts.map((row) =>
       row.note.path === live.path ? { note: row.note, text: live.text } : row
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [texts, openPath, viewOpen, liveVersion])
+  }, [noteTexts, openPath, viewOpen, liveVersion])
 
   const graph = useMemo(
     () => (corpus ? buildNoteGraph(corpus, noteIndex, graphHides) : null),

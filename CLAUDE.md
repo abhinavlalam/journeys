@@ -74,7 +74,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 - **A file is not necessarily a note.** `fileKind` is the only place a file's kind
   is decided. `isNote` (`.md` and not encrypted) gates every piece of note
   machinery — page properties, `path::`, link rewriting, the icon picker, the `+`.
-  `isTextFile` gates the corpus. A non-note keeps its extension in the tree and
+  `isTextFile` gates what is read and searched; the rest — tags, properties,
+  backlinks, the graph — is built from the notes among them (`noteTexts`), or a
+  `#comment` in a `.conf` was a tag. A non-note keeps its extension in the tree and
   opens in a `file` tab with no buffer, because a buffer over a PDF is a file the
   first keystroke corrupts.
 - **A property is `key:: value`, a page's or a block's.** A note's page

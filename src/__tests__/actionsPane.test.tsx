@@ -438,6 +438,24 @@ describe('the controls, in this section', () => {
   })
 })
 
+/** **Only notes feed tags and properties**: a `#comment` in a config file is not a
+ *  tag anyone keeps. A text file is still found by search. */
+describe('a text file', () => {
+  it('feeds no tag or property, and is still found by search', async () => {
+    disk.write('/v/notes.txt', 'plain #fromtext mood:: calm see [[roadmap]]\n')
+    disk.write('/v/monday.md', '# Monday\n\n#fromnote\n')
+    await openApp()
+    await openActionsExpanded()
+    await waitFor(() => expect(pane().getByText('fromnote')).toBeTruthy())
+    expect(pane().queryByText('fromtext')).toBeNull()
+    expect(pane().queryByText('mood')).toBeNull()
+
+    fireEvent.click(screen.getByLabelText('Search in notes'))
+    fireEvent.change(screen.getByLabelText('Search notes'), { target: { value: 'fromtext' } })
+    expect(await screen.findByText(/plain #fromtext/)).toBeTruthy()
+  })
+})
+
 /** One row for a tag that is both declared and in use: the union Properties has,
  *  over a declaration rather than an empty page. */
 describe('the Tags group', () => {
