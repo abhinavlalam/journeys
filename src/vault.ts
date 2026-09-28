@@ -294,6 +294,22 @@ export async function writeVaultFile(file: VaultFile, raw: string): Promise<void
 }
 
 /**
+ * What is on disk for `file`, kept beside it as `name (other).ext` — the sync's own
+ * rule for the two sides of one change (`other_path` in `sync.rs`) — **as it is on
+ * disk**, so a locked note's other copy is its ciphertext and never its text. A copy
+ * already there is not written over: the next free `(other 2)` is.
+ */
+export async function keepOther(file: VaultFile): Promise<VaultFile> {
+  const root = file.absolutePath.slice(0, file.absolutePath.length - file.path.length - 1)
+  const ext = /\.enc\.md$/i.exec(file.path)?.[0] ?? /\.[^./]+$/.exec(file.path)?.[0] ?? ''
+  const stem = file.path.slice(0, file.path.length - ext.length)
+  let other = vaultFileRef(root, `${stem} (other)${ext}`)
+  for (let n = 2; await vaultFs.exists(other.absolutePath); n++) other = vaultFileRef(root, `${stem} (other ${n})${ext}`)
+  await vaultFs.writeText(other.absolutePath, await vaultFs.readText(file.absolutePath))
+  return other
+}
+
+/**
  * Tries a passphrase against an encrypted file, and remembers it if it opens.
  *
  * The proof is a decryption: AES-GCM authenticates, so "it decrypted" and "this is

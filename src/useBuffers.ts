@@ -9,7 +9,7 @@ interface NoteBufferOps {
   discardPendingSave: (pathOrPrefix: string) => void
   followFile: (was: string, moved: VaultFile) => void
   followFolder: (oldPrefix: string, newPrefix: string, moves: NoteMoves) => void
-  reread: (file: VaultFile | null) => Promise<void>
+  reread: (file: VaultFile | null, ours?: boolean) => Promise<void>
   /** The note this buffer holds, for `rereadAll`. */
   note: VaultFile | null
 }
@@ -49,8 +49,8 @@ export function useBuffers({ onDeleted }: { onDeleted: (prefix: string) => void 
     followFile: (was: string, moved: VaultFile) => all().forEach((buffer) => buffer.followFile(was, moved)),
     followFolder: (oldPrefix: string, newPrefix: string, moves: NoteMoves) =>
       all().forEach((buffer) => buffer.followFolder(oldPrefix, newPrefix, moves)),
-    reread: async (file: VaultFile | null) => {
-      await Promise.all(all().map((buffer) => buffer.reread(file)))
+    reread: async (file: VaultFile | null, ours?: boolean) => {
+      await Promise.all(all().map((buffer) => buffer.reread(file, ours)))
     },
     /** Every buffer takes up its own note from disk — after a folder moved and the
      *  app rewrote a `path:` into each note under it. */

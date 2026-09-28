@@ -35,12 +35,14 @@ const fake = {
   pulled: { changed: [] as string[], conflicts: [] as string[] },
   /** What a round's commit answers — or throws, as the mass-deletion guard does. */
   commit: async (_byHand: boolean) => true,
+  /** What happens while the pull runs: the checkout's writes, the user's typing. */
+  duringPull: () => {},
 }
 const calls: string[] = []
 vi.mock('../sync', () => ({
   syncStatus: vi.fn(async () => fake.status),
   syncCommit: vi.fn(async (_vault: string, byHand: boolean) => (calls.push(`commit${byHand ? ':by-hand' : ''}`), fake.commit(byHand))),
-  syncPull: vi.fn(async () => (calls.push('pull'), fake.pulled)),
+  syncPull: vi.fn(async () => (calls.push('pull'), fake.duringPull(), fake.pulled)),
   syncPush: vi.fn(async () => void calls.push('push')),
   // Configuring the address is what makes the status carry it — as on disk.
   syncConfigure: vi.fn(async (_vault: string, remote: string | null, name: string, email: string) => {
@@ -62,6 +64,7 @@ beforeEach(() => {
   fake.status = backedUp
   fake.pulled = { changed: [], conflicts: [] }
   fake.commit = async () => true
+  fake.duringPull = () => {}
   calls.length = 0
 })
 
@@ -165,6 +168,46 @@ describe('the sync', () => {
     const banner = await screen.findByRole('alert')
     expect(banner.textContent).toContain('Both devices changed Daily/2026-09-24.md')
     expect(banner.textContent).toContain('(other)')
+  })
+
+  /**
+   * **Typing during a pull keeps both.** The round flushes before it pulls, but the
+   * pull takes seconds; a save queued inside them used to write the pre-pull text
+   * back over the other device's edit, and the next round pushed that to it. The
+   * other side is kept beside the note now, as the merge keeps a conflict.
+   */
+  it('keeps the other device’s edit beside a note typed into during the pull', async () => {
+    disk.write('/v/Daily/2026-09-24.md', '# Thursday\n')
+    await openAppSettled()
+    fireEvent.click(pane().getByText('Daily'))
+    fireEvent.click(await waitFor(() => pane().getByText('2026-09-24')))
+    await waitFor(() => expect((screen.getByTestId('editor') as HTMLTextAreaElement).value).toBe('# Thursday\n'))
+    fake.duringPull = () => {
+      fireEvent.change(screen.getByTestId('editor'), { target: { value: '# Thursday\nmine\n' } })
+      disk.write('/v/Daily/2026-09-24.md', '# Thursday\ntheirs\n')
+    }
+    fake.pulled = { changed: ['Daily/2026-09-24.md'], conflicts: [] }
+    fireEvent(window, new Event('focus'))
+
+    await waitFor(() => expect(disk.read('/v/Daily/2026-09-24 (other).md')).toBe('# Thursday\ntheirs\n'))
+    await waitFor(() => expect(disk.read('/v/Daily/2026-09-24.md')).toBe('# Thursday\nmine\n'))
+    expect((await screen.findByRole('alert')).textContent).toContain('2026-09-24 (other)')
+  })
+
+  it('takes a pulled edit into a note nobody is typing into, and keeps no copy', async () => {
+    disk.write('/v/Daily/2026-09-24.md', '# Thursday\n')
+    await openAppSettled()
+    fireEvent.click(pane().getByText('Daily'))
+    fireEvent.click(await waitFor(() => pane().getByText('2026-09-24')))
+    await waitFor(() => expect((screen.getByTestId('editor') as HTMLTextAreaElement).value).toBe('# Thursday\n'))
+    fake.duringPull = () => disk.write('/v/Daily/2026-09-24.md', '# Thursday\ntheirs\n')
+    fake.pulled = { changed: ['Daily/2026-09-24.md'], conflicts: [] }
+    fireEvent(window, new Event('focus'))
+
+    await waitFor(() => expect((screen.getByTestId('editor') as HTMLTextAreaElement).value).toBe('# Thursday\ntheirs\n'))
+    await new Promise((r) => setTimeout(r, 1000))
+    expect(disk.has('/v/Daily/2026-09-24 (other).md')).toBe(false)
+    expect(disk.read('/v/Daily/2026-09-24.md')).toBe('# Thursday\ntheirs\n')
   })
 
   it('leaves a vault that is not a repository alone', async () => {

@@ -112,7 +112,14 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   field's control; `ViewerHeader` keeps the name it opened with and abandons a
   commit whose note changed underneath it.
 - **A write the app makes to an open note reaches its buffer** (`reread`), and
-  declines while a save is queued: pending typing outranks a property.
+  declines while a save is queued: pending typing outranks a property, which is
+  still *seen*, so the save goes over it.
+- **A save never writes over text it has not seen** (`seen`, `writeNote`). What is
+  on disk and was neither read nor written by this buffer — a pull's (`reread(file,
+  false)`), an agent's, Drive's — is kept beside the note as `name (other).ext`
+  (`keepOther`, the merge's own rule, as bytes so a locked note stays ciphertext),
+  said, and then the typing is written. Typing during a pull used to write the
+  pre-pull text over the other device's edit, and the next round pushed it.
 - **A quit writes the open notes first** (`quit.ts`, `lib.rs`'s `quit`). On macOS
   tao ends the app from `applicationWillTerminate`, with no event to hold it on, and
   the last 800ms of autosave went with it. So ⌘Q (the menu's own Quit replaces the

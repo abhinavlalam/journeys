@@ -248,7 +248,8 @@ export default function App() {
     onPulled: async ({ changed }) => {
       if (!vault.vaultPath) return
       await vault.refresh(vault.vaultPath)
-      for (const path of changed) await buffers.reread(vaultFileRef(vault.vaultPath, path))
+      // Not the app's own writes: under typing, the save keeps these beside the note.
+      for (const path of changed) await buffers.reread(vaultFileRef(vault.vaultPath, path), false)
     },
     onCommitted: async () => {
       if (vault.vaultPath) await vault.refresh(vault.vaultPath)

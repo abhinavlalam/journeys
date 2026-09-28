@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { fileExists, readVaultFile, writeVaultFile } from './vault'
+import { fileExists, keepOther, readVaultFile, writeVaultFile } from './vault'
 import { useWindowEvent } from './useWindowEvent'
 import type { VaultFile, VaultFolder } from './vaultModel'
 import { pathKey } from './links'
@@ -69,6 +69,11 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
    * stand in for it.
    */
   const openNoteExists = useRef(false)
+  /**
+   * The note's text as this buffer last read or wrote it — what a save may write
+   * over. Anything else on disk is someone else's, and is kept rather than lost.
+   */
+  const seen = useRef<string | null>(null)
 
   const pendingSave = useRef<{ file: VaultFile; raw: string } | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -120,6 +125,7 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
     bufferGeneration.current += 1
     setEditorEpoch((n) => n + 1)
     bodyRef.current = failed ? '' : loaded.body
+    seen.current = failed ? null : loaded.body
     setBody(failed ? '' : loaded.body)
     setSaveStatus('idle')
   }
@@ -146,10 +152,15 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
    * **Only when nothing is queued.** A pending save is the user's own typing and
    * outranks a property the app added; replacing the buffer under it would throw
    * away characters, which is worse than losing a `path:` the next move rewrites.
+   * The app's write is still *seen*, so the save goes over it without a copy.
+   * `ours` is false for a pull's: the other device's text is not seen, so a save
+   * under typing keeps it beside the note (`writeNote`).
    */
-  async function reread(file: VaultFile | null) {
-    if (!file || pendingSave.current || loadedPath.current !== file.path) return
-    applyNoteBody(await readNoteBody(file), file.path)
+  async function reread(file: VaultFile | null, ours = true) {
+    if (!file || loadedPath.current !== file.path) return
+    const loaded = await readNoteBody(file)
+    if (!pendingSave.current) applyNoteBody(loaded, file.path)
+    else if (ours && !('failed' in loaded)) seen.current = loaded.body
   }
 
   /**
@@ -173,9 +184,24 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
     applyNoteBody({ body: '' }, null)
   }
 
+  /**
+   * **A save never writes over text it has not seen.** Typing during a sync's pull
+   * wrote the pre-pull text back over the other device's edit, and the next round
+   * pushed that to it — the one loss the merge itself never makes. So what is on
+   * disk and was not read or written here is kept beside the note, the merge's own
+   * way (`keepOther`), and said; then the typing is written.
+   */
   async function writeNote(file: VaultFile, raw: string) {
     const isNew = !openNoteExists.current
+    if (!isNew && loadedPath.current === file.path) {
+      const onDisk = await readVaultFile(file)
+      if (seen.current !== null && onDisk !== seen.current && onDisk !== raw) {
+        const other = await keepOther(file)
+        setError(`${file.name} changed elsewhere while you typed. Yours is in the note; the other is beside it as ${other.name}.`)
+      }
+    }
     await writeVaultFile(file, raw)
+    if (loadedPath.current === file.path) seen.current = raw
     openNoteExists.current = true
     setSaveStatus('saved')
     // A folder note written for the first time changes the tree's shape.
@@ -257,10 +283,9 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
    * silently overwrites whatever is now on disk. It lives here, with the buffer,
    * because applying that read is `applyNoteBody`'s business and nobody else's.
    *
-   * There is no filesystem watcher: this runs on window focus. **Last-writer-wins
-   * by design** — our pending save is flushed *before* the read, so with an edit of
-   * our own in flight our text wins the collision. The alternative silently drops
-   * the user's typing; the cost is that there is no "keep yours / take theirs".
+   * There is no filesystem watcher: this runs on window focus. Our pending save is
+   * flushed *before* the read, so with an edit of our own in flight our text wins
+   * the collision — and the other is kept beside the note, not lost (`writeNote`).
    */
   async function syncWithDisk() {
     if (!vaultPath) return
