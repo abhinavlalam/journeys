@@ -73,6 +73,16 @@ const LABEL_PX = 11
 const EM_PER_CHARACTER = 0.516
 /** Air around a label before it counts as touching its neighbour. */
 const LABEL_GAP = 4
+/** The most of a name a label shows at rest: a long one was a line of text across
+ *  the picture, and the hover says the rest. */
+const LABEL_CHARS = 24
+
+/** A name as a label shows it at rest: whole if it fits, else the words that do. */
+export function shortName(name: string): string {
+  if (name.length <= LABEL_CHARS) return name
+  const words = name.slice(0, Math.max(name.lastIndexOf(' ', LABEL_CHARS - 1), 0)).replace(/[\s\-–—:,;]+$/, '')
+  return `${words || name.slice(0, LABEL_CHARS - 1)}…`
+}
 
 const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
 
@@ -242,7 +252,9 @@ export function decluttered(
   graph: NoteGraph,
   at: ReadonlyMap<string, Placed>,
   k: number,
-  currentId: string | null
+  currentId: string | null,
+  /** Named already, by the region each is the hub of. */
+  hubs: ReadonlySet<string> = EMPTY
 ): ReadonlySet<string> {
   const order = [...graph.nodes].sort((a, b) => {
     if (a.id === currentId) return -1
@@ -256,10 +268,11 @@ export function decluttered(
   const shown = new Set<string>()
   for (const node of order) {
     const p = at.get(node.id)
-    if (!p) continue
+    // A day is named when it is pointed at: its date was a fifth of the text.
+    if (!p || ((node.kind === 'day' || hubs.has(node.id)) && node.id !== currentId)) continue
     // Screen space, translation left out: it shifts every box alike and so cannot
     // change which two of them touch.
-    const width = Math.max(node.name.length * LABEL_PX * EM_PER_CHARACTER, LABEL_PX) + LABEL_GAP
+    const width = Math.max(shortName(node.name).length * LABEL_PX * EM_PER_CHARACTER, LABEL_PX) + LABEL_GAP
     const x = p.x * k
     const y = p.y * k
     const box = { l: x - width / 2, r: x + width / 2, t: y, b: y + LABEL_PX + LABEL_GAP }
@@ -570,7 +583,8 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
   const lit = hovered ? new Set([hovered, ...(near.get(hovered) ?? [])]) : null
   // Only when nothing is hovered: the hover names its own set and dims the rest, so
   // there is nothing to declutter against.
-  const names = lit || !placed ? EMPTY : decluttered(drawn, placed, k, currentId)
+  const hubs = new Set(picture.regions.map((region) => region.hub))
+  const names = lit || !placed ? EMPTY : decluttered(drawn, placed, k, currentId, hubs)
   // Constant on screen whatever the zoom: a hairline is a hairline, and a name has
   // one readable size. Positions scale, these do not.
   const hair = 1 / k
@@ -604,7 +618,7 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
               <g key={region.members[0]} className="graph-region">
                 <circle cx={x} cy={y} r={region.r} strokeWidth={hair} />
                 <text x={x} y={y - region.r + REGION_PAD / 2} dominantBaseline="middle" fontSize={labelSize}>
-                  {region.name}
+                  {shortName(drawn.byId.get(region.hub)!.name)}
                 </text>
               </g>
             )
@@ -693,7 +707,7 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
                     fontSize={labelSize}
                     strokeWidth={3 * hair}
                   >
-                    {node.name}
+                    {node.id === hovered ? node.name : shortName(node.name)}
                   </text>
                 )}
               </g>

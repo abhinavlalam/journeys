@@ -13,7 +13,7 @@ import type { NoteGraph } from '../graph'
 import { buildNoteIndex } from '../links'
 import type { VaultFile } from '../vaultModel'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { GraphView, decluttered } from '../GraphView'
+import { GraphView, decluttered, shortName } from '../GraphView'
 
 /**
  * The note graph's **view**: the frame loop, the pane swap, and the click that
@@ -336,9 +336,45 @@ describe('the graph’s clusters', () => {
     expect(opacities.filter((one) => one !== '1')).toHaveLength(5)
   })
 
-  it('names a note before a busier day where only one name fits', () => {
-    const at = new Map([['daily/2026-09-21', { x: 0, y: 0 }], ['lemon tart', { x: 0, y: 0 }]])
+  it('names a region’s hub once, by the region', () => {
+    stubReducedMotion(true)
+    render(<GraphView {...props} currentId={null} />)
+    expect(regions()).toEqual(['Harbour Bistro'])
+    expect(circleOf('Harbour Bistro').parentElement!.querySelector('text')).toBeNull()
+    expect(circleOf('Espresso').parentElement!.querySelector('text')!.textContent).toBe('Espresso')
+  })
+
+  it('names no day at rest, unless it is the open note', () => {
+    const at = new Map([['daily/2026-09-21', { x: 0, y: 0 }], ['lemon tart', { x: 500, y: 0 }]])
     expect(decluttered(GROUP, at, 1, null)).toEqual(new Set(['lemon tart']))
+    expect(decluttered(GROUP, at, 1, 'daily/2026-09-21')).toEqual(new Set(['daily/2026-09-21', 'lemon tart']))
+  })
+
+  it('names a note before a busier tag where only one name fits', () => {
+    const graph = graphOf({ 'a.md': '#busy [[b]]', 'b.md': '#busy', 'c.md': '#busy' })
+    const at = new Map([['tag:busy', { x: 0, y: 0 }], ['b', { x: 0, y: 0 }]])
+    expect(decluttered(graph, at, 1, null)).toEqual(new Set(['b']))
+  })
+})
+
+/** **A long name is a line of text across the picture**: at rest a label shows the
+ *  words that fit, and the whole name when it is pointed at. */
+describe('the graph’s long names', () => {
+  it('keeps a short name whole, and cuts a long one at a word', () => {
+    expect(shortName('Harbour Bistro')).toBe('Harbour Bistro')
+    expect(shortName('Harbour Bistro and the Long Terrace by the Sea')).toBe('Harbour Bistro and the…')
+    expect(shortName('Lakeside Terminal - Departures Hall')).toBe('Lakeside Terminal…')
+    expect(shortName('Northwind-quarterly-planning-notes')).toBe('Northwind-quarterly-pla…')
+  })
+
+  it('names a node in full when it is pointed at', () => {
+    stubReducedMotion(true)
+    const graph = graphOf({ 'Harbour Bistro and the Long Terrace by the Sea.md': '[[Espresso]]', 'Espresso.md': '' })
+    render(<GraphView graph={graph} loading={false} currentId={null} shows={ALL} onShows={() => {}} onSelect={() => {}} />)
+    const long = screen.getByRole('button', { name: 'Harbour Bistro and the Long Terrace by the Sea' })
+    expect(long.textContent).toBe('Harbour Bistro and the…')
+    fireEvent.pointerEnter(long)
+    expect(long.textContent).toBe('Harbour Bistro and the Long Terrace by the Sea')
   })
 })
 

@@ -766,11 +766,11 @@ export function clustersOf(graph: NoteGraph): string[][] {
     .sort((a, b) => b.length - a.length || compare(a[0], b[0]))
 }
 
-/** A cluster where it is drawn: a disc round its members, named for the most
- *  connected of them. */
+/** A cluster where it is drawn: a disc round its members, named for its `hub`, the
+ *  most connected of them. */
 export interface Region {
   members: string[]
-  name: string
+  hub: string
   x: number
   y: number
   r: number
@@ -825,8 +825,8 @@ export function everything(graph: NoteGraph, clusters: readonly string[][]): { a
   const regions = clusters.map((members, c) => {
     const mid = top.get(`cluster:${c}`)!
     for (const [id, p] of shapes[c].at) at.set(id, { x: mid.x + p.x, y: mid.y + p.y })
-    const named = members.reduce((best, id) => ((graph.degree.get(id) ?? 0) > (graph.degree.get(best) ?? 0) ? id : best))
-    return { members, name: graph.byId.get(named)!.name, x: mid.x, y: mid.y, r: shapes[c].r }
+    const hub = members.reduce((best, id) => ((graph.degree.get(id) ?? 0) > (graph.degree.get(best) ?? 0) ? id : best))
+    return { members, hub, x: mid.x, y: mid.y, r: shapes[c].r }
   })
   return { at, regions }
 }

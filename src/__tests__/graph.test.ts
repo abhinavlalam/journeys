@@ -761,7 +761,7 @@ describe('clusters', () => {
 
   it('draws each as a region round its members alone, apart from the others, named for its busiest', () => {
     const { at, regions } = everything(graph, clusters)
-    expect(regions.map((one) => one.name)).toEqual(['Harbour Bistro', 'Northwind'])
+    expect(regions.map((one) => one.hub)).toEqual(['harbour bistro', 'northwind'])
     for (const region of regions) {
       for (const id of region.members) expect(distance(at.get(id)!, region)).toBeLessThanOrEqual(region.r - REGION_PAD + 1e-6)
       for (const [id, p] of at) if (!region.members.includes(id)) expect(distance(p, region)).toBeGreaterThanOrEqual(region.r)

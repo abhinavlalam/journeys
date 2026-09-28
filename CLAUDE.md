@@ -429,8 +429,11 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   zooms about the pointer (a native, non-passive listener); background drags pan;
   the view is fitted, gliding, when the centre, scope or checkboxes change.
 - **Labels are placed by collision, not zoom** (`decluttered`), most-connected
-  first, the open note first of all. A hovered node's own edges come back and the
-  rest dim. A dragged node stays where it is left until the picture changes; a
+  first, the open note first of all. **At rest a label is short** (`shortName`:
+  whole up to 24 characters, else the words that fit and `…`), a day is unnamed,
+  and a region's hub is named by its region, not twice — the owner found the
+  picture too much text, long names worst. The hovered node says its whole name;
+  its own edges come back and the rest dim. A dragged node stays where it is left until the picture changes; a
   moved press is not a click.
 - `graphHides` and encrypted notes are dropped after the walk, so a link into one
   is not a hollow "missing" node.
