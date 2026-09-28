@@ -42,9 +42,6 @@ Object.defineProperty(globalThis, 'matchMedia', {
     dispatchEvent: () => false,
   }),
 })
-Range.prototype.getClientRects = () =>
-  [{ top: 0, bottom: 14, left: 0, right: 0, width: 0, height: 14 }] as unknown as DOMRectList
-
 afterEach(cleanup)
 beforeEach(() => {
   resetFakeVault()

@@ -37,9 +37,6 @@ Object.defineProperty(globalThis, 'matchMedia', {
   }),
 })
 
-Range.prototype.getClientRects = () =>
-  [{ top: 0, bottom: 14, left: 0, right: 0, width: 0, height: 14 }] as unknown as DOMRectList
-
 const FILES = {
   'session.conf': '# The bench session.\nset -g status off\n',
   'deploy.yaml': '# Where it goes\nregion: lakeside\n',

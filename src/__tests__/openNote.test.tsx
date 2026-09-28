@@ -48,12 +48,6 @@ Object.defineProperty(globalThis, 'matchMedia', {
   }),
 })
 
-/** jsdom implements no layout and `Range.getClientRects` is missing outright, which
-    `prosemirror-virtual-cursor` throws on. One zero-width rect gets past it; no
-    assertion here touches a coordinate. See `linkPicker.test.tsx`. */
-Range.prototype.getClientRects = () =>
-  [{ top: 0, bottom: 14, left: 0, right: 0, width: 0, height: 14 }] as unknown as DOMRectList
-
 afterEach(cleanup)
 
 beforeEach(() => {

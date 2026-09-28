@@ -1974,10 +1974,8 @@ describe('the properties a tag’s line is offered', () => {
    * Through the real keymap: the popup opened on a mounted editor, then the key. A
    * popup refuses any key for its first 75ms (`interactionDelay`), so the clock is
    * moved past it: pressed sooner, Enter makes a new line whatever the keymap says.
-   * jsdom has no `Range.getClientRects`, which the popup's placement reads.
    */
   async function popupOver(doc: string) {
-    Range.prototype.getClientRects = () => [] as unknown as DOMRectList
     const { container } = render(
       <MarkdownEditor initialMarkdown={doc} onChange={() => {}} notes={NOTES} tagStructures={TAGS} propertyTypes={TYPES} />
     )

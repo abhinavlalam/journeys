@@ -19,3 +19,14 @@ import { configure } from '@testing-library/dom'
  * with a docblock, and this only sets a number in a config object.
  */
 configure({ asyncUtilTimeout: 5000 })
+
+/**
+ * **jsdom has no `Range.getClientRects`**, and CodeMirror reads it to place a caret
+ * from a press or a popup beside the text. One zero-width rect gets past it; no test
+ * reads a coordinate. Here once: six files had their own copy, and the one that had
+ * none threw on a press, reported as an error beside a passing run.
+ */
+if (typeof Range !== 'undefined') {
+  Range.prototype.getClientRects = () =>
+    [{ top: 0, bottom: 14, left: 0, right: 0, width: 0, height: 14 }] as unknown as DOMRectList
+}

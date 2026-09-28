@@ -24,10 +24,9 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 
 /**
  * The JSON pane is the **real** editor now — the same `EditorHost` a note gets —
- * so these mount CodeMirror, and CodeMirror needs two things jsdom does not have.
- * `matchMedia` is called by `DOMObserver`'s constructor, so `new EditorView` throws
- * without it; `Range.getClientRects` is missing outright. Neither is a layout: no
- * assertion below touches a coordinate.
+ * so these mount CodeMirror, which calls `matchMedia` in `DOMObserver`'s
+ * constructor: jsdom has none, so `new EditorView` throws without it. It is not a
+ * layout; no assertion below touches a coordinate.
  */
 Object.defineProperty(globalThis, 'matchMedia', {
   configurable: true,
@@ -43,9 +42,6 @@ Object.defineProperty(globalThis, 'matchMedia', {
     dispatchEvent: () => false,
   }),
 })
-
-Range.prototype.getClientRects = () =>
-  [{ top: 0, bottom: 14, left: 0, right: 0, width: 0, height: 14 }] as unknown as DOMRectList
 
 /** The mounted view for a pane, and the way a test types into it: a transaction,
  *  which is what a keystroke becomes anyway. */
