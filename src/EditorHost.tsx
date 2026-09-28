@@ -253,9 +253,16 @@ export function EditorHost({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // **After the event that showed it**: a tab is switched on mousedown, and that
+  // press's own default then clears the focus the editor had just taken — tried in
+  // the running app, the caret did not come back until the note was clicked.
   useEffect(() => {
-    const root = rootRef.current
-    if (shown && root && !typingElsewhere(root)) viewRef.current?.focus()
+    if (!shown) return
+    const later = setTimeout(() => {
+      const root = rootRef.current
+      if (root && !typingElsewhere(root)) viewRef.current?.focus()
+    })
+    return () => clearTimeout(later)
   }, [shown])
 
   return <div className={`code-editor ${className}`} ref={rootRef} />
