@@ -184,6 +184,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   commits on blur, a create or search abandons. Buttons that open a field
   `preventDefault` on mousedown; `asking` declines a repeat of the same question.
   Two trees draw one tree (`where`), and only the one asked draws the field.
+  A `NameField` types as meant (no autocorrect, capitals or spellcheck: macOS
+  made `with:` into `With:`), and a name it cannot take keeps the field and says
+  why — dropped as the field closed, it read as the `+` not working.
 - **Picking is not opening**: ⌘-click and ⇧-click build a set (`picking.ts`, range
   in drawn order via `visibleFiles`); a plain click opens. A picked set takes a
   ground; the open row is coloured, not filled.

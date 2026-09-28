@@ -81,16 +81,28 @@ describe('a tag’s page', () => {
     fireEvent.keyDown(field, { key: 'Enter' })
     await waitFor(() => expect(tags()).toEqual(['amount', 'merchant', 'detail', 'category']))
 
-    // A name already there, or one that is not a name, adds nothing.
+    // Typed as a line writes it, `name::` is the name; one already there adds nothing.
+    fireEvent.click(viewer().getByLabelText('Add a property'))
+    fireEvent.change(viewer().getByPlaceholderText('Property name…'), { target: { value: 'venue::' } })
+    fireEvent.keyDown(viewer().getByPlaceholderText('Property name…'), { key: 'Enter' })
+    await waitFor(() => expect(tags()).toEqual(['amount', 'merchant', 'detail', 'category', 'venue']))
     fireEvent.click(viewer().getByLabelText('Add a property'))
     fireEvent.change(viewer().getByPlaceholderText('Property name…'), { target: { value: 'Amount' } })
     fireEvent.keyDown(viewer().getByPlaceholderText('Property name…'), { key: 'Enter' })
+
+    // One that is not a name keeps the field, and says why.
     fireEvent.click(viewer().getByLabelText('Add a property'))
-    fireEvent.change(viewer().getByPlaceholderText('Property name…'), { target: { value: 'two words' } })
-    fireEvent.keyDown(viewer().getByPlaceholderText('Property name…'), { key: 'Enter' })
+    const wrong = viewer().getByPlaceholderText('Property name…')
+    // Typed as meant: no autocorrect, no capitals it did not type.
+    expect([wrong.getAttribute('autocorrect'), wrong.getAttribute('autocapitalize'), wrong.getAttribute('spellcheck')]).toEqual(['off', 'off', 'false'])
+    fireEvent.change(wrong, { target: { value: 'two words' } })
+    fireEvent.keyDown(wrong, { key: 'Enter' })
+    await waitFor(() => expect(screen.getByText(/two words is not a property name/)).toBeTruthy())
+    expect((viewer().getByPlaceholderText('Property name…') as HTMLInputElement).value).toBe('two words')
+    fireEvent.keyDown(wrong, { key: 'Escape' })
 
     fireEvent.click(viewer().getByLabelText('Remove detail'))
-    await waitFor(() => expect(tags()).toEqual(['amount', 'merchant', 'category']))
+    await waitFor(() => expect(tags()).toEqual(['amount', 'merchant', 'category', 'venue']))
   })
 
   it('opens a property’s own page from its row, where its type is set', async () => {

@@ -1217,6 +1217,7 @@ export default function App() {
                     icons={icons}
                     loading={reading}
                     onProperties={(next) => void tagStructures.write(tab.name.toLowerCase(), { properties: next })}
+                    onError={setError}
                     onOpenProperty={(property) => view('property', property)}
                     onOpen={(file) => void openNote(file)}
                     onOpenLink={(target) => void openLinkTarget(target, true)}

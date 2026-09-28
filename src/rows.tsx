@@ -100,6 +100,11 @@ export function NameField({
       placeholder={placeholder}
       aria-label={ariaLabel}
       value={value}
+      // **A name is typed as meant.** macOS capitalised `with` as `With` at the `:`
+      // after it, and a name is what links and lines must spell.
+      autoCorrect="off"
+      autoCapitalize="off"
+      spellCheck={false}
       // Prefilled or empty, the whole value is selected, so typing replaces it —
       // unless the caller says otherwise, and then the caret goes to the end.
       onFocus={(e) =>

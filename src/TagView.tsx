@@ -31,6 +31,7 @@ export function TagView({
   icons,
   loading,
   onProperties,
+  onError,
   onOpenProperty,
   onOpen,
   onOpenLink,
@@ -44,6 +45,7 @@ export function TagView({
   icons: Record<string, string>
   loading: boolean
   onProperties: (next: string[]) => void
+  onError: (message: string) => void
   onOpenProperty: (property: string) => void
   onOpen: (file: VaultFile) => void
   onOpenLink: (target: string) => void
@@ -53,12 +55,20 @@ export function TagView({
   const [adding, setAdding] = useState<string | null>(null)
   const table = properties.length > 0 && notes.length > 0
 
-  /** A name typed in the field, added unless it is not a name or is there already. */
+  /**
+   * A name typed in the field — `with::` as `with`, the way a line writes it — added
+   * unless it is there already. **One that is not a name keeps the field and says
+   * so**: dropped as the field closed, it read as the `+` not working.
+   */
   function add() {
-    const typed = (adding ?? '').trim()
+    const typed = (adding ?? '').trim().replace(/:+$/, '')
+    if (typed && !new RegExp(`^${PROPERTY_NAME}$`).test(typed)) {
+      onError(`${typed} is not a property name: a property is one word, starting with a letter.`)
+      return
+    }
     setAdding(null)
     const taken = properties.some((one) => one.toLowerCase() === typed.toLowerCase())
-    if (new RegExp(`^${PROPERTY_NAME}$`).test(typed) && !taken) onProperties([...properties, typed])
+    if (typed && !taken) onProperties([...properties, typed])
   }
 
   /** A line's values, by the structure's own spelling of each property. */
