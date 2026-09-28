@@ -3796,6 +3796,23 @@ button.folder-toggle {
   stroke: none;
 }
 
+/* A day's note — the journal's own dates — a step back from the notes they mention,
+   and a tag in the text's own dim tone: three kinds, read apart at a glance. */
+.graph-node.day {
+  fill: var(--text-faint);
+}
+
+.graph-node.tag {
+  fill: var(--text-dim);
+}
+
+/* A tag's threads recede further: a tag joins every note that carries it, which is
+   context rather than a connection anyone made. A property's link is drawn broken
+   (`strokeDasharray`, counter-scaled with the zoom in `GraphView`). */
+.graph-edge.tag {
+  stroke: color-mix(in srgb, var(--text-faint) 22%, transparent);
+}
+
 /* Everything about a label except its **size**, which `LABEL_PX` in `GraphView` sets
    as an inline attribute: a label is counter-scaled by the zoom so a name keeps one
    readable size at every magnification, and that is arithmetic, not a declaration. A
@@ -3855,6 +3872,76 @@ button.folder-toggle {
 }
 
 .graph-controls > button:hover {
+  background: var(--bg-hover);
+  color: var(--mark);
+}
+
+/* **What the graph shows, along its top**: the scope, the three checkboxes, and the
+   notes connected to nothing. Over the canvas, as the corner controls are, so it
+   takes no row of the box the picture is fitted into — and letting a press on its
+   empty space through, since that is the canvas being panned. */
+.graph-bar {
+  position: absolute;
+  top: 0.75rem;
+  left: 1rem;
+  right: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-dim);
+  font-size: var(--fs-chrome);
+  pointer-events: none;
+}
+
+.graph-bar > * {
+  pointer-events: auto;
+}
+
+.graph-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+
+.graph-check > input {
+  margin: 0;
+  accent-color: var(--mark);
+}
+
+/* The notes connected to nothing, listed under the bar to open. */
+.graph-unconnected {
+  position: absolute;
+  top: calc(0.75rem + var(--control) + 0.5rem);
+  left: 1rem;
+  max-height: 50%;
+  overflow: auto;
+  margin: 0;
+  padding: 0.4rem;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  font-size: var(--fs-chrome);
+}
+
+.graph-unconnected button {
+  display: block;
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.graph-unconnected button:hover {
   background: var(--bg-hover);
   color: var(--mark);
 }

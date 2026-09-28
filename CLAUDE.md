@@ -45,7 +45,7 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 | `crypto.ts`, `useLocks.ts`, `useAutoLock.ts` | Locked notes: the format and the passphrases held / asking and locking / the clock. |
 | `sync.ts`, `useSync.ts`, `src-tauri/src/sync.rs` | Git sync. |
 | `terminal.ts`, `TerminalPane.tsx`, `src-tauri/src/terminal.rs` | The terminal. |
-| `graph.ts`, `GraphView.tsx` | The graph's model and layout / its view. |
+| `graph.ts`, `GraphView.tsx` | The graph's model, filters and layouts / its view. |
 | `settings.ts`, `useSettings.ts`, `SettingsPanel.tsx`, `SettingsFile.tsx` | Settings. |
 | `clock.ts` | The app's idea of time: local day stamps, units, relative words. |
 | `index.css` + `stylesheet.test.ts` | The sheet, and the rules it is held to. |
@@ -404,14 +404,28 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 
 ## The graph
 
+- **Still, not simulated in front of the reader** (the swirl and the crowd were
+  called confusing). A picture is laid out before it is drawn, the same every
+  time, and moves only when what is asked changes: a 320ms glide (`glideFrames`,
+  none under reduced motion) that ends. The picture is keyed on the graph's shape,
+  so typing beside it rebuilds nothing on screen.
+- **Around this note** by default, centred on the last note in front: it, what it
+  touches, what those touch, as rings (`around`, `ringLayout`), each outer node in
+  its parent's share of the angle. Lines the rings rest on lead; the rest are
+  `QUIET` until hovered. **Everything** is `layout` then `spread`.
+- **Three kinds of connection**, each a checkbox (`settings.graphShows`): a link in
+  the text, a link in a property's value (dashed), a tag (a node of its own). Nodes
+  are notes, days and tags. `connectionsOf` filters, and a note left with none is
+  counted and listed, not drawn.
 - `GraphView` owns a view transform; the layout stays in world space. The wheel
   zooms about the pointer (a native, non-passive listener); background drags pan;
-  the fit is automatic once, then a button.
+  the view is fitted, gliding, when the centre, scope or checkboxes change.
 - **Labels are placed by collision, not zoom** (`decluttered`), most-connected
-  first, the open note first of all. Edges recede; a hovered node's own edges come
-  back. Dragging pins after the step; a moved press is not a click.
+  first, the open note first of all. A hovered node's own edges come back and the
+  rest dim. A dragged node stays where it is left until the picture changes; a
+  moved press is not a click.
 - `graphHides` and encrypted notes are dropped after the walk, so a link into one
-  is not a hollow "missing" node. `settle(graph, from)` is the one loop.
+  is not a hollow "missing" node.
 
 ## Settings and the sheet
 
@@ -489,8 +503,8 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   `collections.json` (2026-09-28: a tag's structure and typed `::` properties do
   their work, and the vault was migrated).
 - **Still open**: at `--fw-prose` 600, `####` and below stop reading as headings;
-  folders are not pickable; the graph's layout repels every pair of nodes each step
-  (`stepLayout`), fine at hundreds of notes and slow at thousands.
+  folders are not pickable; the graph's Everything repels every pair of nodes each
+  step (`stepLayout`, then `spread`), fine at hundreds of notes and slow at thousands.
 
 ## Preferences
 

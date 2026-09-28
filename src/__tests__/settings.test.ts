@@ -527,6 +527,15 @@ describe('graphHides', () => {
   })
 })
 
+/** `graphShows`: the graph's three checkboxes, each read on its own. */
+describe('graphShows', () => {
+  it('shows every kind of connection by default, and reads each kind on its own', () => {
+    expect(parseSettings(null).graphShows).toEqual({ text: true, property: true, tag: true })
+    expect(parseSettings('{"graphShows":{"property":false,"tag":"no"}}').graphShows).toEqual({ text: true, property: false, tag: true })
+    expect(parseSettings('{"graphShows":"all"}').graphShows).toEqual({ text: true, property: true, tag: true })
+  })
+})
+
 /** The calendar's two: the feed addresses, read like `graphHides`, and how many
  *  days ahead it shows — a number with bounds, like every other number here. */
 describe('calendar settings', () => {

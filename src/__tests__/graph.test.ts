@@ -17,7 +17,11 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 
 const { buildNoteIndex, collectNotes } = await import('../links')
 const {
+  around,
   buildNoteGraph,
+  connectionsOf,
+  ringLayout,
+  spread,
   initialLayout,
   stepLayout,
   layout,
@@ -145,6 +149,7 @@ describe('buildNoteGraph', () => {
       path: 'Later/Someday.md',
       name: 'Someday',
       exists: false,
+      kind: 'note',
     })
     expect(edgeList(graph)).toContain('notes/roadmap -> later/someday x1')
   })
@@ -435,7 +440,7 @@ describe('layout', () => {
     expect(initialLayout(graph)).toEqual({ nodes: [], step: 0, maxSpeed: 0, converged: true })
     // Already converged, so it never steps.
     expect(layout(graph).step).toBe(0)
-    expect(boundsOf(layout(graph))).toBeNull()
+    expect(boundsOf(layout(graph).nodes)).toBeNull()
   })
 
   it('draws one node in toward the centre it is pulled toward', () => {
@@ -505,9 +510,9 @@ describe('boundsOf', () => {
    *  done for it on every frame. */
   it('answers the extents, and null for nothing to bound', () => {
     const state = stacked(['a', 'b', 'c'])
-    const only = boundsOf(state)
+    const only = boundsOf(state.nodes)
     expect(only).not.toBeNull()
-    expect(boundsOf({ ...state, nodes: [] })).toBeNull()
+    expect(boundsOf([])).toBeNull()
   })
 
   it('spans every node', () => {
@@ -520,7 +525,7 @@ describe('boundsOf', () => {
       maxSpeed: 0,
       converged: true,
     }
-    expect(boundsOf(state)).toEqual({ minX: -10, maxX: 30, minY: -6, maxY: 4 })
+    expect(boundsOf(state.nodes)).toEqual({ minX: -10, maxX: 30, minY: -6, maxY: 4 })
   })
 })
 
@@ -605,5 +610,106 @@ describe('a vault written the way the user writes one', () => {
     )
     expect(g.byId.get('quillfeather press')?.exists).toBe(false)
     expect(g.edgeCount).toBe(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// What a connection is, and the graph around one note
+// ---------------------------------------------------------------------------
+
+/**
+ * **Three kinds of connection**: a link written in the text, a link held in a
+ * property's value, and a note carrying a tag — each a checkbox on the graph. A day's
+ * note is a node of its own kind, so it can be drawn as one.
+ */
+describe('the kinds of connection', () => {
+  const days: VaultFolder = {
+    path: '',
+    absolutePath: '/vault',
+    name: 'Vault',
+    files: [note('Harbour Bistro.md'), note('Mira Vance.md'), note('Plans.md')],
+    folders: [{ path: 'Daily', absolutePath: '/vault/Daily', name: 'Daily', folders: [], files: [note('Daily/2026-09-21.md')] }],
+  }
+  const daysIndex = buildNoteIndex(collectNotes(days))
+  const graph = buildNoteGraph(
+    [
+      { note: note('Daily/2026-09-21.md'), text: '12:30 #expense lunch with [[Mira Vance]] merchant:: [[Harbour Bistro]]\n' },
+      { note: note('Plans.md'), text: 'nothing links out\n' },
+      { note: note('Harbour Bistro.md'), text: '' },
+      { note: note('Mira Vance.md'), text: '' },
+    ],
+    daysIndex,
+    [],
+    { typeOf: (name) => (name === 'merchant' ? 'backlink' : 'text'), dailyFolder: 'Daily' }
+  )
+  const all = { text: true, property: true, tag: true }
+
+  it('tells a link in the text from one in a property, and makes a tag a node', () => {
+    expect(graph.edges.map((edge) => `${edge.from} -> ${edge.to} ${edge.kind}`)).toEqual([
+      'daily/2026-09-21 -> harbour bistro property',
+      'daily/2026-09-21 -> mira vance text',
+      'daily/2026-09-21 -> tag:expense tag',
+    ])
+    expect(graph.byId.get('daily/2026-09-21')!.kind).toBe('day')
+    expect(graph.byId.get('tag:expense')).toMatchObject({ name: '#expense', kind: 'tag' })
+  })
+
+  it('shows only the connections chosen, and counts the notes left with none', () => {
+    const textOnly = connectionsOf(graph, { ...all, property: false, tag: false })
+    expect(textOnly.graph.nodes.map((node) => node.id)).toEqual(['daily/2026-09-21', 'mira vance'])
+    expect(textOnly.unconnected.map((node) => node.name).sort()).toEqual(['Harbour Bistro', 'Plans'])
+    // A tag with nothing to join is not a thing, and is not counted as a note.
+    expect(connectionsOf(graph, all).unconnected.map((node) => node.name)).toEqual(['Plans'])
+  })
+
+  it('rings a note with what it touches, and those with what they touch', () => {
+    const near = around(connectionsOf(graph, all).graph, 'mira vance')
+    expect(near.rings).toEqual([['mira vance'], ['daily/2026-09-21'], ['harbour bistro', 'tag:expense']])
+    expect(near.parents.get('tag:expense')).toBe('daily/2026-09-21')
+  })
+})
+
+/** **Still, and the same every time**: laid out, not simulated. */
+describe('the rings', () => {
+  const distance = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y)
+
+  it('puts the note at the centre and each ring at its own radius', () => {
+    const at = ringLayout([['c'], ['a', 'b'], ['a1', 'a2', 'b1']], new Map([['a1', 'a'], ['a2', 'a'], ['b1', 'b']]))
+    expect(at.get('c')).toEqual({ x: 0, y: 0 })
+    const inner = distance(at.get('a')!, at.get('c')!)
+    expect(distance(at.get('b')!, at.get('c')!)).toBeCloseTo(inner)
+    expect(distance(at.get('a1')!, at.get('c')!)).toBeGreaterThan(inner)
+  })
+
+  it('lays a note’s own neighbours beside it', () => {
+    const at = ringLayout([['c'], ['a', 'b'], ['a1', 'b1']], new Map([['a1', 'a'], ['b1', 'b']]))
+    expect(distance(at.get('a1')!, at.get('a')!)).toBeLessThan(distance(at.get('a1')!, at.get('b')!))
+  })
+
+  it('makes a crowded ring wide enough that no two of its nodes touch', () => {
+    const many = Array.from({ length: 40 }, (_, i) => `n${i}`)
+    const at = ringLayout([['c'], many, []], new Map())
+    const gaps = many.map((id, i) => distance(at.get(id)!, at.get(many[(i + 1) % many.length])!))
+    expect(Math.min(...gaps)).toBeGreaterThan(40)
+  })
+
+  it('is the same every time', () => {
+    const rings = [['c'], ['a', 'b'], ['a1']]
+    const parents = new Map([['a1', 'a']])
+    expect([...ringLayout(rings, parents)]).toEqual([...ringLayout(rings, parents)])
+  })
+})
+
+describe('spreading a layout', () => {
+  it('pushes apart any two nodes nearer than the gap, and moves none that are not', () => {
+    const at = spread(new Map([['a', { x: 0, y: 0 }], ['b', { x: 10, y: 0 }], ['c', { x: 500, y: 0 }]]), 44)
+    expect(Math.hypot(at.get('a')!.x - at.get('b')!.x, at.get('a')!.y - at.get('b')!.y)).toBeGreaterThanOrEqual(43.9)
+    expect(at.get('c')).toEqual({ x: 500, y: 0 })
+  })
+
+  it('parts two nodes on one point, the same way every time', () => {
+    const on = new Map([['a', { x: 0, y: 0 }], ['b', { x: 0, y: 0 }]])
+    expect([...spread(on, 44)]).toEqual([...spread(on, 44)])
+    expect(spread(on, 44).get('b')!.x).toBeGreaterThan(0)
   })
 })

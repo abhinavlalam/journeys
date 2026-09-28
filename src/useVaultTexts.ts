@@ -294,8 +294,8 @@ export function useVaultTexts({
   }, [noteTexts, openPath, viewOpen, liveVersion])
 
   const graph = useMemo(
-    () => (corpus ? buildNoteGraph(corpus, noteIndex, graphHides) : null),
-    [corpus, noteIndex, graphHides]
+    () => (corpus ? buildNoteGraph(corpus, noteIndex, graphHides, { typeOf: typed, dailyFolder }) : null),
+    [corpus, noteIndex, graphHides, typed, dailyFolder]
   )
   /** Who points here. Same corpus, so the two answers can never disagree. */
   const backlinks = useMemo(

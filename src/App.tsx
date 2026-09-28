@@ -135,6 +135,10 @@ export default function App() {
   /** The note the focused group shows, if it shows one: what the tree marks, what
    *  the graph centres on, whose text `liveText` is about. */
   const focusedNote = active?.kind === 'note' ? active.file : null
+  /** The note last in front — the graph's centre, since the graph takes the note's
+   *  place when it opens and no note is in front then. */
+  const lastNote = useRef<VaultFile | null>(null)
+  if (focusedNote) lastNote.current = focusedNote
   /** A view derived from the corpus is on screen in *any* pane — beside the note
    *  being typed into, as likely as not — so its text has to follow the typing. */
   const viewVisible = groups(ws.layout).some((group) => {
@@ -1259,7 +1263,9 @@ export default function App() {
                   <GraphView
                     graph={graph}
                     loading={reading}
-                    currentId={focusedNote ? pathKey(focusedNote.path) : null}
+                    currentId={lastNote.current ? pathKey(lastNote.current.path) : null}
+                    shows={settings.graphShows}
+                    onShows={(graphShows) => changeSettings({ ...settings, graphShows })}
                     onSelect={selectGraphNode}
                   />
                 )

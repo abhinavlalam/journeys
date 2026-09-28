@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { RefObject } from 'react'
-import { boundsOf, initialLayout, settle, stepLayout } from './graph'
-import type { GraphNode, LayoutState, NoteGraph } from './graph'
+import { around, boundsOf, connectionsOf, EDGE_KINDS, layout, ringLayout, spread } from './graph'
+import type { EdgeKind, GraphNode, NoteGraph, Placed } from './graph'
+import { countOf } from './rows'
 
 /**
  * The note graph, drawn.
@@ -11,11 +12,14 @@ import type { GraphNode, LayoutState, NoteGraph } from './graph'
  * with a vault to read — so the graph arrives here already built and this file
  * mounts under a test with no disk mocked at all.
  *
- * What it owns is the one thing `graph.ts` refuses to: the frame. The model exposes
- * `stepLayout` as a pure step precisely so the animation lives out here, which means
- * the two failure modes are out here too — a `requestAnimationFrame` loop that never
- * stops, and one that outlives the component holding a stale graph. Both are
- * addressed in `useAnimatedLayout` below, and both have a test.
+ * **Still.** It was a force simulation animated in front of the reader — the swirl,
+ * and the crowd, since it drew every note at once — and was called confusing, with
+ * "nothing visually smooth or understandable about it". Now the picture is laid out
+ * before it is drawn, the same every time, and moves only when what is asked of it
+ * changes, gliding from the old places to the new. **Around this note** is the note
+ * in the middle, what it touches on a ring, and what those touch beyond; **Every­
+ * thing** is the whole vault, settled first. Three checkboxes along the top say what
+ * a connection is.
  */
 
 /** Room for a node's own radius plus the label under it, so neither is clipped. */
@@ -91,137 +95,62 @@ function usePrefersReducedMotion(): boolean {
   return reduced
 }
 
+/** Everything, laid out with room: a longer rest length and a stronger push than the
+ *  simulation's defaults, then no two nodes nearer than a disc and a name. */
+const EVERYTHING = { repulsion: 12000, springLength: 90 }
+const NODE_GAP = 44
+/** Opacity for a line the rings do not rest on, until one of its ends is hovered. */
+const QUIET = 0.3
+
+/** How long the picture takes to glide to a new arrangement, in milliseconds. It is
+ *  arithmetic in the renderer, so it is here and not the sheet's `--motion`. */
+const GLIDE_MS = 320
+
+/** What each checkbox is called. */
+const SHOWS_LABEL: Record<EdgeKind, string> = { text: 'Links in text', property: 'Links in properties', tag: 'Tags' }
+
 /**
- * The animated layout for a graph, and the whole lifetime of the frame loop.
- *
- * Four properties, each of which has been a bug in some graph view somewhere:
- *
- * - **It stops.** The next frame is scheduled only while `converged` is false, and
- *   `graph.ts` anneals specifically so that is reached in a bounded number of
- *   steps. A loop still requesting frames over a settled picture is a battery bug,
- *   not a cosmetic one.
- * - **It is cancelled.** The effect's teardown cancels the pending frame, so
- *   closing the pane or unmounting ends it. Otherwise a callback already queued
- *   fires once more, against a graph nobody is showing.
- * - **It does not restart.** Positions carry across a graph change through
- *   `carried`, because the open note's edges are rebuilt live as the user types and
- *   re-seeding from `initialLayout` would throw the picture away every time. `step`
- *   goes back to 0 with them: the cooling clamp has to reopen or a node that has
- *   just appeared can never travel to its place, and reheating a near-settled
- *   layout is cheap because the forces on it are already small.
- * - **Frame zero is derived, not effected.** `seed` is a `useMemo` rather than the
- *   effect's first `setState`, because an effect commits a frame *late*: the render
- *   that first has a graph would draw an `.graph-canvas` with nothing in it, and
- *   then fill it in. It showed up as a flaky test — the canvas was on screen a
- *   render before any node was — and it would have been a visible blank flash.
- *   `state` therefore falls back to `seed` whenever the advanced state belongs to
- *   an older graph, which is what tagging it with `graph` is for.
- *
- * The box is deliberately **not** a dependency. Resizing re-maps the layout through
- * the view transform, which is pure, and must never re-simulate.
+ * `frame(eased)` for each frame of a glide, eased out, and a way to stop it. The
+ * one loop the view runs, and it **ends**: a glide is a fixed number of frames, so
+ * nothing asks for another once the picture is where it is going.
  */
-function useAnimatedLayout(
-  graph: NoteGraph | null,
-  animate: boolean
-): {
-  state: LayoutState | null
-  /** Hold a node at a point in simulation space. The sim keeps running around it. */
-  hold: (id: string, x: number, y: number) => void
-  /** Let go, so the forces have it again. */
-  release: () => void
-} {
-  /** What the frames have made of `seed`, tagged with the graph it belongs to. */
-  const [advanced, setAdvanced] = useState<{ graph: NoteGraph; state: LayoutState } | null>(null)
-  /** The last committed state, for the next graph to start from. Written only from
-      the effect, so the render stays a function of its inputs. */
-  const carried = useRef<LayoutState | null>(null)
-  /**
-   * The node the pointer is holding, if any.
-   *
-   * **Pinning is a post-step override, and that is not a shortcut — it is what
-   * pinning means.** The forces this node exerts on its neighbours are computed from
-   * where the pointer put it, which is what makes them follow; the forces *on* it
-   * are computed and then discarded, which is what makes it stay. So `stepLayout`
-   * needs to know nothing about dragging and stays the pure step it is tested as.
-   */
-  const pinned = useRef<{ id: string; x: number; y: number } | null>(null)
-  /** Bumped to reheat a settled layout: a drag has to restart the frame loop, and
-      the loop's own termination condition is the thing standing in the way. */
-  const [kick, setKick] = useState(0)
-
-  const seed = useMemo(() => {
-    if (!graph) return null
-    const previous = carried.current
-    const start: LayoutState = previous
-      ? { ...previous, step: 0, maxSpeed: 0, converged: graph.nodes.length === 0 }
-      : initialLayout(graph)
-    // Reduced motion never animates, so its frame zero *is* the settled layout.
-    return animate ? start : settle(graph, start)
-  }, [graph, animate])
-
-  // Frame zero, on its own effect and **before** the loop's, so a reheat does not
-  // reset the progress the loop has made — which assigning this inside the loop's
-  // effect would do on every `kick`.
-  useEffect(() => {
-    carried.current = seed
-  }, [seed])
-
-  useEffect(() => {
-    const start = carried.current ?? seed
-    if (!graph || !start || !animate) return
-    if (start.converged && !pinned.current) return
-
-    let frame = requestAnimationFrame(function tick() {
-      const next = withPin(stepLayout(graph, carried.current ?? start), pinned.current)
-      carried.current = next
-      setAdvanced({ graph, state: next })
-      // The one line that makes this terminate. A held node keeps it alive, which
-      // is why `withPin` reports a pinned state as never converged.
-      frame = next.converged ? 0 : requestAnimationFrame(tick)
-    })
-    return () => {
-      if (frame) cancelAnimationFrame(frame)
-    }
-  }, [graph, seed, animate, kick])
-
-  const hold = useCallback((id: string, x: number, y: number) => {
-    pinned.current = { id, x, y }
-    // Written straight in as well, so the node is under the pointer on this render
-    // rather than one frame behind it — and so a reduced-motion view, which runs no
-    // frames at all, can still be dragged.
-    const from = carried.current
-    if (from) {
-      const next = withPin(from, pinned.current)
-      carried.current = next
-      setAdvanced((was) => (was ? { ...was, state: next } : was))
-    }
-    setKick((n) => n + 1)
-  }, [])
-
-  const release = useCallback(() => {
-    if (!pinned.current) return
-    pinned.current = null
-    setKick((n) => n + 1)
-  }, [])
-
-  const state = advanced && advanced.graph === graph ? advanced.state : seed
-  return { state, hold, release }
+function glideFrames(frame: (eased: number) => void): () => void {
+  const start = performance.now()
+  let handle = requestAnimationFrame(function tick() {
+    const done = Math.min(1, (performance.now() - start) / GLIDE_MS)
+    frame(1 - (1 - done) ** 3)
+    handle = done < 1 ? requestAnimationFrame(tick) : 0
+  })
+  return () => cancelAnimationFrame(handle)
 }
 
-/** The held node put back where the pointer has it, and the layout declared unsettled
- *  so the loop keeps going while a drag is in progress. */
-function withPin(
-  state: LayoutState,
-  pin: { id: string; x: number; y: number } | null
-): LayoutState {
-  if (!pin) return state
-  return {
-    ...state,
-    converged: false,
-    nodes: state.nodes.map((node) =>
-      node.id === pin.id ? { ...node, x: pin.x, y: pin.y, vx: 0, vy: 0 } : node
-    ),
-  }
+/**
+ * Where each node is drawn: its place, reached by a glide from wherever it was. A
+ * node new to the picture is simply at its place. The first picture is drawn where
+ * it is — in the very first render, before any effect, so the pane is never empty.
+ */
+function useGlide(targets: ReadonlyMap<string, Placed> | null, animate: boolean): ReadonlyMap<string, Placed> | null {
+  const [shown, setShown] = useState(targets)
+  const last = useRef(targets)
+  useEffect(() => {
+    const from = last.current
+    if (from === targets) return
+    if (!targets || !from || !animate) {
+      last.current = targets
+      setShown(targets)
+      return
+    }
+    return glideFrames((eased) => {
+      const next = new Map<string, Placed>()
+      for (const [id, to] of targets) {
+        const was = from.get(id)
+        next.set(id, was ? { x: was.x + (to.x - was.x) * eased, y: was.y + (to.y - was.y) * eased } : to)
+      }
+      last.current = next
+      setShown(next)
+    })
+  }, [targets, animate])
+  return shown
 }
 
 /** The pane's own size, for the view transform. Zero until something lays it out,
@@ -260,9 +189,9 @@ const clamp = (value: number, low: number, high: number) => Math.min(Math.max(va
 
 const EMPTY: ReadonlySet<string> = new Set()
 
-/** The view that puts `state` in the middle of a `width`×`height` box. */
-function fitView(state: LayoutState, width: number, height: number): View | null {
-  const bounds = boundsOf(state)
+/** The view that puts `points` in the middle of a `width`×`height` box. */
+function fitView(points: Iterable<Placed>, width: number, height: number): View | null {
+  const bounds = boundsOf(points)
   if (!bounds || width <= 0 || height <= 0) return null
   const innerW = Math.max(width - BOX_PADDING * 2, 1)
   const innerH = Math.max(height - BOX_PADDING * 2, 1)
@@ -305,7 +234,7 @@ function fitView(state: LayoutState, width: number, height: number): View | null
  */
 export function decluttered(
   graph: NoteGraph,
-  at: ReadonlyMap<string, { x: number; y: number }>,
+  at: ReadonlyMap<string, Placed>,
   k: number,
   currentId: string | null
 ): ReadonlySet<string> {
@@ -358,13 +287,18 @@ function neighboursOf(graph: NoteGraph | null): ReadonlyMap<string, ReadonlySet<
   return near
 }
 
+/** Which kinds of connection are drawn — the checkboxes, and `settings.graphShows`. */
+export type Shows = Readonly<Record<EdgeKind, boolean>>
+
 interface GraphViewProps {
   /** Null before the first read has finished. */
   graph: NoteGraph | null
   /** True while the vault is being read, so the pane can say so. */
   loading: boolean
-  /** `pathKey` of the open note, marked `.current`. Null when none is open. */
+  /** `pathKey` of the open note: the centre, and marked `.current`. */
   currentId: string | null
+  shows: Shows
+  onShows: (next: Shows) => void
   /**
    * A node was clicked. Every node reports, `exists: false` included: what to do
    * about a link with no note behind it is the caller's decision and not the
@@ -373,13 +307,39 @@ interface GraphViewProps {
   onSelect: (node: GraphNode) => void
 }
 
-export function GraphView({ graph, loading, currentId, onSelect }: GraphViewProps) {
+export function GraphView({ graph, loading, currentId, shows, onShows, onSelect }: GraphViewProps) {
   const boxRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const size = useBoxSize(boxRef)
   const reduced = usePrefersReducedMotion()
-  const { state, hold, release } = useAnimatedLayout(graph, !reduced)
-  const near = useMemo(() => neighboursOf(graph), [graph])
+  const [scope, setScope] = useState<'around' | 'all'>('around')
+  const [listing, setListing] = useState(false)
+
+  const shown = useMemo(() => (graph ? connectionsOf(graph, shows) : null), [graph, shows])
+  // **The same graph is the same picture.** A note typed into beside the graph
+  // rebuilds it on every key; laid out again each time, it was a layout run, a glide
+  // and a dragged node let go, per keystroke.
+  const shape = useMemo(() => shown && JSON.stringify([shown.graph.nodes, shown.graph.edges]), [shown])
+  // Around the open note when it has connections to be around.
+  const centred = currentId && shown?.graph.byId.has(currentId) ? currentId : null
+  const centre = scope === 'around' ? centred : null
+  const picture = useMemo(() => {
+    if (!shown) return null
+    if (centre) {
+      const near = around(shown.graph, centre)
+      return { graph: near.graph, targets: ringLayout(near.rings, near.parents), parents: near.parents }
+    }
+    const rest = layout(shown.graph, EVERYTHING).nodes
+    const settled = new Map(rest.map((node) => [node.id, { x: node.x, y: node.y }]))
+    return { graph: shown.graph, targets: spread(settled, NODE_GAP), parents: null }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shape, centre])
+  const glided = useGlide(picture?.targets ?? null, !reduced)
+  /** Nodes the pointer has moved, where it left them — until the picture changes. */
+  const [held, setHeld] = useState<ReadonlyMap<string, Placed>>(new Map())
+  useEffect(() => setHeld(new Map()), [picture])
+  const placed = useMemo(() => (glided && held.size > 0 ? new Map([...glided, ...held]) : glided), [glided, held])
+  const near = useMemo(() => neighboursOf(picture?.graph ?? null), [picture])
 
   const [view, setView] = useState<View | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
@@ -396,25 +356,33 @@ export function GraphView({ graph, loading, currentId, onSelect }: GraphViewProp
   /** Set on the pointer-up of a gesture that travelled, read and cleared by the
       click that follows it. See `onUp`. */
   const dragged = useRef(false)
-  /** Fitted once, when there is first both a layout and a box to fit it in. After
-      that the view is the user's: a graph is rebuilt on every keystroke in a note,
-      and re-fitting on that would snatch the picture back each time. */
-  const fitted = useRef(false)
 
-  /** By id, because the edge loop asks for both ends of every edge. */
-  const placed = useMemo(
-    () => (state ? new Map(state.nodes.map((node) => [node.id, node])) : null),
-    [state]
-  )
-
-  // The first fit, and the only automatic one.
+  /**
+   * **Framed when what is looked at changes** — the scope, the centre, the
+   * checkboxes — and gliding there, and not when the same picture is rebuilt as a
+   * note is typed into: re-framing on that would snatch the view back each time.
+   */
+  const framing = `${centre ?? ''}|${EDGE_KINDS.map((kind) => (shows[kind] ? 1 : 0)).join('')}`
+  const framed = useRef<string | null>(null)
   useEffect(() => {
-    if (fitted.current || !state || size.width <= 0) return
-    const next = fitView(state, size.width, size.height)
+    if (!picture || size.width <= 0 || framed.current === framing) return
+    const next = fitView(picture.targets.values(), size.width, size.height)
     if (!next) return
-    fitted.current = true
-    setView(next)
-  }, [state, size.width, size.height])
+    const from = framed.current === null || reduced ? null : view
+    framed.current = framing
+    if (!from) {
+      setView(next)
+      return
+    }
+    return glideFrames((eased) =>
+      setView({
+        k: from.k + (next.k - from.k) * eased,
+        x: from.x + (next.x - from.x) * eased,
+        y: from.y + (next.y - from.y) * eased,
+      })
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picture, framing, size.width, size.height, reduced])
 
   const toWorld = useCallback(
     (clientX: number, clientY: number) => {
@@ -454,14 +422,13 @@ export function GraphView({ graph, loading, currentId, onSelect }: GraphViewProp
       active.moved = true
       const world = toWorld(event.clientX, event.clientY)
       if (!world) return
-      hold(active.id, world.x, world.y)
+      setHeld((was) => new Map(was).set(active.id, world))
     }
     const onUp = () => {
       const active = gesture.current
       gesture.current = null
       if (!active) return
       if (active.kind === 'node') {
-        release()
         // **A drag is not a click**, and the browser will send one anyway: a press
         // and a release on the same element is a click however far the pointer went
         // in between. So the click that follows a *moved* gesture is swallowed,
@@ -478,7 +445,7 @@ export function GraphView({ graph, loading, currentId, onSelect }: GraphViewProp
       window.removeEventListener('pointerup', onUp)
       window.removeEventListener('pointercancel', onUp)
     }
-  }, [toWorld, hold, release])
+  }, [toWorld])
 
   /**
    * The wheel zooms **about the pointer**, so whatever is under it stays under it.
@@ -526,21 +493,74 @@ export function GraphView({ graph, loading, currentId, onSelect }: GraphViewProp
       }
     })
 
-  if (!graph || graph.nodeCount === 0) {
+  const bar = (
+    <div className="graph-bar">
+      <span className="view-switch" role="group" aria-label="What the graph shows">
+        <button
+          type="button"
+          className="header-action"
+          aria-pressed={centre !== null}
+          disabled={!centred}
+          onClick={() => setScope('around')}
+        >
+          Around this note
+        </button>
+        <button type="button" className="header-action" aria-pressed={centre === null} onClick={() => setScope('all')}>
+          Everything
+        </button>
+      </span>
+      {EDGE_KINDS.map((kind) => (
+        <label key={kind} className="graph-check">
+          <input
+            type="checkbox"
+            checked={shows[kind]}
+            onChange={(event) => onShows({ ...shows, [kind]: event.target.checked })}
+          />
+          {SHOWS_LABEL[kind]}
+        </label>
+      ))}
+      {shown && shown.unconnected.length > 0 && (
+        <button type="button" className="header-action" aria-expanded={listing} onClick={() => setListing((was) => !was)}>
+          {countOf(shown.unconnected.length, 'unconnected note')}
+        </button>
+      )}
+    </div>
+  )
+  // **Not drawn, and not lost**: the notes with no connection of the kinds shown.
+  const unconnected = listing && shown && shown.unconnected.length > 0 && (
+    <ul className="graph-unconnected" aria-label="Unconnected notes">
+      {shown.unconnected.map((node) => (
+        <li key={node.id}>
+          <button type="button" onClick={() => onSelect(node)}>
+            {node.name}
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+
+  if (!picture || picture.graph.nodeCount === 0) {
     return (
       <div className="graph-view" ref={boxRef}>
+        {bar}
+        {unconnected}
         <p className="graph-empty">
-          {loading ? 'Reading every note…' : 'No links yet. Type [[ in a note to make one.'}
+          {loading || !graph
+            ? 'Reading every note…'
+            : graph.nodeCount === 0
+              ? 'No links yet. Type [[ in a note to make one.'
+              : 'Nothing is connected by what is ticked.'}
         </p>
       </div>
     )
   }
 
+  const drawn = picture.graph
   const k = view?.k ?? 1
   const lit = hovered ? new Set([hovered, ...(near.get(hovered) ?? [])]) : null
   // Only when nothing is hovered: the hover names its own set and dims the rest, so
   // there is nothing to declutter against.
-  const names = lit || !placed ? EMPTY : decluttered(graph, placed, k, currentId)
+  const names = lit || !placed ? EMPTY : decluttered(drawn, placed, k, currentId)
   // Constant on screen whatever the zoom: a hairline is a hairline, and a name has
   // one readable size. Positions scale, these do not.
   const hair = 1 / k
@@ -548,6 +568,8 @@ export function GraphView({ graph, loading, currentId, onSelect }: GraphViewProp
 
   return (
     <div className="graph-view" ref={boxRef}>
+      {bar}
+      {unconnected}
       <svg
         className="graph-canvas"
         ref={svgRef}
@@ -563,35 +585,44 @@ export function GraphView({ graph, loading, currentId, onSelect }: GraphViewProp
         }}
       >
         <g transform={`translate(${view?.x ?? 0},${view?.y ?? 0}) scale(${k})`}>
-          {graph.edges.map((edge) => {
+          {drawn.edges.map((edge) => {
             const from = placed?.get(edge.from)
             const to = placed?.get(edge.to)
             if (!from || !to) return null
-            // **The hovered node's own edges, not every edge between lit nodes.**
-            // Read off `hovered` rather than the lit set, which also holds the
-            // neighbours — so hovering a spoke lit the hub's *other* edge too, and
-            // the highlight said "these are connected" about a pair that only
-            // shared an acquaintance. Caught by a test that counted the faded ones.
+            // **The hovered node's own edges, not every edge between lit nodes**:
+            // hovering a spoke lit the hub's *other* edge too, and said "these are
+            // connected" about a pair that only shared an acquaintance.
             const on = !hovered || edge.from === hovered || edge.to === hovered
+            // **Around a note, the lines the rings rest on lead**: from the centre,
+            // and from each outer node to the one it sits beside. The rest — a day's
+            // link to a hub its neighbour also links — cross the picture, so they
+            // step back until one of their ends is hovered.
+            const { parents } = picture
+            const structural =
+              !parents || edge.from === centre || edge.to === centre || parents.get(edge.from) === edge.to || parents.get(edge.to) === edge.from
+            const opacity = hovered ? (on ? 1 : DIM) : structural ? 1 : QUIET
             return (
               <line
-                key={`${edge.from} ${edge.to}`}
-                className="graph-edge"
+                key={`${edge.from} ${edge.to} ${edge.kind}`}
+                className={`graph-edge ${edge.kind}`}
                 x1={from.x}
                 y1={from.y}
                 x2={to.x}
                 y2={to.y}
                 strokeWidth={Math.min(1 + (edge.weight - 1) * EDGE_WIDTH.step, EDGE_WIDTH.max) * hair}
-                opacity={on ? 1 : DIM}
+                // A link held in a property is drawn broken: a fact about a line,
+                // where a link in the text is something written on purpose.
+                strokeDasharray={edge.kind === 'property' ? `${4 * hair} ${3 * hair}` : undefined}
+                opacity={opacity}
               />
             )
           })}
-          {graph.nodes.map((node) => {
+          {drawn.nodes.map((node) => {
             const at = placed?.get(node.id)
             if (!at) return null
-            const degree = graph.degree.get(node.id) ?? 0
+            const degree = drawn.degree.get(node.id) ?? 0
             const radius = Math.min(NODE_R + degree * NODE_R_STEP, NODE_R_MAX)
-            const classes = ['graph-node']
+            const classes = ['graph-node', node.kind]
             if (!node.exists) classes.push('missing')
             if (node.id === currentId) classes.push('current')
             const on = !lit || lit.has(node.id)
@@ -653,13 +684,13 @@ export function GraphView({ graph, loading, currentId, onSelect }: GraphViewProp
         <button
           type="button"
           aria-label="Fit to view"
-          onClick={() => state && setView(fitView(state, size.width, size.height))}
+          onClick={() => setView(fitView(picture.targets.values(), size.width, size.height))}
         >
           Fit
         </button>
       </div>
       <p className="graph-stats">
-        {loading ? 'Reading every note…' : `${graph.nodeCount} notes · ${graph.edgeCount} links`}
+        {loading ? 'Reading every note…' : `${countOf(drawn.nodeCount, 'node')} · ${countOf(drawn.edgeCount, 'connection')}`}
       </p>
     </div>
   )

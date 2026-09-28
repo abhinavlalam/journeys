@@ -186,6 +186,9 @@ export interface Settings {
    * which has the Save for exactly this.
    */
   graphHides: string[]
+  /** Which connections the graph draws — the checkboxes along its top: links in the
+   *  text, links held in properties, tags. */
+  graphShows: { text: boolean; property: boolean; tag: boolean }
   /**
    * Calendars the calendar's Sync reads: each a private iCal address — Google's
    * *Secret address in iCal format* — and **the name the owner gives it**, which is
@@ -314,6 +317,7 @@ export const DEFAULT_SETTINGS: Settings = {
   dailyFolder: DAILY_FOLDER,
   shortcuts: defaultShortcuts(),
   graphHides: [],
+  graphShows: { text: true, property: true, tag: true },
   calendarFeeds: [],
   calendarDays: 7,
   calendarMinutes: 5,
@@ -440,6 +444,7 @@ export function parseSettings(raw: unknown): Settings {
     shortcuts: pickShortcuts(stored.shortcuts),
     // Trailing slashes off: a folder is named as the tree spells it.
     graphHides: pickStrings(stored.graphHides).map((one) => one.replace(/\/+$/, '')),
+    graphShows: pickShows(stored.graphShows),
     calendarFeeds: pickFeeds(stored.calendarFeeds),
     calendarDays: pickNumber(stored.calendarDays, BOUNDS.calendarDays, DEFAULT_SETTINGS.calendarDays),
     calendarMinutes: pickNumber(stored.calendarMinutes, BOUNDS.calendarMinutes, DEFAULT_SETTINGS.calendarMinutes),
@@ -466,6 +471,13 @@ function pickStrings(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((one): one is string => typeof one === 'string' && one.trim() !== '').map((one) => one.trim())
     : []
+}
+
+/** Each checkbox on its own: a kind the file does not say, or says oddly, is on. */
+function pickShows(value: unknown): Settings['graphShows'] {
+  const given = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  const pick = (kind: keyof Settings['graphShows']) => (typeof given[kind] === 'boolean' ? (given[kind] as boolean) : true)
+  return { text: pick('text'), property: pick('property'), tag: pick('tag') }
 }
 
 export function loadSettings(): Settings {

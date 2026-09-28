@@ -1,12 +1,12 @@
-// The note graph: one node per note, one edge per *pair* of notes that link.
+// The note graph: one node per note or tag, one edge per *pair* that connect, by kind.
 //
 // Two halves, and they do not know about each other:
 //
 // - **The model** — `buildNoteGraph` folds notes and their text into nodes and
 //   weighted directed edges. One call, every time: the open note's own text is
 //   substituted into the corpus first, so what the user sees is always a rebuild.
-// - **The layout** — a hand-rolled force simulation over that graph, exposed as
-//   pure steps so the renderer animates it and a test runs it to convergence.
+// - **The layouts** — rings around one note (`ringLayout`), and a hand-rolled force
+//   simulation over the whole graph, run to rest before anything is drawn.
 //
 // Like `links.ts` this module is **pure**: no filesystem, no React, no timers. It
 // takes note text as *input*, so the caller decides when to pay for reading the
@@ -15,14 +15,29 @@
 // `vault.ts`, which imports `@tauri-apps/plugin-fs` at module scope, so a test of
 // this file still needs that seam mocked — see `graph.test.ts`.
 
+import { isDailyNote } from './daily'
 import { parseNoteLinks, pathKey, resolveTarget } from './links'
 import type { NoteIndex } from './links'
+import { blockProperties, type PropertyType } from './properties'
+import { tagNames } from './tags'
 import { baseName, isEncrypted, noteName } from './vaultModel'
 import type { VaultFile } from './vaultModel'
 
 // ---------------------------------------------------------------------------
 // Shape
 // ---------------------------------------------------------------------------
+
+/** What a node stands for: a note, a day's note, or a tag. */
+export type NodeKind = 'note' | 'day' | 'tag'
+
+/**
+ * **What a connection is**: a link written in the text, a link held in a property's
+ * value (`merchant:: [[Harbour Bistro]]`), or a note carrying a tag. The graph shows
+ * any of the three, as the owner chooses — the second were a third of a vault's
+ * links and made its busiest hubs.
+ */
+export const EDGE_KINDS = ['text', 'property', 'tag'] as const
+export type EdgeKind = (typeof EDGE_KINDS)[number]
 
 /**
  * One note in the graph.
@@ -50,27 +65,29 @@ export interface GraphNode {
    * expected to draw them differently (hollow, dashed) rather than identically.
    */
   exists: boolean
+  kind: NodeKind
 }
 
 /**
- * Every link from one note to another, collapsed into one edge.
+ * Every link of one kind from one note to another, collapsed into one edge.
  *
- * Three links from A to B are **one** edge of weight 3, not three edges: the layout
+ * Three links in A's text to B are **one** edge of weight 3, not three edges: the layout
  * treats an edge as a spring, and three springs between one pair would haul them
  * together three times as hard for no reason a reader could see.
  */
-interface GraphEdge {
+export interface GraphEdge {
   /** `GraphNode.id` of the note holding the links. */
   from: string
   /** `GraphNode.id` of the note they point at. Never equal to `from`. */
   to: string
   /** How many links in `from` point at `to`. At least 1. */
   weight: number
+  kind: EdgeKind
 }
 
 /**
  * A built graph. Every field is derived, and every one is stable: nodes sorted by
- * `id`, edges by `(from, to)`, using plain `<` rather than `localeCompare` so the
+ * `id`, edges by `(from, to, kind)`, using plain `<` rather than `localeCompare` so the
  * order cannot shift with the host's collation. That is what lets the renderer
  * diff one rebuild against the next by identity, and there is a test for it.
  *
@@ -113,17 +130,47 @@ function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0
 }
 
-/** The node for a note being read. Existing or not, it is always a node. */
-function sourceNode(note: VaultFile, index: NoteIndex): GraphNode {
-  const known = index.byKey.get(pathKey(note.path))
-  const file = known ?? note
-  return { id: pathKey(file.path), path: file.path, name: file.name, exists: !!known }
+/** What a graph is read with: each property's type, for where a value holding a
+ *  link ends, and the daily folder, for which notes are days. */
+export interface GraphOptions {
+  typeOf?: (name: string) => PropertyType
+  dailyFolder?: string
 }
 
-/** One note's outgoing edges, and the nodes they land on. */
-function linksFrom(from: GraphNode, text: string, index: NoteIndex) {
+/** The node for a note being read. Existing or not, it is always a node. */
+function sourceNode(note: VaultFile, index: NoteIndex, dailyFolder: string): GraphNode {
+  const known = index.byKey.get(pathKey(note.path))
+  const file = known ?? note
+  const kind = isDailyNote(file.path, dailyFolder) ? 'day' : 'note'
+  return { id: pathKey(file.path), path: file.path, name: file.name, exists: !!known, kind }
+}
+
+/** Where a note's block properties hold their values, as offsets into its text. */
+function propertyValues(text: string, typeOf: (name: string) => PropertyType): [number, number][] {
+  const spans: [number, number][] = []
+  let at = 0
+  for (const line of text.split('\n')) {
+    for (const one of blockProperties(line, typeOf)) {
+      if (one.valid) spans.push([at + one.valueFrom, at + one.valueTo])
+    }
+    at += line.length + 1
+  }
+  return spans
+}
+
+/** One note's outgoing edges, and the nodes they land on: its links, each by where
+ *  it is written, and its tags. */
+function linksFrom(from: GraphNode, text: string, index: NoteIndex, options: Required<GraphOptions>) {
   const targets = new Map<string, GraphNode>()
-  const weights = new Map<string, number>()
+  const edges = new Map<string, GraphEdge>()
+  const held = propertyValues(text, options.typeOf)
+  const count = (node: GraphNode, kind: EdgeKind) => {
+    const key = `${node.id}\n${kind}`
+    const edge = edges.get(key) ?? { from: from.id, to: node.id, weight: 0, kind }
+    edge.weight += 1
+    edges.set(key, edge)
+    if (!targets.has(node.id)) targets.set(node.id, node)
+  }
 
   for (const link of parseNoteLinks(text)) {
     // The whole link, not `link.target`: a wikilink resolves by *name* across the
@@ -133,39 +180,33 @@ function linksFrom(from: GraphNode, text: string, index: NoteIndex) {
     const resolved = resolveTarget(link, from.path, index)
     // An external destination is not a note, so it is not a node and not an edge.
     if (resolved.kind === 'external') continue
-    const node: GraphNode =
-      resolved.kind === 'note'
-        ? {
-            id: pathKey(resolved.note.path),
-            path: resolved.note.path,
-            name: resolved.note.name,
-            exists: true,
-          }
-        : {
-            id: pathKey(resolved.path),
-            path: resolved.path,
-            name: displayName(resolved.path),
-            exists: false,
-          }
+    const path = resolved.kind === 'note' ? resolved.note.path : resolved.path
+    const node: GraphNode = {
+      id: pathKey(path),
+      path,
+      name: resolved.kind === 'note' ? resolved.note.name : displayName(path),
+      exists: resolved.kind === 'note',
+      kind: isDailyNote(path, options.dailyFolder) ? 'day' : 'note',
+    }
     // A note does not link to itself here, matching the backlink index: the graph
     // answers "what connects to what", and a loop connects nothing. Compared by
     // `id` rather than `isSamePath`, which is what makes `from === to` impossible.
     if (node.id === from.id) continue
-    weights.set(node.id, (weights.get(node.id) ?? 0) + 1)
-    if (!targets.has(node.id)) targets.set(node.id, node)
+    count(node, held.some(([start, end]) => link.start >= start && link.start < end) ? 'property' : 'text')
+  }
+  // A tag is a node of its own, joined to every note that carries it.
+  for (const tag of new Set(tagNames(text))) {
+    count({ id: `tag:${tag}`, path: '', name: `#${tag}`, exists: true, kind: 'tag' }, 'tag')
   }
 
-  return {
-    edges: [...weights].map(([to, weight]) => ({ from: from.id, to, weight })),
-    targets: [...targets.values()],
-  }
+  return { edges: [...edges.values()], targets: [...targets.values()] }
 }
 
 /** Sorts, indexes and counts. The only place a `NoteGraph` is made. */
 function assemble(nodeMap: Map<string, GraphNode>, found: GraphEdge[]): NoteGraph {
   const nodes = [...nodeMap.values()].sort((a, b) => compare(a.id, b.id))
   const byId = new Map(nodes.map((node) => [node.id, node]))
-  const edges = found.sort((a, b) => compare(a.from, b.from) || compare(a.to, b.to))
+  const edges = found.sort((a, b) => compare(a.from, b.from) || compare(a.to, b.to) || compare(a.kind, b.kind))
 
   const degree = new Map(nodes.map((node) => [node.id, 0]))
   for (const edge of edges) {
@@ -193,17 +234,19 @@ function assemble(nodeMap: Map<string, GraphNode>, found: GraphEdge[]): NoteGrap
 export function buildNoteGraph(
   notes: Iterable<NoteText>,
   index: NoteIndex,
-  hidden: readonly string[] = []
+  hidden: readonly string[] = [],
+  options: GraphOptions = {}
 ): NoteGraph {
+  const read: Required<GraphOptions> = { typeOf: options.typeOf ?? (() => 'text'), dailyFolder: options.dailyFolder ?? '' }
   const nodes = new Map<string, GraphNode>()
   const edges: GraphEdge[] = []
 
   for (const { note, text } of notes) {
-    const from = sourceNode(note, index)
+    const from = sourceNode(note, index, read.dailyFolder)
     // Unconditional: a note read as a source is authoritative over the same node
     // guessed earlier from a link that pointed at it.
     nodes.set(from.id, from)
-    const found = linksFrom(from, text, index)
+    const found = linksFrom(from, text, index, read)
     for (const target of found.targets) if (!nodes.has(target.id)) nodes.set(target.id, target)
     edges.push(...found.edges)
   }
@@ -218,8 +261,106 @@ export function buildNoteGraph(
   // no text of one, but a link from another note would still draw it.
   const left = (path: string) =>
     isEncrypted(path) || hidden.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))
-  for (const [id, node] of nodes) if (left(node.path)) nodes.delete(id)
+  for (const [id, node] of nodes) if (node.kind !== 'tag' && left(node.path)) nodes.delete(id)
   return assemble(nodes, edges.filter((edge) => nodes.has(edge.from) && nodes.has(edge.to)))
+}
+
+/**
+ * The graph with only the connections chosen, and **the notes that are left with
+ * none, apart**: not drawn, but counted, so a note is never silently missing. A tag
+ * with no note is not a thing, and a note that exists only as a link's target
+ * leaves with its link.
+ */
+export function connectionsOf(
+  graph: NoteGraph,
+  shown: Readonly<Record<EdgeKind, boolean>>
+): { graph: NoteGraph; unconnected: GraphNode[] } {
+  const edges = graph.edges.filter((edge) => shown[edge.kind])
+  const touched = new Set(edges.flatMap((edge) => [edge.from, edge.to]))
+  const nodes = new Map(graph.nodes.filter((node) => touched.has(node.id)).map((node) => [node.id, node]))
+  const unconnected = graph.nodes.filter((node) => !touched.has(node.id) && node.exists && node.kind !== 'tag')
+  return { graph: assemble(nodes, edges), unconnected }
+}
+
+const KIND_ORDER: Record<NodeKind, number> = { note: 0, day: 1, tag: 2 }
+
+/**
+ * **The graph around one note**: the note, what it touches — links either way, its
+ * tags — and what those touch, as three rings. Each on the second ring belongs to
+ * the first on the first ring that reached it, so it can be laid beside it.
+ */
+export function around(
+  graph: NoteGraph,
+  centre: string
+): { graph: NoteGraph; rings: string[][]; parents: Map<string, string> } {
+  const near = new Map(graph.nodes.map((node) => [node.id, new Set<string>()]))
+  for (const edge of graph.edges) {
+    near.get(edge.from)?.add(edge.to)
+    near.get(edge.to)?.add(edge.from)
+  }
+  const ordered = (ids: Iterable<string>) =>
+    [...ids].sort((a, b) => {
+      const x = graph.byId.get(a)!
+      const y = graph.byId.get(b)!
+      return KIND_ORDER[x.kind] - KIND_ORDER[y.kind] || compare(x.name.toLowerCase(), y.name.toLowerCase())
+    })
+  const first = graph.byId.has(centre) ? ordered(near.get(centre)!) : []
+  const seen = new Set([centre, ...first])
+  const parents = new Map<string, string>()
+  const second: string[] = []
+  for (const parent of first) {
+    for (const id of ordered(near.get(parent)!)) {
+      if (seen.has(id)) continue
+      seen.add(id)
+      parents.set(id, parent)
+      second.push(id)
+    }
+  }
+  const nodes = new Map([...seen].filter((id) => graph.byId.has(id)).map((id) => [id, graph.byId.get(id)!]))
+  const edges = graph.edges.filter((edge) => nodes.has(edge.from) && nodes.has(edge.to))
+  return { graph: assemble(nodes, edges), rings: [[centre], first, second], parents }
+}
+
+/** A point in the layout's own space. */
+export interface Placed {
+  x: number
+  y: number
+}
+
+/** The least distance between two rings, and the arc a node takes on one — room
+ *  for a node and the start of its name. */
+const RING_GAP = 150
+const NODE_ARC = 48
+
+/**
+ * **Rings, laid out and not simulated**, so the picture is still and the same every
+ * time. The first ring shares the circle out by what hangs off each of its nodes —
+ * one with twelve on the second ring gets twelve shares of the angle, one with none
+ * a single share — and the second ring's nodes sit in their parent's share, so a
+ * note's own neighbours are beside it. Each ring is wide enough for its nodes.
+ */
+export function ringLayout(rings: readonly string[][], parents: ReadonlyMap<string, string>): Map<string, Placed> {
+  const at = new Map<string, Placed>()
+  const [[centre] = [], first = [], second = []] = rings
+  if (centre === undefined) return at
+  at.set(centre, { x: 0, y: 0 })
+  if (first.length === 0) return at
+  const children = new Map(first.map((id) => [id, [] as string[]]))
+  for (const id of second) children.get(parents.get(id)!)?.push(id)
+  const shares = first.map((id) => Math.max(1, children.get(id)!.length))
+  const total = shares.reduce((sum, one) => sum + one, 0)
+  const inner = Math.max(RING_GAP, (total * NODE_ARC) / (2 * Math.PI))
+  const outer = inner + RING_GAP
+  const polar = (r: number, angle: number) => ({ x: r * Math.cos(angle), y: r * Math.sin(angle) })
+  let start = -Math.PI / 2 - (Math.PI * shares[0]) / total
+  first.forEach((id, i) => {
+    const share = (2 * Math.PI * shares[i]) / total
+    at.set(id, polar(inner, start + share / 2))
+    const under = children.get(id)!
+    under.forEach((child, j) => at.set(child, polar(outer, start + (share * (j + 0.5)) / under.length)))
+    start += share
+  })
+  return at
 }
 
 // ---------------------------------------------------------------------------
@@ -233,11 +374,11 @@ export function buildNoteGraph(
 //
 // **Cost.** Repulsion is O(n^2) per step — n(n-1)/2 pairs — and everything else is
 // O(n + e). At the ~23 notes this vault holds that is 253 pairs, immeasurable. The
-// measured numbers are in `graph.test.ts` beside the big-graph test; the shape of
-// them is that ~700 nodes is the last size whose step still fits a 60 fps frame,
-// and past ~1,500 a step costs more than 10 ms and an animation visibly stutters.
-// That is where a Barnes-Hut quadtree earns its complexity. Below it, a quadtree is
-// slower than the loop it would replace.
+// measured numbers are in `graph.test.ts` beside the big-graph test. Run to rest,
+// a web of 150 notes took 42 ms, 300 took 100 ms and 700 took 0.5 s (2026-09-28):
+// paid once per change to the graph's shape, not per frame. Past that is where a
+// Barnes-Hut quadtree earns its complexity; below it, a quadtree is slower than
+// the loop it would replace.
 //
 // **Determinism is a hard requirement**: opening the graph twice on an unchanged
 // vault must give the same picture. So every initial position comes from a hash of
@@ -274,7 +415,7 @@ interface LayoutOptions {
    * Annealing. The speed clamp is `maxVelocity * cooling ** step`, so the graph is
    * free early and fine-tunes late. Without it a long chain or a dense web never
    * quite settles — it drifts under `tolerance`'s threshold and back out, measured
-   * — and the renderer would animate forever, which is a battery bug. With it,
+   * — and a layout would run to its step limit every time. With it,
    * `converged` is reached in a **bounded** number of steps for any graph, because
    * the clamp itself eventually falls under `tolerance`. Set it to 1 to disable.
    */
@@ -314,7 +455,7 @@ export interface LayoutState {
   step: number
   /** The fastest node's speed in the last frame. 0 for a fresh state. */
   maxSpeed: number
-  /** True once `maxSpeed` is within `tolerance` — where the renderer stops animating. */
+  /** True once `maxSpeed` is within `tolerance` — where `layout` stops. */
   converged: boolean
 }
 
@@ -383,13 +524,12 @@ function finite(node: LayoutNode): boolean {
 }
 
 /**
- * One frame. Pure: the state handed in is not touched and a new one comes back, so
- * the renderer can drive it from a frame callback and a test can drive it in a loop
- * with no DOM and no timers.
+ * One step. Pure: the state handed in is not touched and a new one comes back, so
+ * a test can drive it in a loop with no DOM and no timers.
  *
  * A node in the incoming state that is not in the graph is dropped, and a node in
  * the graph with no incoming position is seeded — so a state survives a note being
- * added or deleted mid-animation without the caller re-initialising.
+ * added or deleted between steps without the caller re-initialising.
  */
 export function stepLayout(
   graph: NoteGraph,
@@ -478,33 +618,45 @@ export function stepLayout(
 /** How many steps a layout may take to settle before it is drawn as it stands. */
 const SETTLE_STEPS = 800
 
-/**
- * Run the simulation to rest, or to `maxSteps`, whichever comes first — what a test
- * wants, and what the renderer wants for a graph it opens without animating.
- */
-export function settle(
-  graph: NoteGraph,
-  from: LayoutState,
-  options?: Partial<LayoutOptions>,
-  maxSteps = SETTLE_STEPS
-): LayoutState {
-  let state = from
+/** The simulation from frame zero to rest, or to `maxSteps`, whichever comes first. */
+export function layout(graph: NoteGraph, options?: Partial<LayoutOptions>, maxSteps = SETTLE_STEPS): LayoutState {
+  let state = initialLayout(graph, options)
   for (let i = 0; i < maxSteps && !state.converged; i++) state = stepLayout(graph, state, options)
   return state
 }
 
 /**
- * The settled layout from scratch: `settle` from frame zero.
- *
- * The loop was written twice, here and in `GraphView` — the renderer needs to settle
- * a layout that is already part-way, which is the only thing that differed. It is a
- * starting state, so it is an argument.
+ * **No two nodes on top of each other**: pairs closer than `gap` pushed apart along
+ * the line between them, a few rounds, in a fixed order — so a settled layout whose
+ * hubs were pulled into one knot opens out, and does so the same way every time. A
+ * pair on one point parts along the x axis.
  */
-export const layout = (
-  graph: NoteGraph,
-  options?: Partial<LayoutOptions>,
-  maxSteps = SETTLE_STEPS
-): LayoutState => settle(graph, initialLayout(graph, options), options, maxSteps)
+export function spread(points: ReadonlyMap<string, Placed>, gap: number, rounds = 40): Map<string, Placed> {
+  const ids = [...points.keys()].sort(compare)
+  const at = new Map(ids.map((id) => [id, { ...points.get(id)! }]))
+  for (let round = 0; round < rounds; round++) {
+    let moved = false
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const a = at.get(ids[i])!
+        const b = at.get(ids[j])!
+        const dx = b.x - a.x
+        const dy = b.y - a.y
+        const d = Math.hypot(dx, dy)
+        if (d >= gap) continue
+        const push = (gap - d) / 2
+        const [ux, uy] = d > 0 ? [dx / d, dy / d] : [1, 0]
+        a.x -= ux * push
+        a.y -= uy * push
+        b.x += ux * push
+        b.y += uy * push
+        moved = true
+      }
+    }
+    if (!moved) break
+  }
+  return at
+}
 
 /**
  * The layout's extents in simulation space, or null when there is nothing to bound.
@@ -515,19 +667,18 @@ export const layout = (
  * graph fitted for you is not a graph you can move around in.
  */
 export function boundsOf(
-  state: LayoutState
+  points: Iterable<Placed>
 ): { minX: number; maxX: number; minY: number; maxY: number } | null {
-  if (state.nodes.length === 0) return null
   let minX = Infinity
   let maxX = -Infinity
   let minY = Infinity
   let maxY = -Infinity
-  for (const node of state.nodes) {
+  for (const node of points) {
     minX = Math.min(minX, node.x)
     maxX = Math.max(maxX, node.x)
     minY = Math.min(minY, node.y)
     maxY = Math.max(maxY, node.y)
   }
-  return { minX, maxX, minY, maxY }
+  return minX === Infinity ? null : { minX, maxX, minY, maxY }
 }
 

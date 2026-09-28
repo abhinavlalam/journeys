@@ -166,51 +166,57 @@ afterEach(() => {
 })
 
 // ---------------------------------------------------------------------------
-// The frame loop
+// Still, and gliding when it changes
 // ---------------------------------------------------------------------------
 
-describe('the graph animation', () => {
-  it('stops asking for frames once the layout converges', () => {
+/** Every kind of connection shown, as the graph opens. */
+const ALL = { text: true, property: true, tag: true }
+
+/**
+ * **The graph is still.** It was a simulation animated in front of the reader, and
+ * the swirl was the complaint; now a picture is laid out before it is drawn, and a
+ * change glides for a fixed time and stops. The clock is moved by hand here.
+ */
+describe('the graph’s motion', () => {
+  const later = (ms: number) => vi.spyOn(performance, 'now').mockReturnValue(performance.now() + ms)
+  afterEach(() => vi.restoreAllMocks())
+
+  it('draws the first picture where it is, asking for no frame', () => {
     const frames = installFrames()
     try {
       stubReducedMotion(false)
-      render(<GraphView graph={CHAIN} loading={false} currentId={null} onSelect={() => {}} />)
-
-      // Mounting starts it, and one frame is not enough to settle a five-note ring.
-      expect(frames.pending).toBe(1)
-
-      // A ceiling far above the ~600 steps `graph.ts` promises, so a loop that
-      // never terminates ends this test rather than the machine.
-      let stepped = 0
-      while (frames.pending > 0 && stepped < 3000) {
-        frames.step()
-        stepped += 1
-      }
-
-      expect(frames.pending).toBe(0)
-      expect(stepped).toBeLessThan(600)
-      // It ran to rest rather than stopping early with the picture half made.
-      expect(nodes()).toHaveLength(CHAIN.nodeCount)
+      render(<GraphView graph={CHAIN} loading={false} currentId={null} shows={ALL} onShows={() => {}} onSelect={() => {}} />)
+      expect(nodes()).toHaveLength(5)
+      expect(frames.requests).toBe(0)
     } finally {
       frames.restore()
     }
   })
 
-  it('cancels the frame it is holding when the pane closes', () => {
+  it('glides to a changed picture, and stops asking for frames when it is there', () => {
     const frames = installFrames()
     try {
       stubReducedMotion(false)
-      const { unmount } = render(
-        <GraphView graph={CHAIN} loading={false} currentId={null} onSelect={() => {}} />
-      )
+      const props = { loading: false, currentId: 'pingbird', shows: ALL, onShows: () => {}, onSelect: () => {} }
+      const { rerender } = render(<GraphView graph={CHAIN} {...props} />)
+      rerender(<GraphView graph={CHAIN} {...props} currentId="tinbeacon" />)
+      expect(frames.pending).toBeGreaterThan(0)
+      later(1000)
       frames.step()
-      // Mid-flight: settled would make cancelling nothing to prove.
-      expect(frames.pending).toBe(1)
-
-      unmount()
-
-      expect(frames.cancelled).toHaveLength(1)
       expect(frames.pending).toBe(0)
+    } finally {
+      frames.restore()
+    }
+  })
+
+  it('holds still when the graph is rebuilt the same, as typing beside it does', () => {
+    const frames = installFrames()
+    try {
+      stubReducedMotion(false)
+      const props = { loading: false, currentId: null, shows: ALL, onShows: () => {}, onSelect: () => {} }
+      const { rerender } = render(<GraphView graph={CHAIN} {...props} />)
+      rerender(<GraphView graph={{ ...CHAIN }} {...props} />)
+      expect(frames.requests).toBe(0)
     } finally {
       frames.restore()
     }
@@ -220,68 +226,81 @@ describe('the graph animation', () => {
     const frames = installFrames()
     try {
       stubReducedMotion(true)
-      render(<GraphView graph={CHAIN} loading={false} currentId={null} onSelect={() => {}} />)
-
+      const props = { loading: false, shows: ALL, onShows: () => {}, onSelect: () => {} }
+      const { rerender } = render(<GraphView graph={CHAIN} currentId="pingbird" {...props} />)
+      rerender(<GraphView graph={CHAIN} currentId="tinbeacon" {...props} />)
       expect(frames.requests).toBe(0)
-      // Not "nothing happened": the whole graph is on screen, settled, in one pass.
-      expect(nodes()).toHaveLength(CHAIN.nodeCount)
-      expect(edges()).toHaveLength(CHAIN.edgeCount)
     } finally {
       frames.restore()
     }
   })
 
-  it('does not restart the simulation when the graph is replaced', () => {
+  it('cancels the frame it is holding when the pane closes', () => {
     const frames = installFrames()
     try {
       stubReducedMotion(false)
-      const view = render(
-        <GraphView graph={CHAIN} loading={false} currentId={null} onSelect={() => {}} />
-      )
-      let stepped = 0
-      while (frames.pending > 0 && stepped < 3000) {
-        frames.step()
-        stepped += 1
-      }
-      const settled = stepped
-
-      // One more edge, as a fresh read of the vault would hand over mid-session.
-      const grown = graphOf({
-        'pingbird.md': 'See [Moonhatch](moonhatch.md) and [Tinbeacon](tinbeacon.md)',
-        'moonhatch.md': 'See [Quillfeather](quillfeather.md)',
-        'quillfeather.md': 'See [Tinbeacon](tinbeacon.md)',
-        'tinbeacon.md': 'See [Saltcadence](saltcadence.md)',
-        'saltcadence.md': 'See [Pingbird](pingbird.md)',
-      })
-      view.rerender(
-        <GraphView graph={grown} loading={false} currentId={null} onSelect={() => {}} />
-      )
-
-      let again = 0
-      while (frames.pending > 0 && again < 3000) {
-        frames.step()
-        again += 1
-      }
-      // Re-seeding from `initialLayout` would cost about what the first run did.
-      // Carrying the positions over settles the change in a fraction of it.
-      expect(again).toBeGreaterThan(0)
-      expect(again).toBeLessThan(settled / 2)
+      const props = { loading: false, shows: ALL, onShows: () => {}, onSelect: () => {} }
+      const { rerender, unmount } = render(<GraphView graph={CHAIN} currentId="pingbird" {...props} />)
+      rerender(<GraphView graph={CHAIN} currentId="tinbeacon" {...props} />)
+      unmount()
+      expect(frames.pending).toBe(0)
+      expect(frames.cancelled.length).toBeGreaterThan(0)
     } finally {
       frames.restore()
     }
   })
 })
 
-// ---------------------------------------------------------------------------
-// A box nothing ever laid out
-// ---------------------------------------------------------------------------
+/**
+ * **Around this note, or everything; and what a connection is.** The graph opens on
+ * the open note, what it touches and what those touch; the rest of the vault is one
+ * press away. Three checkboxes along the top say which connections count, and a
+ * note left with none is counted rather than drawn.
+ */
+describe('what the graph shows', () => {
+  const TWO = graphOf({
+    'pingbird.md': 'See [Moonhatch](moonhatch.md)',
+    'moonhatch.md': 'See [Quillfeather](quillfeather.md)',
+    'quillfeather.md': '',
+    'tinbeacon.md': 'See [Saltcadence](saltcadence.md)',
+    'saltcadence.md': '',
+    'lonely.md': '',
+  })
+  const drawnNames = () => nodes().map((one) => one.closest('g')!.getAttribute('aria-label')).sort()
+
+  it('opens around the open note, and shows everything on a press', () => {
+    stubReducedMotion(true)
+    render(<GraphView graph={TWO} loading={false} currentId="pingbird" shows={ALL} onShows={() => {}} onSelect={() => {}} />)
+    expect(drawnNames()).toEqual(['moonhatch', 'pingbird', 'quillfeather'])
+    fireEvent.click(screen.getByRole('button', { name: 'Everything' }))
+    expect(drawnNames()).toEqual(['moonhatch', 'pingbird', 'quillfeather', 'saltcadence', 'tinbeacon'])
+  })
+
+  it('counts the notes connected to nothing, and lists them to open', () => {
+    stubReducedMotion(true)
+    const opened: string[] = []
+    render(<GraphView graph={TWO} loading={false} currentId={null} shows={ALL} onShows={() => {}} onSelect={(node) => opened.push(node.id)} />)
+    expect(drawnNames()).not.toContain('lonely')
+    fireEvent.click(screen.getByRole('button', { name: '1 unconnected note' }))
+    fireEvent.click(within(screen.getByLabelText('Unconnected notes')).getByText('lonely'))
+    expect(opened).toEqual(['lonely'])
+  })
+
+  it('says which connections count, one checkbox each', () => {
+    stubReducedMotion(true)
+    const shows: unknown[] = []
+    render(<GraphView graph={TWO} loading={false} currentId={null} shows={ALL} onShows={(next) => shows.push(next)} onSelect={() => {}} />)
+    fireEvent.click(screen.getByLabelText('Links in properties'))
+    expect(shows).toEqual([{ text: true, property: false, tag: true }])
+  })
+})
 
 describe('the graph in a box with no size', () => {
   it('writes finite coordinates from a 0x0 box, animating and settled', () => {
     const frames = installFrames()
     try {
       stubReducedMotion(false)
-      render(<GraphView graph={CHAIN} loading={false} currentId={null} onSelect={() => {}} />)
+      render(<GraphView graph={CHAIN} loading={false} currentId={null} shows={ALL} onShows={() => {}} onSelect={() => {}} />)
       // jsdom lays nothing out, so this *is* the 0x0 case, at frame zero...
       expect(coordinates().every((value) => Number.isFinite(Number(value)))).toBe(true)
       // ...and at every frame after it.
@@ -307,7 +326,7 @@ describe('the graph in a box with no size', () => {
       return { width: NaN, height: NaN, top: 0, left: 0, right: 0, bottom: 0, x: 0, y: 0 } as DOMRect
     }
     try {
-      render(<GraphView graph={CHAIN} loading={false} currentId={null} onSelect={() => {}} />)
+      render(<GraphView graph={CHAIN} loading={false} currentId={null} shows={ALL} onShows={() => {}} onSelect={() => {}} />)
       expect(coordinates()).not.toHaveLength(0)
       expect(coordinates().every((value) => Number.isFinite(Number(value)))).toBe(true)
     } finally {
@@ -349,24 +368,24 @@ describe('moving around the graph', () => {
    */
   it('names the hovered node and its neighbours, and dims the rest', () => {
     stubReducedMotion(true)
-    render(<GraphView graph={HUB} loading={false} currentId={null} onSelect={() => {}} />)
+    render(<GraphView graph={HUB} loading={false} currentId={null} shows={ALL} onShows={() => {}} onSelect={() => {}} />)
 
-    fireEvent.pointerEnter(groupFor('hub'))
-    expect(labelled()).toEqual(['hub', 'rim', 'spoke'])
-    // The unconnected note is still drawn and still clickable, only faded.
-    expect(groupFor('lonely').getAttribute('opacity')).toBe('0.12')
-    expect(groupFor('spoke').getAttribute('opacity')).toBe('1')
+    fireEvent.pointerEnter(groupFor('spoke'))
+    expect(labelled()).toEqual(['hub', 'spoke'])
+    // A node not touching the hovered one is still drawn and clickable, only faded.
+    expect(groupFor('rim').getAttribute('opacity')).toBe('0.12')
+    expect(groupFor('hub').getAttribute('opacity')).toBe('1')
 
     // Leaving puts everything back.
-    fireEvent.pointerLeave(groupFor('hub'))
-    expect(groupFor('lonely').getAttribute('opacity')).toBe('1')
+    fireEvent.pointerLeave(groupFor('spoke'))
+    expect(groupFor('rim').getAttribute('opacity')).toBe('1')
   })
 
   /** An edge is lit from either end, because a connection is one thing whichever
    *  side of it you are standing on. */
   it('lights an edge from either of its ends', () => {
     stubReducedMotion(true)
-    render(<GraphView graph={HUB} loading={false} currentId={null} onSelect={() => {}} />)
+    render(<GraphView graph={HUB} loading={false} currentId={null} shows={ALL} onShows={() => {}} onSelect={() => {}} />)
     fireEvent.pointerEnter(groupFor('spoke'))
     const faded = edges().filter((one) => one.getAttribute('opacity') !== '1')
     // Two edges leave the hub; hovering one spoke leaves its own lit and dims the
@@ -388,6 +407,8 @@ describe('moving around the graph', () => {
         graph={HUB}
         loading={false}
         currentId={null}
+        shows={ALL}
+        onShows={() => {}}
         onSelect={(node) => opened.push(node.id)}
       />
     )
@@ -417,6 +438,8 @@ describe('moving around the graph', () => {
         graph={HUB}
         loading={false}
         currentId={null}
+        shows={ALL}
+        onShows={() => {}}
         onSelect={(node) => opened.push(node.id)}
       />
     )
@@ -508,6 +531,8 @@ describe('the graph as a renderer', () => {
         graph={graph}
         loading={false}
         currentId={null}
+        shows={ALL}
+        onShows={() => {}}
         onSelect={(node) => selected.push(`${node.id} exists=${node.exists}`)}
       />
     )
@@ -521,7 +546,7 @@ describe('the graph as a renderer', () => {
   it('marks the open note and nothing else', () => {
     stubReducedMotion(true)
     render(
-      <GraphView graph={CHAIN} loading={false} currentId="quillfeather" onSelect={() => {}} />
+      <GraphView graph={CHAIN} loading={false} currentId="quillfeather" shows={ALL} onShows={() => {}} onSelect={() => {}} />
     )
     expect(document.querySelectorAll('.graph-node.current')).toHaveLength(1)
     expect(screen.getByLabelText('quillfeather').querySelector('.current')).toBeTruthy()
@@ -539,7 +564,7 @@ describe('the graph as a renderer', () => {
   it('has its nodes in the very first render, before any effect', () => {
     stubReducedMotion(true)
     const markup = renderToStaticMarkup(
-      <GraphView graph={CHAIN} loading={false} currentId={null} onSelect={() => {}} />
+      <GraphView graph={CHAIN} loading={false} currentId={null} shows={ALL} onShows={() => {}} onSelect={() => {}} />
     )
     expect(markup).toContain('graph-canvas')
     expect(markup.match(/graph-node/g) ?? []).toHaveLength(CHAIN.nodeCount)
@@ -548,7 +573,7 @@ describe('the graph as a renderer', () => {
 
   it('says it is reading rather than saying there is nothing', () => {
     stubReducedMotion(true)
-    render(<GraphView graph={null} loading currentId={null} onSelect={() => {}} />)
+    render(<GraphView graph={null} loading currentId={null} shows={ALL} onShows={() => {}} onSelect={() => {}} />)
     expect(document.querySelector('.graph-empty')!.textContent).toMatch(/reading/i)
   })
 })
@@ -590,10 +615,9 @@ describe('the graph in the note pane', () => {
 
   async function openTheGraph() {
     fireEvent.click(graphToggle('Open the note graph'))
-    await waitFor(() => expect(document.querySelector('.graph-view')).toBeTruthy())
-    // On a *node*, not on the canvas: the read is async, and waiting for the
-    // canvas alone was the flake that found the empty-first-paint bug above.
-    await waitFor(() => expect(nodes().length).toBeGreaterThan(0))
+    // The bar is there with or without anything connected: a vault with no link
+    // draws no node now, since a note connected to nothing is counted, not drawn.
+    await waitFor(() => expect(document.querySelector('.graph-bar')).toBeTruthy())
   }
 
   it('replaces the editor and leaves the tree standing', async () => {
@@ -662,7 +686,6 @@ describe('the graph in the note pane', () => {
   it('picks up another note s new link on window focus', async () => {
     await openApp()
     await openTheGraph()
-    await waitFor(() => expect(nodes().length).toBeGreaterThan(0))
     expect(edges()).toHaveLength(0)
 
     // Edited in Finder, by a sync, by another window.
