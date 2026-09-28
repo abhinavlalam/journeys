@@ -287,22 +287,29 @@ const KIND_ORDER: Record<NodeKind, number> = { note: 0, day: 1, tag: 2 }
 /**
  * **The graph around one note**: the note, what it touches — links either way, its
  * tags — and what those touch, as three rings. Each on the second ring belongs to
- * the first on the first ring that reached it, so it can be laid beside it.
+ * the first on the first ring that reached it, so it can be laid beside it. A ring
+ * runs by kind, then cluster, so a group's notes sit together on it.
  */
 export function around(
   graph: NoteGraph,
-  centre: string
+  centre: string,
+  clusters: readonly string[][] = []
 ): { graph: NoteGraph; rings: string[][]; parents: Map<string, string> } {
   const near = new Map(graph.nodes.map((node) => [node.id, new Set<string>()]))
   for (const edge of graph.edges) {
     near.get(edge.from)?.add(edge.to)
     near.get(edge.to)?.add(edge.from)
   }
+  const home = new Map(clusters.flatMap((members, c) => members.map((id) => [id, c] as const)))
   const ordered = (ids: Iterable<string>) =>
     [...ids].sort((a, b) => {
       const x = graph.byId.get(a)!
       const y = graph.byId.get(b)!
-      return KIND_ORDER[x.kind] - KIND_ORDER[y.kind] || compare(x.name.toLowerCase(), y.name.toLowerCase())
+      return (
+        KIND_ORDER[x.kind] - KIND_ORDER[y.kind] ||
+        (home.get(a) ?? clusters.length) - (home.get(b) ?? clusters.length) ||
+        compare(x.name.toLowerCase(), y.name.toLowerCase())
+      )
     })
   const first = graph.byId.has(centre) ? ordered(near.get(centre)!) : []
   const seen = new Set([centre, ...first])
@@ -626,12 +633,16 @@ export function layout(graph: NoteGraph, options?: Partial<LayoutOptions>, maxSt
 }
 
 /**
- * **No two nodes on top of each other**: pairs closer than `gap` pushed apart along
- * the line between them, a few rounds, in a fixed order — so a settled layout whose
- * hubs were pulled into one knot opens out, and does so the same way every time. A
- * pair on one point parts along the x axis.
+ * **No two nodes on top of each other**: each node has its `room`, and a pair nearer
+ * than their two rooms is pushed apart along the line between them, rounds at a
+ * time, in a fixed order — so a settled layout whose hubs were pulled into one knot
+ * opens out, and does so the same way every time. A pair on one point parts along x.
  */
-export function spread(points: ReadonlyMap<string, Placed>, gap: number, rounds = 40): Map<string, Placed> {
+export function spread(
+  points: ReadonlyMap<string, Placed>,
+  room: (id: string) => number,
+  rounds = 300
+): Map<string, Placed> {
   const ids = [...points.keys()].sort(compare)
   const at = new Map(ids.map((id) => [id, { ...points.get(id)! }]))
   for (let round = 0; round < rounds; round++) {
@@ -643,19 +654,181 @@ export function spread(points: ReadonlyMap<string, Placed>, gap: number, rounds 
         const dx = b.x - a.x
         const dy = b.y - a.y
         const d = Math.hypot(dx, dy)
+        const gap = room(ids[i]) + room(ids[j])
         if (d >= gap) continue
-        const push = (gap - d) / 2
+        // The smaller gives way: a day pushed off a region moves, the region hardly.
+        const share = room(ids[j]) / gap
         const [ux, uy] = d > 0 ? [dx / d, dy / d] : [1, 0]
-        a.x -= ux * push
-        a.y -= uy * push
-        b.x += ux * push
-        b.y += uy * push
+        a.x -= ux * (gap - d) * share
+        a.y -= uy * (gap - d) * share
+        b.x += ux * (gap - d) * (1 - share)
+        b.y += uy * (gap - d) * (1 - share)
         moved = true
       }
     }
     if (!moved) break
   }
   return at
+}
+
+// ---------------------------------------------------------------------------
+// Clusters
+// ---------------------------------------------------------------------------
+
+/**
+ * Louvain's communities over `n` nodes and weighted pairs `[a, b, w]`: each node,
+ * in index order, joins the neighbouring community that most raises modularity,
+ * until none moves; then each community becomes one node and it runs again, until
+ * nothing merges. The same pairs give the same communities every time.
+ */
+function communities(n: number, pairs: [number, number, number][]): number[] {
+  let of = Array.from({ length: n }, (_, i) => i)
+  let size = n
+  let links = pairs
+  for (;;) {
+    const moved = localMoving(size, links)
+    const count = new Set(moved).size
+    if (count === size) return of
+    of = of.map((c) => moved[c])
+    const merged = new Map<string, [number, number, number]>()
+    for (const [a, b, w] of links) {
+      const [x, y] = [moved[a], moved[b]].sort((p, q) => p - q)
+      const one = merged.get(`${x} ${y}`) ?? [x, y, 0]
+      one[2] += w
+      merged.set(`${x} ${y}`, one)
+    }
+    links = [...merged.values()]
+    size = count
+  }
+}
+
+/** Louvain's first phase: each node's community, numbered from 0 as first met. */
+function localMoving(n: number, links: [number, number, number][]): number[] {
+  const near = Array.from({ length: n }, () => new Map<number, number>())
+  const degree = new Array<number>(n).fill(0)
+  let twice = 0
+  for (const [a, b, w] of links) {
+    degree[a] += w
+    degree[b] += w
+    twice += 2 * w
+    if (a === b) continue
+    near[a].set(b, (near[a].get(b) ?? 0) + w)
+    near[b].set(a, (near[b].get(a) ?? 0) + w)
+  }
+  const of = Array.from({ length: n }, (_, i) => i)
+  const total = [...degree]
+  for (let moved = twice > 0; moved; ) {
+    moved = false
+    for (let i = 0; i < n; i++) {
+      const own = of[i]
+      total[own] -= degree[i]
+      const toward = new Map<number, number>()
+      for (const [j, w] of near[i]) toward.set(of[j], (toward.get(of[j]) ?? 0) + w)
+      const gain = (c: number) => (toward.get(c) ?? 0) - (total[c] * degree[i]) / twice
+      let best = own
+      for (const c of toward.keys()) if (gain(c) > gain(best) + 1e-12) best = c
+      total[best] += degree[i]
+      if (best !== own) {
+        of[i] = best
+        moved = true
+      }
+    }
+  }
+  const number = new Map<number, number>()
+  for (const c of of) if (!number.has(c)) number.set(c, number.size)
+  return of.map((c) => number.get(c)!)
+}
+
+/** The fewest notes a cluster is drawn for: a pair is a link, not a group. */
+const CLUSTER_MIN = 3
+
+/**
+ * **The groups the notes make**: communities over the links between notes alone,
+ * largest first. Days and tags take no part — each touches every group, and let in,
+ * they made the whole vault one — and neither does a note linked only through them.
+ */
+export function clustersOf(graph: NoteGraph): string[][] {
+  const notes = graph.nodes.filter((node) => node.kind === 'note')
+  const index = new Map(notes.map((node, i) => [node.id, i]))
+  const pairs = new Map<string, [number, number, number]>()
+  for (const edge of graph.edges) {
+    const a = index.get(edge.from)
+    const b = index.get(edge.to)
+    if (a === undefined || b === undefined) continue
+    const [x, y] = [a, b].sort((p, q) => p - q)
+    pairs.set(`${x} ${y}`, [x, y, 1])
+  }
+  const of = communities(notes.length, [...pairs.values()])
+  const groups = new Map<number, string[]>()
+  notes.forEach((node, i) => groups.set(of[i], [...(groups.get(of[i]) ?? []), node.id]))
+  return [...groups.values()]
+    .filter((members) => members.length >= CLUSTER_MIN)
+    .sort((a, b) => b.length - a.length || compare(a[0], b[0]))
+}
+
+/** A cluster where it is drawn: a disc round its members, named for the most
+ *  connected of them. */
+export interface Region {
+  members: string[]
+  name: string
+  x: number
+  y: number
+  r: number
+}
+
+/** The simulation's options for a picture with room in it: a longer rest length and
+ *  a stronger push than the defaults. */
+const ROOMY = { repulsion: 12000, springLength: 90 }
+/** Half the least distance between two nodes: a disc and the start of a name. */
+const NODE_ROOM = 22
+/** Air inside a region's rim past its outermost member, where its name sits. */
+export const REGION_PAD = 40
+
+const positionsOf = (state: LayoutState) => new Map(state.nodes.map((node) => [node.id, { x: node.x, y: node.y }]))
+
+/**
+ * **Everything, by cluster.** Each cluster is laid out on its own, then stands as
+ * one node, as wide as it is, in the layout of the rest — the days, the tags and
+ * the notes in no cluster — so a day sits between the groups it touches and no
+ * group is pulled into another through it. Nothing is left inside a region that
+ * is not one of its members.
+ */
+export function everything(graph: NoteGraph, clusters: readonly string[][]): { at: Map<string, Placed>; regions: Region[] } {
+  const home = new Map(clusters.flatMap((members, c) => members.map((id) => [id, `cluster:${c}`] as const)))
+  const shapes = clusters.map((members) => {
+    const inside = new Set(members)
+    const own = assemble(
+      new Map(members.map((id) => [id, graph.byId.get(id)!])),
+      graph.edges.filter((edge) => inside.has(edge.from) && inside.has(edge.to))
+    )
+    const at = spread(positionsOf(layout(own)), () => NODE_ROOM)
+    const mid = [...at.values()].reduce((sum, p) => ({ x: sum.x + p.x / at.size, y: sum.y + p.y / at.size }), { x: 0, y: 0 })
+    for (const p of at.values()) {
+      p.x -= mid.x
+      p.y -= mid.y
+    }
+    return { at, r: Math.max(...[...at.values()].map((p) => Math.hypot(p.x, p.y))) + REGION_PAD }
+  })
+  // A region's room is its disc and a node's room more, so regions stand apart.
+  const rooms = new Map(shapes.map((shape, c) => [`cluster:${c}`, shape.r + NODE_ROOM]))
+  const nodes = new Map(graph.nodes.filter((node) => !home.has(node.id)).map((node) => [node.id, node]))
+  for (const id of rooms.keys()) nodes.set(id, { id, path: '', name: '', exists: true, kind: 'note' })
+  const joined = new Map<string, GraphEdge>()
+  for (const edge of graph.edges) {
+    const from = home.get(edge.from) ?? edge.from
+    const to = home.get(edge.to) ?? edge.to
+    if (from === to) continue
+    joined.set(`${from}\n${to}`, { from, to, weight: 1, kind: edge.kind })
+  }
+  const top = spread(positionsOf(layout(assemble(nodes, [...joined.values()]), ROOMY)), (id) => rooms.get(id) ?? NODE_ROOM)
+  const at = new Map([...top].filter(([id]) => !rooms.has(id)))
+  const regions = clusters.map((members, c) => {
+    const mid = top.get(`cluster:${c}`)!
+    for (const [id, p] of shapes[c].at) at.set(id, { x: mid.x + p.x, y: mid.y + p.y })
+    const named = members.reduce((best, id) => ((graph.degree.get(id) ?? 0) > (graph.degree.get(best) ?? 0) ? id : best))
+    return { members, name: graph.byId.get(named)!.name, x: mid.x, y: mid.y, r: shapes[c].r }
+  })
+  return { at, regions }
 }
 
 /**

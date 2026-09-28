@@ -295,6 +295,53 @@ describe('what the graph shows', () => {
   })
 })
 
+/**
+ * **Clusters, named.** In everything, the notes that link among themselves are a
+ * region named for the busiest of them; a day and a tag, which touch every group,
+ * sit small between them, and their lines step back until hovered.
+ */
+describe('the graph’s clusters', () => {
+  const texts: Record<string, string> = {
+    'Harbour Bistro.md': '[[Espresso]] and [[Lemon Tart]] #place',
+    'Espresso.md': '[[Lemon Tart]]',
+    'Lemon Tart.md': '',
+    'Daily/2026-09-21.md': '[[Harbour Bistro]] for an [[Espresso]] and a [[Lemon Tart]] #expense',
+  }
+  const files = Object.keys(texts).map(file)
+  const GROUP = buildNoteGraph(
+    files.map((note) => ({ note, text: texts[note.path] })),
+    buildNoteIndex(files),
+    [],
+    { dailyFolder: 'Daily' }
+  )
+  const props = { graph: GROUP, loading: false, shows: ALL, onShows: () => {}, onSelect: () => {} }
+  const regions = () => [...document.querySelectorAll('.graph-region')].map((one) => one.textContent)
+  const circleOf = (name: string) => screen.getByRole('button', { name }).querySelector('circle')!
+
+  it('draws a group as a region named for its busiest note, in everything and not around a note', () => {
+    stubReducedMotion(true)
+    const { rerender } = render(<GraphView {...props} currentId={null} />)
+    expect(regions()).toEqual(['Harbour Bistro'])
+    rerender(<GraphView {...props} currentId="harbour bistro" />)
+    expect(regions()).toEqual([])
+  })
+
+  it('draws a day small and its lines quiet, whatever it touches', () => {
+    stubReducedMotion(true)
+    render(<GraphView {...props} currentId={null} />)
+    expect(Number(circleOf('2026-09-21').getAttribute('r'))).toBeLessThan(Number(circleOf('Harbour Bistro').getAttribute('r')))
+    const opacities = edges().map((one) => one.getAttribute('opacity'))
+    // Three links among the notes; the day's three, and the two tags', quiet.
+    expect(opacities.filter((one) => one === '1')).toHaveLength(3)
+    expect(opacities.filter((one) => one !== '1')).toHaveLength(5)
+  })
+
+  it('names a note before a busier day where only one name fits', () => {
+    const at = new Map([['daily/2026-09-21', { x: 0, y: 0 }], ['lemon tart', { x: 0, y: 0 }]])
+    expect(decluttered(GROUP, at, 1, null)).toEqual(new Set(['lemon tart']))
+  })
+})
+
 describe('the graph in a box with no size', () => {
   it('writes finite coordinates from a 0x0 box, animating and settled', () => {
     const frames = installFrames()

@@ -3813,6 +3813,25 @@ button.folder-toggle {
   stroke: color-mix(in srgb, var(--text-faint) 22%, transparent);
 }
 
+/* A cluster — notes linked more among themselves than out — as a faint region
+   named for its most connected note, the name in the band `REGION_PAD` leaves
+   inside the rim. Under everything else, and never in the pointer's way. */
+.graph-region {
+  pointer-events: none;
+}
+
+.graph-region > circle {
+  fill: color-mix(in srgb, var(--text) 4%, transparent);
+  stroke: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.graph-region > text {
+  fill: var(--text-faint);
+  font-weight: var(--fw-medium);
+  text-anchor: middle;
+  user-select: none;
+}
+
 /* Everything about a label except its **size**, which `LABEL_PX` in `GraphView` sets
    as an inline attribute: a label is counter-scaled by the zoom so a name keeps one
    readable size at every magnification, and that is arithmetic, not a declaration. A

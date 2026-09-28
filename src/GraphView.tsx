@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { RefObject } from 'react'
-import { around, boundsOf, connectionsOf, EDGE_KINDS, layout, ringLayout, spread } from './graph'
-import type { EdgeKind, GraphNode, NoteGraph, Placed } from './graph'
+import { around, boundsOf, clustersOf, connectionsOf, EDGE_KINDS, everything, REGION_PAD, ringLayout } from './graph'
+import type { EdgeKind, GraphNode, NoteGraph, Placed, Region } from './graph'
 import { countOf } from './rows'
 
 /**
@@ -95,11 +95,8 @@ function usePrefersReducedMotion(): boolean {
   return reduced
 }
 
-/** Everything, laid out with room: a longer rest length and a stronger push than the
- *  simulation's defaults, then no two nodes nearer than a disc and a name. */
-const EVERYTHING = { repulsion: 12000, springLength: 90 }
-const NODE_GAP = 44
-/** Opacity for a line the rings do not rest on, until one of its ends is hovered. */
+/** Opacity for a line that is context rather than structure — across the rings, or
+ *  from a day or a tag — until one of its ends is hovered. */
 const QUIET = 0.3
 
 /** How long the picture takes to glide to a new arrangement, in milliseconds. It is
@@ -189,6 +186,15 @@ const clamp = (value: number, low: number, high: number) => Math.min(Math.max(va
 
 const EMPTY: ReadonlySet<string> = new Set()
 
+/** What a fit frames: every node, and every region's disc. */
+const extentOf = (picture: { targets: ReadonlyMap<string, Placed>; regions: readonly Region[] }) => [
+  ...picture.targets.values(),
+  ...picture.regions.flatMap((one) => [
+    { x: one.x - one.r, y: one.y - one.r },
+    { x: one.x + one.r, y: one.y + one.r },
+  ]),
+]
+
 /** The view that puts `points` in the middle of a `width`×`height` box. */
 function fitView(points: Iterable<Placed>, width: number, height: number): View | null {
   const bounds = boundsOf(points)
@@ -241,7 +247,10 @@ export function decluttered(
   const order = [...graph.nodes].sort((a, b) => {
     if (a.id === currentId) return -1
     if (b.id === currentId) return 1
-    return (graph.degree.get(b.id) ?? 0) - (graph.degree.get(a.id) ?? 0)
+    // A note before a day or a tag, however busy: those join the groups, and a
+    // group is named by its notes.
+    const bridges = Number(a.kind !== 'note') - Number(b.kind !== 'note')
+    return bridges || (graph.degree.get(b.id) ?? 0) - (graph.degree.get(a.id) ?? 0)
   })
   const placed: { l: number; r: number; t: number; b: number }[] = []
   const shown = new Set<string>()
@@ -325,13 +334,14 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
   const centre = scope === 'around' ? centred : null
   const picture = useMemo(() => {
     if (!shown) return null
+    const clusters = clustersOf(shown.graph)
     if (centre) {
-      const near = around(shown.graph, centre)
-      return { graph: near.graph, targets: ringLayout(near.rings, near.parents), parents: near.parents }
+      const near = around(shown.graph, centre, clusters)
+      const regions: Region[] = []
+      return { graph: near.graph, targets: ringLayout(near.rings, near.parents), parents: near.parents, regions }
     }
-    const rest = layout(shown.graph, EVERYTHING).nodes
-    const settled = new Map(rest.map((node) => [node.id, { x: node.x, y: node.y }]))
-    return { graph: shown.graph, targets: spread(settled, NODE_GAP), parents: null }
+    const all = everything(shown.graph, clusters)
+    return { graph: shown.graph, targets: all.at, parents: null, regions: all.regions }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shape, centre])
   const glided = useGlide(picture?.targets ?? null, !reduced)
@@ -366,7 +376,7 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
   const framed = useRef<string | null>(null)
   useEffect(() => {
     if (!picture || size.width <= 0 || framed.current === framing) return
-    const next = fitView(picture.targets.values(), size.width, size.height)
+    const next = fitView(extentOf(picture), size.width, size.height)
     if (!next) return
     const from = framed.current === null || reduced ? null : view
     framed.current = framing
@@ -585,6 +595,20 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
         }}
       >
         <g transform={`translate(${view?.x ?? 0},${view?.y ?? 0}) scale(${k})`}>
+          {picture.regions.map((region) => {
+            // Round its members where they are now, so a region travels with a glide.
+            const at = region.members.flatMap((id) => placed?.get(id) ?? [])
+            const x = at.reduce((sum, p) => sum + p.x, 0) / at.length
+            const y = at.reduce((sum, p) => sum + p.y, 0) / at.length
+            return (
+              <g key={region.members[0]} className="graph-region">
+                <circle cx={x} cy={y} r={region.r} strokeWidth={hair} />
+                <text x={x} y={y - region.r + REGION_PAD / 2} dominantBaseline="middle" fontSize={labelSize}>
+                  {region.name}
+                </text>
+              </g>
+            )
+          })}
           {drawn.edges.map((edge) => {
             const from = placed?.get(edge.from)
             const to = placed?.get(edge.to)
@@ -593,14 +617,15 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
             // hovering a spoke lit the hub's *other* edge too, and said "these are
             // connected" about a pair that only shared an acquaintance.
             const on = !hovered || edge.from === hovered || edge.to === hovered
-            // **Around a note, the lines the rings rest on lead**: from the centre,
-            // and from each outer node to the one it sits beside. The rest — a day's
-            // link to a hub its neighbour also links — cross the picture, so they
-            // step back until one of their ends is hovered.
+            // **The lines the picture rests on lead.** Around a note: from the centre,
+            // and from each outer node to the one it sits beside; the rest cross the
+            // picture. In everything: the links between notes; a day's or a tag's
+            // run between the groups. The others step back until an end is hovered.
             const { parents } = picture
-            const structural =
-              !parents || edge.from === centre || edge.to === centre || parents.get(edge.from) === edge.to || parents.get(edge.to) === edge.from
-            const opacity = hovered ? (on ? 1 : DIM) : structural ? 1 : QUIET
+            const leads = parents
+              ? edge.from === centre || edge.to === centre || parents.get(edge.from) === edge.to || parents.get(edge.to) === edge.from
+              : drawn.byId.get(edge.from)?.kind === 'note' && drawn.byId.get(edge.to)?.kind === 'note'
+            const opacity = hovered ? (on ? 1 : DIM) : leads ? 1 : QUIET
             return (
               <line
                 key={`${edge.from} ${edge.to} ${edge.kind}`}
@@ -620,7 +645,9 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
           {drawn.nodes.map((node) => {
             const at = placed?.get(node.id)
             if (!at) return null
-            const degree = drawn.degree.get(node.id) ?? 0
+            // A note grows with its connections; a day or a tag, which connects
+            // everything, stays small.
+            const degree = node.kind === 'note' ? (drawn.degree.get(node.id) ?? 0) : 0
             const radius = Math.min(NODE_R + degree * NODE_R_STEP, NODE_R_MAX)
             const classes = ['graph-node', node.kind]
             if (!node.exists) classes.push('missing')
@@ -684,7 +711,7 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
         <button
           type="button"
           aria-label="Fit to view"
-          onClick={() => setView(fitView(picture.targets.values(), size.width, size.height))}
+          onClick={() => setView(fitView(extentOf(picture), size.width, size.height))}
         >
           Fit
         </button>

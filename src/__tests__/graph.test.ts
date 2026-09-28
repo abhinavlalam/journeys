@@ -19,7 +19,10 @@ const { buildNoteIndex, collectNotes } = await import('../links')
 const {
   around,
   buildNoteGraph,
+  clustersOf,
   connectionsOf,
+  everything,
+  REGION_PAD,
   ringLayout,
   spread,
   initialLayout,
@@ -701,15 +704,78 @@ describe('the rings', () => {
 })
 
 describe('spreading a layout', () => {
-  it('pushes apart any two nodes nearer than the gap, and moves none that are not', () => {
-    const at = spread(new Map([['a', { x: 0, y: 0 }], ['b', { x: 10, y: 0 }], ['c', { x: 500, y: 0 }]]), 44)
+  const room = () => 22
+
+  it('pushes apart any two nodes nearer than their rooms, and moves none that are not', () => {
+    const at = spread(new Map([['a', { x: 0, y: 0 }], ['b', { x: 10, y: 0 }], ['c', { x: 500, y: 0 }]]), room)
     expect(Math.hypot(at.get('a')!.x - at.get('b')!.x, at.get('a')!.y - at.get('b')!.y)).toBeGreaterThanOrEqual(43.9)
     expect(at.get('c')).toEqual({ x: 500, y: 0 })
   })
 
   it('parts two nodes on one point, the same way every time', () => {
     const on = new Map([['a', { x: 0, y: 0 }], ['b', { x: 0, y: 0 }]])
-    expect([...spread(on, 44)]).toEqual([...spread(on, 44)])
-    expect(spread(on, 44).get('b')!.x).toBeGreaterThan(0)
+    expect([...spread(on, room)]).toEqual([...spread(on, room)])
+    expect(spread(on, room).get('b')!.x).toBeGreaterThan(0)
+  })
+
+  it('moves the smaller of two out of the way of the larger', () => {
+    const at = spread(new Map([['big', { x: 0, y: 0 }], ['small', { x: 10, y: 0 }]]), (id) => (id === 'big' ? 200 : 22))
+    expect(Math.abs(at.get('big')!.x)).toBeLessThan(25)
+    expect(at.get('small')!.x - at.get('big')!.x).toBeGreaterThanOrEqual(221.9)
+  })
+})
+
+/**
+ * **The groups the notes make**, drawn as regions. A day and a tag touch every
+ * group, and let into the grouping they made the whole vault one; so they sit
+ * between the groups, and a group is what its notes link among themselves.
+ */
+describe('clusters', () => {
+  const texts: Record<string, string> = {
+    'Harbour Bistro.md': '[[Espresso]] and [[Lemon Tart]] #expense',
+    'Espresso.md': '[[Lemon Tart]]',
+    'Lemon Tart.md': '',
+    'Northwind.md': '[[Mira Vance]] and [[Quarterly Plan]] #company',
+    'Mira Vance.md': '[[Quarterly Plan]], lunch at [[Harbour Bistro]]',
+    'Quarterly Plan.md': '',
+    'Flight.md': '[[Lakeside Terminal]]',
+    'Lakeside Terminal.md': '',
+    'Daily/2026-09-21.md': '[[Northwind]], then [[Harbour Bistro]] for an [[Espresso]]; booked a [[Flight]] #expense',
+  }
+  const index = buildNoteIndex(Object.keys(texts).map(note))
+  const graph = buildNoteGraph(
+    Object.entries(texts).map(([path, text]) => ({ note: note(path), text })),
+    index,
+    [],
+    { dailyFolder: 'Daily' }
+  )
+  const clusters = clustersOf(graph)
+  const distance = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y)
+
+  it('finds the groups the links between notes make, and no day, tag or pair joins them', () => {
+    expect(clusters).toEqual([
+      ['espresso', 'harbour bistro', 'lemon tart'],
+      ['mira vance', 'northwind', 'quarterly plan'],
+    ])
+  })
+
+  it('draws each as a region round its members alone, apart from the others, named for its busiest', () => {
+    const { at, regions } = everything(graph, clusters)
+    expect(regions.map((one) => one.name)).toEqual(['Harbour Bistro', 'Northwind'])
+    for (const region of regions) {
+      for (const id of region.members) expect(distance(at.get(id)!, region)).toBeLessThanOrEqual(region.r - REGION_PAD + 1e-6)
+      for (const [id, p] of at) if (!region.members.includes(id)) expect(distance(p, region)).toBeGreaterThanOrEqual(region.r)
+    }
+    expect(distance(regions[0], regions[1])).toBeGreaterThanOrEqual(regions[0].r + regions[1].r)
+    expect(at.size).toBe(graph.nodeCount)
+  })
+
+  it('is the same every time', () => {
+    expect(everything(graph, clusters)).toEqual(everything(graph, clusters))
+  })
+
+  it('keeps a group together on a ring around a note', () => {
+    const near = around(graph, 'daily/2026-09-21', clusters)
+    expect(near.rings[1]).toEqual(['espresso', 'harbour bistro', 'northwind', 'flight', 'tag:expense'])
   })
 })
