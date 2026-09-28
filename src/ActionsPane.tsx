@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { listVaultDir, listVaultEntries, vaultFileRef } from './vault'
 import { noteName } from './vaultModel'
 import type { VaultFile } from './vaultModel'
@@ -14,6 +14,62 @@ import {
   type ViewKind,
 } from './actionKinds'
 import { PlusIcon } from './icons'
+
+/** One row of a kind: a file it holds, or a name the notes use. */
+interface Row {
+  name: string
+  file: string | null
+  notes: number
+}
+
+/** A row, or a head other rows nest under on `/`: `listening` for
+ *  `listening/podcast`. A head no row names is only a group. */
+interface Branch {
+  name: string
+  head: string
+  row?: Row
+  children: Branch[]
+}
+
+/** A name's parts on `/` — the one rule tags nest by, and harmless to a kind whose
+ *  names have none. */
+const partsOf = (name: string) => name.split('/').filter(Boolean)
+
+/** Rows as a tree on `/`, in the order given. */
+function branches(rows: readonly Row[]): Branch[] {
+  const top: Branch[] = []
+  const byHead = new Map<string, Branch>()
+  for (const row of rows) {
+    const parts = partsOf(row.name)
+    let level = top
+    parts.forEach((part, at) => {
+      const head = parts.slice(0, at + 1).join('/').toLowerCase()
+      let branch = byHead.get(head)
+      if (!branch) {
+        branch = { name: part, head, children: [] }
+        byHead.set(head, branch)
+        level.push(branch)
+      }
+      if (at === parts.length - 1) branch.row = row
+      level = branch.children
+    })
+  }
+  return top
+}
+
+/** A nested group's key in the one open set, under its kind's own. */
+export const branchKey = (kind: ActionKind, head: string) => `${groupKey(kind)}/${head.toLowerCase()}`
+
+/** Every head names nest under, each once — `a` and `a/b` for `a/b/c` — so the
+ *  section's Expand all opens them too. */
+export function headsOf(names: readonly string[]): string[] {
+  const heads = new Set<string>()
+  for (const name of names) {
+    const parts = partsOf(name)
+    for (let at = 1; at < parts.length; at++) heads.add(parts.slice(0, at).join('/').toLowerCase())
+  }
+  return [...heads]
+}
 
 
 interface ActionsPaneProps {
@@ -179,8 +235,8 @@ export function ActionsPane({
    * `file` is null for a name that is only in use. Its row is not a lesser row:
    * the count says how many notes carry it, and clicking it is how it gets a file.
    */
-  function rowsFor(kind: ActionKind) {
-    const rows = (listing[kind.key] ?? []).map((file) => ({
+  function rowsFor(kind: ActionKind): Row[] {
+    const rows: Row[] = (listing[kind.key] ?? []).map((file) => ({
       // `noteName` takes `.md` off and leaves `settings.json` as it is, which is
       // right both times: a note is known by its name and a JSON file by its file.
       // **A skill's name is its folder's.** Every one of them is called `SKILL.md`,
@@ -217,6 +273,64 @@ export function ActionsPane({
     if (made) onSelect(made)
   }
 
+  /** Three sorts of row: a viewing kind's opens its page, a file opens, and a name
+   *  in use with no file yet gets one. */
+  function press(kind: ActionKind, row: Row) {
+    if (views(kind)) onView(kind.key, row.name)
+    else if (row.file) onSelect(vaultFileRef(vaultPath, row.file))
+    else void define(kind, row.name)
+  }
+
+  /** A row, or a group of the rows nesting under it — its own row too, when the
+   *  head is one: a tag with tags under it opens from its name, like a folder. */
+  function drawBranch(kind: ActionKind, branch: Branch, depth: number): ReactNode {
+    const { row } = branch
+    const count = row && row.notes > 0 ? <span className="row-count">{row.notes}</span> : undefined
+    if (branch.children.length === 0 && row) {
+      // `inDir` already made it vault-relative — see `rowsFor`.
+      const file = row.file ? vaultFileRef(vaultPath, row.file) : null
+      const selected = views(kind)
+        ? viewing?.kind === kind.key && viewing.name === row.name
+        : file !== null && file.path === selectedPath
+      return (
+        // The tree's own indent for a child row: its `folder-children` sets
+        // `--guide-x` to the parent's depth and pads each child one step past it.
+        // `file` is null for a name the notes carry that nothing defines yet: the
+        // count says how many carry it, and the click writes the file.
+        <li key={branch.head} style={{ paddingLeft: stepIn(depth) }}>
+          <NoteRow
+            className={selected ? 'selected' : undefined}
+            icon={<RowIcon icon={kind.icon} />}
+            name={branch.name}
+            trailing={count}
+            onClick={() => press(kind, row)}
+          />
+        </li>
+      )
+    }
+    const key = branchKey(kind, branch.head)
+    // A query opens what it matches, as the kind's own group does.
+    const open = openGroups.has(key) || needle !== ''
+    return (
+      <li className="folder-row" key={branch.head}>
+        <GroupRow
+          depth={depth}
+          name={branch.name}
+          open={open}
+          onToggle={() => onToggleGroup(key, open)}
+          icon={<RowIcon icon={kind.icon} />}
+          trailing={count}
+          onOpen={row ? () => press(kind, row) : undefined}
+        />
+        {open && (
+          <ul className="folder-children" style={guideAt(depth)}>
+            {branch.children.map((child) => drawBranch(kind, child, depth + 1))}
+          </ul>
+        )}
+      </li>
+    )
+  }
+
   return (
     <>
       {kinds.map((kind) => {
@@ -230,8 +344,9 @@ export function ActionsPane({
         // matches, or searching a collapsed pane would answer with nothing.
         const expanded = openGroups.has(path) || (needle !== '' && rows.length > 0)
         return (
-          <li className="folder-row" key={kind.key} style={{ paddingLeft: stepIn(depth) }}>
+          <li className="folder-row" key={kind.key}>
             <GroupRow
+              depth={depth}
               name={kind.label}
               open={expanded}
               onToggle={() => onToggleGroup(path, expanded)}
@@ -259,47 +374,7 @@ export function ActionsPane({
             />
             {(expanded || naming === kind.key) && (
               <ul className="folder-children" style={guideAt(depth)}>
-                {rows.map((row) => {
-                  // `inDir` already made it vault-relative — see `rowsFor`.
-                  const file = row.file ? vaultFileRef(vaultPath, row.file) : null
-                  return (
-                    // The tree's own indent for a child of a top-level row: its
-                    // `folder-children` sets `--guide-x` to the parent's depth and
-                    // pads each child one step past it. Measured against a nested
-                    // note: both land on x=26 with the name at x=74.
-                    //
-                    // `file` is null for a property the notes carry that nothing
-                    // defines yet: the count says how many carry it, and the click
-                    // writes the file.
-                    <li key={row.name} style={{ paddingLeft: stepIn(depth + 1) }}>
-                      <NoteRow
-                        className={
-                          (
-                            views(kind)
-                              ? viewing?.kind === kind.key && viewing.name === row.name
-                              : file !== null && file.path === selectedPath
-                          )
-                            ? 'selected'
-                            : undefined
-                        }
-                        icon={<RowIcon icon={kind.icon} />}
-                        name={row.name}
-                        trailing={
-                          row.notes > 0 ? <span className="row-count">{row.notes}</span> : undefined
-                        }
-                        // Three sorts of row: a viewing kind's opens its page, a
-                        // file opens, and a name in use with no file yet gets one.
-                        onClick={() =>
-                          views(kind)
-                            ? onView(kind.key, row.name)
-                            : file
-                              ? onSelect(file)
-                              : void define(kind, row.name)
-                        }
-                      />
-                    </li>
-                  )
-                })}
+                {branches(rows).map((branch) => drawBranch(kind, branch, depth + 1))}
                 {naming === kind.key && (
                   <li style={{ paddingLeft: stepIn(depth + 1) }}>
                     <NameField

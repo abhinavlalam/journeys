@@ -450,6 +450,40 @@ describe('the Tags group', () => {
     await waitFor(() => expect(rowLabels().some((text) => text === 'expense1')).toBe(true))
     expect(pane().getAllByText('expense')).toHaveLength(1)
   })
+
+  /**
+   * **`/` groups tags**: `#listening/podcast` is its own tag, with its own page and
+   * structure, drawn under `listening`. A head that is a tag itself opens its page
+   * from its name, as a folder opens its note; one that is not only folds.
+   */
+  it('nests a tag under its head, and opens a head that is a tag', async () => {
+    disk.write('/v/monday.md', '# Monday\n\n#listening/podcast one\n#listening/audiobook two\n#listening\n#watching/series\n')
+    await openApp()
+    await openActions()
+    fireEvent.click(screen.getByLabelText('Expand Tags'))
+    await waitFor(() => expect(pane().getByText('listening')).toBeTruthy())
+    // Shut until opened, as every group is.
+    expect(pane().queryByText('podcast')).toBeNull()
+
+    fireEvent.click(screen.getByLabelText('Expand listening'))
+    expect(pane().getByText('podcast')).toBeTruthy()
+    expect(pane().getByText('audiobook')).toBeTruthy()
+    fireEvent.click(pane().getByText('podcast'))
+    await waitFor(() => expect(document.querySelector('.viewer-title')!.textContent).toBe('#listening/podcast'))
+    fireEvent.click(pane().getByText('listening'))
+    await waitFor(() => expect(document.querySelector('.viewer-title')!.textContent).toBe('#listening'))
+
+    // `watching` is no tag of its own: its name folds.
+    fireEvent.click(pane().getByText('watching'))
+    expect(pane().getByText('series')).toBeTruthy()
+  })
+
+  it('opens the nested groups with Expand all', async () => {
+    disk.write('/v/monday.md', '# Monday\n\n#listening/podcast one\n')
+    await openApp()
+    await openActionsExpanded()
+    await waitFor(() => expect(pane().getByText('podcast')).toBeTruthy())
+  })
 })
 
 /**

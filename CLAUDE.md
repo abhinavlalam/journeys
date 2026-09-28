@@ -177,6 +177,12 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   `useFolderOpenState`'s set, seeded open; `setAll` touches only the paths given.
 - **A folder is open because it is in one set.** Opening a note writes its
   ancestors into it (`reveal`); nothing derives openness from the selection.
+- **`/` groups tags** in the Actions pane (`branches`): `#listening/podcast` is its
+  own tag, page and structure, drawn under a `listening` group keyed in the same
+  set (`branchKey`), which Expand all opens (`headsOf`). A head that is a tag itself
+  opens from its name, as a folder opens its note (`GroupRow`'s `onOpen`). A group's
+  indent is on its header, never on the `li` holding its list, or every row under
+  it counts it twice (`rowShape.test.tsx`).
 - **One row shape everywhere** (`rows.tsx`: `NoteRow`, `RowIcon`, `GroupRow`,
   `NameField`, `stepIn`, `guideAt`, `GatheredNotes`, `Section`); `rowShape.test.tsx` compares
   the boxes in the tree, the Actions pane and a note's footer.

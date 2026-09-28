@@ -148,7 +148,7 @@ export function LineTable({
 /**
  * One value.
  *
- * **A link is a link because the value is one**: `merchant:: [[Lakeside Deli]]` is a
+ * **A link is a link because the value is one**: `merchant:: [[Harbour Bistro]]` is a
  * link and a text `note:: cash` is a word, decided by the note.
  *
  * The **alias** shows where the line gave one — `[[Bistro|the office]]` reads as

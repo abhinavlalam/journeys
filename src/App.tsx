@@ -15,7 +15,7 @@ import { folderNoteRef, isTextFile, knownPath, noteName, SETTINGS_FILE } from '.
 import { FileView } from './FileView'
 import type { VaultFile, VaultFolder } from './vaultModel'
 import { FolderTree, useDropTarget } from './FolderTree'
-import { ActionsPane } from './ActionsPane'
+import { ActionsPane, branchKey, headsOf } from './ActionsPane'
 import { BUILT_IN_KINDS, creatable, declares, createAction, groupKey, type ViewKind } from './actionKinds'
 import { SettingsFile } from './SettingsFile'
 import { NoteSearch } from './NoteSearch'
@@ -352,9 +352,20 @@ export default function App() {
 
   /** Every folder, for the one control that shuts or opens all of them at once. */
   const folderPaths = useMemo(() => (vault.root ? collectFolders(vault.root) : []), [vault.root])
-  /** What the Actions section's pair acts on: its groups. Same `useFolderOpenState`
-      as the tree's folders, so a group's chevron and the pair are one mechanism. */
-  const groupPaths = kinds.map(groupKey)
+  /** What the notes *use*, per kind, and what is declared: the Actions pane's rows,
+   *  off the one vault read. */
+  const actionsUsed: Partial<Record<string, readonly { name: string; notes: number }[]>> = { property: properties, tag: tags }
+  const actionsDeclared: Partial<Record<string, readonly string[]>> = { tag: Object.keys(tagStructures.entries) }
+  /** What the Actions section's pair acts on: its groups, and the groups tags nest
+      in. Same `useFolderOpenState` as the tree's folders, so a group's chevron and
+      the pair are one mechanism. */
+  const groupPaths = kinds.flatMap((kind) => [
+    groupKey(kind),
+    ...headsOf([
+      ...(actionsUsed[kind.key] ?? []).map((one) => one.name),
+      ...(actionsDeclared[kind.key] ?? []),
+    ]).map((head) => branchKey(kind, head)),
+  ])
 
 
   /** The matches, over the same corpus the graph and the backlinks are built from.
@@ -1001,14 +1012,12 @@ export default function App() {
                   ? { kind: active.kind, name: active.name }
                   : null
               }
-              declared={{ tag: Object.keys(tagStructures.entries) }}
+              declared={actionsDeclared}
               openGroups={folders.open}
               onToggleGroup={folders.toggle}
               onNew={startNamingAction}
               query={searching === 'actions' ? query : ''}
-              // What the notes *use*, per kind: a property, a `#tag`. Both read off
-              // the one vault read.
-              used={{ property: properties, tag: tags }}
+              used={actionsUsed}
               revision={actionsRevision}
               naming={namingAction}
               typed={actionName}

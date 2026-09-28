@@ -177,6 +177,12 @@ interface GroupRowProps {
    *  one in `trailing` and the browser draws it as its own row inside the toggle,
    *  which is what a group's `+` looked like for one build. */
   actions?: ReactNode
+  /** What pressing the name does when the group is also a thing of its own — a tag
+   *  with tags under it — as a folder's name opens its note. The chevron folds. */
+  onOpen?: () => void
+  /** Its indent, on the header as the tree's folder rows have it: on the `li`, it
+   *  counted again for every row in the list the `li` holds. */
+  depth?: number
 }
 
 /**
@@ -187,9 +193,9 @@ interface GroupRowProps {
  * panes whose groups are only groups — and it is the same `folder-header` box, so
  * the two read as one kind of row.
  */
-export function GroupRow({ name, open, onToggle, icon, trailing, actions }: GroupRowProps) {
+export function GroupRow({ name, open, onToggle, icon, trailing, actions, onOpen, depth }: GroupRowProps) {
   return (
-    <div className="folder-header">
+    <div className="folder-header" style={depth ? { paddingLeft: stepIn(depth) } : undefined}>
       <button
         className="folder-chevron"
         aria-expanded={open}
@@ -198,7 +204,7 @@ export function GroupRow({ name, open, onToggle, icon, trailing, actions }: Grou
       >
         <ChevronIcon open={open} />
       </button>
-      <button className="folder-toggle" onClick={onToggle}>
+      <button className="folder-toggle" onClick={onOpen ?? onToggle}>
         {icon}
         <span className="row-name">{name}</span>
         {trailing}

@@ -62,6 +62,13 @@ const rowNamed = (name: string, root: ParentNode = document) => {
  *  button. The `.folder-header` around it is a `<div>` and answers to nothing. */
 const clickRow = (row: HTMLElement) => fireEvent.click(row.querySelector('.row-name')!)
 
+/** Where a row's indent is written, and what it is: a group's on its header, a
+ *  leaf's on its `li`. */
+const indentOf = (row: HTMLElement) => ({
+  li: (row.closest('li') as HTMLElement).style.paddingLeft,
+  row: row.style.paddingLeft,
+})
+
 describe('a row', () => {
   it('is the same boxes in the same order, wherever it is drawn', async () => {
     await openApp()
@@ -70,6 +77,7 @@ describe('a row', () => {
     await waitFor(() => expect(rowNamed('northwind')).toBeTruthy())
     const treeFolder = shapeOf(rowNamed('Areas'))
     const treeLeaf = shapeOf(rowNamed('northwind'))
+    const treeIndents = [indentOf(rowNamed('Areas')), indentOf(rowNamed('northwind'))]
 
     // A note's own sections, which draw the tree's rows in the reading pane.
     clickRow(rowNamed('Areas'))
@@ -89,6 +97,7 @@ describe('a row', () => {
     await waitFor(() => expect(rowNamed('summarise')).toBeTruthy())
     const actionsGroup = shapeOf(rowNamed('Skills'))
     const actionsRow = shapeOf(rowNamed('summarise'))
+    const actionsIndents = [indentOf(rowNamed('Skills')), indentOf(rowNamed('summarise'))]
 
     // A leaf is a leaf, in all three panes.
     expect(actionsRow).toEqual(treeLeaf)
@@ -102,5 +111,11 @@ describe('a row', () => {
     expect(actionsGroup.filter((name) => name !== 'folder-actions')).toEqual(
       treeFolder.filter((name) => name !== 'folder-actions')
     )
+
+    // **The same indent, on the same box**: a group's on its header, never on the
+    // `li` that holds its list — there, every row in the list counted it again, and
+    // measured in Chrome the Actions rows sat a step deeper than the tree's.
+    expect(actionsIndents).toEqual(treeIndents)
+    expect(treeIndents[0].li).toBe('')
   })
 })
