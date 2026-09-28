@@ -294,7 +294,7 @@ describe('the + ', () => {
     await waitFor(() =>
       expect(JSON.parse(disk.read('/v/.config/tags.json')!)).toEqual({ travel: { properties: [] } })
     )
-    await waitFor(() => expect(document.querySelector('.viewer-title')!.textContent).toBe('#travel'))
+    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('#travel'))
     // Listed from the moment it is declared, with no note carrying it yet.
     expect(pane().getByText('travel')).toBeTruthy()
     expect(disk.paths().some((path) => path.includes('/tags/'))).toBe(false)
@@ -487,9 +487,9 @@ describe('the Tags group', () => {
     expect(pane().getByText('podcast')).toBeTruthy()
     expect(pane().getByText('audiobook')).toBeTruthy()
     fireEvent.click(pane().getByText('podcast'))
-    await waitFor(() => expect(document.querySelector('.viewer-title')!.textContent).toBe('#listening/podcast'))
+    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('#listening/podcast'))
     fireEvent.click(pane().getByText('listening'))
-    await waitFor(() => expect(document.querySelector('.viewer-title')!.textContent).toBe('#listening'))
+    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('#listening'))
 
     // `watching` is no tag of its own: its name folds.
     fireEvent.click(pane().getByText('watching'))
@@ -550,7 +550,7 @@ describe('the Properties group', () => {
 
     fireEvent.click(pane().getByText('owner'))
     await waitFor(() =>
-      expect(document.querySelector('.viewer-title')!.textContent).toBe('owner::')
+      expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('owner::')
     )
     const rows = [...document.querySelectorAll('.line-table tbody tr')].map((tr) =>
       [...tr.querySelectorAll('td')].map((td) => td.textContent?.trim())
@@ -581,7 +581,7 @@ describe('the Properties group', () => {
     expect(rowLabels().some((text) => text === 'owner1')).toBe(true)
 
     fireEvent.click(pane().getByText('amount'))
-    await waitFor(() => expect(document.querySelector('.viewer-title')!.textContent).toBe('amount::'))
+    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('amount::'))
     const rows = [...document.querySelectorAll('.line-table tbody tr')].map((tr) =>
       [...tr.querySelectorAll('td')].map((td) => td.textContent?.trim())
     )
@@ -618,7 +618,7 @@ describe('the Properties group', () => {
     await waitFor(() => expect(type().value).toBe('number'))
 
     fireEvent.click(pane().getByText('icon'))
-    await waitFor(() => expect(document.querySelector('.viewer-title')!.textContent).toBe('icon::'))
+    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('icon::'))
     expect(type().value).toBe('icon')
     expect(type().disabled).toBe(true)
     expect(document.querySelector('.save-status')?.textContent).toContain('the app’s own')

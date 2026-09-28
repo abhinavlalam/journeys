@@ -62,7 +62,7 @@ beforeEach(() => {
   )
 })
 
-const viewer = () => within(document.querySelector('.viewer')!)
+const viewer = () => within(document.querySelector('.viewer:not([hidden])')!)
 const rows = () => viewer().queryAllByRole('button').map((row) => row.textContent)
 
 async function openCalendar() {
@@ -70,7 +70,7 @@ async function openCalendar() {
   render(<App />)
   await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
   fireEvent.click(screen.getByLabelText('Calendar'))
-  await waitFor(() => expect(document.querySelector('.viewer-title')?.textContent).toBe('Calendar'))
+  await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')?.textContent).toBe('Calendar'))
 }
 
 describe('the calendar', () => {
@@ -177,7 +177,7 @@ describe('the calendar', () => {
     const first = document.querySelector('.calendar-cell:not(.outside) .calendar-date') as HTMLElement
     fireEvent.click(first)
     const day = `${today.slice(0, 8)}01`
-    await waitFor(() => expect(document.querySelector('.viewer-title')?.textContent).toBe(day))
+    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')?.textContent).toBe(day))
     expect(disk.has(`/v/Daily/${day}.md`)).toBe(true)
   })
 

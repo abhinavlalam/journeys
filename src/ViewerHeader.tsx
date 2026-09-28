@@ -5,7 +5,7 @@
 // two boxes and the same classes — and the second grew a Save button, which is the
 // only difference and is a slot.
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { NameField } from './rows'
 
 /**
@@ -25,6 +25,7 @@ export function ViewerHeader({
   status,
   onRename,
   children,
+  shown = true,
 }: {
   name: string
   status?: string
@@ -33,6 +34,8 @@ export function ViewerHeader({
   onRename?: (name: string) => void
   /** Anything that acts on the open file, at the right of the row. */
   children?: ReactNode
+  /** On screen. A note's tab stays mounted out of sight, and its field with it. */
+  shown?: boolean
 }) {
   /** What is typed, **and the name the field was opened for** — see `commit`. */
   const [editing, setEditing] = useState<{ was: string; typed: string } | null>(null)
@@ -51,16 +54,24 @@ export function ViewerHeader({
    * abandoned. The same shape as "read the note before switching what is open":
    * anything that acts on the open file has to say which file it meant.
    *
+   * **Out of sight, it renames nothing.** A note's tab now stays mounted hidden, so
+   * the same ⌘⇧O left this field behind and its blur renamed the right note — but
+   * one nobody had finished naming. A field whose pane goes is abandoned.
+   *
    * Nothing typed, or nothing changed, is not a rename: the vault refuses one to
    * the same name anyway, and asking it to is noise.
    */
   const commit = () => {
     const open = editing
     setEditing(null)
-    if (!open || open.was !== name) return
+    if (!open || open.was !== name || !shown) return
     const wanted = open.typed.trim()
     if (wanted && wanted !== name) onRename?.(wanted)
   }
+
+  useEffect(() => {
+    if (!shown) setEditing(null)
+  }, [shown])
 
   return (
     <div className="viewer-header">

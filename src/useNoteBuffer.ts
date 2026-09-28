@@ -163,21 +163,6 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
     else if (ours && !('failed' in loaded)) seen.current = loaded.body
   }
 
-  /**
-   * **The editor is leaving, the buffer is staying.** A tab that is no longer the
-   * active one unmounts its editor and keeps its buffer, so the text the editor
-   * held has to become the mount value the editor comes back to — `body` is the
-   * mount value and never the keystroke. The queued write goes out as well: a tab
-   * out of sight is not a reason for its edit to sit in a timer.
-   */
-  function settle() {
-    void flushPendingSave()
-    if (bodyRef.current !== body) {
-      setBody(bodyRef.current)
-      setEditorEpoch((n) => n + 1)
-    }
-  }
-
   /** Nothing open, nothing held: for a delete, and for changing vault. */
   function closeNote() {
     setNote(null)
@@ -391,7 +376,6 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
     unreadable: note !== null && note.path === unreadablePath,
     openNote,
     closeNote,
-    settle,
     handleEditorChange,
     flushPendingSave,
     discardPendingSave,

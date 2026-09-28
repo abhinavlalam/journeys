@@ -69,6 +69,8 @@ interface MarkdownEditorProps {
   /** Open with the caret at the end, not below the title: a daily note is a log,
       and its next line goes at the bottom. */
   caretAtEnd?: boolean
+  /** On screen: see `EditorHost`'s. */
+  shown?: boolean
   /** Spaces per indent level, from the settings. Applied through a compartment, so
       moving the slider does not remount the editor. */
   indentWidth?: number
@@ -250,6 +252,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
 
   return (
     <EditorHost
+      shown={props.shown}
       initialText={initialMarkdown}
       initialSelection={props.caretAtEnd ? initialMarkdown.length : caretOnOpen(initialMarkdown)}
       onChange={onChange}

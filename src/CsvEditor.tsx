@@ -14,14 +14,17 @@ export function CsvEditor({
   initialText,
   onChange,
   indentWidth,
+  shown,
 }: {
   name: string
   initialText: string
   onChange: (text: string) => void
   indentWidth?: number
+  shown?: boolean
 }) {
   return (
     <EditorHost
+      shown={shown}
       initialText={initialText}
       onChange={onChange}
       extensions={CSV_EXTENSIONS}

@@ -42,7 +42,7 @@ async function openApp() {
 }
 
 const sidebar = () => within(document.querySelector('.sidebar')!)
-const title = () => document.querySelector('.viewer-title')?.textContent ?? null
+const title = () => document.querySelector('.viewer:not([hidden]) .viewer-title')?.textContent ?? null
 const tabs = () => [...document.querySelectorAll('[role="tab"] .tab-name')].map((el) => el.textContent)
 
 describe('the tree', () => {

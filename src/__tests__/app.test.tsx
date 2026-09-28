@@ -410,7 +410,7 @@ describe('the backlinks at the end of a note', () => {
   /** By its own heading: a nested note has an *Inside* section in the same footer,
    *  wearing the same class. */
   const section = (title: string) =>
-    [...document.querySelectorAll<HTMLElement>('.note-section')].find((el) =>
+    [...document.querySelectorAll<HTMLElement>('.viewer:not([hidden]) .note-section')].find((el) =>
       el.querySelector('.folder-header')?.textContent?.includes(title)
     ) ?? null
   const backlinks = () => section('Backlinks')
@@ -490,7 +490,7 @@ describe('the backlinks at the end of a note', () => {
  */
 describe('the inside of a nested note', () => {
   const section = (title: string) =>
-    [...document.querySelectorAll<HTMLElement>('.note-section')].find((el) =>
+    [...document.querySelectorAll<HTMLElement>('.viewer:not([hidden]) .note-section')].find((el) =>
       el.querySelector('.folder-header')?.textContent?.includes(title)
     ) ?? null
 
@@ -543,7 +543,7 @@ describe('the inside of a nested note', () => {
     fireEvent.click(row('Ideas'))
     await waitFor(() => expect(section('Inside')).toBeTruthy())
     expect(
-      [...document.querySelectorAll('.note-section')].map((el) =>
+      [...document.querySelectorAll('.viewer:not([hidden]) .note-section')].map((el) =>
         (el.querySelector('.folder-header')?.textContent ?? '').replace(/\d+$/, '')
       )
     ).toEqual(['Path', 'Inside', 'Backlinks'])
@@ -564,7 +564,7 @@ describe('the inside of a nested note', () => {
  */
 describe('the path at the end of a note', () => {
   const path = () =>
-    [...document.querySelectorAll<HTMLElement>('.note-section')]
+    [...document.querySelectorAll<HTMLElement>('.viewer:not([hidden]) .note-section')]
       .find((el) => el.querySelector('.folder-header')?.textContent?.includes('Path'))!
   /** The steps, and how far each is indented — the descent is the point. */
   const steps = () =>
@@ -629,7 +629,7 @@ describe('the path at the end of a note', () => {
 
     fireEvent.click(within(path()).getByText('Areas'))
     await waitFor(() =>
-      expect(document.querySelector('.viewer-title')!.textContent).toBe('Areas')
+      expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('Areas')
     )
   })
 })
@@ -858,7 +858,7 @@ describe('the create field, with a nested note open', () => {
     // Clicking the folder's row opens its own note, which draws the second tree.
     fireEvent.click(within(list()).getByText('Notes'))
     await waitFor(() => expect(within(list()).getByText('kept')).toBeTruthy())
-    await waitFor(() => expect(document.querySelectorAll('.note-section').length).toBeGreaterThan(0))
+    await waitFor(() => expect(document.querySelectorAll('.viewer:not([hidden]) .note-section').length).toBeGreaterThan(0))
 
     const plus = document.querySelector('[aria-label="New note in Notes"]')!
     fireEvent.mouseDown(plus)

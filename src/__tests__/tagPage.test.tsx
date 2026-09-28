@@ -34,9 +34,9 @@ beforeEach(() => {
 })
 
 const pane = () => within(document.querySelector('.sidebar')!)
-const viewer = () => within(document.querySelector('.viewer')!)
+const viewer = () => within(document.querySelector('.viewer:not([hidden])')!)
 /** The first section on the page: the structure. The table names the same words. */
-const structure = () => within(document.querySelector('.viewer .note-section') as HTMLElement)
+const structure = () => within(document.querySelector('.viewer:not([hidden]) .note-section') as HTMLElement)
 const tags = () => JSON.parse(disk.read('/v/.config/tags.json')!).expense.properties
 
 async function openTag() {
@@ -46,7 +46,7 @@ async function openTag() {
   fireEvent.click(screen.getByLabelText('Expand all actions'))
   await waitFor(() => expect(pane().getByText('expense')).toBeTruthy())
   fireEvent.click(pane().getByText('expense'))
-  await waitFor(() => expect(document.querySelector('.viewer-title')!.textContent).toBe('#expense'))
+  await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('#expense'))
 }
 
 describe('a tag’s page', () => {
@@ -137,7 +137,7 @@ describe('a tag’s page', () => {
   it('opens a property’s own page from its row, where its type is set', async () => {
     await openTag()
     fireEvent.click(await waitFor(() => structure().getByText('amount')))
-    await waitFor(() => expect(document.querySelector('.viewer-title')!.textContent).toBe('amount::'))
+    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('amount::'))
     expect((screen.getByRole('combobox', { name: 'Type' }) as HTMLSelectElement).value).toBe('number')
   })
 })

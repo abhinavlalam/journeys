@@ -280,12 +280,15 @@ export function markdownEditorModule() {
     MarkdownEditor: ({
       initialMarkdown,
       onChange,
+      shown = true,
     }: {
       initialMarkdown: string
       onChange: (markdown: string) => void
+      shown?: boolean
     }) => (
+      // A tab out of sight keeps its editor mounted; "the editor" is the one shown.
       <textarea
-        data-testid="editor"
+        data-testid={shown ? 'editor' : 'hidden-editor'}
         className="markdown-editor"
         aria-label="Markdown source"
         defaultValue={initialMarkdown}

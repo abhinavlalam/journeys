@@ -35,9 +35,9 @@ async function openApp() {
 }
 
 const sidebar = () => within(document.querySelector('.sidebar')!)
-const title = () => document.querySelector('.viewer-title')?.textContent ?? null
+const title = () => document.querySelector('.viewer:not([hidden]) .viewer-title')?.textContent ?? null
 const steps = () =>
-  [...document.querySelectorAll('.daily-step')].map((el) => [
+  [...document.querySelectorAll('.viewer:not([hidden]) .daily-step')].map((el) => [
     el.className.includes('back') ? 'back' : 'forward',
     el.textContent,
   ])
@@ -64,7 +64,7 @@ describe('a journal page', () => {
     await openDay('2026-09-17')
     await waitFor(() => expect(steps()).toHaveLength(2))
     // The step, not the row of the same name in the tree.
-    fireEvent.click(document.querySelector('.daily-step.back')!)
+    fireEvent.click(document.querySelector('.viewer:not([hidden]) .daily-step.back')!)
     await waitFor(() => expect(title()).toBe('2026-09-16'))
     // The first day has nothing before it, and its one step points forward.
     expect(steps()).toEqual([['forward', '2026-09-17']])

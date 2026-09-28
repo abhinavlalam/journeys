@@ -38,7 +38,7 @@ const sidebar = () => within(document.querySelector('.sidebar')!)
 const tabs = () => [...document.querySelectorAll('[role="tab"] .tab-name')].map((el) => el.textContent)
 const activeTabs = () =>
   [...document.querySelectorAll('[role="tab"][aria-selected="true"] .tab-name')].map((el) => el.textContent)
-const title = () => document.querySelector('.viewer-title')?.textContent ?? null
+const title = () => document.querySelector('.viewer:not([hidden]) .viewer-title')?.textContent ?? null
 const groups = () => document.querySelectorAll('.pane-group').length
 
 async function openFromTree(name: string) {

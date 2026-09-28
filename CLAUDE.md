@@ -173,8 +173,10 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   opening it anywhere goes to its tab. A split makes an empty, focused group.
 - **A buffer per note tab**, owned by `NotePane` through `useNoteBuffer` and
   registered with `useBuffers`, the one door every vault operation reaches every
-  open note through. Inactive tabs stay mounted; the editor mounts once, over the
-  bytes (never over `''` then re-keyed).
+  open note through. Inactive note tabs stay mounted, **editor and all**, hidden as a terminal is, so a
+  tab keeps its undo (`shown`: the editor takes the keyboard back when it shows, and
+  a hidden title field renames nothing). The editor mounts once, over the bytes
+  (never over `''` then re-keyed). Tests ask for `.viewer:not([hidden])`.
 - **The DOM is flat.** `WorkspaceView` measures the tree into boxes and renders
   every viewer keyed by id over its group's box. Nested, a split re-parented the
   subtree and killed a terminal's shell. An inactive terminal is hidden, not

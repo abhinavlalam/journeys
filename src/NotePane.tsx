@@ -120,9 +120,10 @@ export function NotePane({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [id]
   )
-  // Out of sight: the editor unmounts and the buffer takes over its text.
+  // Out of sight, the tab keeps its editor — its text and its undo — and writes
+  // what it held: a tab not shown is no reason for an edit to sit in a timer.
   useEffect(() => {
-    if (!active) buffer.settle()
+    if (!active) void buffer.flushPendingSave()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active])
 
@@ -137,8 +138,6 @@ export function NotePane({
   // Bound before the markup: a `const` narrows inside the handler under it, where
   // `steps.previous &&` in the JSX narrows only what is drawn.
   const { previous: back, next: forward } = steps
-
-  if (!active) return null
 
   /**
    * **The editor mounts once, over the bytes.** Until the buffer holds this file
@@ -158,6 +157,7 @@ export function NotePane({
   return (
     <>
       <ViewerHeader
+        shown={active}
         name={file.name}
         // A note is renamed by its title, and a nested note's title renames its
         // folder — `App` picks which. Only a note: a JSON file has a name too, and
@@ -212,6 +212,7 @@ export function NotePane({
       fileKind(file.path) === 'json' ? (
         <JsonEditor
           key={`${file.path}:${buffer.editorEpoch}`}
+          shown={active}
           name={file.name}
           initialText={buffer.body}
           onChange={handleEditorChange}
@@ -220,6 +221,7 @@ export function NotePane({
       ) : fileKind(file.path) === 'csv' ? (
         <CsvEditor
           key={`${file.path}:${buffer.editorEpoch}`}
+          shown={active}
           name={file.name}
           initialText={buffer.body}
           onChange={handleEditorChange}
@@ -228,6 +230,7 @@ export function NotePane({
       ) : fileKind(file.path) === 'text' ? (
         <TextEditor
           key={`${file.path}:${buffer.editorEpoch}`}
+          shown={active}
           name={file.name}
           initialText={buffer.body}
           onChange={handleEditorChange}
@@ -236,6 +239,7 @@ export function NotePane({
       ) : (
         <MarkdownEditor
           key={`${file.path}:${buffer.editorEpoch}`}
+          shown={active}
           initialMarkdown={buffer.body}
           onChange={handleEditorChange}
           insertTimeCombo={settingsOpen ? null : settings.shortcuts.insertTime}

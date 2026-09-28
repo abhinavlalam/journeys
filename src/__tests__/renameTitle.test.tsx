@@ -33,7 +33,7 @@ beforeEach(() => {
 })
 
 const tree = () => within(document.querySelector('.sidebar .file-list')!)
-const viewer = () => within(document.querySelector('.viewer')!)
+const viewer = () => within(document.querySelector('.viewer:not([hidden])')!)
 
 async function openApp() {
   const { default: App } = await import('../App')
@@ -49,7 +49,7 @@ async function open(name: string) {
 
 /** Types a new name over the title and commits it with Enter. */
 function renameTo(typed: string) {
-  fireEvent.click(document.querySelector('.viewer-title') as HTMLElement)
+  fireEvent.click(document.querySelector('.viewer:not([hidden]) .viewer-title') as HTMLElement)
   const field = screen.getByLabelText('Note name')
   fireEvent.change(field, { target: { value: typed } })
   fireEvent.keyDown(field, { key: 'Enter' })
@@ -158,7 +158,7 @@ describe('renaming from the title', () => {
     await openApp()
     await open('target')
 
-    fireEvent.click(document.querySelector('.viewer-title') as HTMLElement)
+    fireEvent.click(document.querySelector('.viewer:not([hidden]) .viewer-title') as HTMLElement)
     const field = screen.getByLabelText('Note name')
     fireEvent.change(field, { target: { value: 'quarry' } })
     fireEvent.keyDown(field, { key: 'Escape' })
@@ -190,7 +190,7 @@ describe('renaming from the title', () => {
     await openApp()
     await open('target')
 
-    fireEvent.click(document.querySelector('.viewer-title') as HTMLElement)
+    fireEvent.click(document.querySelector('.viewer:not([hidden]) .viewer-title') as HTMLElement)
     const field = screen.getByLabelText('Note name')
     fireEvent.change(field, { target: { value: 'wayfinding' } })
 
@@ -213,7 +213,7 @@ describe('renaming from the title', () => {
     disk.write('/v/data.json', '{ "a": 1 }\n')
     await openApp()
     await open('data.json')
-    expect((document.querySelector('.viewer-title') as HTMLButtonElement).disabled).toBe(true)
+    expect((document.querySelector('.viewer:not([hidden]) .viewer-title') as HTMLButtonElement).disabled).toBe(true)
   })
 })
 
@@ -238,7 +238,7 @@ describe('a backlink', () => {
     await withBacklink()
     fireEvent.click(viewer().getByText('source'))
     await waitFor(() =>
-      expect(document.querySelector('.viewer-title')!.textContent).toBe('source')
+      expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('source')
     )
   })
 
@@ -246,7 +246,7 @@ describe('a backlink', () => {
     await withBacklink()
     fireEvent.click(document.querySelector('.backlink-lines li') as HTMLElement)
     await waitFor(() =>
-      expect(document.querySelector('.viewer-title')!.textContent).toBe('source')
+      expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('source')
     )
   })
 
@@ -262,7 +262,7 @@ describe('a backlink', () => {
 
     fireEvent.click(line)
     await new Promise((resolve) => setTimeout(resolve, 200))
-    expect(document.querySelector('.viewer-title')!.textContent).toBe('target')
+    expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('target')
     selection.removeAllRanges()
   })
 })
@@ -299,6 +299,6 @@ describe('after a folder note is renamed', () => {
     expect(disk.has('/v/Areas/Roadmaps/Plans.md')).toBe(false)
     expect(disk.has('/v/Areas/Plans/Plans.md')).toBe(false)
     // And the title says what the note is now called.
-    expect(document.querySelector('.viewer-title')!.textContent).toBe('Roadmaps')
+    expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('Roadmaps')
   })
 })

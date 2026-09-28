@@ -14,6 +14,7 @@ interface JsonEditorProps {
   /** `.config/settings.json`'s ⌘S, and nothing else so far. A caller's extensions
    *  go ahead of the host's, so a key here outranks the editor's own. */
   extensions?: Extension[]
+  shown?: boolean
 }
 
 /**
@@ -37,9 +38,11 @@ export function JsonEditor({
   onChange,
   indentWidth,
   extensions,
+  shown,
 }: JsonEditorProps) {
   return (
     <EditorHost
+      shown={shown}
       initialText={initialText}
       onChange={onChange}
       extensions={extensions ? [...extensions, ...JSON_EXTENSIONS] : JSON_EXTENSIONS}

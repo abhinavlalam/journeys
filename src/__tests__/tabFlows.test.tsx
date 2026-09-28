@@ -99,6 +99,26 @@ describe('where the caret starts', () => {
   })
 })
 
+/** **A tab keeps its undo.** Its editor stays mounted out of sight, as a terminal's
+ *  shell does, so what was typed before a switch can still be taken back after it. */
+describe('undo across a tab switch', () => {
+  it('takes back what was typed before the switch', { timeout: 40000 }, async () => {
+    await openApp()
+    await open('alpha')
+    await waitFor(() => expect(shown()).toBe('alpha text\n'))
+    type('alpha, edited\n')
+    await open('beta')
+    await waitFor(() => expect(shown()).toBe('beta text\n'))
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /alpha/ }))
+    await waitFor(() => expect(shown()).toBe('alpha, edited\n'))
+
+    // Mod-z through the real keymap: ⌘ where CodeMirror reads a Mac, Ctrl elsewhere.
+    const mod = /Mac/.test(navigator.platform) ? { metaKey: true } : { ctrlKey: true }
+    fireEvent.keyDown(view().contentDOM, { key: 'z', ...mod })
+    expect(shown()).toBe('alpha text\n')
+  })
+})
+
 describe('a buffer that outlives its editor', () => {
   it('hands the text back when the tab returns, and writes it as the tab leaves', { timeout: 40000 }, async () => {
     await openApp()
@@ -140,7 +160,7 @@ describe('a buffer that outlives its editor', () => {
     fireEvent.click(screen.getByLabelText('Split right'))
     await waitFor(() => expect(document.querySelectorAll('.pane-group')).toHaveLength(2))
     await open('alpha')
-    fireEvent.click(document.querySelectorAll('.viewer-title')[1] as HTMLElement)
+    fireEvent.click(document.querySelectorAll('.viewer:not([hidden]) .viewer-title')[1] as HTMLElement)
     const field = screen.getByLabelText('Note name') as HTMLInputElement
     fireEvent.change(field, { target: { value: 'gamma' } })
     fireEvent.keyDown(field, { key: 'Enter' })

@@ -84,8 +84,8 @@ describe('a row', () => {
     // The *reading pane*, not the first section: `Inside` and `Backlinks` are two
     // `.note-section`s and a backlink is in the second.
     const sections = await waitFor(() => {
-      const found = document.querySelector('.viewer')
-      expect(found!.querySelector('.note-section')).toBeTruthy()
+      const found = document.querySelector('.viewer:not([hidden])')
+      expect(found!.querySelector('.viewer:not([hidden]) .note-section')).toBeTruthy()
       return found!
     })
     await waitFor(() => expect(rowNamed('roadmap', sections)).toBeTruthy())

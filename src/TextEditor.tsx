@@ -13,14 +13,17 @@ export function TextEditor({
   initialText,
   onChange,
   indentWidth,
+  shown,
 }: {
   name: string
   initialText: string
   onChange: (text: string) => void
   indentWidth?: number
+  shown?: boolean
 }) {
   return (
     <EditorHost
+      shown={shown}
       initialText={initialText}
       onChange={onChange}
       ariaLabel={`${name} source`}

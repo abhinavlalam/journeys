@@ -30,6 +30,9 @@ import { codeFolding, indentUnit, syntaxTree } from '@codemirror/language'
 import { indentFold, indentFoldGutter } from './editorFold'
 
 interface EditorHostProps {
+  /** Whether the editor is on screen. A tab out of sight keeps its editor, and so its
+   *  undo; hidden, it lost the keyboard, and it takes it back when it shows. */
+  shown?: boolean
   /**
    * Read at mount **only**. The caller keys this component on what the document is
    * — a note's path and epoch, a file's version — so replacing the text is a
@@ -189,6 +192,7 @@ export function EditorHost({
   className,
   initialSelection = 0,
   indentWidth = 2,
+  shown = true,
 }: EditorHostProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -248,6 +252,11 @@ export function EditorHost({
     // Intentionally mount-once — see `initialText` above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    const root = rootRef.current
+    if (shown && root && !typingElsewhere(root)) viewRef.current?.focus()
+  }, [shown])
 
   return <div className={`code-editor ${className}`} ref={rootRef} />
 }
