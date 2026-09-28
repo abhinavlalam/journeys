@@ -34,8 +34,10 @@ export interface Sync {
 }
 
 /** A network that is not there is a state, not a failure: the round is retried at
- *  the next tick and nothing is said. Everything else is said once. */
-const OFFLINE = /resolve|connect|network|timed out|unreachable|offline|reset by peer|SSL|TLS/i
+ *  the next tick and nothing is said. Everything else is said once — **an untrusted
+ *  certificate included**: a bare `SSL|TLS` here made a sync that could never
+ *  succeed say only "offline". A TLS connection that drops still says `reset`. */
+const OFFLINE = /resolve|connect|network|timed out|unreachable|offline|reset by peer/i
 
 /** Whether a failure is the network not being there — the vault's sync and the
  *  calendar's both stay quiet about that and try again. */

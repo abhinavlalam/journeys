@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
 import type { SyncStatus } from '../sync'
-import { useSync } from '../useSync'
+import { isOffline, useSync } from '../useSync'
 
 /**
  * The sync from the shell's side, over a mocked bridge: the row under
@@ -215,5 +215,35 @@ describe('the minute', () => {
     }
     // The round the vault's opening runs, and one minute's: two.
     expect(calls.filter((one) => one === 'commit')).toHaveLength(2)
+  })
+})
+
+/**
+ * **Offline is the network not being there, and nothing else.** A certificate that
+ * is not trusted was classed with it by a bare `SSL|TLS`, so a sync that could never
+ * succeed said "offline" and nothing more. Real messages, libgit2's and curl's.
+ */
+describe('what counts as offline', () => {
+  it('is a name that does not resolve, a connection that fails, drops or times out', () => {
+    for (const message of [
+      'failed to resolve address for github.com: nodename nor servname provided, or not known; class=Net (12)',
+      'failed to connect to github.com: Network is unreachable; class=Os (2)',
+      'SSL error: syscall failure: Connection reset by peer; class=Ssl (16)',
+      'curl: (6) Could not resolve host: calendar.example',
+      'curl: (28) Operation timed out after 30001 milliseconds',
+    ]) {
+      expect(isOffline(message), message).toBe(true)
+    }
+  })
+
+  it('is not a certificate the machine does not trust, nor a refused token', () => {
+    for (const message of [
+      'the SSL certificate is invalid; class=Ssl (16); code=Certificate (-17)',
+      'SSL error: error:0A000086:SSL routines::certificate verify failed; class=Ssl (16)',
+      'curl: (60) SSL certificate problem: unable to get local issuer certificate',
+      'unexpected http status code: 401; class=Http (34)',
+    ]) {
+      expect(isOffline(message), message).toBe(false)
+    }
   })
 })
