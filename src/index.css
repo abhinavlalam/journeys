@@ -3649,6 +3649,17 @@ button.folder-toggle {
   width: auto;
 }
 
+/* **A menu that cannot change reads as its value**: `icon::`'s type is the app's.
+   Disabled, it kept its box, its chevron and its pointer, and read as broken. */
+.settings-select:disabled {
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-dim);
+  opacity: 1;
+  cursor: default;
+}
+
 .settings-text-input {
   width: 100%;
   min-height: var(--field-h);
