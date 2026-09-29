@@ -37,9 +37,8 @@ import type { VaultFile, VaultFolder } from './vaultModel'
 // ---------------------------------------------------------------------------
 
 /**
- * One entry a folder listing gives back. `plugin-fs`'s own `DirEntry` also carries
- * `isSymlink`, which nothing here reads; a value with the extra field is assignable
- * to this, so the implementation below passes its entries straight through.
+ * One entry of a folder listing. `plugin-fs`'s `DirEntry` also has
+ * `isSymlink`, which nothing reads, so its entries pass straight through.
  */
 interface VaultDirEntry {
   name: string
@@ -48,21 +47,19 @@ interface VaultDirEntry {
 }
 
 /**
- * **The app's filesystem, as the eight calls everything above it makes.**
+ * The app's filesystem: the eight calls everything above it makes.
  *
- * Two rules, and they are separate:
- *
- * - **`vault.ts` is the only module that imports `@tauri-apps/plugin-fs`.** Every
- *   test's `vi.mock('@tauri-apps/plugin-fs')` therefore reaches everything.
- * - **`VaultFs` is what a different backend implements** — eight calls, not a
- *   module of policy. A mobile or sync backend writes these and nothing else.
- *
- * Every path is **absolute**, which is what every caller already holds.
+ * `vault.ts` is the only module that imports `@tauri-apps/plugin-fs`, so a
+ * test's `vi.mock` of it reaches everything. Another backend (mobile, sync)
+ * implements these eight calls and nothing else. Every path is absolute.
  */
 export interface VaultFs {
-  /** True for a file *or* a folder. Both volumes are case-insensitive, so this is. */
+  /** True for a file or a folder. Both volumes are case-insensitive, so this is too. */
   exists(path: string): Promise<boolean>
-  /** Rejects when there is no file. A caller that treats "absent" as a value checks `exists` first. */
+  /**
+   * Rejects when there is no file. A caller that treats absent
+   * as a value checks `exists` first.
+   */
   readText(path: string): Promise<string>
   /** Truncate-and-write. Not atomic. */
   writeText(path: string, text: string): Promise<void>
@@ -74,21 +71,17 @@ export interface VaultFs {
   remove(path: string, options?: { recursive?: boolean }): Promise<void>
   /** Move or rename, file or folder. */
   move(from: string, to: string): Promise<void>
-  /** **Bytes**, for a file dragged in from outside — a PDF, a photograph. The only
-   *  call here that is not text, and it exists because the dropped file arrives as
-   *  bytes in the webview and a `String()` of a PDF is a broken PDF. */
+  /**
+   * Bytes, for a file dragged in from outside, such as a PDF or a photo.
+   * The dropped file arrives as bytes, and `String()` of a PDF breaks it.
+   */
   writeBytes(path: string, bytes: Uint8Array): Promise<void>
 }
 
 /**
- * The surface over the real disk, and **the only place `plugin-fs` is called**.
- *
- * Everything below this line goes through `vaultFs`, so the eight calls above are
- * enforced by the compiler rather than asserted in a comment: a function here that
- * needs a ninth cannot quietly reach past the interface, it has to widen it. The
- * previous version of this file described the boundary and then made 49 raw
- * `plugin-fs` calls of its own, so nothing forced the interface to stay sufficient
- * and three things a second backend needs were missing from it.
+ * The surface over the real disk, and the only place `plugin-fs`
+ * is called. Everything below goes through `vaultFs`, so a
+ * function that needs a ninth call has to widen the interface.
  */
 const vaultFs: VaultFs = {
   exists,
@@ -107,17 +100,11 @@ const vaultFs: VaultFs = {
 // ---------------------------------------------------------------------------
 
 /**
- * What the last read produced, so an unchanged read hands back the *same* objects
- * rather than value-equal new ones.
+ * The last read's tree, so an unchanged read returns the same objects and React skips
+ * the re-render. Window focus reads the whole vault, and most reads find nothing new.
  *
- * Window focus re-reads the whole vault — that is what makes a note created in
- * Finder appear without reopening — and almost every one of those reads finds
- * nothing new. Fresh objects invalidate every `useMemo` keyed on the tree and
- * re-render it all; identical ones let React's eager bailout drop the update.
- *
- * **The read itself cannot be skipped.** A directory's mtime does not move when a
- * file inside it is written in place — measured on APFS — so mtimes would miss
- * exactly the case the refresh exists for.
+ * The read can't be skipped: on APFS a folder's mtime doesn't
+ * change when a file inside it is written in place.
  */
 let lastRead: { rootPath: string; root: VaultFolder } | null = null
 
@@ -130,8 +117,8 @@ export async function readVault(rootPath: string): Promise<VaultFolder> {
 }
 
 function sameFile(a: VaultFile, b: VaultFile): boolean {
-  // absolutePath as well as path: switching between two folders of identical shape
-  // would otherwise keep the old tree, pointing every read at the old disk.
+  // Compare `absolutePath` too: two vaults of the same shape
+  // would otherwise keep the old tree.
   return a.path === b.path && a.absolutePath === b.absolutePath && a.name === b.name
 }
 
@@ -147,16 +134,9 @@ function sameFolder(a: VaultFolder, b: VaultFolder): boolean {
 }
 
 /**
- * **Every file, not only the ones the app can edit.**
- *
- * It was `.md`, `.json` and `.enc`, and everything else on disk was invisible —
- * which made a vault holding a lease PDF, a photograph and an export two things at
- * once: a folder of notes in this app, and a folder of files in Finder. A vault is
- * the folder; the tree shows what is in it. What the *reading pane* does with one
- * is `fileKind`'s answer, and that is where the difference lives now.
- *
- * Dot-prefixed entries are still skipped by the walk below, which is what keeps
- * `.config` and `.claude` out of the tree.
+ * Every file, not only the ones the app edits: the tree shows what is in the
+ * folder, and `fileKind` decides how each one opens. The walk skips
+ * dot-prefixed entries, which keeps `.config` and `.claude` out of the tree.
  */
 
 async function walk(absoluteDir: string, relativeDir: string, name: string): Promise<VaultFolder> {
@@ -169,15 +149,13 @@ async function walk(absoluteDir: string, relativeDir: string, name: string): Pro
     files: [],
   }
 
-  // Subfolders are descended **together**. Each `list` is one IPC round trip, and
-  // awaiting inside the loop made the whole tree one serial chain of them — a
-  // vault of thirty folders paid thirty latencies end to end instead of one per
-  // level. The sort below is what makes the finish order not matter.
+  // Subfolders are read in parallel: each listing is one IPC
+  // round trip. The sort below makes the finish order irrelevant.
   const descend: Promise<VaultFolder>[] = []
 
   for (const entry of entries) {
-    // Dot-prefixed entries are skipped, which is why `safeNewName` refuses a
-    // leading dot: a `.plan.md` would be written and then be invisible here.
+    // Dot-prefixed entries are skipped, so `safeNewName` refuses a
+    // leading dot: a `.plan.md` would be written and never shown.
     if (entry.name.startsWith('.')) continue
     const relativePath = relativeDir ? `${relativeDir}/${entry.name}` : entry.name
     const absolutePath = `${absoluteDir}/${entry.name}`
@@ -186,9 +164,8 @@ async function walk(absoluteDir: string, relativeDir: string, name: string): Pro
       folder.files.push({
         path: relativePath,
         absolutePath,
-        // Only `.md` is stripped: `data.json` shows as `data.json`, which is what
-        // tells it apart from a note called `data` in the same folder — and a
-        // `plan.pdf` from a note called `plan`.
+        // Only `.md` is stripped, so `data.json` and `plan.pdf`
+        // can't be mistaken for notes called `data` and `plan`.
         name: noteName(entry.name),
       })
     } else if (entry.isDirectory) {
@@ -198,8 +175,8 @@ async function walk(absoluteDir: string, relativeDir: string, name: string): Pro
 
   folder.folders = await Promise.all(descend)
 
-  // Lift `Areas/Areas.md` out of the file list and onto the folder itself, so it
-  // renders as the folder's own row rather than as a child of it.
+  // Move `Areas/Areas.md` onto its folder, so it is the folder's
+  // own row rather than a child.
   const noteIndex = folder.files.findIndex((f) => f.name === name)
   if (noteIndex !== -1) {
     folder.note = folder.files[noteIndex]
@@ -221,8 +198,10 @@ function parentOf(absolutePath: string): string {
   return absolutePath.slice(0, absolutePath.lastIndexOf('/'))
 }
 
-/** Collapses `.` and `..` so a containment check cannot be walked past.
- *  Textual, and that is enough: nothing in the app creates a symlink. */
+/**
+ * Collapses `.` and `..` so a containment check can't be walked
+ * past. Textual, which is enough: the app creates no symlinks.
+ */
 function resolveDots(absolutePath: string): string {
   const out: string[] = []
   for (const segment of absolutePath.split('/')) {
@@ -234,14 +213,9 @@ function resolveDots(absolutePath: string): string {
 }
 
 /**
- * A rename changes a name and never a location: the destination has to resolve
- * inside the entry's own parent directory.
- *
- * Stated independently of the name, because a guard that enumerates what a name may
- * hold is one character behind the next surprise. `renameFile` splices its
- * destination out of the typed text, so `../../../Desktop/pwned` renamed a note
- * clean out of the vault — `fs:allow-rename` is scoped `**` and the `exists()` collision guard ran on
- * the escaped path, so neither layer said a word.
+ * A rename changes a name, never a location: the destination must be inside
+ * the entry's own parent. Checked on the resolved path rather than the
+ * name's characters: `../../Desktop/x` once renamed a note out of the vault.
  */
 function assertStaysPut(oldAbsolute: string, newAbsolute: string, name: string): void {
   if (isSamePath(parentOf(resolveDots(oldAbsolute)), parentOf(resolveDots(newAbsolute)))) return
@@ -258,14 +232,8 @@ export function isSelfOrDescendant(folderPath: string, candidateParent: string):
 // ---------------------------------------------------------------------------
 
 /**
- * A file's text, **decrypted if it is one of those.**
- *
- * The whole of what makes an encrypted note openable is here and in the write
- * below: everything above this — the buffer, the editor, the autosave, the focus
- * re-read, the search — is handed plain text and never learns the difference.
- *
- * A file nobody has unlocked yet throws `LockedFileError`, which is not a failure
- * but a question: `App` catches it and asks for the passphrase.
+ * A file's text, decrypted if it is locked. Everything above this sees plain text. A
+ * file nobody has unlocked throws `LockedFileError`, and `App` asks for the passphrase.
  */
 export async function readVaultFile(file: VaultFile): Promise<string> {
   const raw = await vaultFs.readText(file.absolutePath)
@@ -276,13 +244,12 @@ export async function readVaultFile(file: VaultFile): Promise<string> {
 }
 
 /**
- * `raw` onto disk, **encrypted if the file is one of those** — with the file's own
- * salt, so the derived key stays cached across saves and typing does not pay
- * 600,000 PBKDF2 rounds a keystroke. The IV is fresh every time, which is the half
- * that must never repeat.
+ * Writes `raw`, encrypted if the file is locked. It reuses the
+ * file's salt, so the derived key stays cached and typing doesn't
+ * pay for PBKDF2 on every save; the IV is new every time.
  *
- * A locked file with no passphrase is not written at all. There is nothing honest
- * to write: plain text into a `.enc` file is the one outcome that cannot be undone.
+ * A locked file with no passphrase is not written: plain text in
+ * a `.enc` file can't be undone.
  */
 export async function writeVaultFile(file: VaultFile, raw: string): Promise<void> {
   if (!isEncrypted(file.path)) return vaultFs.writeText(file.absolutePath, raw)
@@ -294,10 +261,10 @@ export async function writeVaultFile(file: VaultFile, raw: string): Promise<void
 }
 
 /**
- * What is on disk for `file`, kept beside it as `name (other).ext` — the sync's own
- * rule for the two sides of one change (`other_path` in `sync.rs`) — **as it is on
- * disk**, so a locked note's other copy is its ciphertext and never its text. A copy
- * already there is not written over: the next free `(other 2)` is.
+ * Copies what is on disk for `file` to `name (other).ext`, the sync's
+ * rule for two sides of one change (`other_path` in `sync.rs`). It
+ * copies the bytes, so a locked note's copy stays encrypted. An existing
+ * copy is never overwritten; the next free `(other N)` is used.
  */
 export async function keepOther(file: VaultFile): Promise<VaultFile> {
   const root = file.absolutePath.slice(0, file.absolutePath.length - file.path.length - 1)
@@ -310,12 +277,9 @@ export async function keepOther(file: VaultFile): Promise<VaultFile> {
 }
 
 /**
- * Tries a passphrase against an encrypted file, and remembers it if it opens.
- *
- * The proof is a decryption: AES-GCM authenticates, so "it decrypted" and "this is
- * the passphrase" are the same statement. Throws `WrongPassphraseError` for a bad
- * one and `DamagedFileError` for a file that is not intact — two different answers,
- * because only one of them is worth retyping for.
+ * Tries a passphrase on a locked file and remembers it if it works.
+ * Throws `WrongPassphraseError` for a wrong one and `DamagedFileError`
+ * for a damaged file, since only the first is worth retyping.
  */
 export async function unlockFile(file: VaultFile, passphrase: string): Promise<void> {
   const raw = await vaultFs.readText(file.absolutePath)
@@ -328,27 +292,18 @@ export function fileExists(file: VaultFile): Promise<boolean> {
 }
 
 /**
- * Write a note's own path into it, and into every note under it when it is a
- * folder that moved.
+ * Writes a note's `path::`, and every note's under a moved
+ * folder. The property travels with the file, so the app has to
+ * keep it true. The value is the vault path without `.md`.
  *
- * The point of the property is that it travels with the file: open the note in any
- * editor and it says where it belongs, so a note that turns up on its own can be
- * put back. Which means the app has to keep it true — a note whose `path:` is a
- * place it no longer is would be worse than no property at all.
- *
- * The value is the vault-relative path without `.md`, which is what a `[[wikilink]]`
- * to it would say.
- *
- * Only notes **on disk** are written: a folder note is written on the first
- * keystroke (CLAUDE.md), and this must not be the thing that creates one.
- *
- * Answers the notes that are there and **could not be read**, each left as it was
- * while the rest of a moved folder still follows. A write that fails still throws.
+ * Only notes on disk are written: a folder note is created by
+ * its first keystroke, not by this. Returns the notes that exist
+ * but couldn't be read; a failed write still throws.
  */
 export async function writePathProperty(files: readonly VaultFile[]): Promise<string[]> {
   const unread: string[] = []
   for (const file of files) {
-    // Note machinery: a JSON file that moved is not read and rewritten for nothing.
+    // Only notes: a JSON file that moved isn't read and rewritten.
     if (!isNote(file.path)) continue
     if (!(await vaultFs.exists(file.absolutePath))) continue
     const raw = await vaultFs.readText(file.absolutePath).catch(() => null)
@@ -356,23 +311,17 @@ export async function writePathProperty(files: readonly VaultFile[]): Promise<st
       unread.push(file.path)
       continue
     }
-    // `knownPath`, not the file's own: a nested note's file is
-    // `Areas/Northwind/Northwind.md`, and the note is `Areas/Northwind`. The
-    // doubled form named a page the tree never shows.
+    // `knownPath`: a nested note is `Areas/Northwind`, not the
+    // file `Areas/Northwind/Northwind.md`.
     await vaultFs.writeText(file.absolutePath, withProperty(raw, APP_PROPERTIES.path, knownPath(file.path)))
   }
   return unread
 }
 
 /**
- * The icon the folder a note sits in wears, from that folder's **own note** — or
- * null for a note at the top of the vault, a folder with no note yet, or one that
- * carries no icon.
- *
- * Read from disk rather than looked up in the corpus, and that is the point: the
- * corpus is one read of the vault that lands a moment after launch, so a note made
- * in the first second of a session inherited nothing. A file this app is about to
- * write into is a file it can afford to read.
+ * The icon of the folder a note is in, from the folder's own note, or
+ * null. Read from disk, not the corpus: the corpus arrives a moment after
+ * launch, so a note made in the first second would inherit nothing.
  */
 export async function folderIcon(vaultPath: string, notePath: string): Promise<string | null> {
   const folder = folderOf(notePath)
@@ -383,25 +332,16 @@ export async function folderIcon(vaultPath: string, notePath: string): Promise<s
 }
 
 /**
- * One page property on one note, written as plain text.
- *
- * The transform is `properties.ts`'s and is pure; this is the half that touches a
- * disk, through `vaultFs` like everything else here.
- *
- * A note that is not on disk yet is the ordinary case and not an error — a folder
- * note is written lazily (CLAUDE.md) — so writing one creates it with nothing but
- * the block. **One that is there and cannot be read throws**: taken for not written
- * yet, it was written over with the block alone.
+ * Writes one page property into a note. A note not on disk yet is created with
+ * just the property, since folder notes are written lazily. One that exists
+ * but can't be read throws: treated as missing, it was once overwritten.
  */
 export async function writeNoteProperty(
   file: VaultFile,
   key: string,
   value: string | null
 ): Promise<void> {
-  // Frontmatter belongs to notes. A `.json` file in the tree opens in the same
-  // pane, and an `icon:` block written into it is a file that no longer parses, so
-  // this refuses rather than corrupts. The rows that offer icons hide them for a
-  // non-note anyway; this is the half that cannot be forgotten.
+  // Only notes get properties: an `icon::` line written into a `.json` file breaks it.
   if (!isNote(file.path)) return
   const raw = (await vaultFs.exists(file.absolutePath)) ? await vaultFs.readText(file.absolutePath) : ''
   await vaultFs.writeText(file.absolutePath, withProperty(raw, key, value))
@@ -411,30 +351,21 @@ export async function writeNoteProperty(
 // The vault's own configuration
 // ---------------------------------------------------------------------------
 //
-// **A vault carries its settings.** `.config/` at the root of the folder is where
-// this app's options for *this* vault live, so a vault is self-describing: copy the
-// folder to another machine and the theme, the typography, the shortcuts and the
-// daily-notes folder go with it. `localStorage` still holds the last applied set,
-// which is what dresses the window before a vault is open.
-//
-// Two functions over *named files* rather than one per kind of setting, because
-// themes and an env file are meant to land here beside `settings.json` and each
-// would otherwise arrive with a new pair of its own.
-//
-// The leading dot is what keeps it out of the tree: `walk` skips dot-prefixed
-// entries, so `.config` is invisible to the app that wrote it. That is also why
-// `safeName` refuses a leading dot for a name the user types — a note called
-// `.plan` would be written and then never seen again.
+// A vault carries its settings in `.config/`, so copying the folder takes the theme,
+// type, shortcuts and daily folder with it. `localStorage` keeps the last applied set
+// for the window before a vault opens. The walk skips dot folders, so `.config` stays
+// out of the tree.
 
 export const CONFIG_DIR = '.config'
 
 /** The file every skill folder holds — Claude Code's layout, `<name>/SKILL.md`. */
 export const SKILL_FILE = 'SKILL.md'
 
-/** The text of one file in the vault's `.config`, or null when it is not there —
- *  which is the ordinary case for a vault this app has not opened before. One that
- *  is there and cannot be read **throws**: every caller writes a file it finds
- *  absent, and answering null had them write over one that was only unreadable. */
+/**
+ * The text of a file in the vault's `.config`, or null when it isn't there (normal
+ * for a new vault). One that exists but can't be read throws: callers write a file
+ * they find missing, and returning null had them overwrite an unreadable one.
+ */
 export async function readConfigFile(vaultPath: string, name: string): Promise<string | null> {
   const path = `${vaultPath}/${CONFIG_DIR}/${name}`
   if (!(await vaultFs.exists(path))) return null
@@ -442,11 +373,8 @@ export async function readConfigFile(vaultPath: string, name: string): Promise<s
 }
 
 /**
- * Writes one file into the vault's `.config`, creating every folder above it.
- *
- * `name` may be a path — `actions/skills/summarise.md` — because the section that
- * writes those keeps its two kinds in two folders. `makeFolder` is one level, so
- * the walk down is here.
+ * Writes a file into the vault's `.config`, creating the folders
+ * above it. `name` may be a path.
  */
 export async function writeConfigFile(
   vaultPath: string,
@@ -460,27 +388,15 @@ export async function writeConfigFile(
 const TMUX_FILE = 'tmux.conf'
 
 /**
- * The tmux config a Terminal tab's server reads, **written once and then the
- * user's.** It is in the vault because that is where this app keeps what dresses
- * it, and `readConfigFile`/`writeConfigFile` already take a file name for exactly
- * this; it is inspectable and editable there, and a hand edit survives, which is
- * the bargain `settings.json` makes.
+ * The tmux config for the terminal's server. Written once, then the user's to edit.
  *
- * Every line is load-bearing:
- *
- * - `status off` — a status bar is tmux's chrome, and this pane is meant to read as
- *   a terminal in this app rather than as a multiplexer someone opened.
- * - `mouse off` — **deliberately**, so the wheel and the scrollback stay xterm.js's.
- *   With the mouse on, tmux takes the wheel into its own copy mode and the pane's
- *   scrolling, which took three measured fixes to get right, would be bypassed.
- * - `prefix None` with `C-b` unbound — `C-b` is *back one character* to every
- *   readline shell, and a multiplexer eating it silently is the kind of thing that
- *   reads as this app being broken. There is no prefix at all: the app drives the
- *   session, so nothing here needs a key of its own.
- * - `destroy-unattached off` — the default, stated, because it is the feature: a
- *   session with no client is a session that is still there.
- * - `default-terminal` and the `Tc` override — the same truecolour the pane sets on
- *   the PTY, or a TUI takes its no-colour path through tmux instead.
+ * - `status off`: no status bar, so the pane looks like a terminal, not tmux.
+ * - `mouse off`: the wheel and scrollback stay xterm's; tmux's
+ *   copy mode would take them.
+ * - `prefix None`, `C-b` unbound: `C-b` is back one character in
+ *   readline, and the app drives the session, so no prefix is needed.
+ * - `destroy-unattached off`: a session with no client stays alive, which is the point.
+ * - `default-terminal` and `Tc`: the same truecolour the pane gives the PTY.
  */
 const TMUX_CONF = `# Written by Journeys when a Terminal tab first opened.
 # Yours to edit: this file is read once, when the session server starts, and is
@@ -511,20 +427,18 @@ set -g escape-time 10
 `
 
 /**
- * Write the tmux config if the vault has none, and leave a hand-edited one alone.
- *
- * Answers quietly either way: this runs on the way to opening a terminal, and a
- * vault that cannot be written is a problem the terminal itself will report rather
- * than something to refuse a shell over.
+ * Writes the tmux config if the vault has none, and leaves an edited
+ * one alone. Quiet either way: the terminal reports its own problems.
  */
 export async function ensureTmuxConfig(vaultPath: string): Promise<void> {
   if ((await readConfigFile(vaultPath, TMUX_FILE)) !== null) return
   await writeConfigFile(vaultPath, TMUX_FILE, TMUX_CONF)
 }
 
-/** The same, at a **vault-relative** path — for a kind whose folder is not under
- *  `.config`. Every folder on the way is made, because a skill's is a folder the
- *  vault may not have yet. */
+/**
+ * The same, at a vault-relative path, for a kind whose folder
+ * isn't under `.config`. Creates every folder on the way.
+ */
 export async function writeVaultDirFile(
   vaultPath: string,
   path: string,
@@ -540,24 +454,16 @@ export async function writeVaultDirFile(
 }
 
 /**
- * The files in a **vault-relative** folder, dot-prefixed ones included.
- *
- * `.config` is not the only hidden folder that matters any more: a vault's skills
- * live in `.claude/skills`, which is Claude Code's layout and not this app's to
- * move. So a kind says where its files are from the vault root, and this lists
- * them. Every `fs:` scope in the capability has to name such a folder literally —
- * `**` does not match a component starting with a dot, and the failure is silence
- * rather than an error. `capability.test.ts` insists on it.
+ * The files in a vault-relative folder, dot-prefixed ones included (skills live in
+ * `.claude/skills`). Every `fs:` scope must name such a folder literally: `**`
+ * doesn't match a dot folder, and fails silently. `capability.test.ts` checks this.
  */
 export async function listVaultDir(vaultPath: string, dir: string): Promise<string[]> {
-  // No trailing slash: `dir` may be the dot folder itself, and `exists` on
-  // `…/.config/` answered false.
+  // No trailing slash: `exists` on `…/.config/` returned false.
   const path = `${vaultPath}/${dir}`
   if (!(await vaultFs.exists(path))) return []
-  // **No `.catch`.** A folder that is not there answered `[]` above; the only thing
-  // left for a catch to hide is a scope that does not reach — which is how the
-  // `.config` refusal went unnoticed twice, both times as an empty group over a
-  // folder with files in it. The caller reports it.
+  // No `.catch`: a missing folder already returned `[]`, so a catch
+  // would only hide a scope that doesn't reach. The caller reports it.
   const entries = await vaultFs.list(path)
   return entries
     .filter((entry) => entry.isFile && !entry.name.startsWith('.'))
@@ -566,11 +472,8 @@ export async function listVaultDir(vaultPath: string, dir: string): Promise<stri
 }
 
 /**
- * The folders in a vault-relative folder that hold `entry`, as `<folder>/<entry>`.
- *
- * **A skill is a folder, not a file** — `.claude/skills/youtube-transcript/SKILL.md`
- * is the shape Claude Code loads, so listing files there finds nothing, which is
- * exactly what the Skills section showed: empty, against a vault with a skill in it.
+ * The folders in a vault-relative folder that hold `entry`, as `<folder>/<entry>`. A
+ * skill is a folder (`.claude/skills/<name>/SKILL.md`), so listing files finds nothing.
  */
 export async function listVaultEntries(
   vaultPath: string,
@@ -589,11 +492,9 @@ export async function listVaultEntries(
 }
 
 /**
- * A file at a vault-relative path as something the pane can open. Outside the tree
- * — `walk` skips dot-prefixed entries — so nothing else in the app hands one over.
- *
- * A skill's name is its **folder's**: every one of them is called `SKILL.md`, so
- * the file's own basename names nothing.
+ * A file at a vault-relative path, as something the pane can open.
+ * These are outside the tree, since the walk skips dot folders. A skill
+ * is named after its folder, because every one is called `SKILL.md`.
  */
 export function vaultFileRef(vaultPath: string, path: string): VaultFile {
   const parts = path.split('/')
@@ -616,15 +517,8 @@ export function safeName(name: string): string {
 }
 
 /**
- * The one rule for what a created or renamed name may be.
- *
- * A leading dot is **refused** rather than folded, because `walk` skips every
- * dot-prefixed entry: `.plan.md` would be written, opened in the editor, and then
- * be invisible to the tree — lost from inside the app, with no way back but Finder.
- * Folding the dot away would be renaming a name that was asked for.
- *
- * `safeName` alone is not enough (it keeps the dot), and a second copy of this is
- * how the callers come to disagree.
+ * The rule for a created or renamed name. A leading dot is refused, not removed: the
+ * walk skips dot entries, so `.plan.md` would be written and then vanish from the tree.
  */
 export function safeNewName(name: string): string {
   const base = safeName(name)
@@ -640,17 +534,12 @@ export function safeNewName(name: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Every folder in a vault-relative path, created where it is missing. Answers the
- * path as the disk now spells it.
+ * Creates every missing folder in a vault-relative path, and returns
+ * the path as the disk spells it. Each segment goes through
+ * `safeNewName`, because a parent can come from a typed `[[link]]`.
  *
- * `makeFolder` does one level, so this walks down, and each segment goes through
- * `safeNewName` — a parent can arrive from a `[[wikilink]]`, which is text the user
- * typed rather than a node in the tree.
- *
- * A folder made here is a **nested note with nothing in it yet**. A folder *is* a
- * note (CLAUDE.md) and its own `.md` is written on the first keystroke, so this
- * writes no file: `[[Landmark Plaza/Northwind Office]]` is a note in a place, not
- * two notes.
+ * A folder made here is a nested note with nothing in it: its
+ * `.md` is written on the first keystroke, so no file is made.
  */
 export async function ensureFolder(vaultPath: string, relativePath: string): Promise<string> {
   let at = ''
@@ -663,18 +552,10 @@ export async function ensureFolder(vaultPath: string, relativePath: string): Pro
 }
 
 /**
- * **A file dragged in from outside**, copied into `parentPath` under its own name.
- *
- * Copied and not moved: dragging out of Finder into an app means a copy, and the
- * file the user dragged is still where they left it. The name is held to the same
- * rule a typed one is — `safeNewName`, so a `../` in a file's name cannot put it
- * outside the vault — and **an existing file is not overwritten**: the answer says
- * which arrived and which were already there, and the caller says so. Silently
- * replacing somebody's file with a same-named one is the one outcome nobody would
- * have asked for.
- *
- * The bytes come from the drop, because that is the only form the webview has them
- * in: a `File` from a drag has no path this side of the process.
+ * Copies a file dragged in from outside into `parentPath`, under its own name.
+ * The name follows the rule for a typed one, so `../` can't escape the vault.
+ * An existing file is never overwritten; the result says which were already
+ * there. The bytes come from the drop, since a dragged `File` has no path here.
  */
 export async function importFile(
   vaultPath: string,
@@ -693,16 +574,8 @@ export async function importFile(
 }
 
 /**
- * A note, and the folders above it.
- *
- * `parentPath` may name folders that are not there: a wikilink is written before
- * the place it points at exists, and `[[Landmark Plaza/Northwind Office]]` says
- * where the note goes as much as what it is called. Creating them here rather than
- * at the caller is what keeps "the parent must exist" from being a rule each of the
- * three callers has to remember separately.
- *
- * `name` is one segment either way — a `/` in it is folded, because that is a name
- * with a slash in it and not a path.
+ * Creates a note and any missing folders above it: a `[[link]]` can name
+ * a place before it exists. `name` is one segment; a `/` in it is folded.
  */
 export async function createNote(
   vaultPath: string,
@@ -721,10 +594,9 @@ export async function createNote(
 }
 
 /**
- * A locked note, at the top of the vault, **sealed from its first byte**: a plain
- * copy synced even once stays readable in the history, so there is no moment when
- * this note is plain text on disk — and no way to lock a note that already is. The
- * passphrase is remembered for the window, so the note opens without asking.
+ * Creates a locked note at the top of the vault, encrypted from its first
+ * byte: a plain copy synced once stays readable in history. The
+ * passphrase is kept for the window, so the note opens without asking.
  */
 export async function createLockedNote(
   vaultPath: string,
@@ -742,26 +614,17 @@ export async function createLockedNote(
   return file
 }
 
-/** Where the daily notes live, vault-relative, when the caller does not say.
- *  Exported because `settings.ts` defaults `dailyFolder` to it: two copies of the
- *  name would have to be kept in step by hand. */
+/**
+ * Where daily notes live when the caller doesn't say. Exported
+ * so `settings.ts` uses the same default.
+ */
 export const DAILY_FOLDER = 'Daily'
 
 /**
- * Today's daily note, created — folder included — if it is not there yet.
- *
- * `folder` is a **single** vault-relative segment: the `makeFolder` below is not
- * recursive, so `a/b` would not be created. `settings.ts`'s `validateDailyFolder`
- * is what holds the setting to that, through `safeNewName` above — this function
- * does not re-check, because a second copy of the rule is how the two come to
- * disagree.
- *
- * `Daily/` is a **plain folder**, deliberately without a `Daily/Daily.md`: a folder
- * note is what makes a tree node openable, and this one is a container of dated
- * notes rather than a note that happens to hold children.
- *
- * Unlike a folder note this file *is* written empty, so an unedited daily note
- * still exists tomorrow — which is the point of pressing the shortcut.
+ * Today's daily note, created with its folder if missing. `folder` is one
+ * segment, because `makeFolder` isn't recursive; `validateDailyFolder` in
+ * `settings.ts` enforces that. `Daily/` is a plain folder with no `Daily.md`.
+ * The note is written empty, so it exists even if nothing is typed.
  */
 export async function ensureDailyNote(
   vaultPath: string,
@@ -774,10 +637,8 @@ export async function ensureDailyNote(
   const relativePath = `${folder}/${day}.md`
   const absolutePath = `${vaultPath}/${relativePath}`
   const file = { path: relativePath, absolutePath, name: day }
-  // Only a day that did not exist a moment ago: opening today's page for the
-  // second time must not write anything into it. **The caller is told which it
-  // was**, because what a new note is given — its `path:`, a folder's icon — is
-  // given once, and ⌘⇧O is one of the three ways a note comes into being.
+  // Only a new day is written. The caller is told whether it was
+  // created, because a new note's icon is given once.
   const created = !(await vaultFs.exists(absolutePath))
   if (created) await vaultFs.writeText(absolutePath, '')
   return { file, created }
@@ -788,15 +649,9 @@ export async function ensureDailyNote(
 // ---------------------------------------------------------------------------
 
 /**
- * Move `from` to `to` unless something else is already there. Answers whether
- * anything moved.
- *
- * **A case-only change is not a collision**, and that is the whole reason this is
- * one function rather than four copies. macOS is case-insensitive, so `exists()`
- * says yes to the destination when only the spelling changes — and refusing that
- * would refuse exactly the rename such a volume needs, leaving `Trip` holding
- * `trip.md`. An identical path is a no-op and not an error: nothing to do is not a
- * failure.
+ * Moves `from` to `to` unless something else is there, and says whether
+ * it moved. A case-only rename is not a collision, though macOS says
+ * the destination exists. The same path is a no-op, not an error.
  */
 async function moveUnlessTaken(from: string, to: string, taken: string): Promise<boolean> {
   if (to === from) return false
@@ -806,11 +661,8 @@ async function moveUnlessTaken(from: string, to: string, taken: string): Promise
 }
 
 /**
- * The folded name a rename lands on, or null when it is not a change.
- *
- * Compared **both as typed and as folded**, because `safeNewName` can turn a typed
- * name into the one the file already has — and a rename to the same name is a
- * no-op the filesystem would otherwise be asked to perform.
+ * The folded name a rename lands on, or null if nothing changes. Compared as typed and
+ * as folded, since `safeNewName` can fold a name into the one the file already has.
  */
 function renamedTo(current: string, typed: string): string | null {
   const wanted = typed.trim()
@@ -839,15 +691,9 @@ export async function moveFile(
 }
 
 /**
- * A page becomes a nested page: `Ideas.md` → `Ideas/Ideas.md`.
- *
- * That pairing is what a nested note *is* (CLAUDE.md), so this is a folder and one
- * move — the note's own bytes are never read, let alone rewritten, and every link
- * to it still resolves, because `[[Ideas]]` is matched on the name.
- *
- * The name comes off the file rather than out of `VaultFile.name`: the folder and
- * the note inside it have to be spelled the same way the file already is, down to
- * its case, or the pair stops being a pair on a case-sensitive volume.
+ * Turns a note into a nested note: `Ideas.md` becomes `Ideas/Ideas.md`. One
+ * folder and one move: the note's bytes are never rewritten, and links still
+ * resolve by name. The name comes from the file, so the folder matches its case.
  */
 export async function convertToNested(file: VaultFile, vaultPath: string): Promise<VaultFile> {
   const fileName = file.absolutePath.split('/').pop() ?? ''
@@ -871,8 +717,7 @@ export async function moveFolder(
   vaultPath: string,
   newParentPath: string
 ): Promise<VaultFolder> {
-  // Moving a folder into itself or one of its own children would relocate the
-  // destination along with the source — rename(2) would either fail or orphan it.
+  // A folder can't move into itself or into one of its children.
   if (isSelfOrDescendant(folder.path, newParentPath)) {
     throw new Error(`Can't move "${folder.name}" inside itself.`)
   }
@@ -893,14 +738,11 @@ export async function moveFolder(
 }
 
 export async function renameFile(file: VaultFile, newName: string): Promise<VaultFile> {
-  // `safeNewName` and not `safeName` alone: the destination is spliced from this
-  // name, so an unfolded `/` moves the note into a folder nobody picked, an
-  // unfolded `..` out of the vault, and a leading dot renames it into something
-  // `walk` skips.
+  // `safeNewName`, not `safeName`: the destination is built from this name,
+  // so a `/`, `..` or leading dot would send the note somewhere unintended.
   const trimmed = renamedTo(file.name, newName)
   if (trimmed === null) return file
-  // The file's *own* extension, not `.md`: renaming `data.json` used to hand back
-  // `data.md`, a JSON file the app would then read as a note.
+  // Keep the file's own extension: renaming `data.json` once produced `data.md`.
   const extension = /\.[A-Za-z0-9]+$/.exec(file.path)?.[0] ?? '.md'
   const fileName = trimmed.toLowerCase().endsWith(extension.toLowerCase())
     ? trimmed
@@ -939,16 +781,15 @@ export async function renameFolder(folder: VaultFolder, newName: string): Promis
   )
   if (!moved) return folder
 
-  // The folder note is matched by name, so it has to follow the folder's rename or
-  // the folder comes back with no note and a stray orphan inside it.
+  // The folder note is matched by name, so it follows the folder's rename.
   if (folder.note) {
     const movedNote = `${newAbsolutePath}/${folder.name}.md`
     const renamedNote = `${newAbsolutePath}/${trimmed}.md`
-    // A case-only rename makes these one file on a case-insensitive volume — see
-    // `moveUnlessTaken` for why that must not read as a collision.
+    // On a case-insensitive volume, a case-only rename makes
+    // these one file (see `moveUnlessTaken`).
     const oneFile = isSamePath(movedNote, renamedNote)
-    // Not `moveUnlessTaken`: a note already sitting under the new name is a reason
-    // to leave it alone, not to fail a folder rename that has already happened.
+    // Not `moveUnlessTaken`: a note already under the new name is
+    // left alone, rather than failing a rename that already happened.
     if ((await vaultFs.exists(movedNote)) && (oneFile || !(await vaultFs.exists(renamedNote)))) {
       await vaultFs.move(movedNote, renamedNote)
     }
@@ -958,27 +799,12 @@ export async function renameFolder(folder: VaultFolder, newName: string): Promis
 }
 
 /**
- * Rewrites every link in the vault that pointed at a note that has moved.
+ * Rewrites every link that pointed at a moved note, so a rename keeps its
+ * backlinks. `before` and `index` are the vault as it was, since they
+ * resolve the old names. A note is rewritten only if a link in it changed.
  *
- * **A rename takes its backlinks with it**, or every link into that note becomes a
- * link to a note waiting to be created — which is what `[[Roadmap]]` means once
- * `Roadmap.md` is called something else.
- *
- * `before` is the vault's notes and `index` its index **as they were**, because
- * that is what still resolves `[[Roadmap]]`: after the rename there is no note of
- * that name. Each note is read from where it is *now* — every note but the moved
- * ones is where it was, and the moved ones are in `moves` — and written back only
- * when a link in it actually changed, so nothing rewrites bytes nobody touched.
- *
- * Answers with the paths it could not read, and **an encrypted note is not one of
- * them**: `isNote` leaves it out, locked or not, because nothing but its owner
- * writes into one — and saying so after every rename was a banner about a
- * permanent condition nobody could act on. What is left in the answer is a note
- * that exists and still could not be read: a permissions error, a sync
- * placeholder, a real failure. A note
- * simply **not on disk** is not one either — a folder note is written lazily
- * (CLAUDE.md) and `collectNotes` names it either way, which had every vault with
- * an unwritten folder note reporting one after every rename.
+ * Returns the notes that exist but couldn't be read. Locked
+ * notes and notes not yet on disk are skipped and not reported.
  */
 export async function retargetVaultLinks(
   before: readonly VaultFile[],
@@ -988,8 +814,7 @@ export async function retargetVaultLinks(
   const skipped: string[] = []
   for (const was of before) {
     const now = moves.get(pathKey(was.path)) ?? was
-    // `isNote`, because links are note machinery: a JSON file in the tree holds
-    // none, and reading one to search it for `[[…]]` is work with no answer.
+    // Only notes hold links; a JSON file isn't searched.
     if (!isNote(now.path)) continue
     if (!(await vaultFs.exists(now.absolutePath))) continue
     const text = await readVaultFile(now).catch(() => {

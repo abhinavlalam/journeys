@@ -93,61 +93,58 @@ import {
 import { nothingPicked, pick, withoutUnder, type PickMode } from './picking'
 import type { GraphNode } from './graph'
 import { claimsIcon, FoldAllIcon, GraphIcon, NoteIcon, SearchIcon, PlusIcon, SettingsIcon, TerminalIcon } from './icons'
-/** Loaded when a terminal opens, not with the app: xterm is the largest thing in
- *  the bundle and touches `window` as it loads, and most launches never open one. */
+/**
+ * Loaded only when a terminal opens: xterm is large and touches `window` as it loads.
+ */
 const TerminalPane = lazy(() => import('./TerminalPane').then((m) => ({ default: m.TerminalPane })))
 import { SidebarSection } from './SidebarSection'
 import { stepIn, NoteRow, RowIcon } from './rows'
 
 const SIDEBAR_KEY = 'journeys:sidebar-width'
-/** The left pane's sections, and the keys their open state is kept under — in
- *  `useFolderOpenState`'s own set, so a section shut by hand stays shut across
- *  launches like a folder does. Open to begin with, unlike a folder. */
+/**
+ * The left pane's sections. Their open state is kept with the
+ * folders', so a section closed by hand stays closed. They start open.
+ */
 const SECTIONS = ['section:notes', 'section:actions', 'section:applications'] as const
 
-/**
- * How long the typing-to-a-view refresh waits, in milliseconds.
- *
- * A keystroke while a tag's page is open beside the note has to reach that
- * page, and every keystroke re-rendering the whole shell is what a throttle is for:
- * four times a second is faster than anyone reads a table and cheap enough to be
- * invisible. It was `250` written into the timer with the reason in a comment
- * elsewhere.
- */
+/** How often typing refreshes a view shown beside the note, at most. */
 const LIVE_REFRESH_MS = 250
-/** The left pane's width, in px: where it starts, and how far the resizer takes it. */
+/** The left pane's width in px: where it starts, and the resizer's limits. */
 const SIDEBAR_WIDTH = { start: 260, min: 180, max: 520 }
 
 export default function App() {
-  // Everything the app says goes through `setError`: shown at the bottom a while,
-  // and kept in the Log.
+  // Every message goes through `setError`: shown at the bottom
+  // for a while, then kept in the Log.
   const log = useLog()
   const setError = log.say
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsSection, setSettingsSection] = useState<SectionId>('appearance')
-  /** Which section's search field is open — Notes reads a note's text, Actions its
-      rows' names — and what is in it. Empty is not closed: the field can be open
-      and waiting, which is the state you type the first letter into. */
+  /**
+   * Which section's search is open, and its text. Notes searches note
+   * text; Actions searches row names. An empty field is still open.
+   */
   const [searching, setSearching] = useState<'notes' | 'actions' | null>(null)
   const [query, setQuery] = useState('')
   /**
-   * **What stands in the reading pane**: groups of tabs, split into panes, one
-   * group focused. It was one `pane` flag naming what replaced the editor — the
-   * graph, a page, the settings file — and it is a tree now, whose every
-   * operation is a pure function in `workspace.ts`. Nothing here decides what
-   * "open" means; it asks.
+   * The reading pane: groups of tabs, split into panes, one group
+   * focused. Every change is a pure function in `workspace.ts`.
    */
   const [ws, setWs] = useState<Workspace>(emptyWorkspace)
   const active = activeTab(ws)
-  /** The note the focused group shows, if it shows one: what the tree marks, what
-   *  the graph centres on, whose text `liveText` is about. */
+  /**
+   * The note in the focused group, if any. The tree marks it and
+   * `liveText` is about it.
+   */
   const focusedNote = active?.kind === 'note' ? active.file : null
-  /** The note last in front — the graph's centre, since the graph takes the note's
-   *  place when it opens and no note is in front then. */
+  /**
+   * The last note in front. The graph centres on it, since the
+   * graph's own tab is in front while it shows.
+   */
   const lastNote = useRef<VaultFile | null>(null)
   if (focusedNote) lastNote.current = focusedNote
-  /** A view derived from the corpus is on screen in *any* pane — beside the note
-   *  being typed into, as likely as not — so its text has to follow the typing. */
+  /**
+   * A view built from the notes is on screen in some pane, so it has to follow typing.
+   */
   const viewVisible = groups(ws.layout).some((group) => {
     const shown = group.tabs[group.active]
     return (
@@ -158,9 +155,11 @@ export default function App() {
       shown?.kind === 'timeline'
     )
   })
-  /** Bumped, at most a few times a second, by a keystroke while such a view shows;
-   *  `useVaultTexts` re-takes the live text on it. A ref for the throttle, because
-   *  the whole shell re-renders on each bump and every keystroke would be too many. */
+  /**
+   * Bumped by typing, at most a few times a second, while such a
+   * view shows; `useVaultTexts` then takes the typed text again.
+   * The throttle is a ref so it doesn't re-render the shell.
+   */
   const [liveVersion, bumpLive] = useReducer((n: number) => n + 1, 0)
   const liveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const typed = () => {
@@ -171,14 +170,15 @@ export default function App() {
     }, LIVE_REFRESH_MS)
   }
   const open = (tab: TabRequest) => setWs((current) => openTab(current, tab))
-  /** Opens a property's or a tag's page: the same act from a row in the pane, a
-   *  `#tag` pressed in a note, or the `+` that has just declared one. */
+  /**
+   * Opens a property's or tag's page: from a row, a `#tag` in a
+   * note, or a new tag's `+`.
+   */
   const view = (kind: ViewKind, name: string) => open({ kind, name })
 
   /**
-   * A file picked in the Actions pane. **`.config/settings.json` is the one that
-   * is not just a file**: saving it reconfigures the app, so it opens in the tab
-   * that has a Save rather than in one that writes as you type.
+   * A file picked in the Actions pane. `.config/settings.json` opens
+   * in the tab with a Save, because saving it reconfigures the app.
    */
   function openConfigFile(file: VaultFile) {
     if (file.path === `${CONFIG_DIR}/${SETTINGS_FILE}`) open({ kind: 'settingsFile' })
@@ -190,26 +190,25 @@ export default function App() {
   })
 
   /**
-   * The vault flushes the open notes before it changes anything on disk, and empties
-   * the workspace when another vault is picked; the buffers it flushes belong to
-   * the note panes, which register with `buffers` as they mount. One direction has
-   * to arrive late, and this is it — filled in the render body, which finishes
-   * before any effect or event handler can call through it.
+   * The open notes' buffers, for the vault to save before it writes.
+   * Filled in the render, which runs before any effect or handler uses it.
    */
   const bufferOps = useRef<VaultBufferOps>({ flush: async () => {}, close: () => {} })
   const vault = useVault(bufferOps, setError)
-  /** Every open note's buffer, addressed as one — see `useBuffers`. A delete
-   *  closes the tabs under it as it drops their queued writes. */
+  /**
+   * Every open note's buffer (see `useBuffers`). A delete closes
+   * the tabs under it and drops their queued writes.
+   */
   const buffers = useBuffers({
     onDeleted: (prefix) => {
       setWs((current) => closeNotesUnder(current, prefix))
-      // The one place a pick is dropped, so every way of deleting is covered by it.
+      // The one place a pick is cleared, so every kind of delete clears it.
       setPicked((current) => withoutUnder(current, prefix))
     },
   })
   bufferOps.current = { flush: buffers.flushPendingSave, close: () => setWs(emptyWorkspace()) }
-  // **A quit writes the open notes first** (`quit.ts`). Only with the app's bridge:
-  // a test, or the page opened outside the app, has no quit to wait for.
+  // A quit saves the open notes first (`quit.ts`). Only inside
+  // the app: a test has no quit to wait for.
   useEffect(() => {
     if (!('__TAURI_INTERNALS__' in window)) return
     const off = onQuit(() => bufferOps.current.flush(), setError)
@@ -219,40 +218,32 @@ export default function App() {
   const folders = useFolderOpenState(vault.vaultPath, SECTIONS)
 
   /**
-   * **The notes picked in the left pane to act on together** — see `picking.ts`.
-   * ⌘-click adds one and ⇧-click takes a range, and neither opens anything; a
-   * plain click opens the note and makes it the whole set.
+   * Rows picked to act on together (see `picking.ts`). ⌘-click adds one and
+   * ⇧-click takes a range. A plain click opens a note and picks only it.
    */
   const [picked, setPicked] = useState(nothingPicked)
 
-  // Another vault is another set of rows to have picked.
+  // A new vault starts with nothing picked.
   useEffect(() => setPicked(nothingPicked), [vault.vaultPath])
   /**
-   * The open note's text as the *editor* has it.
+   * The open note's text as typed. The buffer's `body` is only
+   * the text as last read, and autosave waits 800 ms, so a link
+   * typed and followed straight away would be missing from it.
    *
-   * `buffer.body` is not that. The buffer hands the editor `initialMarkdown` once
-   * and keys it on the note's path, so `body` is the text as of the last open or
-   * disk re-read — never the keystroke. Autosave waits 800 ms, so a link typed and
-   * then followed straight into the graph would be on neither the disk nor `body`.
-   * This is tapped on the way past, and it is a **ref**: a state update here would
-   * re-render the whole shell on every keypress, which is exactly what keying the
-   * editor on the path was for.
-   *
-   * The path is stored with the text so a stale tap cannot be applied to the wrong
-   * note. Once another note is opened this text is on disk anyway — `openNote`
-   * flushes first — and the guard drops it.
+   * A ref, so typing doesn't re-render the shell. It carries the
+   * path, so it is never applied to another note.
    */
   const liveText = useRef<{ path: string; text: string } | null>(null)
 
-  /** The vault's own `.config/settings.json`, and `localStorage` for the window
-      before a vault is open. `useSettings` owns both. Above the vault read because
-      the graph's hidden folders come from here. */
+  /**
+   * The vault's `.config/settings.json`, or `localStorage`
+   * before a vault is open (see `useSettings`). Read before the
+   * vault, because the graph's hidden folders come from it.
+   */
   const { settings, changeSettings } = useSettings(vault.vaultPath, setError)
   /**
-   * The vault's sync: a round is flush, commit, pull, push, on a timer and on focus.
-   * What a pull changes on disk is re-read the way any outside write is — the tree
-   * walked again (which re-reads the corpus) and every open buffer of a changed
-   * file told, the buffer declining while a save of its own is queued.
+   * Git sync: save, commit, pull, push, on a timer and on focus. A pull's
+   * changes are read again like any outside write, and open buffers are told.
    */
   const sync = useSync({
     vaultPath: vault.vaultPath,
@@ -261,7 +252,7 @@ export default function App() {
     onPulled: async ({ changed }) => {
       if (!vault.vaultPath) return
       await vault.refresh(vault.vaultPath)
-      // Not the app's own writes: under typing, the save keeps these beside the note.
+      // A pull's changes aren't ours: a save during typing keeps them beside the note.
       for (const path of changed) await buffers.reread(vaultFileRef(vault.vaultPath, path), false)
     },
     onCommitted: async () => {
@@ -272,13 +263,12 @@ export default function App() {
   const syncSentence = syncWord(sync)
 
   /**
-   * **One read of the vault, and everything derived from it** — the notes, their
-   * index, the icons, the graph, and what links here. `liveText` is the one input
-   * that is not the disk's: the open note as the editor has it.
+   * The one read of the vault and everything built from it. `liveText`,
+   * the open note as typed, is the one input not read from disk.
    */
-  /** Each property's type, from `.config/properties.json` — set on its page. */
+  /** Each property's type, from `.config/properties.json`. */
   const propertyTypes = useConfigEntries(vault.vaultPath, PROPERTIES_FILE, setError)
-  /** Each tag's structure, from `.config/tags.json` — set on its page. */
+  /** Each tag's structure, from `.config/tags.json`. */
   const tagStructures = useConfigEntries(vault.vaultPath, TAGS_FILE, setError)
 
   const {
@@ -301,9 +291,8 @@ export default function App() {
     dailyFolder: settings.dailyFolder,
     vaultPath: vault.vaultPath,
     openPath: focusedNote?.path ?? null,
-    // A view derived from the corpus is open, so the open note's *typed* text is
-    // wanted rather than the disk's: an `#expense` line written seconds ago has to
-    // be on the page of the tag it names.
+    // A view built from the notes is open, so use the note as typed:
+    // a line written seconds ago must show on its tag's page.
     viewOpen: viewVisible,
     liveVersion,
     liveText,
@@ -312,13 +301,9 @@ export default function App() {
   })
 
   /**
-   * A folder's icon, and — when the setting is on — the notes inside it.
-   *
-   * Written into each note rather than derived while drawing the tree: the icon is
-   * a property of the note, so it has to be *in* the note, or it is a thing this
-   * app knows and the file does not. `claimsIcon` says which notes a set claims;
-   * `existingNotesIn` is what keeps a bulk write from creating the folder notes
-   * that have not been typed into yet.
+   * Sets a folder's icon and, when icons pass down, the icon of the notes inside.
+   * The icon is written into each note, because it belongs to the note.
+   * `existingNotesIn` keeps this from creating folder notes that aren't written yet.
    */
   async function setFolderIcon(folder: VaultFolder, icon: string | null) {
     const own = folderNoteRef(folder)
@@ -333,56 +318,53 @@ export default function App() {
   const setFileIcon = (file: VaultFile, icon: string | null) => setNoteIcon([file], icon)
 
   async function setNoteIcon(files: VaultFile[], icon: string | null) {
-    // Optimistic, so the tree redraws on the click rather than after the write —
-    // and made by the *same* function the write uses, to the same text, so the
-    // guess cannot drift from what lands on disk. Writing a property does not
-    // change the tree, so no re-read follows to correct it.
+    // Update the tree now, with the same function the write uses, so it matches what
+    // lands on disk. An icon write doesn't change the tree, so nothing reads it back.
     patch(new Set(files.map((file) => file.path)), (text) =>
       withProperty(text, APP_PROPERTIES.icon, icon)
     )
-    // `mutate` flushes the pending write first: one of these may be the note that
-    // is open, and its buffer holds text a write behind its back would strand. The
-    // re-read that follows is what puts the new property in the buffer.
+    // `mutate` saves pending typing first; reading the files
+    // back afterwards puts the new icon in any open buffer.
     await vault.mutate(
       async () => {
-        // Together, not one after another: a folder that hands its icon down can
-        // be twenty notes, and each write is a read and a write over IPC. They are
-        // twenty different files, so there is no order to keep.
+        // In parallel: these are different files, and each write
+        // is a read and a write over IPC.
         await Promise.all(files.map((file) => writeNoteProperty(file, APP_PROPERTIES.icon, icon)))
       },
-      // The re-read is what puts the new property in an open note's buffer.
+      // Puts the new property in any open note's buffer.
       () => Promise.all(files.map((file) => buffers.reread(file)))
     )
   }
 
 
-  /** Bumped when the app writes one of a kind's files, so the lists come straight
-      back rather than waiting for the next window focus. */
+  /**
+   * Bumped when the app writes a kind's file, so the lists
+   * update without waiting for window focus.
+   */
   const [actionsRevision, actionWritten] = useReducer((n: number) => n + 1, 0)
   const kinds = BUILT_IN_KINDS
 
-  /** The order a ⇧-click's range runs in: the rows the tree is showing, in the
-      order it draws them. */
+  /** The rows the tree shows, in order: what a ⇧-click range runs over. */
   const pickOrder = useMemo(
     () => visibleFiles(vault.root, folders.open).map((file) => file.path),
     [vault.root, folders.open]
   )
 
-  /** A click on a leaf row: one gesture opens, the other two pick. */
+  /** A click on a row: a plain click opens; ⌘ and ⇧ pick. */
   function selectFile(file: VaultFile, mode: PickMode) {
     setPicked((current) => pick(current, file.path, mode, pickOrder))
     if (mode === 'only') void openNote(file)
   }
 
-  /** Every folder, for the one control that shuts or opens all of them at once. */
+  /** Every folder, for Expand all and Collapse all. */
   const folderPaths = useMemo(() => (vault.root ? collectFolders(vault.root) : []), [vault.root])
-  /** What the notes *use*, per kind, and what is declared: the Actions pane's rows,
-   *  off the one vault read. */
+  /** The Actions pane's rows: what the notes use per kind, and what is declared. */
   const actionsUsed: Partial<Record<string, readonly { name: string; notes: number }[]>> = { property: properties, tag: tags }
   const actionsDeclared: Partial<Record<string, readonly string[]>> = { tag: Object.keys(tagStructures.entries) }
-  /** What the Actions section's pair acts on: its groups, and the groups tags nest
-      in. Same `useFolderOpenState` as the tree's folders, so a group's chevron and
-      the pair are one mechanism. */
+  /**
+   * What the Actions section's Expand all and Collapse all act on:
+   * its groups and tag groups. They share the folders' open state.
+   */
   const groupPaths = kinds.flatMap((kind) => [
     groupKey(kind),
     ...headsOf([
@@ -392,21 +374,20 @@ export default function App() {
   ])
 
 
-  /** The matches, over the same corpus the graph and the backlinks are built from.
-      `texts` and not `corpus`: the note being typed into is on the disk a moment
-      later anyway, and a hit that appears and disappears as you type in another
-      pane is worse than one that is a second old. */
+  /**
+   * Search results, over `texts` rather than `corpus`: a hit that
+   * flickers as you type in another pane is worse than one a second old.
+   */
   const hits = useMemo(() => searchNotes(texts ?? [], query), [texts, query])
 
   /**
-   * The action being named, and the name so far — `App`'s, for the same reason the
-   * tree's inline create is: the `+` that starts it is in the header and the field
-   * that finishes it is in the pane.
+   * The action being named, and the name so far. Kept here because
+   * the `+` is in the header and the field is in the pane.
    */
   const [namingAction, setNamingAction] = useState<string | null>(null)
   const [actionName, setActionName] = useState('')
 
-  /** Under the spelling the file already has for the property, if it has one. */
+  /** Keeps the spelling the file already has for the property. */
   const setPropertyType = (name: string, type: PropertyType) =>
     propertyTypes.write(
       Object.keys(propertyTypes.entries).find((one) => one.toLowerCase() === name.toLowerCase()) ?? name,
@@ -422,8 +403,7 @@ export default function App() {
   ])
 
   const [actionMenu, openActionMenu] = useContextMenu(() =>
-    // What can be *made*: `settings.json` and the notes beside it arrive with the
-    // app, so Config is not one of the answers to "a new what?".
+    // Config isn't offered: `settings.json` and its neighbours come with the app.
     kinds.filter(creatable).map((kind) => ({
       label: kind.singular,
       icon: <NoteIcon icon={kind.icon} />,
@@ -431,8 +411,9 @@ export default function App() {
     }))
   )
 
-  /** Starts naming one of a kind — from the rail's `+` by way of its menu, or from
-   *  that kind's own `+` on its group row, which needs no menu because it knows. */
+  /**
+   * Starts naming a new one of a kind, from the section's `+` menu or a kind's own `+`.
+   */
   function startNamingAction(kind: string) {
     closeSearch()
     creating.cancel()
@@ -448,8 +429,7 @@ export default function App() {
     const type = kinds.find((one) => one.key === kind)
     if (!type || !vault.vaultPath) return
 
-    // **A tag's `+` writes an entry, not a file**, and lands on the page where the
-    // rest of it is read: its structure goes into `tags.json`, with no properties yet.
+    // A tag's `+` adds an entry to `tags.json`, not a file, and opens the tag's page.
     if (declares(type)) {
       const tag = typed.trim().replace(/^#/, '').toLowerCase()
       if (!new RegExp(`^${TAG_NAME}$`).test(tag)) {
@@ -475,14 +455,8 @@ export default function App() {
   }
 
   /**
-   * **One field at a time, and the buttons are not toggles.**
-   *
-   * Search and `+` open the same kind of box in the same place, so two of them at
-   * once is two answers to "what is the keyboard for" — the search bar with a name
-   * field stacked under it, which is what clicking one after the other used to
-   * give. Each of these three opens its own and shuts the others; leaving a field
-   * (Escape, or a click anywhere outside it) shuts it, so there is no mode to be
-   * left in.
+   * One field at a time. Search and `+` open the same kind of field in the same
+   * place, so opening one closes the others, and leaving a field closes it.
    */
   function openSearch(which: 'notes' | 'actions') {
     creating.cancel()
@@ -491,33 +465,26 @@ export default function App() {
   }
 
   /**
-   * Opening a note, wherever the click came from: its tab, or a new one of the kind
-   * the file is. The tab's `NotePane` reads the bytes before its editor mounts —
-   * CLAUDE.md's first trap under Notes, because setting the file first makes the
-   * next keystroke save the previous note's text into the new one. That corrupted
-   * a file.
+   * Opens a note in its tab, or in a new tab of the file's kind.
+   * The tab reads the file before its editor mounts; opening
+   * first would save the previous note's text into this one.
    */
   function openNote(file: VaultFile) {
-    // **Opening a note opens the folders above it**, by writing them into the one
-    // set the tree reads. It used to be derived per row from the selection, which
-    // meant a folder could be open *because* a note in it was open — so clicking
-    // another folder moved the selection and shut the first one.
+    // Opening a note opens the folders above it, by adding them
+    // to the set the tree reads.
     folders.reveal(knownPath(file.path))
-    // **An encrypted note opens by being unlocked** — see `useLocks`.
+    // A locked note opens by unlocking (see `useLocks`).
     if (locks.asks(file)) return Promise.resolve()
-    // **A tab of the kind the file is.** A note tab owns a buffer and an editor,
-    // which is right for anything the app reads as text and wrong for a PDF: a
-    // buffer over one is a file the first keystroke corrupts. `FileView` shows the
-    // rest and writes nothing.
+    // A tab of the file's kind. Only text gets a note tab with a
+    // buffer; a buffer over a PDF would corrupt it on the first
+    // keystroke. `FileView` shows the rest and writes nothing.
     open({ kind: isTextFile(file.path) ? 'note' : 'file', file })
     return Promise.resolve()
   }
 
   /**
-   * **Locked notes**: the passphrase question under the note's row — it shuts the
-   * other fields, and the note becomes the tree's selected path, which opens the
-   * folders above it — and locking again, which closes the note's tabs and drops
-   * the corpus's copy of its text.
+   * Locked notes: asking for the passphrase under the note's row, and
+   * locking again, which closes its tabs and drops its text from the corpus.
    */
   const locks = useLocks({
     vaultPath: vault.vaultPath,
@@ -542,28 +509,24 @@ export default function App() {
   }, [sidebarWidth])
 
   /**
-   * ⌘⇧O: today's daily note, opened through `openNote` like any tree row — so it
-   * reads the bytes before switching, which is the whole reason there is one path.
+   * ⌘⇧O: today's note, opened through `openNote` like any row,
+   * so the file is read before the switch.
    */
   const openDay = (day?: string) =>
     vault.mutate(
       (v) => ensureDailyNote(v, settings.dailyFolder, day),
       async ({ file, created }) => {
-        // A day already on disk is a note somebody has been writing in: what a new
-        // note is given is given once.
+        // A new note is given its icon once, when it is made.
         if (created) await inheritIcon(file)
         await openNote(file)
       }
     )
   const openToday = () => openDay()
   /**
-   * **Sync**: every feed in `calendarFeeds`, read for the days the calendar shows,
-   * written into those days' notes as `#event` lines. The tag's structure is read
-   * from the file at that moment — the pane's copy may not be read yet, and "not
-   * read" is not "not declared" — and declared on the first sync if the vault has
-   * none; after that it is the vault's. A day made here is a note born like any other and takes the folder's
-   * icon; the notes written are patched into the corpus and re-read by any editor
-   * holding one, or the next keystroke would save the text from before the sync.
+   * Calendar sync: each feed's events for the days shown, written into those days'
+   * notes as `#event` lines. The tag's structure is read from disk at that moment,
+   * since the pane's copy may not be loaded yet. A new day note gets its folder's
+   * icon. Changed notes are patched into the corpus and read again by open editors.
    */
   async function syncCalendar() {
     if (!vault.vaultPath) return
@@ -577,16 +540,16 @@ export default function App() {
     const today = localDateStamp()
     const from = dayDate(today)
     const to = dayDate(daysAfter(today, settings.calendarDays))
-    // Every day read, the empty ones included, so a line whose event has gone can
-    // be taken back; and every name a feed answers to — the one given here and its
-    // own, which is what lines written before it was named say.
+    // Every day, empty or not, so an event that's gone can be
+    // removed, and every name a feed goes by, including its own.
     const byDay = new Map(
       Array.from({ length: settings.calendarDays }, (_, at) => [daysAfter(today, at), [] as string[]] as const)
     )
     const sources = new Set<string>()
     for (const { name, url } of settings.calendarFeeds) {
       const feed = parseIcs(await fetchFeed(url))
-      // Never an empty name: a hand-typed line with no `source::` is nobody's feed.
+      // Never an empty name: a line typed by hand with no
+      // `source::` belongs to no feed.
       for (const one of [name, feed.name]) if (one) sources.add(one)
       for (const one of occurrences(feed, from, to)) {
         byDay.get(localDateStamp(one.start))?.push(eventLine(format.properties, one, name || feed.name))
@@ -616,21 +579,15 @@ export default function App() {
   })
 
   /**
-   * Show a row where it lives on disk.
-   *
-   * The failure is reported rather than swallowed: a folder note that has never
-   * been typed in has no file yet, and `open -R` refuses a path that is not there.
-   * That is a real answer to give someone — and a silent catch here is exactly what
-   * the `.config` bug looked like.
+   * Shows a row in Finder. A folder note with no file yet can't
+   * be shown, and that is reported, not swallowed.
    */
   const handleReveal = (absolutePath: string) =>
     void revealInFinder(absolutePath).catch((err: unknown) => setError(String(err)))
 
   /**
-   * A clicked link. The editor hands over the raw target and whether it came from
-   * `[[…]]`; resolution is this side's job, because it needs the note index.
-   * A target with no note behind it opens nothing — the same answer a link-only
-   * graph node gives, and for the same reason: creating a note is a separate act.
+   * A clicked link. The editor sends the raw target and whether
+   * it was `[[…]]`; resolving it needs the note index.
    */
   async function openLinkTarget(target: string, wiki: boolean) {
     const from = focusedNote?.path ?? ''
@@ -643,27 +600,19 @@ export default function App() {
       void openNote(resolved.note)
       return
     }
-    // A link that is not a note goes to the OS: a journal is full of pasted URLs,
-    // and a link the app draws as a link has to go somewhere when it is clicked.
-    // The scheme is vetted in Rust — `http`, `https`, `mailto` — and anything else
-    // comes back as an error, which is the honest answer for `[[…]]` pointing at
-    // something this app cannot open.
+    // A link that isn't a note goes to the OS. Rust checks the
+    // scheme (http, https, mailto) and refuses anything else.
     if (resolved.kind === 'external') {
       void openExternal(resolved.target).catch((err: unknown) => setError(String(err)))
       return
     }
-    // A link to a note that is not there yet *makes* it, as Obsidian does. Writing
-    // the link was the intention; refusing to follow it is the app arguing with the
-    // user.
+    // A link to a note that doesn't exist yet creates it, as in Obsidian.
     if (resolved.kind !== 'new' || !vault.vaultPath) return
     const slash = resolved.path.lastIndexOf('/')
     const parent = slash === -1 ? '' : resolved.path.slice(0, slash)
     const name = noteName(slash === -1 ? resolved.path : resolved.path.slice(slash + 1))
-    // Through `mutate`, which flushes the pending write and re-reads the tree, so
-    // the new note is in the sidebar before it is opened. A target that names
-    // folders — `[[Landmark Plaza/Northwind Office]]` — gets them: `createNote`
-    // makes the path above the note, and each folder it makes is a nested note
-    // whose own text nobody has typed yet.
+    // Through `mutate`, so the new note is in the tree before it
+    // opens. Folders named in the target are created as nested notes.
     await vault.mutate(
       (v) => createNote(v, parent, name),
       async (created) => {
@@ -673,32 +622,24 @@ export default function App() {
     )
   }
 
-  /** A node was clicked. */
+  /** A graph node was clicked. */
   function selectGraphNode(node: GraphNode) {
     const file = noteIndex.byKey.get(node.id)
     /**
-     * One check, doing two jobs, and they are the same job: a link-only node —
-     * `GraphNode.exists` false — is never in this map, because `buildNoteGraph`
-     * derives `exists` from precisely it. So a node the user made before writing
-     * the note ("link it anyway, resolve later") has nothing to read and nothing to
-     * open, and the click is **inert**. Creating the note from a click on a graph is
-     * a decision nobody has taken, and taking it silently would be the wrong way.
-     *
-     * An earlier version tested `node.exists` here as well. It read as two
-     * behaviours and was one; no test could tell the halves apart, because there is
-     * nothing to tell.
+     * A node for a note that isn't written yet isn't in this map, so the click
+     * does nothing. Creating a note from the graph shouldn't happen silently.
      */
     if (file) void openNote(file)
   }
 
-  /** Moving, renaming and deleting, with what each drags along — see the hook. */
+  /** Moving, renaming and deleting, and what each one updates (see the hook). */
   const fileOps = useRelocation({
     vault,
     buffer: buffers,
     notes,
     noteIndex,
     setError,
-    // The tabs' half of a move: the buffers follow the text, the tabs the name.
+    // A move updates tabs by name; the buffers follow the text.
     onMoved: {
       file: (was, moved) => setWs((current) => followFileTabs(current, was, moved)),
       folder: (oldPrefix, newPrefix, moves) =>
@@ -709,25 +650,20 @@ export default function App() {
   })
 
   /**
-   * **Renaming the open note from its title.**
-   *
-   * A nested note *is* its folder — `Areas/Northwind/Northwind.md` pairs with
-   * `Areas/Northwind/` — so renaming the file alone would leave the folder holding
-   * a note of another name, which is a folder with no note and a stray child. The
-   * tree renames such a row by renaming the folder, and this is the same act from
-   * the other pane: one handler each, and the title picks which.
+   * Renames the open note from its title. A nested note is its
+   * folder, so renaming it renames the folder, as the tree does.
    */
   const renameNote = (file: VaultFile, name: string) => {
     const folder = folderWithNote(vault.root, file.path)
     return folder ? fileOps.renameFolder(folder, name) : fileOps.renameFile(file, name)
   }
 
-  /** Opens a folder's own note, whether or not it is on disk yet. */
+  /** Opens a folder's note, whether or not its file exists yet. */
   function handleOpenFolderNote(folder: VaultFolder) {
     void openNote(folderNoteRef(folder))
   }
 
-  /** The new-note field under a row. Opening it shuts the other two fields. */
+  /** The new-note field under a row. Opening it closes the other fields. */
   const creating = useInlineCreate({
     vault,
     openNote,
@@ -741,21 +677,8 @@ export default function App() {
   })
 
   /**
-   * **What a note is given the moment it exists**, wherever it was made.
-   *
-   * Its `path:`, and — when the setting says notes inherit one — the icon of the
-   * folder it was made in. Three places make a note: a name typed in the tree, a
-   * link followed to one that is not there yet, and ⌘⇧O. They had drifted: only the
-   * first wrote `path:`, so a note made by following a link was the one note in the
-   * vault that did not know where it was, and **none** of the three inherited an
-   * icon — `inheritIcons` was a bulk write at the moment a folder's icon is *set*
-   * and nothing after it, so every note made later came out bare. Reported that
-   * way, and found from an empty file beside neighbours that all carried a block.
-   *
-   * The icon is written *into* the note rather than derived while drawing the row,
-   * for the reason the setting already works that way: an icon is a property of the
-   * note, and a property this app knows and the file does not is not one. A note
-   * that already carries one — a declared default — keeps it.
+   * What every new note is given, wherever it was made: its `path::`, and its
+   * folder's icon when icons pass down. A note that already has an icon keeps it.
    */
   async function endowNote(file: VaultFile) {
     fileOps.sayUnread(await writePathProperty([file]))
@@ -763,14 +686,13 @@ export default function App() {
   }
 
   /**
-   * The icon half on its own, for **today's page**: ⌘⇧O makes a note *for* you
-   * every day, and a `path:` written into one is the app's words at the top of a
-   * page you did not ask it to start — the folder and the name say where it is
-   * anyway. The icon is different: it is the folder's, and the point of the setting
-   * is that everything in the folder wears it.
+   * Just the icon, for today's note: a `path::` at the top of a
+   * page made for you every day would be noise.
    */
-  /** A timeline entry's line, rewritten where it stands: the one line, and through
-   *  `mutate`, so typing queued in the note is written first and its buffer re-reads. */
+  /**
+   * Rewrites a timeline entry's line in place. Through `mutate`, so
+   * pending typing is saved first and open buffers are read again.
+   */
   async function editEntry(entry: TimelineEntry, text: string) {
     await vault.mutate(
       async () => {
@@ -786,9 +708,11 @@ export default function App() {
     )
   }
 
-  /** A new timeline entry, filed in today's note — made if it is not there yet —
-   *  where `withNewEntry` says, and as typed: with no clock it is a line of the
-   *  note, and not on the timeline, which is what happened when. */
+  /**
+   * Files a new timeline entry in today's note (made if needed),
+   * where `withNewEntry` puts it. It is filed as typed: without
+   * a time it is a line of the note, not a timeline entry.
+   */
   async function addEntry(text: string) {
     await vault.mutate(
       async (v) => {
@@ -809,20 +733,16 @@ export default function App() {
     if (!settings.inheritIcons || !vault.vaultPath) return
     const inherited = await folderIcon(vault.vaultPath, file.path)
     if (!inherited) return
-    // A note that already carries one — a declared default — keeps it.
+    // A note that already has an icon keeps it.
     if (readProperty(await readVaultFile(file).catch(() => ''), APP_PROPERTIES.icon)) return
     await writeNoteProperty(file, APP_PROPERTIES.icon, inherited)
-    // The tree redraws on the write rather than at the next read of the vault.
+    // Redraw the tree now rather than on the next vault read.
     patch(new Set([file.path]), (raw) => withProperty(raw, APP_PROPERTIES.icon, inherited))
   }
 
   /**
-   * **Giving a note children turns it into a folder**, and everything holding its
-   * old path follows: the buffer that may be editing it, the tab it is open in, and
-   * its own `path:`. `useInlineCreate` did the first and the third and not the
-   * second, so converting a note that was open left a tab naming a file that no
-   * longer existed — found while adding the second caller, which is what a second
-   * caller is for.
+   * Giving a note children turns it into a folder. Its buffer,
+   * its tab and its `path::` all follow the new path.
    */
   async function convertNote(file: VaultFile, vaultPath: string): Promise<VaultFile> {
     const moved = await convertToNested(file, vaultPath)
@@ -832,7 +752,7 @@ export default function App() {
     return moved
   }
 
-  /** Files and notes dropped onto the tree — see `useDrops`. */
+  /** Files and notes dropped onto the tree (see `useDrops`). */
   const { importFiles, importFilesInside, adoptFile, adoptFolder } = useDrops({
     vault,
     convertNote,
@@ -842,22 +762,14 @@ export default function App() {
   })
 
   /**
-   * The tree's container is the **root** as a drop target.
-   *
-   * Every folder row is one; the root had none, so a note dragged out of a folder
-   * had nowhere at the top of the vault to land — reported from the running app.
-   * `''` is the root's path, which is what `moveFile` and `moveFolder` already
-   * take.
+   * The tree's root as a drop target, so a note dragged out of a
+   * folder can land at the top. `''` is the root's path.
    */
   const rootDrop = useDropTarget('', fileOps.moveFile, fileOps.moveFolder, importFiles)
 
   /**
-   * Everything a tree needs but the folder it draws.
-   *
-   * Two places draw one: the left pane, and the *Inside* section at the end of a
-   * nested note. One object, so a row in either behaves the same way — expands the
-   * same, takes an icon the same, renames and moves the same — and so a new prop
-   * cannot reach one and miss the other.
+   * Everything a tree needs except the folder it draws. The left pane
+   * and a note's Inside section share it, so their rows behave the same.
    */
   const treeProps = {
     create: creating.create,
@@ -868,8 +780,8 @@ export default function App() {
     picked: picked.paths,
     onSelectFile: selectFile,
     onDeletePicked: () => {
-      // Read off the tree, not the set: the set is paths, and a delete needs the
-      // files themselves — and a path picked before a pull from Drive may be gone.
+      // Read the files from the tree, not the picked paths: a
+      // picked path may be gone after a pull.
       if (!vault.root) return
       const files = existingNotesIn(vault.root).filter((file) => picked.paths.has(file.path))
       if (files.length > 0) void fileOps.deleteFiles(files)
@@ -897,8 +809,7 @@ export default function App() {
   // Render
   // -------------------------------------------------------------------------
 
-  // One element, rendered from both branches: ⌘, works before a folder is picked
-  // too, and without this the flag would be set with nothing on screen.
+  // Rendered in both branches, so ⌘, works before a vault is open.
   const panel = settingsOpen && (
     <SettingsPanel
       settings={settings}
@@ -945,13 +856,8 @@ export default function App() {
           </button>
         </header>
         {actionMenu}
-        {/* **Three sections, each with its controls on its heading.** They were two
-            panes behind two icons and one shared row of controls; now Notes,
-            Actions and Applications stack, open and shut like folders, and each
-            heading shows its own search, collapse, expand and `+` on hover — the
-            left pane of the editors the owner named. What a query *means* is the
-            section's business: Notes lists the notes that carry it, Actions hides
-            the rows that do not. */}
+        {/* Three sections, Notes, Actions and Applications, each with its own
+            controls on its heading. Each section decides what its search means. */}
         <div className="sidebar-body">
           <SidebarSection
             name="Notes"
@@ -960,10 +866,8 @@ export default function App() {
             list={{ ...rootDrop.handlers, className: rootDrop.over ? 'drag-over' : undefined }}
             actions={
               <>
-                {/* **Already open is nothing to do.** These fields close when they
-                    lose the keyboard, so a click on the button that opened one used
-                    to blur it — closing it — and then reopen it a moment later.
-                    `preventDefault` on mousedown keeps the keyboard in the field. */}
+                {/* Already open: nothing to do. The field closes on blur,
+                    so preventDefault on mousedown keeps the keyboard in it. */}
                 <button
                   aria-label="Search in notes"
                   aria-pressed={searching === 'notes'}
@@ -985,9 +889,8 @@ export default function App() {
                 >
                   <PlusIcon />
                 </button>
-                {/* **A note is locked or it is not, from the moment it is made** —
-                    so this is the one way in, here and not on a folder's row: the
-                    note is made at the top and moved where it belongs. */}
+                {/* A note is locked from the moment it is made or never, so this is the
+                    only way in. The note is made at the top and can be moved after. */}
                 <button
                   aria-label="New locked note"
                   onMouseDown={(event) => event.preventDefault()}
@@ -1008,8 +911,8 @@ export default function App() {
                 onClose={closeSearch}
               />
             )}
-            {/* `where`: the left pane's tree. A name being typed belongs to the tree
-                the `+` was pressed in — see `FolderTreeProps.where`. */}
+            {/* `where`: this is the left pane's tree. A name being
+                typed belongs to the tree whose `+` was pressed. */}
             {(searching !== 'notes' || query.trim() === '') && (
               <FolderTree folder={vault.root} depth={1} where="tree" {...treeProps} />
             )}
@@ -1086,11 +989,8 @@ export default function App() {
               onCancel={() => setNamingAction(null)}
             />
           </SidebarSection>
-          {/* **The app's own views, as rows.** The graph and the settings were two
-              icons in a footer; a section named for what they are puts them where a
-              kind declaring its own view will land — see `actionKinds`. The graph
-              row is a toggle, as its button was: pressed while the focused pane
-              shows the graph, and closing it back to the note. */}
+          {/* The app's own views. The Graph row toggles: pressed
+              while the graph shows, it goes back to the note. */}
           <SidebarSection
             name="Applications"
             open={folders.open.has('section:applications')}
@@ -1110,11 +1010,11 @@ export default function App() {
             </li>
             {(
               [
-                // The days ahead, read out of the `#event` lines in the journal.
+                // The coming days, read from `#event` lines.
                 { kind: 'calendar', name: 'Calendar', icon: 'calendar', count: 0 },
-                // The daily notes as each day happened, today at the bottom.
+                // The daily notes by time, today at the bottom.
                 { kind: 'timeline', name: 'Timeline', icon: 'clock', count: 0 },
-                // Everything the app has said in this window.
+                // Every message the app has shown in this window.
                 { kind: 'log', name: 'Log', icon: 'inbox', count: log.items.length },
               ] as const
             ).map(({ kind, name, icon, count }) => (
@@ -1130,7 +1030,7 @@ export default function App() {
                 />
               </li>
             ))}
-            {/* The vault's sync, in one sentence, and the way to its settings. */}
+            {/* Sync status in one line; opens its settings. */}
             <li style={{ paddingLeft: stepIn(1) }}>
               <NoteRow
                 icon={<RowIcon icon="globe" />}
@@ -1143,10 +1043,8 @@ export default function App() {
                 }}
               />
             </li>
-            {/* **A shell in the vault folder** — `claude`, `git`, whatever CLI the
-                next use case is built on. The row goes back to the shell there is,
-                and a second one is on its right-click menu: opening a fresh shell on
-                every press read as `claude` restarting. */}
+            {/* A shell in the vault folder. The row goes back to the shell
+                that is open; a second one is on its right-click menu. */}
             {!onAndroid && (
               <li style={{ paddingLeft: stepIn(1) }}>
                 <NoteRow
@@ -1278,7 +1176,8 @@ export default function App() {
                       notes,
                       propertyTypes: propertyTypes.entries,
                       tagStructures: tagStructures.entries,
-                      // Off while the settings are open, as a note's is: it may be being rebound.
+                      // Off while the settings are open, as in a
+                      // note: the shortcut may be being changed.
                       insertTimeCombo: settingsOpen ? null : settings.shortcuts.insertTime,
                     }}
                     onEdit={(entry, text) => void editEntry(entry, text)}

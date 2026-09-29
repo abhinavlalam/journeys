@@ -1,16 +1,9 @@
-// Links between notes: **`[[wikilinks]]`**, which is what the picker writes and what
-// a vault brought over from Obsidian is almost entirely made of, and **standard
-// markdown links**, which this app reads but no longer writes.
+// Links between notes: `[[wikilinks]]`, which the picker writes and
+// Obsidian vaults are full of, and markdown links, which are read but no
+// longer written. The two forms resolve differently (see `resolveTarget`).
 //
-// Reading is deliberately wider than writing, and it was the other way round once:
-// a parser blind to `[[wikilinks]]` leaves the graph and the backlinks of such a
-// vault empty, which is a bug this module shipped. The two forms differ in **how a
-// target resolves**, not only in syntax — see `resolveTarget`.
-//
-// This module is **pure**: no filesystem, no React. It takes note text as input, so
-// the caller decides when to pay for reading the vault. Nothing here imports
-// `vault.ts`: what it needed from there lives in `vaultModel.ts` and
-// `properties.ts`, so a test of this file mocks nothing — see `links.test.ts`.
+// Pure: no filesystem, no React. Note text is the input, so the caller
+// decides when to read the vault, and a test of this file mocks nothing.
 
 import { maskCode } from './prose'
 import { splitPageProperties } from './properties'
@@ -32,29 +25,26 @@ import type { VaultFile, VaultFolder } from './vaultModel'
 /** One inline link found in a note — a markdown link or a `[[wikilink]]`. */
 interface NoteLink {
   /**
-   * The link text. A markdown label has its backslash escapes resolved, so
-   * `[a \[b\]](x)` labels `a [b]`; a wikilink's is **verbatim**, because `[[…]]`
-   * has no escape syntax and a note really can be called `a\b`. With no alias the
-   * label is the target as typed, anchor included: `[[Plan#Q3]]` labels `Plan#Q3`.
+   * The link text. A markdown label has its backslash escapes
+   * resolved; a wikilink's is verbatim, since `[[…]]` has no escapes.
+   * With no alias it is the target as typed, anchor included.
    */
   label: string
   /**
-   * The destination **exactly as written** — for a markdown link still
-   * percent-encoded, for a wikilink the left of the `|` and nothing else, both
-   * still carrying any `#anchor`. Kept verbatim so a caller can find this text
-   * again and rewrite it; `resolveTarget` is what decodes it.
+   * The destination exactly as written: still percent-encoded for a markdown
+   * link, the part left of `|` for a wikilink, anchor included. Kept
+   * verbatim so it can be found and rewritten; `resolveTarget` decodes it.
    */
   target: string
   /**
-   * True for `[[a]]`, false for `[a](b)`. **Not cosmetic**: it is what tells
-   * `resolveTarget` to look a bare target up by *name* across the vault, which is
-   * a wikilink's whole semantics and would be wrong for a markdown path.
+   * True for `[[a]]`, false for `[a](b)`. It tells `resolveTarget`
+   * to look a bare target up by name across the vault, which is
+   * right for a wikilink and wrong for a markdown path.
    */
   wiki: boolean
   /**
-   * Offset of the `[` in the string handed to `parseNoteLinks`, frontmatter
-   * included. The `!` of an embed, `![[a]]`, sits at `start - 1` — outside the
-   * span, so replacing `[start, end)` leaves the embed an embed.
+   * Offset of the `[`, frontmatter included. An embed's `!` sits at `start
+   * - 1`, outside the span, so replacing `[start, end)` keeps it an embed.
    */
   start: number
   /** Offset one past the closing `)` or `]]`. */
@@ -62,10 +52,8 @@ interface NoteLink {
 }
 
 /**
- * CommonMark caps a link label at 999 characters. Honoured here for a second
- * reason: a failed label scan restarts one character along, so an unbounded scan
- * turns a run of 20,000 `[` into a quadratic walk. The cap makes the worst case
- * linear in the text.
+ * CommonMark's cap on a label, 999 characters. It also keeps a
+ * failed scan over a long run of `[` linear rather than quadratic.
  */
 const MAX_LABEL = 1000
 /** Same bound, same reason, for the `(...)` after a label. */
@@ -101,9 +89,8 @@ function labelEnd(text: string, open: number): number {
 }
 
 /**
- * Reads `(target "title")` starting at the `(`, and reports the destination as a
- * *range* rather than a string: the scan runs over code-masked text, so the caller
- * slices the same span out of the real note.
+ * Reads `(target "title")` from the `(` and returns the destination as a range:
+ * the scan runs over code-masked text, so the caller slices the real note.
  */
 function readTarget(
   text: string,
@@ -119,7 +106,8 @@ function readTarget(
   let from: number
   let to: number
   if (text[i] === '<') {
-    // `[label](<my file.md>)` — legal, and how a destination holds a space unencoded.
+    // `[label](<my file.md>)` is legal, and is how a destination
+    // holds a space unencoded.
     const close = i + 1 + text.slice(i + 1, stop).search(/(?<!\\)>/)
     if (close < i + 1 || text.slice(i, close).includes('\n')) return null
     from = i + 1
@@ -161,17 +149,11 @@ function readTarget(
 }
 
 /**
- * Reads `[[target#anchor|alias]]` starting at the first `[`, as offsets into the
- * text: `bar` is the `|` or -1, `to` is the first `]`, `end` is one past the second.
+ * Reads `[[target#anchor|alias]]` from the first `[`, as offsets: `bar`
+ * is the `|` or -1, `to` is the first `]`, `end` is one past the second.
  *
- * A bracket or a newline inside **ends the attempt** rather than nesting or running
- * on. That is the defence against a stray `[[` swallowing a paragraph, it is why
- * `[[a[[b]]` is one link to `b` — the outer attempt dies on the inner `[`, and the
- * scan reaches the inner `[[` a character later — and it is also what keeps the cost
- * linear: a failed attempt restarts one character along, but an attempt from a `[[`
- * stops at the next `[`, so the total work is the sum of the gaps between brackets.
- * `MAX_LABEL` is therefore belt-and-braces here, bounding one runaway scan rather
- * than a quadratic walk; it is deliberately the same bound as a markdown label's.
+ * A `[` or a newline inside ends the attempt, so a stray `[[` can't swallow
+ * a paragraph, `[[a[[b]]` is one link to `b`, and the scan stays linear.
  */
 function readWikiLink(
   text: string,
@@ -190,23 +172,13 @@ function readWikiLink(
 }
 
 /**
- * Every inline link in one note that could point at another note.
+ * Every inline link in a note that could point at another note.
  *
- * Skipped: images (`![alt](x.png)`), links inside fenced or inline code, anything in
- * frontmatter, an escaped `\[`, and external destinations — a scheme (`https:`,
- * `mailto:`, anything), a protocol-relative `//host/x`, or nothing at all.
- *
- * `[[a]]`, `[[a|b]]`, `[[a#h]]` and `[[a#h|b]]` are links too, and so is the embed
- * `![[a]]`: Obsidian transcludes the note there and counts it in its own graph, and
- * a transclusion is a stronger reference to that note than a link, not a weaker one.
- * An `![[picture.png]]` still drops out, because `resolveTarget` calls a non-`.md`
- * destination external. **The two `!` forms therefore differ**, deliberately:
- * `![alt](x)` is how markdown writes a *picture*, which is an asset and not a
- * reference to a note, so it stays skipped. `[[]]` names nothing and is not a link.
- *
- * Reference links (`[label][ref]` with a `[ref]: …` definition) are **not** parsed:
- * nothing writes them here and no vault this has met uses them, so a definition
- * table would be code with no caller.
+ * Skipped: images (`![alt](x.png)`), links in code or frontmatter, an escaped
+ * `\[`, and external destinations (any scheme, `//host`, or empty). Wikilinks
+ * count in every form, `![[a]]` embeds included, since an embed is a reference to
+ * the note; `![[picture.png]]` drops out as external. `[[]]` is not a link.
+ * Reference links (`[label][ref]`) aren't parsed: nothing writes them.
  */
 export function parseNoteLinks(text: string): NoteLink[] {
   const { prefix, body } = splitPageProperties(text)
@@ -216,15 +188,13 @@ export function parseNoteLinks(text: string): NoteLink[] {
   for (let i = 0; i < masked.length; i++) {
     if (masked[i] !== '[' || isEscaped(masked, i)) continue
 
-    // Tried **before** the image skip below, which is what makes `![[a]]` a link
-    // while `![a](b)` is not, and before the markdown attempt, so `[[a]]` is not
-    // read as a markdown label. A `[[a]]` sitting *inside* a markdown label is not
-    // reached: the outer link wins the position and the scan resumes past it.
+    // Before the image skip, so `![[a]]` is a link and `![a](b)` isn't,
+    // and before the markdown attempt, so `[[a]]` isn't read as a label.
     const wiki = readWikiLink(masked, i)
     if (wiki) {
       const target = body.slice(i + 2, wiki.bar === -1 ? wiki.to : wiki.bar)
-      // No `isExternalTarget`: a wikilink cannot point outside the vault, and a
-      // name like `Q3: plan` would read as a URL scheme if it were asked.
+      // No `isExternalTarget` check: a wikilink can't point outside
+      // the vault, and `Q3: plan` would read as a URL scheme.
       if (target.trim()) {
         links.push({
           label: body.slice(wiki.bar === -1 ? i + 2 : wiki.bar + 1, wiki.to),
@@ -238,7 +208,7 @@ export function parseNoteLinks(text: string): NoteLink[] {
       continue
     }
 
-    // The `!` of an image sits one character before an otherwise identical pattern.
+    // An image's `!` sits one character before an otherwise identical link.
     if (i > 0 && masked[i - 1] === '!' && !isEscaped(masked, i - 1)) continue
     const close = labelEnd(masked, i)
     if (close === -1 || masked[close + 1] !== '(') continue
@@ -261,12 +231,8 @@ export function parseNoteLinks(text: string): NoteLink[] {
 }
 
 /**
- * Is this destination pointing outside the vault *by syntax alone*?
- *
- * Any scheme counts, not a list of known ones: `https:`, `mailto:`, `obsidian:`,
- * `C:/…`. A protocol-relative `//example.com/x` counts. So does an empty
- * destination, which names nothing to open. Whether an internal-looking path is a
- * *note* is `resolveTarget`'s question, not this one.
+ * Whether a destination points outside the vault by its syntax: any scheme, `//host`,
+ * or empty. Whether an internal path is a note is `resolveTarget`'s question.
  */
 export function isExternalTarget(target: string): boolean {
   const t = target.trim()
@@ -280,26 +246,19 @@ export function isExternalTarget(target: string): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * The one normal form a path is keyed and compared by: no trailing slash, no `.md`,
- * lowercased.
- *
- * Lowercasing by hand, in one place, because a `Map` needs a normal form and
- * `isSamePath` cannot give one — it is a comparison. The two agree exactly:
- * `isSamePath` *is* `a === b || a.toLowerCase() === b.toLowerCase()`, so two paths
- * share a key here precisely when it calls them one file. Comparisons elsewhere in
- * this module go through it.
+ * The normal form a path is keyed and compared by: no trailing
+ * slash, no `.md`, lowercased. It matches `isSamePath` exactly,
+ * so two paths share a key when that calls them one file.
  */
 export function pathKey(path: string): string {
   return noteName(path.replace(/\/+$/, '')).toLowerCase()
 }
 
 /**
- * The normal form a **name** is keyed by, for the vault-wide lookup a wikilink's
- * bare target needs. It is exactly the last segment of `pathKey` — same trailing
- * slash and `.md` stripped, same lowercasing, so case-insensitivity carries over
- * from the volume for free — which is what makes `Ideas`, `Ideas/`, `ideas/ideas`
- * and `Ideas/Ideas.md` all name `ideas`, and a folder note therefore one candidate
- * and not two. A non-`.md` extension is *kept*: `picture.png` is not a note name.
+ * The normal form a note name is keyed by, for a wikilink's vault-wide
+ * lookup: the last segment of `pathKey`. So `Ideas`, `Ideas/` and
+ * `Ideas/Ideas.md` all name `ideas`, and a folder note is one candidate,
+ * not two. A non-`.md` extension is kept: `picture.png` isn't a note name.
  */
 function nameKey(path: string): string {
   const key = pathKey(path)
@@ -328,11 +287,9 @@ function cutAnchor(target: string): string {
 }
 
 /**
- * `Notes/Q3%20plan.md` → `Notes/Q3 plan.md`, and a malformed escape survives.
- *
- * `decodeURIComponent('%zz')` throws, so the whole-string decode is tried first (it
- * is the only way to get a multi-byte `%C3%A9` right) and a failure falls back to
- * decoding each run of escapes that can be decoded, leaving the rest as typed.
+ * Decodes `Notes/Q3%20plan.md` to `Notes/Q3 plan.md`, leaving a
+ * malformed escape as typed. The whole-string decode is tried
+ * first, since it is the only way to get multi-byte escapes right.
  */
 function decodeTarget(target: string): string {
   const literal = target.replace(ESCAPED_PUNCT, '$1')
@@ -353,10 +310,9 @@ function decodeTarget(target: string): string {
 export function collectNotes(root: VaultFolder): VaultFile[] {
   const out: VaultFile[] = []
   const walk = (folder: VaultFolder) => {
-    // A folder *is* a note (CLAUDE.md), and it is one before its file is written on
-    // the first keystroke — the tree opens it either way, so a link to it resolves
-    // either way. `folderNoteRef` is what says where that file is or would be. The
-    // root is a vault, not a note, so it contributes only a note already on disk.
+    // A folder is a note even before its file is written, since the tree
+    // opens it either way; `folderNoteRef` says where that file is or would
+    // be. The root is not a note, so it only adds a note already on disk.
     if (folder.path) out.push(folderNoteRef(folder))
     else if (folder.note) out.push(folder.note)
     out.push(...folder.files)
@@ -367,14 +323,9 @@ export function collectNotes(root: VaultFolder): VaultFile[] {
 }
 
 /**
- * The folders a note is **reached through**, outermost first: `Areas` then
- * `Areas/Plans` for `Areas/Plans/Q3.md`.
- *
- * Off `knownPath`, and that is what makes a **nested** note's trail stop at its
- * parent — `Areas/Plans/Plans.md` is known as `Areas/Plans`, so the folder the note
- * *is* does not appear in the path to itself. Reading the tree rather than
- * splitting the string alone, because each step has to be a folder the app draws a
- * row for; one it does not hold is skipped rather than guessed at.
+ * The folders a note is reached through, outermost first: `Areas`, then
+ * `Areas/Plans` for `Areas/Plans/Q3.md`. Uses `knownPath`, so a nested note's
+ * trail stops at its parent, and only folders the tree draws are included.
  */
 export function trailTo(root: VaultFolder | null, path: string): VaultFolder[] {
   const parts = knownPath(path).split('/')
@@ -387,11 +338,8 @@ export function trailTo(root: VaultFolder | null, path: string): VaultFolder[] {
 }
 
 /**
- * The folder at `path` in this tree, or null.
- *
- * For reading a folder back out of a walk after it has moved: the object an
- * operation hands back describes the folder itself and not what is under it — see
- * `mutate` — so anything that needs its children looks it up here instead.
+ * The folder at `path` in this tree, or null. After a move the returned folder
+ * object doesn't describe its children (see `mutate`), so look them up here.
  */
 export function folderAt(root: VaultFolder | null, path: string): VaultFolder | null {
   if (!root) return null
@@ -404,12 +352,9 @@ export function folderAt(root: VaultFolder | null, path: string): VaultFolder | 
 }
 
 /**
- * Every note inside a folder that is *on disk*, the folder's own note included.
- *
- * A folder note is written on the first keystroke (CLAUDE.md), so one that does not
- * exist yet is skipped rather than named: writing a property into it would create
- * the file that browsing a folder is supposed to leave alone. `collectNotes` names
- * it either way, which is right for resolving a link and wrong for a bulk write.
+ * Every note in a folder that is on disk, the folder's own note included. A
+ * folder note not written yet is skipped, so a bulk write doesn't create
+ * it. `collectNotes` includes it, which is right for links and wrong here.
  */
 export function existingNotesIn(folder: VaultFolder): VaultFile[] {
   const out: VaultFile[] = []
@@ -422,8 +367,7 @@ export function existingNotesIn(folder: VaultFolder): VaultFile[] {
   return out
 }
 
-/** Every folder path in the vault. The root is not one of them: it has no chevron,
-    and nothing can shut it. */
+/** Every folder path in the vault. Not the root, which can't be shut. */
 export function collectFolders(root: VaultFolder): string[] {
   const out: string[] = []
   const walk = (folder: VaultFolder) => {
@@ -436,13 +380,13 @@ export function collectFolders(root: VaultFolder): string[] {
 
 /** Notes in lookup form. Build it once per vault read, not once per link. */
 export interface NoteIndex {
-  /** As handed in: tree order, which is what the picker lists when nothing is typed. */
+  /** As given: tree order, which the picker lists when nothing is typed. */
   notes: VaultFile[]
   byKey: Map<string, VaultFile>
   /**
-   * Every note of one `nameKey`, best candidate first — what a bare-name
-   * **wikilink** resolves through, and nothing else. A list and not a single note
-   * because the pick depends on where the link was written: see `resolveTarget`.
+   * Every note with one `nameKey`, best candidate first. Only a
+   * bare-name wikilink resolves through this. A list, because the
+   * pick depends on where the link was written (see `resolveTarget`).
    */
   byName: Map<string, VaultFile[]>
 }
@@ -450,9 +394,8 @@ export interface NoteIndex {
 export function buildNoteIndex(notes: VaultFile[]): NoteIndex {
   const byKey = new Map<string, VaultFile>()
   for (const note of notes) byKey.set(pathKey(note.path), note)
-  // `Ideas` and `Ideas/Ideas.md` are **one link**, not two, or every folder note's
-  // backlinks split down the middle by how each author happened to spell it. The
-  // alias is added second and never displaces a real note sitting at that path.
+  // `Ideas` and `Ideas/Ideas.md` are one note, or a folder note's backlinks
+  // would split by spelling. The alias never displaces a real note at that path.
   for (const note of notes) {
     const cut = note.path.lastIndexOf('/')
     if (cut === -1) continue
@@ -461,19 +404,16 @@ export function buildNoteIndex(notes: VaultFile[]): NoteIndex {
     if (!byKey.has(pathKey(dir))) byKey.set(pathKey(dir), note)
   }
 
-  // Built from `notes`, which is one entry per note: `byKey` holds a folder note
-  // under two paths (CLAUDE.md's first trap) and walking it would list that one note
-  // twice. `nameKey` gives both spellings the same key, so `[[Ideas]]` finds
-  // `Ideas/Ideas.md` — the single note the tree opens — either way.
+  // Built from `notes`, one entry per note: `byKey` holds a
+  // folder note under two paths and would list it twice.
   const byName = new Map<string, VaultFile[]>()
   for (const note of notes) {
     const list = byName.get(nameKey(note.path))
     if (list) list.push(note)
     else byName.set(nameKey(note.path), [note])
   }
-  // Fewest path segments first — Obsidian's "shortest path wins" — and then the path
-  // itself, which makes the order **total**: the pick can never depend on which
-  // order the vault happened to be read in, and the graph is the same on every open.
+  // Fewest path segments first (Obsidian's shortest path), then the path, so
+  // the order never depends on read order and the graph is the same every time.
   for (const list of byName.values()) {
     if (list.length > 1) {
       list.sort(
@@ -488,28 +428,28 @@ export function buildNoteIndex(notes: VaultFile[]): NoteIndex {
 }
 
 /**
- * The three states a destination can be in — and they are three, not two, because a
- * dangling link is a feature: link it now, create the note later.
+ * What a destination points at:
  *
- * - `note` — an existing note. `note.path` is the vault's own spelling of it, so
- *   two links that differ in case or in folder-note form agree here.
- * - `new` — an internal link with no note behind it. `path` is where that note
- *   would go, vault-relative and with `.md`, ready for "create it?".
- * - `external` — not a link into the vault: a scheme, a protocol-relative host, an
- *   empty destination, a path that walks out of the vault, or a non-`.md` file.
+ * - `note`: an existing note. `note.path` is the vault's
+ *   spelling, so links differing only in case agree.
+ * - `new`: an internal link with no note yet. `path` is where it would go,
+ *   vault-relative with `.md`. A dangling link is allowed: link now, create later.
+ * - `external`: not in the vault. A scheme, `//host`, empty, a
+ *   path outside the vault, or a non-`.md` file.
  */
 type ResolvedTarget =
-  /** Not a note. `target` is what was written, so a caller can hand it to the OS —
-   *  a URL, a mail address — or say why it cannot. */
+  /**
+   * Not a note. `target` is as written, so a caller can hand it
+   * to the OS or say why it can't open it.
+   */
   | { kind: 'external'; target: string }
   | { kind: 'note'; note: VaultFile }
   | { kind: 'new'; path: string }
 
 /**
- * A wikilink's target ends at the first `#`: `[[Plan#Q3]]` and the block reference
- * `[[Plan#^b7f]]` both point at `Plan`. Unlike a markdown destination there is no
- * percent-decoding, no backslash escape, and **no `?`** — `[[What now?]]` names a
- * note called `What now?`, and a `%20` inside `[[…]]` is those three characters.
+ * A wikilink's target ends at the first `#`, so `[[Plan#Q3]]`
+ * and `[[Plan#^b7f]]` point at `Plan`. No decoding, escapes or
+ * `?`: `[[What now?]]` names a note called `What now?`.
  */
 function cutWikiAnchor(target: string): string {
   const cut = target.indexOf('#')
@@ -517,20 +457,10 @@ function cutWikiAnchor(target: string): string {
 }
 
 /**
- * `[[Query Layer/DML Files]]` when `Query Layer` is a note somewhere else.
- *
- * **A path link's head is a name too.** A slash used to send the whole thing
- * straight to the root-relative reading — the by-name lookup above is guarded on
- * *not* containing one — so a link naming a note plus a child resolved to nothing
- * and then **created** the child at the top of the vault, folder and all. Reported
- * from the running app: `Areas/Northwind/Query Layer.md` already existed, and
- * following `[[Query Layer/DML Files]]` made `Query Layer/DML Files.md` at the
- * root — two things with one name, and the folder sitting beside `Areas`.
- *
- * A note's children live in a folder beside it, so the head resolves by name and the
- * rest hangs off its `knownPath`. Offered **after** the literal readings, so nothing
- * that resolves today changes meaning; what it changes is where an unresolved one is
- * created.
+ * `[[Query Layer/DML Files]]` when `Query Layer` is a note elsewhere: the head
+ * resolves by name, and the rest hangs off its `knownPath`. Without this,
+ * following the link created `Query Layer/DML Files.md` at the root. Tried after
+ * the literal readings, so it only changes where an unresolved link is created.
  */
 function underNamedNote(written: string, index: NoteIndex): string | null {
   const cut = written.indexOf('/')
@@ -540,31 +470,17 @@ function underNamedNote(written: string, index: NoteIndex): string | null {
 }
 
 /**
- * Where one destination points, read from the note at `fromPath`. Pass the whole
- * `NoteLink` — a bare string is read as a markdown destination, which is right for
- * an `href` taken off the document and wrong for a wikilink.
+ * Where a destination points, read from the note at `fromPath`. Pass the
+ * whole `NoteLink`: a bare string is read as a markdown destination.
  *
- * **A markdown destination is a path.** It is tried root-relative *first*, then
- * relative to the containing note's own folder. The app only ever writes
- * root-relative links, so its own links can never be captured by a same-named
- * neighbour of whatever note they happen to sit in; a hand-written relative link
- * still works, because the second attempt catches it. When both would resolve — the
- * genuinely ambiguous case — **root-relative wins**, silently. A leading `/` means
- * root-relative only; a leading `./` or `../` means note-relative only.
+ * A markdown destination is a path: tried from the vault root first,
+ * then from the note's own folder, and the root wins when both resolve.
+ * A leading `/` means the root only; `./` and `../` mean the note's
+ * folder only. A markdown bare name is not searched across the vault.
  *
- * A markdown bare name is *not* searched for across the vault. That would make every
- * note name a potential ambiguity with every other, and the picker writes full paths.
- *
- * **A wikilink's target is a name**, and that is the whole of its semantics:
- * `[[Project Aurora]]` means "the note called that, wherever it lives", so it *is*
- * looked up across the vault — the one thing the paragraph above refuses a markdown
- * link. A target holding a `/` is the path it looks like and takes the path rule
- * instead, so `[[Notes/Roadmap]]` works too. Where a name matches **two** notes, the
- * one in the linking note's own folder wins and otherwise the shortest path does;
- * `buildNoteIndex` holds the tie-break and documents it.
- *
- * Either way the answer is one of the same three states, so a wikilink to a name
- * with no note is a dangling link like any other.
+ * A wikilink's target is a name, looked up across the vault. A target with a `/`
+ * is a path and follows the path rule. When a name matches two notes, the one in
+ * the linking note's folder wins, then the shortest path (see `buildNoteIndex`).
  */
 export function resolveTarget(
   link: string | NoteLink,
@@ -573,12 +489,12 @@ export function resolveTarget(
 ): ResolvedTarget {
   const wiki = typeof link !== 'string' && link.wiki
   const target = typeof link === 'string' ? link : link.target
-  // Only a markdown destination is asked. A wikilink cannot point outside the vault
-  // by syntax, and asking would misread a name: `Q3: plan` reads as a URL scheme.
+  // Only a markdown destination is checked: a wikilink can't
+  // point outside, and `Q3: plan` would read as a URL scheme.
   if (!wiki && isExternalTarget(target)) return { kind: 'external', target: target.trim() }
   const written = wiki ? cutWikiAnchor(target).trim() : decodeTarget(cutAnchor(target.trim()))
 
-  // `[x](#a-heading)`, and `[[#a-heading]]`, link into the note holding them.
+  // `[x](#a-heading)` and `[[#a-heading]]` link into the note they are in.
   if (!written) {
     const self = index.byKey.get(pathKey(fromPath))
     return self ? { kind: 'note', note: self } : { kind: 'new', path: fromPath }
@@ -591,23 +507,22 @@ export function resolveTarget(
     if (found) {
       return { kind: 'note', note: found.find((n) => isSamePath(folderOf(n.path), dir)) ?? found[0] }
     }
-    // Nothing of that name. A path lookup cannot find one either — every note is in
-    // `byName` under its own basename — so this falls through only to be classified,
-    // and lands on the root-relative `new` that the picker and `App` would create.
+    // No note of that name. A path lookup can't find one either, so this only
+    // gets classified, as the root-relative `new` the picker would create.
   }
 
   const rooted = written.startsWith('/')
   const relative = /^\.\.?(\/|$)/.test(written)
-  // Where a link naming a note plus a child *means*, when nothing literal resolves.
+  // What a link naming a note plus a child means, when nothing literal resolves.
   const named = wiki && !rooted && !relative ? underNamedNote(written, index) : null
 
-  /** What the text says, read literally — one reading per form it can take. */
+  /** The text read literally, one reading per form it can take. */
   function literalReadings(): string[] {
-    // `/Areas/Plans` is from the vault root, whatever note it is written in.
+    // `/Areas/Plans` is from the vault root, wherever it is written.
     if (rooted) return [written.slice(1)]
-    // `./Plans` and `../Plans` are from this note's own folder, and only there.
+    // `./Plans` and `../Plans` are from this note's folder only.
     if (relative) return [`${dir}/${written}`]
-    // A bare `Areas/Plans` is either: from the root as written, or beside this note.
+    // A bare `Areas/Plans` is either: from the root, or beside this note.
     return [written, `${dir}/${written}`]
   }
 
@@ -620,15 +535,14 @@ export function resolveTarget(
     if (note) return { kind: 'note', note }
   }
 
-  // **The literal readings decide what resolves; the named one decides what is
-  // made.** Nothing matched, so the order above no longer matters — what matters is
-  // that a link naming an existing note does not create its child at the root. See
-  // `underNamedNote`.
+  // The literal readings decide what resolves; the named one
+  // decides what is created, so a link naming an existing note
+  // doesn't create its child at the root (see `underNamedNote`).
   const path = (named ? normalizeVaultPath(named) : null) ?? candidates[0]
   if (!path) return { kind: 'external', target: written }
   const note = isNote(path)
-  // `assets/plan.png` is a file this app does not open, not a note to be created.
-  // An extension must start with a letter, so `Meeting 2026.09.03` stays a name.
+  // `assets/plan.png` is a file the app doesn't open, not a note to create.
+  // An extension starts with a letter, so `Meeting 2026.09.03` stays a name.
   if (!note && /\.[A-Za-z][A-Za-z0-9]{0,7}$/.test(path.slice(path.lastIndexOf('/') + 1))) {
     return { kind: 'external', target: written }
   }
@@ -641,29 +555,18 @@ export function resolveTarget(
 // ---------------------------------------------------------------------------
 
 /**
- * Where a note has gone, keyed by `pathKey` of where it was.
- *
- * A map rather than one pair, because a *folder* rename moves every note under it
- * and a link to any of them has to follow. A file rename is the one-entry case.
+ * Where each moved note went, keyed by `pathKey` of where it
+ * was. A map, because a folder rename moves every note under it.
  */
 export type NoteMoves = ReadonlyMap<string, VaultFile>
 
 /**
- * The destination to write in place of `link`'s, now that its note has moved.
+ * The destination to write in place of `link`'s after its note moved. The form is kept:
+ * a bare name stays a bare name and a path stays a path, and any `#anchor` is kept.
  *
- * **The form is kept, only the name changes.** A wikilink written as a bare name
- * stays a bare name and a wikilink written as a path stays a path, because both are
- * how someone chose to refer to the note — `[[Northwind]]` and
- * `[[Areas/Northwind]]` are the same link and not the same text. Any `#anchor`
- * comes along untouched: the heading it names is inside the note, which is not what
- * moved.
- *
- * A markdown destination is a real path to a real file, so it takes the note's own
- * path, with `.md` if it had one. Spaces are percent-encoded when the destination
- * that was there had none written literally, which is the encoding that was in use.
- * A destination written **relative** (`./x`, `../x`) comes back root-relative: a
- * relative path has to be recomputed against wherever the *holding* note now is,
- * and in a folder rename that has moved too.
+ * A markdown destination takes the note's new path, with `.md` if it had one, and
+ * spaces percent-encoded if the old one encoded them. A relative destination (`./x`,
+ * `../x`) comes back root-relative, since the holding note may have moved too.
  */
 function retarget(link: NoteLink, to: VaultFile): string {
   const cut = link.target.indexOf('#')
@@ -682,23 +585,12 @@ function retarget(link: NoteLink, to: VaultFile): string {
 }
 
 /**
- * `text` with every link that pointed at a moved note pointing at where it is now.
+ * `text` with every link to a moved note pointed at where it is now. `index` and
+ * `fromPath` are from before the move, since that is what still resolves the old name.
  *
- * `index` is the index as it was **before** the move, and `fromPath` where the
- * holding note was, because that is what makes `[[Old Name]]` still resolve: after
- * the rename there is no note of that name, and the link would read as one waiting
- * to be created.
- *
- * A link is rewritten because it **resolves** to a moved note, not because its text
- * matches a name. So `[[Plan]]` in a folder holding its own `Plan` is left alone
- * when the `Plan` that moved was another one, and a link written as a path follows
- * a note whose *name* never changed. Nothing else in the line is touched: the alias,
- * the label, the anchor and the brackets are all the user's — the destination is
- * replaced where it sits inside the link, which is why `[Plan](Plan.md)` rewrites
- * the second `Plan` and not the first.
- *
- * Right to left, so the offsets `parseNoteLinks` gave are still good as the text
- * under them changes.
+ * A link is rewritten because it resolves to a moved note, not because its
+ * text matches a name. Only the destination changes; alias, label, anchor
+ * and brackets stay. Works right to left, so earlier offsets stay valid.
  */
 export function retargetLinks(
   text: string,
@@ -714,7 +606,7 @@ export function retargetLinks(
     if (!to) continue
     const raw = out.slice(link.start, link.end)
     // The destination's own occurrence: first in `[[target|label]]`, last in
-    // `[label](target)`, where a label equal to the target would otherwise win.
+    // `[label](target)`, where a label equal to the target would otherwise match first.
     const at = link.wiki ? raw.indexOf(link.target) : raw.lastIndexOf(link.target)
     if (at === -1) continue
     const next = raw.slice(0, at) + retarget(link, to) + raw.slice(at + link.target.length)
@@ -731,49 +623,35 @@ export function retargetLinks(
 export interface Backlink {
   /** The note the mentions are in. */
   note: VaultFile
-  /** How many links there are, which is *not* `mentions.length` — see below. */
+  /** How many links there are, which isn't `mentions.length`. */
   count: number
   /**
-   * The lines they are written on, trimmed, one entry per line rather than per
-   * link: two links to the same note on one line is one thing to read, not two.
-   * Never empty, and `count` is what says how many links those lines hold.
+   * The lines the links are on, trimmed, one per line: two links to the same note on
+   * one line is one line to read. Never empty; `count` says how many links they hold.
    */
   mentions: string[]
 }
 
 /**
- * Keyed by `pathKey` of the target's path, so `Ideas`, `ideas/ideas.md` and
- * `Ideas/Ideas.md` all land on one entry. Read it with `backlinksTo`.
- *
- * Targets with **no note behind them** are keyed too: the links into a note exist
- * before the note does, and are there the moment it is created.
+ * Keyed by `pathKey` of the target, so `Ideas`, `ideas/ideas.md` and
+ * `Ideas/Ideas.md` share an entry (read it with `backlinksTo`). Targets with no
+ * note yet are keyed too, so their links are there when the note is created.
  */
 export type BacklinkIndex = Map<string, Backlink[]>
 
 /**
- * The folder whose own note is the note at `path`, or null.
- *
- * A nested note *is* a folder plus a same-named note inside it (CLAUDE.md), so this
- * is how "what is inside this note" is answered: with the folder, which the section
- * at the end of the note then draws with `FolderTree` — the same component the left
- * pane uses, so a subfolder in there expands and shows what is inside *it* too.
- *
- * Null for a plain note. A folder note nobody has typed in still answers, because
- * the row and its children are there whether or not the file is.
+ * The folder whose own note is the note at `path`, or null for a plain note. This
+ * answers what is inside a note: the end of the note draws the folder with
+ * `FolderTree`, like the left pane. A folder note not written yet still answers.
  */
 export function folderWithNote(root: VaultFolder | null, path: string): VaultFolder | null {
   return root ? searchForNote(root, path) : null
 }
 
 /**
- * Every leaf note the tree is **showing**, in the order it draws them: a folder's
- * subfolders first and then its own files, which is `FolderTree`'s own order, and
- * nothing inside a folder that is shut.
- *
- * It exists for one thing — the order a ⇧-click's range runs in — and that is why
- * it answers what is *visible* rather than what exists: a range covers the rows
- * between two clicks, and a note hidden inside a shut folder was never between
- * them. A folder's own row is not in it, because picking is leaf notes for now.
+ * Every leaf note the tree is showing, in the order it draws them, and nothing inside
+ * a closed folder. It is the order a ⇧-click range runs in, so it covers what is
+ * visible, not what exists. Folder rows aren't included; only notes can be picked.
  */
 export function visibleFiles(
   folder: VaultFolder | null,
@@ -788,9 +666,10 @@ export function visibleFiles(
   return found
 }
 
-/** Every child a row of this folder would draw: subfolders by their own note, then
- *  the files. The folder's own note is not one of them — `walk` lifts it off the
- *  file list and onto the folder. */
+/**
+ * Every child a folder's row would draw: subfolders by their own note, then
+ * files. The folder's own note isn't one; `walk` moves it onto the folder.
+ */
 export function childrenOf(folder: VaultFolder): VaultFile[] {
   return [...folder.folders.map(folderNoteRef), ...folder.files]
 }
@@ -805,15 +684,8 @@ function searchForNote(folder: VaultFolder, path: string): VaultFolder | null {
 }
 
 /**
- * Which notes link to which.
- *
- * Takes text as **input** and never reads a disk: reading every note in a vault is
- * the expensive part, so the caller decides when to pay for it and this stays a
- * pure function over what it is given.
- *
- * A note does **not** backlink to itself. The section answers "what else points
- * here", and a note is not news to itself; a self link is still a real link that
- * `parseNoteLinks` reports and `resolveTarget` resolves.
+ * Which notes link to which. Takes text as input and never reads
+ * the disk, so it stays pure. A note doesn't backlink to itself.
  */
 export function buildBacklinkIndex(
   notes: Iterable<{ note: VaultFile; text: string }>,
@@ -838,7 +710,7 @@ export function buildBacklinkIndex(
       mention(source, line(link.start))
     }
   }
-  // Sorted so the section renders the same way whatever order the notes were read in.
+  // Sorted so the section is the same whatever order the notes were read in.
   for (const list of out.values()) list.sort((a, b) => a.note.path.localeCompare(b.note.path))
   return out
 }
@@ -856,14 +728,11 @@ function mention(entry: Backlink, text: string) {
 }
 
 /**
- * The line an offset falls on, by binary search over the line starts.
- *
- * Built once per note rather than per link: a note with fifty links would
- * otherwise walk its own text fifty times.
+ * The line an offset falls on, by binary search over line
+ * starts. Built once per note, not once per link.
  */
 function lineFinder(text: string): (at: number) => string {
-  // On `\n` alone: a CRLF's `\r` is a character before the link, and dropping it
-  // from the count put a mention on a later line. `mention` trims it off.
+  // Split on `\n` only: a CRLF's `\r` stays on the line, and `mention` trims it.
   const lines = text.split('\n')
   let offset = 0
   const starts = lines.map((line) => {
@@ -903,19 +772,13 @@ function tier(haystack: string, query: string): number {
 }
 
 /**
- * Notes matching what has been typed after `[[`, best first.
+ * Notes matching what is typed after `[[`, best first.
  *
- * **The ranking**, and it is deliberately plain: `tier(name) * 5 + tier(path)`.
- * Each tier is exact 4, whole-name prefix 3, word-start inside 2, anywhere else 1,
- * no hit 0 — so any hit on the *name* outranks every hit on the path alone
- * (5 > 4), and within the name an exact match beats a prefix beats a mid-word hit.
- * The path term is what lets `notes/road` find a note by where it lives. Ties go to
- * the shorter name — the tighter match — and then to the path, so the order never
- * depends on input order.
- *
- * No fuzzy subsequence scoring: it needs tuning to feel right, would want a library
- * this project is not taking on, and makes the list harder to predict than typing
- * one more character.
+ * The score is `tier(name) * 5 + tier(path)`, where a tier is exact 4,
+ * prefix 3, word start 2, anywhere 1, none 0. So any hit on the name
+ * beats a hit on the path alone, and the path term lets `notes/road` find
+ * a note by its folder. Ties go to the shorter name, then the path. No
+ * fuzzy matching: it is harder to predict than typing one more letter.
  */
 export function matchNotes(query: string, notes: VaultFile[], limit = 20): NoteMatch[] {
   const q = query.trim().toLowerCase()
