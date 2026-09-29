@@ -677,7 +677,7 @@ describe('the rings', () => {
   const distance = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y)
 
   it('puts the note at the centre and each ring at its own radius', () => {
-    const at = ringLayout([['c'], ['a', 'b'], ['a1', 'a2', 'b1']], new Map([['a1', 'a'], ['a2', 'a'], ['b1', 'b']]))
+    const { at } = ringLayout([['c'], ['a', 'b'], ['a1', 'a2', 'b1']], new Map([['a1', 'a'], ['a2', 'a'], ['b1', 'b']]))
     expect(at.get('c')).toEqual({ x: 0, y: 0 })
     const inner = distance(at.get('a')!, at.get('c')!)
     expect(distance(at.get('b')!, at.get('c')!)).toBeCloseTo(inner)
@@ -685,13 +685,13 @@ describe('the rings', () => {
   })
 
   it('lays a note’s own neighbours beside it', () => {
-    const at = ringLayout([['c'], ['a', 'b'], ['a1', 'b1']], new Map([['a1', 'a'], ['b1', 'b']]))
+    const { at } = ringLayout([['c'], ['a', 'b'], ['a1', 'b1']], new Map([['a1', 'a'], ['b1', 'b']]))
     expect(distance(at.get('a1')!, at.get('a')!)).toBeLessThan(distance(at.get('a1')!, at.get('b')!))
   })
 
   it('makes a crowded ring wide enough that no two of its nodes touch', () => {
     const many = Array.from({ length: 40 }, (_, i) => `n${i}`)
-    const at = ringLayout([['c'], many, []], new Map())
+    const { at } = ringLayout([['c'], many, []], new Map())
     const gaps = many.map((id, i) => distance(at.get(id)!, at.get(many[(i + 1) % many.length])!))
     expect(Math.min(...gaps)).toBeGreaterThan(40)
   })
@@ -699,7 +699,7 @@ describe('the rings', () => {
   it('is the same every time', () => {
     const rings = [['c'], ['a', 'b'], ['a1']]
     const parents = new Map([['a1', 'a']])
-    expect([...ringLayout(rings, parents)]).toEqual([...ringLayout(rings, parents)])
+    expect(ringLayout(rings, parents)).toEqual(ringLayout(rings, parents))
   })
 })
 
@@ -752,16 +752,16 @@ describe('clusters', () => {
   const clusters = clustersOf(graph)
   const distance = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y)
 
-  it('finds the groups the links between notes make, and no day, tag or pair joins them', () => {
+  it('finds the groups the links between notes make, busiest first, and no day, tag or pair joins them', () => {
     expect(clusters).toEqual([
-      ['espresso', 'harbour bistro', 'lemon tart'],
-      ['mira vance', 'northwind', 'quarterly plan'],
+      ['harbour bistro', 'espresso', 'lemon tart'],
+      ['northwind', 'mira vance', 'quarterly plan'],
     ])
   })
 
   it('draws each as a region round its members alone, apart from the others, named for its busiest', () => {
     const { at, regions } = everything(graph, clusters)
-    expect(regions.map((one) => one.hub)).toEqual(['harbour bistro', 'northwind'])
+    expect(regions.map((one) => one.members[0])).toEqual(['harbour bistro', 'northwind'])
     for (const region of regions) {
       for (const id of region.members) expect(distance(at.get(id)!, region)).toBeLessThanOrEqual(region.r - REGION_PAD + 1e-6)
       for (const [id, p] of at) if (!region.members.includes(id)) expect(distance(p, region)).toBeGreaterThanOrEqual(region.r)
@@ -774,8 +774,19 @@ describe('clusters', () => {
     expect(everything(graph, clusters)).toEqual(everything(graph, clusters))
   })
 
-  it('keeps a group together on a ring around a note', () => {
+  it('keeps a group together on a ring around a note, as a sector of its own', () => {
     const near = around(graph, 'daily/2026-09-21', clusters)
     expect(near.rings[1]).toEqual(['espresso', 'harbour bistro', 'northwind', 'flight', 'tag:expense'])
+    const { at, sectors } = ringLayout(near.rings, near.parents, clusters)
+    expect(sectors.map((one) => one.members[0])).toEqual(['harbour bistro', 'northwind'])
+    // On the first ring, a node is inside a sector's angle exactly when it is one of
+    // that cluster's; what hangs off it on the second sits in its share, whoever's.
+    const angle = (id: string) => {
+      const a = Math.atan2(at.get(id)!.y, at.get(id)!.x)
+      return a < sectors[0].from ? a + 2 * Math.PI : a
+    }
+    for (const sector of sectors) {
+      for (const id of near.rings[1]) expect(angle(id) > sector.from && angle(id) < sector.to).toBe(sector.members.includes(id))
+    }
   })
 })

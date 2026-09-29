@@ -3820,7 +3820,8 @@ button.folder-toggle {
   pointer-events: none;
 }
 
-.graph-region > circle {
+.graph-region > circle,
+.graph-region > path {
   fill: color-mix(in srgb, var(--text) 4%, transparent);
   stroke: color-mix(in srgb, var(--text) 10%, transparent);
 }

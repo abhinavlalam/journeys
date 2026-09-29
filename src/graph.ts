@@ -334,6 +334,9 @@ export interface Placed {
   y: number
 }
 
+/** A point `r` out from the centre at `angle`. */
+export const polar = (r: number, angle: number): Placed => ({ x: r * Math.cos(angle), y: r * Math.sin(angle) })
+
 /** The least distance between two rings, and the arc a node takes on one — room
  *  for a node and the start of its name. */
 const RING_GAP = 150
@@ -344,30 +347,39 @@ const NODE_ARC = 48
  * time. The first ring shares the circle out by what hangs off each of its nodes —
  * one with twelve on the second ring gets twelve shares of the angle, one with none
  * a single share — and the second ring's nodes sit in their parent's share, so a
- * note's own neighbours are beside it. Each ring is wide enough for its nodes.
+ * note's own neighbours are beside it. Each ring is wide enough for its nodes. A
+ * cluster's run of nodes on the first ring, with what hangs off them, is a sector.
  */
-export function ringLayout(rings: readonly string[][], parents: ReadonlyMap<string, string>): Map<string, Placed> {
+export function ringLayout(
+  rings: readonly string[][],
+  parents: ReadonlyMap<string, string>,
+  clusters: readonly string[][] = []
+): { at: Map<string, Placed>; sectors: Sector[] } {
   const at = new Map<string, Placed>()
+  const sectors: Sector[] = []
   const [[centre] = [], first = [], second = []] = rings
-  if (centre === undefined) return at
+  if (centre === undefined) return { at, sectors }
   at.set(centre, { x: 0, y: 0 })
-  if (first.length === 0) return at
+  if (first.length === 0) return { at, sectors }
   const children = new Map(first.map((id) => [id, [] as string[]]))
   for (const id of second) children.get(parents.get(id)!)?.push(id)
   const shares = first.map((id) => Math.max(1, children.get(id)!.length))
   const total = shares.reduce((sum, one) => sum + one, 0)
   const inner = Math.max(RING_GAP, (total * NODE_ARC) / (2 * Math.PI))
   const outer = inner + RING_GAP
-  const polar = (r: number, angle: number) => ({ x: r * Math.cos(angle), y: r * Math.sin(angle) })
+  const home = new Map(clusters.flatMap((members) => members.map((id) => [id, members] as const)))
   let start = -Math.PI / 2 - (Math.PI * shares[0]) / total
   first.forEach((id, i) => {
     const share = (2 * Math.PI * shares[i]) / total
     at.set(id, polar(inner, start + share / 2))
     const under = children.get(id)!
     under.forEach((child, j) => at.set(child, polar(outer, start + (share * (j + 0.5)) / under.length)))
+    const members = home.get(id)
+    if (members && i > 0 && home.get(first[i - 1]) === members) sectors[sectors.length - 1].to += share
+    else if (members) sectors.push({ members, from: start, to: start + share, inner: inner - RING_GAP / 2, outer: outer + RING_GAP / 2 })
     start += share
   })
-  return at
+  return { at, sectors }
 }
 
 // ---------------------------------------------------------------------------
@@ -744,8 +756,9 @@ const CLUSTER_MIN = 3
 
 /**
  * **The groups the notes make**: communities over the links between notes alone,
- * largest first. Days and tags take no part — each touches every group, and let in,
- * they made the whole vault one — and neither does a note linked only through them.
+ * largest first, each busiest first — its first names it. Days and tags take no
+ * part — each touches every group, and let in, they made the whole vault one — and
+ * neither does a note linked only through them.
  */
 export function clustersOf(graph: NoteGraph): string[][] {
   const notes = graph.nodes.filter((node) => node.kind === 'note')
@@ -761,16 +774,26 @@ export function clustersOf(graph: NoteGraph): string[][] {
   const of = communities(notes.length, [...pairs.values()])
   const groups = new Map<number, string[]>()
   notes.forEach((node, i) => groups.set(of[i], [...(groups.get(of[i]) ?? []), node.id]))
+  const busiest = (a: string, b: string) => (graph.degree.get(b) ?? 0) - (graph.degree.get(a) ?? 0)
   return [...groups.values()]
     .filter((members) => members.length >= CLUSTER_MIN)
+    .map((members) => members.sort(busiest))
     .sort((a, b) => b.length - a.length || compare(a[0], b[0]))
 }
 
-/** A cluster where it is drawn: a disc round its members, named for its `hub`, the
- *  most connected of them. */
+/** A cluster where it is drawn around a note: the band across the rings its notes
+ *  sit in, `from` and `to` angles between two radii. */
+export interface Sector {
+  members: readonly string[]
+  from: number
+  to: number
+  inner: number
+  outer: number
+}
+
+/** A cluster where it is drawn in everything: a disc round its members. */
 export interface Region {
-  members: string[]
-  hub: string
+  members: readonly string[]
   x: number
   y: number
   r: number
@@ -825,8 +848,7 @@ export function everything(graph: NoteGraph, clusters: readonly string[][]): { a
   const regions = clusters.map((members, c) => {
     const mid = top.get(`cluster:${c}`)!
     for (const [id, p] of shapes[c].at) at.set(id, { x: mid.x + p.x, y: mid.y + p.y })
-    const hub = members.reduce((best, id) => ((graph.degree.get(id) ?? 0) > (graph.degree.get(best) ?? 0) ? id : best))
-    return { members, hub, x: mid.x, y: mid.y, r: shapes[c].r }
+    return { members, x: mid.x, y: mid.y, r: shapes[c].r }
   })
   return { at, regions }
 }

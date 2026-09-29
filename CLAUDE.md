@@ -411,10 +411,13 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   so typing beside it rebuilds nothing on screen.
 - **Around this note** by default, centred on the last note in front: it, what it
   touches, what those touch, as rings (`around`, `ringLayout`), each outer node in
-  its parent's share of the angle and each ring grouped by cluster. Lines the rings
-  rest on lead; the rest are `QUIET` until hovered.
+  its parent's share of the angle and each ring grouped by cluster: a cluster's run
+  on the first ring, with what hangs off it, is a sector, named past its rim (inside
+  it, the outer ring's names hung onto the name). Lines the rings rest on lead; the
+  rest are `QUIET` until hovered. A fit frames below the bar, which lies over the
+  picture.
 - **Everything is drawn by cluster** (`clustersOf`: Louvain over the links between
-  notes alone). Days and tags take no part — 65% of a vault's connections touch a
+  notes alone, each cluster busiest first, its first naming it). Days and tags take no part — 65% of a vault's connections touch a
   day, and let in they made the whole vault one knot. Each cluster of three or more
   is laid out on its own, then stands as one node as wide as it is among the rest
   (`everything`), drawn as a faint region named for its busiest note; `spread`
@@ -516,8 +519,7 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 - **Still open**: at `--fw-prose` 600, `####` and below stop reading as headings;
   folders are not pickable; the graph's Everything repels every pair of nodes each
   step (`stepLayout`, then `spread`), fine at hundreds of notes and slow at
-  thousands; Around a busy day is a large sunburst, its clusters ordered but not
-  marked.
+  thousands.
 
 ## Preferences
 

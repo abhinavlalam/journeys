@@ -318,12 +318,13 @@ describe('the graph’s clusters', () => {
   const regions = () => [...document.querySelectorAll('.graph-region')].map((one) => one.textContent)
   const circleOf = (name: string) => screen.getByRole('button', { name }).querySelector('circle')!
 
-  it('draws a group as a region named for its busiest note, in everything and not around a note', () => {
+  it('draws a group named for its busiest note: a disc in everything, a sector around a note', () => {
     stubReducedMotion(true)
+    const shape = () => [...document.querySelectorAll('.graph-region > :first-child')].map((one) => one.tagName)
     const { rerender } = render(<GraphView {...props} currentId={null} />)
-    expect(regions()).toEqual(['Harbour Bistro'])
+    expect([regions(), shape()]).toEqual([['Harbour Bistro'], ['circle']])
     rerender(<GraphView {...props} currentId="harbour bistro" />)
-    expect(regions()).toEqual([])
+    expect([regions(), shape()]).toEqual([['Harbour Bistro'], ['path']])
   })
 
   it('draws a day small and its lines quiet, whatever it touches', () => {

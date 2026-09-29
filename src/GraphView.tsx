@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { RefObject } from 'react'
-import { around, boundsOf, clustersOf, connectionsOf, EDGE_KINDS, everything, REGION_PAD, ringLayout } from './graph'
-import type { EdgeKind, GraphNode, NoteGraph, Placed, Region } from './graph'
+import { around, boundsOf, clustersOf, connectionsOf, EDGE_KINDS, everything, polar, REGION_PAD, ringLayout } from './graph'
+import type { EdgeKind, GraphNode, NoteGraph, Placed, Region, Sector } from './graph'
 import { countOf } from './rows'
 
 /**
@@ -196,21 +196,36 @@ const clamp = (value: number, low: number, high: number) => Math.min(Math.max(va
 
 const EMPTY: ReadonlySet<string> = new Set()
 
-/** What a fit frames: every node, and every region's disc. */
-const extentOf = (picture: { targets: ReadonlyMap<string, Placed>; regions: readonly Region[] }) => [
+/** The air between two sectors side by side, along the inner rim: touching, a ring
+ *  of them read as one band. */
+const SECTOR_GAP = 6
+
+/** A sector's outline: the band between its radii over its angle less the gap each
+ *  side, and short of a full turn, where an arc's two ends meet and draw nothing. */
+function sectorPath({ inner, outer, ...sector }: Sector): string {
+  const from = sector.from + SECTOR_GAP / inner
+  const to = Math.min(sector.to - SECTOR_GAP / inner, from + 2 * Math.PI - 1e-3)
+  const large = to - from > Math.PI ? 1 : 0
+  const at = (r: number, angle: number) => `${polar(r, angle).x} ${polar(r, angle).y}`
+  return `M ${at(outer, from)} A ${outer} ${outer} 0 ${large} 1 ${at(outer, to)} L ${at(inner, to)} A ${inner} ${inner} 0 ${large} 0 ${at(inner, from)} Z`
+}
+
+/** What a fit frames: every node, every region's disc, and every sector's name. */
+const extentOf = (picture: { targets: ReadonlyMap<string, Placed>; regions: readonly Region[]; sectors: readonly Sector[] }) => [
   ...picture.targets.values(),
   ...picture.regions.flatMap((one) => [
     { x: one.x - one.r, y: one.y - one.r },
     { x: one.x + one.r, y: one.y + one.r },
   ]),
+  ...picture.sectors.flatMap((one) => [one.from, (one.from + one.to) / 2, one.to].map((angle) => polar(one.outer + REGION_PAD, angle))),
 ]
 
 /** The view that puts `points` in the middle of a `width`×`height` box. */
-function fitView(points: Iterable<Placed>, width: number, height: number): View | null {
+function fitView(points: Iterable<Placed>, width: number, height: number, top = 0): View | null {
   const bounds = boundsOf(points)
   if (!bounds || width <= 0 || height <= 0) return null
   const innerW = Math.max(width - BOX_PADDING * 2, 1)
-  const innerH = Math.max(height - BOX_PADDING * 2, 1)
+  const innerH = Math.max(height - top - BOX_PADDING * 2, 1)
   const spanX = bounds.maxX - bounds.minX
   const spanY = bounds.maxY - bounds.minY
   // A single node, or several on one point, has no span — scale 1 and centre it.
@@ -222,7 +237,7 @@ function fitView(points: Iterable<Placed>, width: number, height: number): View 
   return {
     k,
     x: width / 2 - ((bounds.minX + bounds.maxX) / 2) * k,
-    y: height / 2 - ((bounds.minY + bounds.maxY) / 2) * k,
+    y: top + (height - top) / 2 - ((bounds.minY + bounds.maxY) / 2) * k,
   }
 }
 
@@ -333,6 +348,9 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
   const boxRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const size = useBoxSize(boxRef)
+  // The bar lies over the top of the picture, so a fit frames what is below it.
+  const barRef = useRef<HTMLDivElement>(null)
+  const barSize = useBoxSize(barRef)
   const reduced = usePrefersReducedMotion()
   const [scope, setScope] = useState<'around' | 'all'>('around')
   const [listing, setListing] = useState(false)
@@ -350,11 +368,13 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
     const clusters = clustersOf(shown.graph)
     if (centre) {
       const near = around(shown.graph, centre, clusters)
+      const rings = ringLayout(near.rings, near.parents, clusters)
       const regions: Region[] = []
-      return { graph: near.graph, targets: ringLayout(near.rings, near.parents), parents: near.parents, regions }
+      return { graph: near.graph, targets: rings.at, parents: near.parents, regions, sectors: rings.sectors }
     }
     const all = everything(shown.graph, clusters)
-    return { graph: shown.graph, targets: all.at, parents: null, regions: all.regions }
+    const sectors: Sector[] = []
+    return { graph: shown.graph, targets: all.at, parents: null, regions: all.regions, sectors }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shape, centre])
   const glided = useGlide(picture?.targets ?? null, !reduced)
@@ -389,7 +409,7 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
   const framed = useRef<string | null>(null)
   useEffect(() => {
     if (!picture || size.width <= 0 || framed.current === framing) return
-    const next = fitView(extentOf(picture), size.width, size.height)
+    const next = fitView(extentOf(picture), size.width, size.height, barSize.height)
     if (!next) return
     const from = framed.current === null || reduced ? null : view
     framed.current = framing
@@ -405,7 +425,7 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
       })
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [picture, framing, size.width, size.height, reduced])
+  }, [picture, framing, size.width, size.height, barSize.height, reduced])
 
   const toWorld = useCallback(
     (clientX: number, clientY: number) => {
@@ -517,7 +537,7 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
     })
 
   const bar = (
-    <div className="graph-bar">
+    <div className="graph-bar" ref={barRef}>
       <span className="view-switch" role="group" aria-label="What the graph shows">
         <button
           type="button"
@@ -583,7 +603,8 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
   const lit = hovered ? new Set([hovered, ...(near.get(hovered) ?? [])]) : null
   // Only when nothing is hovered: the hover names its own set and dims the rest, so
   // there is nothing to declutter against.
-  const hubs = new Set(picture.regions.map((region) => region.hub))
+  // A region's busiest note, always inside it, is named once: by the region.
+  const hubs = new Set(picture.regions.map((region) => region.members[0]))
   const names = lit || !placed ? EMPTY : decluttered(drawn, placed, k, currentId, hubs)
   // Constant on screen whatever the zoom: a hairline is a hairline, and a name has
   // one readable size. Positions scale, these do not.
@@ -618,7 +639,19 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
               <g key={region.members[0]} className="graph-region">
                 <circle cx={x} cy={y} r={region.r} strokeWidth={hair} />
                 <text x={x} y={y - region.r + REGION_PAD / 2} dominantBaseline="middle" fontSize={labelSize}>
-                  {shortName(drawn.byId.get(region.hub)!.name)}
+                  {shortName(drawn.byId.get(region.members[0])!.name)}
+                </text>
+              </g>
+            )
+          })}
+          {picture.sectors.map((sector) => {
+            // Past the rim, clear of the outer ring's names, which hang toward it below.
+            const name = polar(sector.outer + REGION_PAD / 2, (sector.from + sector.to) / 2)
+            return (
+              <g key={sector.members[0]} className="graph-region">
+                <path d={sectorPath(sector)} strokeWidth={hair} />
+                <text x={name.x} y={name.y} dominantBaseline="middle" fontSize={labelSize}>
+                  {shortName(shown!.graph.byId.get(sector.members[0])!.name)}
                 </text>
               </g>
             )
@@ -725,7 +758,7 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
         <button
           type="button"
           aria-label="Fit to view"
-          onClick={() => setView(fitView(extentOf(picture), size.width, size.height))}
+          onClick={() => setView(fitView(extentOf(picture), size.width, size.height, barSize.height))}
         >
           Fit
         </button>
