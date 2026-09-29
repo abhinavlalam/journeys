@@ -142,15 +142,15 @@ function Entry({
   onPress: () => void
 } & Opens) {
   const fields = fieldsOf(entry.text, tables, typeOf)
-  const block = entry.start !== null && entry.end !== null
+  const block = entry.end !== null
   // The group says what the entry's own tags do not: `#food` under `#diet`.
   const group = entry.group && !tagNames(entry.text).includes(entry.group) ? entry.group : null
   return (
     <li className={block ? 'timeline-entry block' : 'timeline-entry'} onClick={onPress}>
       <span className="timeline-when">
-        {entry.start !== null && clockText(entry.start)}
+        {clockText(entry.start)}
         {block && `–${clockText(entry.end!)}`}
-        {block && <span className="timeline-length">{lengthOf(entry.end! - entry.start!)}</span>}
+        {block && <span className="timeline-length">{lengthOf(entry.end! - entry.start)}</span>}
       </span>
       <span className="timeline-rail" aria-hidden />
       {editor || (

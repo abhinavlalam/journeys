@@ -18,12 +18,11 @@ export interface TimelineEntry {
   at: number
   /** The line as written, its indent off. */
   text: string
-  /** The line's leading clock, or `''` for an entry with none. */
+  /** The line's leading clock: a line without one is not an entry. */
   clock: string
-  /** Minutes into the day it starts — null with no clock — and, for a block of
-   *  time rather than a moment, ends: past 24 hours for a block that crosses
-   *  midnight. */
-  start: number | null
+  /** Minutes into the day it starts, and, for a block of time rather than a
+   *  moment, ends: past 24 hours for a block that crosses midnight. */
+  start: number
   end: number | null
   /** The group it is written under: the innermost heading's first tag. */
   group: string | null
@@ -57,9 +56,11 @@ interface Group {
 /**
  * A day's note read: its entries as written, and its groups.
  *
- * An entry is a line that is not a group's heading, and **what is nested under an
- * entry is its detail**, as a tag's page reads it. A heading's lines are its group's
- * however deep the headings nest; code is nobody's entry.
+ * **An entry is a line with a clock** that is not a group's heading, and what is
+ * nested under an entry is its detail, as a tag's page reads it. A line without a
+ * clock is neither an entry nor a place for one — the timeline is what happened
+ * when — so what is nested under it is read on its own. A heading's lines are its
+ * group's however deep the headings nest; code is nobody's entry.
  */
 function readDay(note: VaultFile, raw: string): { entries: TimelineEntry[]; groups: Group[] } {
   const lines = raw.split(/\r?\n/)
@@ -89,15 +90,16 @@ function readDay(note: VaultFile, raw: string): { entries: TimelineEntry[]; grou
       continue
     }
     const text = line.trim()
-    const clock = leadingClock(text) ?? ''
-    const [start = null, stop = null] = minutesOf(clock)
+    const clock = leadingClock(text)
+    if (!clock) continue
+    const [start, stop = null] = minutesOf(clock)
     const one: TimelineEntry = {
       note,
       at,
       text,
       clock,
       start,
-      end: start === null || stop === null ? null : stop < start ? stop + DAY_MINUTES : stop,
+      end: stop === null ? null : stop < start ? stop + DAY_MINUTES : stop,
       group: heads[heads.length - 1]?.name ?? null,
       below: [],
     }
@@ -107,12 +109,10 @@ function readDay(note: VaultFile, raw: string): { entries: TimelineEntry[]; grou
   return { entries, groups }
 }
 
-/** A day's entries in the order it happened: those with no clock first, as written,
- *  then by when they start — a tie keeps the order written. */
+/** A day's entries in the order it happened, by when they start; a tie keeps the
+ *  order written. */
 export function dayEntries(note: VaultFile, raw: string): TimelineEntry[] {
-  const { entries } = readDay(note, raw)
-  const timed = entries.filter((one) => one.start !== null).sort((a, b) => a.start! - b.start!)
-  return [...entries.filter((one) => one.start === null), ...timed]
+  return readDay(note, raw).entries.sort((a, b) => a.start - b.start)
 }
 
 /** The group an entry is filed under when none of its tags has one. */

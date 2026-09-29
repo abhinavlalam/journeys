@@ -45,7 +45,7 @@ import { EVENT, EVENT_PROPERTIES, eventLine } from './calendar'
 import { syncEvents } from './calendarSync'
 import { fetchFeed } from './calendarFeed'
 import { occurrences, parseIcs } from './ics'
-import { dayDate, daysAfter, leadingClock, localDateStamp, localTimeStamp } from './clock'
+import { dayDate, daysAfter, localDateStamp } from './clock'
 import { Resizer } from './Resizer'
 import { useContextMenu } from './useContextMenu'
 import { useFolderOpenState } from './useFolderOpenState'
@@ -782,14 +782,13 @@ export default function App() {
   }
 
   /** A new timeline entry, filed in today's note — made if it is not there yet —
-   *  where `withNewEntry` says. Stamped with the time when it has no clock, so it
-   *  lands where it was typed, at the end of the day. */
+   *  where `withNewEntry` says, and as typed: with no clock it is a line of the
+   *  note, and not on the timeline, which is what happened when. */
   async function addEntry(text: string) {
-    const line = leadingClock(text) ? text : `${localTimeStamp()} ${text}`
     await vault.mutate(
       async (v) => {
         const { file, created } = await ensureDailyNote(v, settings.dailyFolder)
-        const next = withNewEntry(file, await readVaultFile(file), line, ' '.repeat(settings.indentWidth))
+        const next = withNewEntry(file, await readVaultFile(file), text, ' '.repeat(settings.indentWidth))
         await writeVaultFile(file, next)
         return { file, created, next }
       },

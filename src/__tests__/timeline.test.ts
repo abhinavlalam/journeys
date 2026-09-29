@@ -31,9 +31,8 @@ describe('a day’s entries', () => {
     '',
   ].join('\n')
 
-  it('reads every group’s entries by clock, the ones with no clock first', () => {
+  it('reads every group’s entries by clock, and no line without one', () => {
     expect(summary(raw)).toEqual([
-      ['', 'timeline', 'Woke late.'],
       ['08:30', 'expense', '08:30 #expense amount:: 60'],
       ['08:45', 'diet', '08:45 #food item:: oats'],
       ['09:00', 'timeline', '09:00 standup'],
@@ -58,6 +57,10 @@ describe('a day’s entries', () => {
     ])
   })
 
+  it('reads a line with a clock nested under one without as an entry of its own', () => {
+    expect(summary(['Morning', '     08:00 run', '     stretched after'].join('\n'))).toEqual([['08:00', null, '08:00 run']])
+  })
+
   it('files an entry under the innermost of nested groups, and reads no code', () => {
     const nested = ['#diet', '     #supplement', '          08:00 omega', '     09:00 #food toast', '```', '10:00 not an entry', '```'].join('\n')
     expect(summary(nested)).toEqual([
@@ -68,12 +71,13 @@ describe('a day’s entries', () => {
 })
 
 describe('the days', () => {
-  it('are the daily notes with anything in them, oldest first, and nothing else', () => {
+  it('are the daily notes with an entry in them, oldest first, and nothing else', () => {
     const days = timelineDays(
       [
         { note: note('Daily/2026-09-22.md'), text: '09:00 run\n' },
         { note: note('Daily/2026-09-20.md'), text: '08:00 tea\n' },
         { note: note('Daily/2026-09-21.md'), text: 'mood:: calm\n' },
+        { note: note('Daily/2026-09-23.md'), text: 'Woke late.\n' },
         { note: note('Daily/Daily.md'), text: '09:00 not a day\n' },
         { note: note('Plans.md'), text: '09:00 not a day either\n' },
       ],

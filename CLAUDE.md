@@ -326,8 +326,10 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 - **The daily notes as each day happened**, oldest first and today at the bottom;
   the page opens at its end. The owner writes a day by kind — a line of tags alone
   heads a group (`#timeline`, `#expense`, `#diet`), its entries nested under it —
-  and the timeline reads it by clock across the groups: untimed first as written,
-  then by start, a tie as written. What is nested under an entry is its detail.
+  and the timeline reads it by clock across the groups, a tie as written. **An
+  entry is a line with a clock** (the owner's choice: the timeline is what happened
+  when); what is nested under one is its detail, and a line without a clock is
+  neither an entry nor a place for one, so what is nested under it reads on its own.
 - **A moment and a block read apart**: one clock is a dot on the rail, a range
   (`to`, `-`, `–`, `—`) a bar with its length, and one that ends before it starts
   ran past midnight.
@@ -348,9 +350,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   `withNewEntry` files it as the day is written — under the group its tag heads,
   else where its tag's entries already are (`#food` under `#diet`), else
   `#timeline`, made at the end if missing — after the group's last line, indented
-  as its lines are. With no clock it is stamped with the time, or it would sort to
-  the top of the day it was typed at the bottom of. Today's note is made then, with
-  the icon only, as ⌘⇧O makes it.
+  as its lines are. It is filed as typed: with no clock it is a line of the note,
+  not on the timeline (it was stamped with the time, and the owner asked for it
+  not to be). Today's note is made then, with the icon only, as ⌘⇧O makes it.
 
 ## Sync
 

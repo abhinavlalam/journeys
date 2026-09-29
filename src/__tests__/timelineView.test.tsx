@@ -104,15 +104,21 @@ describe('the timeline', () => {
     expect(disk.read('/v/Daily/2026-09-21.md')).toBe(before)
   })
 
-  it('files a new entry typed at the bottom of today, making the day and stamping the time', async () => {
+  it('files a new entry typed at the bottom of today as typed, making the day; with no clock, it is off the timeline', async () => {
     await openTimeline()
-    const field = lineIn(days()[2])!
-    fireEvent.change(field, { target: { value: 'coffee with [[Mira Vance]]' } })
-    fireEvent.keyDown(field, { key: 'Enter' })
-    await waitFor(() => expect(disk.read(today())).toMatch(/^#timeline\n {4}\d\d:\d\d coffee with \[\[Mira Vance\]\]\n$/))
-    await waitFor(() => expect(entries(days()[2])[0][1]).toBe('coffee with Mira Vance'))
-    // And a fresh line for the next.
+    const type = (text: string) => {
+      const field = lineIn(days()[2])!
+      fireEvent.change(field, { target: { value: text } })
+      fireEvent.keyDown(field, { key: 'Enter' })
+    }
+    type('coffee with [[Mira Vance]]')
+    await waitFor(() => expect(disk.read(today())).toBe('#timeline\n    coffee with [[Mira Vance]]\n'))
+    // A fresh line for the next, and nothing on the timeline for a line with no time.
     expect(lineIn(days()[2])!.value).toBe('')
+    expect(entries(days()[2])).toEqual([['', '', '', 'moment']])
+    type('10:00 call with [[Mira Vance]]')
+    await waitFor(() => expect(entries(days()[2])[0]).toEqual(['10:00', 'call with Mira Vance', 'timeline', 'moment']))
+    expect(disk.read(today())).toBe('#timeline\n    coffee with [[Mira Vance]]\n    10:00 call with [[Mira Vance]]\n')
   })
 
   it('files a new entry under its tag’s group in today’s note, and keeps a draft on leaving', async () => {
