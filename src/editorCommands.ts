@@ -6,9 +6,9 @@
 
 import { EditorSelection, type EditorState, type Line } from '@codemirror/state'
 import { EditorView, type Command } from '@codemirror/view'
-import { getIndentUnit, syntaxTree } from '@codemirror/language'
-import type { SyntaxNode } from '@lezer/common'
+import { getIndentUnit } from '@codemirror/language'
 import { localTimeStamp } from './clock'
+import { indentOf } from './prose'
 
 /**
  * Wrap the selection in `marker`, or unwrap it if it is already wrapped.
@@ -92,92 +92,7 @@ function cmKey(combo: string): string | null {
   return [...mods, key].join('-')
 }
 
-/**
- * A list line, and where the item's own text starts.
- *
- * `LIST_LINE` is markdown's marker: a bullet or `1.`/`1)`, then the space that ends
- * it. The whole match's length is the item's **content column**, which is the one
- * number CommonMark nesting is expressed in — a child's marker sits at the
- * parent's content column, and **at most three spaces past it**, or the line stops
- * being a list and becomes an indented code block.
- */
-const LIST_LINE = /^([ \t]*)([-*+]|\d{1,9}[.)])([ \t]+)/
-
-function contentColumn(text: string): number | null {
-  const found = LIST_LINE.exec(text)
-  return found ? found[0].length : null
-}
-
-function indentOf(text: string): number {
-  const at = text.search(/\S/)
-  return at < 0 ? text.length : at
-}
-
-/**
- * **Tab inside a list nests the item; the indent setting has nothing to say about
- * it.** A child's marker goes at the previous item's content column, which is
- * markdown's rule and the only depth that stays a list.
- *
- * `indentWithTab` — the general Tab — inserts one indent width, and at the
- * vault's own `indentWidth: 6` that put a child's marker six spaces past a parent
- * whose content column was two: four past the limit, so the line parsed as code
- * inside the item. It lost its bullet, and Enter from it continued nothing and
- * copied whitespace instead, which is a caret arriving at an indent nobody chose.
- *
- * Declines when the line is not an item, or when it is already as deep as the item
- * above allows — a list cannot skip a level — and the general Tab takes over.
- */
-export const indentListItem: Command = ({ state, dispatch }) => {
-  const item = itemAt(state)
-  if (!item) return false
-  for (const above of linesAbove(state, item.line)) {
-    const column = contentColumn(above.text)
-    // Not a list above, or a shallower item's own parent: nothing to nest under.
-    if (column === null || indentOf(above.text) > item.indent) return false
-    if (column <= item.indent) return false
-    dispatch(shift(state, item, column - item.indent, 'input.indent'))
-    return true
-  }
-  return false
-}
-
-/** Shift-Tab: back out to the level of the item this one sits under. */
-export const outdentListItem: Command = ({ state, dispatch }) => {
-  const item = itemAt(state)
-  if (!item || item.indent === 0) return false
-  let target = 0
-  for (const above of linesAbove(state, item.line)) {
-    if (contentColumn(above.text) === null) break
-    const at = indentOf(above.text)
-    if (at < item.indent) {
-      target = at
-      break
-    }
-  }
-  dispatch(shift(state, item, target - item.indent, 'delete.dedent'))
-  return true
-}
-
-/**
- * **A block is not only a list item.** Reported after the list case was fixed, and
- * the report was word for word the same: only the first line of a block indents. A
- * journal entry is the other kind of block this app has — "a line that opens with a
- * clock starts one", and `collectLines` gathers *any* line with the run nested under
- * it — and it carries no list marker, so `indentListItem` declined and the general
- * Tab moved the caret's line alone. Measured through the real keymap:
- *
- *     10:00 - Making release-notes       ->    "  10:00 - Making release-notes
- *           more detail                                 more detail
- *           and more                                    and more
- *
- * — the head indented and its own run left behind, which is the block pulled apart.
- *
- * So this sits between `indentListItem` and the general Tab: a **non-list** line
- * that heads a run moves with it, by one indent width, because that is what an
- * indent means outside a list. Everything else falls through — a plain line with
- * nothing under it, and any selection, are `indentMore`'s, which already handles
- * every line it is given.
- */
+/** Tab on a line with lines nested under it: the whole block moves one indent width. */
 const indentBlock: Command = ({ state, dispatch }) => {
   const block = blockAt(state)
   if (!block) return false
@@ -185,7 +100,7 @@ const indentBlock: Command = ({ state, dispatch }) => {
   return true
 }
 
-/** Shift-Tab's half: out by one indent width, and `shift` clamps each line at 0. */
+/** Shift-Tab on such a line: the block moves out one indent width. */
 const outdentBlock: Command = ({ state, dispatch }) => {
   const block = blockAt(state)
   if (!block || block.indent === 0) return false
@@ -193,52 +108,16 @@ const outdentBlock: Command = ({ state, dispatch }) => {
   return true
 }
 
-/**
- * A non-list line that **heads a run**, or null.
- *
- * Three refusals, each so something else keeps working. A **selection** is
- * `indentMore`'s, which indents every line it is given; a **list item** is
- * `indentListItem`'s, whose depth is markdown's rather than the indent setting; and
- * a line with **nothing deeper under it** is an ordinary line the general Tab
- * indents on its own. What is left is exactly the case that was broken.
- */
+/** The line the caret is on when it heads a run of deeper lines, or null. A selection is
+ *  left to `indentMore`, and a line with nothing under it to the general Tab. */
 function blockAt(state: EditorState): { line: Line; indent: number; last: Line } | null {
   const range = state.selection.main
   if (!range.empty) return null
   const line = state.doc.lineAt(range.from)
-  if (line.text.trim() === '' || contentColumn(line.text) !== null) return null
+  if (line.text.trim() === '') return null
   const indent = indentOf(line.text)
   const last = runUnder(state, line, indent)
   return last.number === line.number ? null : { line, indent, last }
-}
-
-/**
- * The list item Tab is about, and **every line that moves with it**.
- *
- * Reported as only the first line of a block indenting. Two ways of asking for more
- * than one line, and both were broken because this read `selection.main.head` and
- * nothing else:
- *
- * - **A selection over several lines.** Only the caret's line moved, so indenting a
- *   run of items reindented one of them and broke the list. (Whichever one the head
- *   happened to be on — measured, selecting two items and pressing Tab moved the
- *   *second*.)
- * - **An item with lines nested under it.** A list item and its children are one
- *   thing on screen: nesting the parent and leaving the children where they are
- *   turns one subtree into two siblings. The run is the same rule `gatherLines`
- *   gathers a tagged line's block with — lines deeper than the first, blanks not
- *   breaking it — so "block" means the same thing in both places.
- *
- * `first` is what the depth is decided from, because a list's rules are about where
- * a marker may sit relative to the item *above* it; the rest keep their offsets so
- * the shape inside the block survives the move.
- */
-function itemAt(state: EditorState): { line: Line; indent: number; last: Line } | null {
-  const range = state.selection.main
-  const line = state.doc.lineAt(range.from)
-  if (contentColumn(line.text) === null) return null
-  const indent = indentOf(line.text)
-  return { line, indent, last: range.empty ? runUnder(state, line, indent) : state.doc.lineAt(range.to) }
 }
 
 /** The last line of the block `line` heads: the deepest run below it, blanks
@@ -252,15 +131,6 @@ function runUnder(state: EditorState, line: Line, indent: number): Line {
     last = next
   }
   return last
-}
-
-/** The lines above, nearest first, **skipping blanks**: a blank line does not end
- *  a list, so it must not end the search for the item this one nests under. */
-function* linesAbove(state: EditorState, from: Line): Generator<Line> {
-  for (let n = from.number - 1; n >= 1; n--) {
-    const above = state.doc.line(n)
-    if (above.text.trim() !== '') yield above
-  }
 }
 
 /**
@@ -290,63 +160,51 @@ const shift = (
   return state.update({ changes, userEvent })
 }
 
+/** A list line: its indent, then a bullet or a number with its `.` or `)`, the space
+ *  after it, and a task's box if it has one. */
+const LIST_ITEM = /^([ \t]*)(?:([-*+])|(\d{1,9})([.)]))([ \t]+)(\[.\][ \t]+)?/
+
 /**
- * Enter keeps the indent of the line you are on. Markdown's Enter would indent to
- * the enclosing list item's column instead.
+ * Enter, for a note written as plain indented lines:
  *
- * A line markdown reads as a list item is left to markdown, which continues the
- * marker. An indented bullet it reads as code gets its marker carried here, and an
- * empty one ends the list. A line with no indent is left alone.
+ * - on a list line, the next line starts with the same indent and marker (the next
+ *   number for a numbered one, an empty box for a task);
+ * - on an empty item, the marker goes and the indent stays;
+ * - on an empty indented line, the line moves out one indent width;
+ * - on any other indented line, the next line keeps the indent;
+ * - before a line's text, a blank line opens above it.
+ *
+ * A line with no indent and no marker is left to markdown's Enter.
  */
 export const continueIndent: Command = ({ state, dispatch }) => {
   const range = state.selection.main
   if (!range.empty) return false
   const line = state.doc.lineAt(range.head)
-  if (contentColumn(line.text) !== null && inList(state, line.from)) return false
   const lead = line.text.slice(0, indentOf(line.text))
-  if (!lead) return false
-  // An indented bullet markdown reads as code: carry the marker, or end the list on
-  // an empty one.
-  const bullet = BULLET_LINE.exec(line.text)?.[0]
-  if (bullet && line.text === bullet) {
-    dispatch(state.update({ changes: { from: line.from, to: line.to, insert: lead }, userEvent: 'input' }))
+  const item = LIST_ITEM.exec(line.text)
+  const write = (from: number, to: number, insert: string) => {
+    dispatch(
+      state.update({
+        changes: { from, to, insert },
+        selection: { anchor: from + insert.length },
+        userEvent: 'input',
+        scrollIntoView: true,
+      })
+    )
     return true
   }
-  const next = bullet ?? lead
-  dispatch(
-    state.update({
-      changes: { from: range.head, insert: `\n${next}` },
-      selection: { anchor: range.head + 1 + next.length },
-      userEvent: 'input',
-      scrollIntoView: true,
-    })
-  )
-  return true
+  if (!item && !lead) return false
+  if (item && line.text === item[0]) return write(line.from, line.to, lead)
+  if (line.text === lead) return write(line.from, line.to, lead.slice(0, Math.max(0, lead.length - getIndentUnit(state))))
+  if (range.head < line.from + (item ? item[0].length : lead.length)) return write(line.from, line.from, '\n')
+  const marker = item ? (item[2] ?? `${Number(item[3]) + 1}${item[4]}`) + item[5] + (item[6] ? '[ ] ' : '') : ''
+  return write(range.head, range.head, `\n${lead}${marker}`)
 }
 
-/** An indent, a `-`, `*` or `+`, and the space after it. */
-const BULLET_LINE = /^[ \t]+[-*+][ \t]+/
-
-/** Whether markdown reads the line at `from` as a list item, whose marker it continues. */
-function inList(state: EditorState, from: number): boolean {
-  for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(from, 1); node; node = node.parent) {
-    if (node.name === 'ListItem') return true
-  }
-  return false
-}
-
-/** The keys that write syntax — Enter and Tab in a list, ⌘B/⌘I/⌘E, `[` and `<` over a
- *  selection — ahead of `defaultKeymap`, so a binding there cannot shadow them. */
 export const formatKeymap = [
-  // Ahead of the markdown keymap, whose Enter answers for the block the line is
-  // in rather than for the line.
+  // Ahead of the markdown keymap, whose Enter follows the list the line is in.
   { key: 'Enter', run: continueIndent },
-  // Ahead of `indentWithTab`, which is the host's: inside a list the depth is
-  // markdown's to define, and outside one Tab is still an indent.
-  { key: 'Tab', run: indentListItem },
-  { key: 'Shift-Tab', run: outdentListItem },
-  // Between the list's Tab and the host's: a journal block is a block too, and its
-  // run has to move with its head. Both decline unless that is the case.
+  // Ahead of the host's Tab: a line with lines under it moves with them.
   { key: 'Tab', run: indentBlock },
   { key: 'Shift-Tab', run: outdentBlock },
   { key: 'Mod-b', run: toggleMarker('**') },

@@ -1,28 +1,26 @@
 import { useCallback, useEffect, useState } from 'react'
 
-/** One thing the app said, and when. */
+/** A message the app showed, and when. */
 export interface LogItem {
   at: number
   text: string
 }
 
-/** How long a message stays at the bottom of the window: long enough to read, and
- *  it is in the Log after. It stayed until dismissed, over rounds that had since
- *  gone through. */
+/** How long a message stays on screen. After that it is only in the Log. */
 export const SHOWN_MS = 8000
 
 /**
- * **What the app says**: each message shown at the bottom of the window for a
- * while, and every one kept in the Log for the window's life — in memory, as
- * nothing but the notes is stored. `said` is the latest until `say(null)` puts it
- * away, timer or not, for the one screen with no Log to look in: the one before a
- * vault is open.
+ * Messages the app shows. Each one appears at the bottom of the window for a while
+ * and is kept in the Log until the window closes (in memory only).
+ *
+ * `said` is the latest message until `say(null)` clears it. The screen before a
+ * vault is open uses it, because that screen has no Log.
  */
 export function useLog() {
   const [items, setItems] = useState<LogItem[]>([])
   const [said, setSaid] = useState<LogItem | null>(null)
   const [shown, setShown] = useState<LogItem | null>(null)
-  // Stable, as the setter it replaced was: effects and props hold it.
+  // Keep `say` stable: effects and props depend on it.
   const say = useCallback((text: string | null) => {
     const item = text === null ? null : { at: Date.now(), text }
     if (item) setItems((was) => [...was, item])

@@ -71,52 +71,6 @@ afterEach(() => {
 
 // ---------------------------------------------------------------------------
 
-/**
- * The gap between a list marker and its text, and the step the text sits on.
- *
- * The step is a **measurement**: the indent in a note is space characters and the
- * prose face is proportional, so it has no width CSS can name. `applySettings` is
- * where it is taken, because that already runs on every change to the face and the
- * size — the only two things the answer depends on.
- */
-describe('the list marker’s gap', () => {
-  it('is a setting, clamped like the rest', () => {
-    expect(parseSettings(JSON.stringify({ markerGap: 0.4 })).markerGap).toBe(0.4)
-    expect(parseSettings(JSON.stringify({ markerGap: -5 })).markerGap).toBe(BOUNDS.markerGap.min)
-    expect(parseSettings(JSON.stringify({ markerGap: 500 })).markerGap).toBe(BOUNDS.markerGap.max)
-    expect(parseSettings('{}').markerGap).toBe(DEFAULT_SETTINGS.markerGap)
-    expect(parseSettings(JSON.stringify({ markerGap: 'wide' })).markerGap).toBe(
-      DEFAULT_SETTINGS.markerGap
-    )
-  })
-
-  /**
-   * **The gap is a share of the step, so it cannot be the whole step.** It was
-   * pixels, and 6px of gap against a 2-space step of 7.16px left a 1.16px box for
-   * the marker — measured in Chrome, every list's text sat off the grid.
-   */
-  it('reaches the page as a share of the step, which scales with the indent', () => {
-    const root = document.createElement('div')
-    applySettings({ ...DEFAULT_SETTINGS, markerGap: 0.25, indentWidth: 4 }, root)
-    // Four spaces of *something*: jsdom lays nothing out, so the fallback answers
-    // — what matters here is that the token is written and scales with the indent.
-    const four = parseFloat(root.style.getPropertyValue('--indent-step'))
-    expect(parseFloat(root.style.getPropertyValue('--marker-gap'))).toBeCloseTo(four * 0.25, 5)
-
-    applySettings({ ...DEFAULT_SETTINGS, markerGap: 0.25, indentWidth: 8 }, root)
-    const eight = parseFloat(root.style.getPropertyValue('--indent-step'))
-    expect(eight).toBeCloseTo(four * 2, 5)
-    // And the gap doubles with it, because it is measured in steps.
-    expect(parseFloat(root.style.getPropertyValue('--marker-gap'))).toBeCloseTo(eight * 0.25, 5)
-  })
-
-  /** A gap can never eat the step the marker sits in: half of one is the end of
-   *  the slider, and a stored 6 — the old pixel default — clamps to it. */
-  it('cannot be wider than half a step', () => {
-    expect(BOUNDS.markerGap.max).toBeLessThanOrEqual(0.5)
-    expect(parseSettings(JSON.stringify({ markerGap: 6 })).markerGap).toBe(BOUNDS.markerGap.max)
-  })
-})
 
 describe('the defaults', () => {
   it('are what index.css already renders', () => {

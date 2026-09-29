@@ -234,17 +234,18 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   false })`**: each adds its keys above anything passed; the one array in
   `MarkdownEditor` is the whole precedence (its props reach the extensions through
   one `latest` ref). Enter over a property's name is a new line, since a line may
-  end at its tag. Tab: a popup's pick → list item (markdown's content-column rule, at most three
-  past it) → block (a line heading a deeper run) → one indent width. Enter keeps a
-  line's own indent (`continueIndent`), and an indented `- ` markdown reads as
-  code keeps its marker too. **Test keys through the real keymap**; a
+  end at its tag. Tab: a popup's pick → block (a line heading a deeper run) → one
+  indent width. Enter (`continueIndent`): a list line gets the same marker on the
+  next line (the next number), an empty item loses its marker, an empty indented
+  line moves out one indent width, and any other indented line keeps its indent.
+  **Test keys through the real keymap**; a
   command tested by direct call is a binding nobody tested. A popup refuses keys
   for its first 75 ms (`interactionDelay`), so a key test moves `Date.now` past it,
   or an Enter test passes for the wrong reason.
-- **Hanging indent is a length** on `.cm-md-hang`: a list item by
-  `(level + 1) × --indent-step`, indented prose by its spaces × `--space-w`. A
-  marker's box is one step wide, the gap inside it; the inherited `text-indent`
-  is load-bearing (resetting it pushes `10.` off the grid).
+- **List markers are shown as typed**: nothing draws a bullet or boxes a number
+  (the owner prefers the raw lines). An indented line's wrapped rows hang by its
+  spaces × `--space-w` (`.cm-md-hang`). An inline-block in the line, like the
+  checkbox, inherits the negative `text-indent` and has to reset it.
 - **The prose inset is on `.cm-line`**, where CodeMirror's selection geometry reads
   it; on `.cm-content` the drawn selection spanned the pane.
 - **The caret is CodeMirror's**: `drawSelection` writes its geometry inline.
@@ -263,8 +264,8 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   — not size, weight, family or line. The clock is `--text-dim` and tabular; a
   tag and a link take `--mark`, underlined only under the pointer.
 - Tasks are a scan of the line (Obsidian's states, any single character); the
-  checkbox replaces the bullet and is always drawn. Done text is `--text-dim`, not
-  struck (`~~` is its own syntax).
+  checkbox replaces `[ ]`, at any indent but not in fenced code, and is always
+  drawn. Done text is `--text-dim`, not struck (`~~` is its own syntax).
 - `/` opens where a tag's `#` does (line start or after a space) and offers blocks
   only where a block can begin. `[` over a selection makes a link. Backspace
   inside a fresh `[[]]` takes all four characters.
@@ -491,8 +492,8 @@ may live in a synced folder, and a debug build is ~2.7 GB.
     an element that shrinks its em divides by `--glyph-num`.
 - `--mark` is the one accent tone, chrome and prose alike. Glyphs state only their
   grid (`GRID_10/16/24`); `--icon-weight` turns into the stroke.
-- `--indent-step` is the one measured value (`applySettings`), because a note's
-  indent is spaces in a proportional face.
+- `--space-w` is the one measured value (`applySettings`), because a note's indent
+  is spaces in a proportional face.
 
 ## What will bite
 
@@ -546,7 +547,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   the old `calendar` action kind, `fitToBox`, line numbers off notes, a serif
   display family, and `--keyword` collections with their `<<slots>>` and
   `collections.json` (2026-09-28: a tag's structure and typed `::` properties do
-  their work, and the vault was migrated).
+  their work, and the vault was migrated), and drawn list bullets, number boxes,
+  markdown's list nesting for Tab and the Marker gap setting (2026-09-29: the
+  owner prefers raw list lines).
 - **Still open**: at `--fw-prose` 600, `####` and below stop reading as headings;
   folders are not pickable; the graph's Everything repels every pair of nodes each
   step (`stepLayout`, then `spread`), fine at hundreds of notes and slow at

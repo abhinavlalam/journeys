@@ -578,16 +578,6 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
                   onChange={(indentWidth) => patch({ indentWidth })}
                   format={(value) => `${readout(value)} spaces`}
                 />
-                {/* A share of one step, not pixels: see `settings.ts`. */}
-                <Slider
-                  uid={uid}
-                  name="marker"
-                  label="Marker gap"
-                  bounds={BOUNDS.markerGap}
-                  value={settings.markerGap}
-                  onChange={(markerGap) => patch({ markerGap })}
-                  format={(value) => `${Math.round(value * 100)}%`}
-                />
               </section>
             )}
 

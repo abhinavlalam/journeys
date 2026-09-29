@@ -4,11 +4,7 @@ import { countOf, NoteRow, RowIcon, Section, stepIn } from './rows'
 import type { LogItem } from './useLog'
 import { ViewerHeader } from './ViewerHeader'
 
-/**
- * The Log: everything the app has said in this window — a sync that failed, a
- * write refused, two devices' edits kept apart — oldest at the top and the latest
- * at the bottom, where the page opens, as the timeline reads.
- */
+/** Everything the app has said in this window, oldest first. Opens at the bottom. */
 export function LogView({ items }: { items: readonly LogItem[] }) {
   const end = useRef<HTMLLIElement>(null)
   useEffect(() => {

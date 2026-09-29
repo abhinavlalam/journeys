@@ -43,8 +43,6 @@ import { codeFolding, foldEffect, indentUnit } from '@codemirror/language'
 import { MarkdownEditor, caretOnOpen } from '../MarkdownEditor'
 import {
   continueIndent,
-  indentListItem,
-  outdentListItem,
   toggleMarker,
   deleteWikiLinkPair,
   wrapInWikiLink,
@@ -320,30 +318,10 @@ describe('Live Preview', () => {
    * outdent it. Revealing it meant typing `- ` showed a hyphen for as long as the
    * caret stayed on that line, which is every moment you are writing the item.
    */
-  it('stands a bullet in for the marker, caret on the line or not', () => {
-    expect(all(stateOf('- see [[Pingbird]]\n', 0))).toEqual([
-      'bullet@0-2',
-      'cm-md-hang@0-0',
-      'cm-md-link@6-18',
-      'hidden@6-8',
-      'hidden@16-18',
-    ])
-    // The caret at the end of the line is *on* the link, so its brackets are back
-    // — but the bullet is still a bullet, which is the point of this one.
-    expect(all(stateOf('- see [[Pingbird]]\n', 18))).toEqual([
-      'bullet@0-2',
-      'cm-md-hang@0-0',
-      'cm-md-link@6-18',
-    ])
-  })
-
-  /**
-   * A number stays characters, and is *boxed* rather than replaced: a reader needs
-   * it, and the caret has to be able to get inside to renumber the item. The box is
-   * what puts its text on the same column a bullet's does.
-   */
-  it("boxes an ordered list's number without taking it away", () => {
-    expect(all(stateOf('1. first\n', 8))).toEqual(['cm-md-number@0-3', 'cm-md-hang@0-0'])
+  /** A list marker is shown as typed, at the margin or indented. */
+  it('leaves a list marker as typed', () => {
+    expect(all(stateOf('- see [[Pingbird]]\n', 0))).toEqual(['cm-md-link@6-18', 'hidden@6-8', 'hidden@16-18'])
+    expect(all(stateOf('1. first\n', 8))).toEqual([])
   })
 
   /**
@@ -373,38 +351,25 @@ describe('Live Preview', () => {
    * which that grammar reads as ordinary text. So the line is scanned, any single
    * character is a state, and one the app draws no glyph for is drawn as itself.
    */
-  it('draws a checkbox in place of the bullet, and dims a done item', () => {
-    // One marker per item: the box replaces `- [ ] ` whole, so the words still
-    // land on the grid stop a plain bullet's would.
-    expect(all(stateOf('- [ ] milk\n', 0))).toEqual(['task@0-6', 'cm-md-hang@0-0'])
-    expect(all(stateOf('- [x] milk\n', 0))).toEqual([
-      'task@0-6',
-      'cm-md-hang@0-0',
-      'cm-md-task-done@6-10',
-    ])
+  it('draws a checkbox for the box, leaves the marker, and dims a done item', () => {
+    expect(all(stateOf('- [ ] milk\n', 0))).toEqual(['task@2-6'])
+    expect(all(stateOf('- [x] milk\n', 0))).toEqual(['task@2-6', 'cm-md-task-done@6-10'])
     // A state with no glyph is still a task, and is not dimmed.
-    expect(all(stateOf('- [>] milk\n', 0))).toEqual(['task@0-6', 'cm-md-hang@0-0'])
+    expect(all(stateOf('- [>] milk\n', 0))).toEqual(['task@2-6'])
+    expect(all(stateOf('1. [ ] first\n', 0))).toEqual(['task@3-7'])
   })
 
-  /**
-   * **Never revealed.** A checkbox has to be pressable whether or not the caret is
-   * in the line — `.cm-md-tag`'s property, for the same reason — and a box
-   * that turned back into three characters when you clicked into the item would be
-   * un-pressable exactly while it was being written.
-   */
+  /** The box stays drawn with the caret in the line, so it can be pressed while the
+   *  line is being written. */
   it('keeps the box drawn with the caret in the line', () => {
-    expect(all(stateOf('- [ ] milk\n', 8))).toEqual(['task@0-6', 'cm-md-hang@0-0'])
-    expect(all(stateOf('- [ ] milk\n', 3))).toEqual(['task@0-6', 'cm-md-hang@0-0'])
+    expect(all(stateOf('- [ ] milk\n', 8))).toEqual(['task@2-6'])
+    expect(all(stateOf('- [ ] milk\n', 3))).toEqual(['task@2-6'])
   })
 
-  /** An ordered item's number is content and stays, so the box takes no grid width
-   *  of its own and the checkbox follows the number as a word would. */
-  it('leaves an ordered item its number and boxes the task after it', () => {
-    expect(all(stateOf('1. [ ] first\n', 0))).toEqual([
-      'cm-md-number@0-3',
-      'cm-md-hang@0-0',
-      'task@3-7',
-    ])
+  it('draws a task at any indent, and not in fenced code', () => {
+    const tasks = (doc: string) => all(stateOf(doc, 0)).filter((one) => one.startsWith('task@'))
+    expect(tasks('     - [ ] milk\n')).toEqual(['task@7-11'])
+    expect(tasks('```\n- [ ] milk\n```\n')).toEqual([])
   })
 
   /** The lookahead for a space is what keeps these two from being tasks: one opens
@@ -468,38 +433,9 @@ describe('Live Preview', () => {
     expect(styleAt(stateOf('\n\n', 0), 0)).toBe('')
   })
 
-  /** One line, one `--hang`: a list item takes its depth from the tree and the
-   *  sweep skips it, or the two would fight over the same line. */
-  it('does not give a list line two hangs', () => {
-    const doc = '  - two spaces in\n'
-    expect(styleAt(stateOf(doc, 0), 0)).toBe('--hang: calc(1 * var(--indent-step))')
-  })
-
-  it('reads a nested item’s level off the tree, not off its spaces', () => {
-    const doc = '- one\n  - two\n    - three\n'
-    const wide = stateOf(doc, 0, 0, 6)
-    // `--hang` is a **length**, because two kinds of line hang and they measure
-    // differently: a list item by its markdown depth in steps, an indented prose
-    // line by the width of the spaces it carries.
-    expect(styleAt(wide, doc.indexOf('- one'))).toBe('--hang: calc(1 * var(--indent-step))')
-    expect(styleAt(wide, doc.indexOf('  - two') + 2)).toBe(
-      'min-width:max(0px, calc(2 * var(--indent-step) - 2 * var(--space-w)))'
-    )
-    // The line's hang is the level too, so a wrapped row starts under the text.
-    expect(styleAt(wide, doc.indexOf('  - two'))).toBe('--hang: calc(2 * var(--indent-step))')
-    expect(styleAt(wide, doc.indexOf('    - three'))).toBe(
-      '--hang: calc(3 * var(--indent-step))'
-    )
-
-    // And the indent setting does not change any of it: the same document, a step
-    // of two, and the same three levels.
-    const tight = stateOf(doc, 0, 0, 2)
-    expect(styleAt(tight, doc.indexOf('    - three'))).toBe(
-      '--hang: calc(3 * var(--indent-step))'
-    )
-    expect(styleAt(tight, doc.indexOf('    - three') + 4)).toBe(
-      'min-width:max(0px, calc(3 * var(--indent-step) - 4 * var(--space-w)))'
-    )
+  it('hangs a list line by its own spaces, as any indented line', () => {
+    expect(styleAt(stateOf('  - two\n', 0), 0)).toBe('--hang: calc(2 * var(--space-w))')
+    expect(styleAt(stateOf('- one\n', 0), 0)).toBe('')
   })
 
   /**
@@ -663,16 +599,18 @@ describe('Enter on an indented line', () => {
     expect(after.doc).toBe('- one\n      note \n      text')
   })
 
-  it('leaves a list item’s own line to markdown, which continues the marker', () => {
-    expect(run(continueIndent, stateOf('- one', 5, 5, 6)).handled).toBe(false)
-    expect(run(continueIndent, stateOf('  - one', 7, 7, 6)).handled).toBe(false)
-    expect(run(continueIndent, stateOf('  1. one', 8, 8, 6)).handled).toBe(false)
-    // And an empty item, which markdown ends rather than continues.
-    expect(run(continueIndent, stateOf('- ', 2, 2, 6)).handled).toBe(false)
+  it('continues a list line at the margin, and ends it on an empty item', () => {
+    expect(run(continueIndent, stateOf('- one', 5, 5, 6)).doc).toBe('- one\n- ')
+    expect(run(continueIndent, stateOf('  1. one', 8, 8, 6)).doc).toBe('  1. one\n  2. ')
+    expect(run(continueIndent, stateOf('- [x] done', 10, 10, 6)).doc).toBe('- [x] done\n- [ ] ')
+    expect(run(continueIndent, stateOf('- ', 2, 2, 6)).doc).toBe('')
   })
 
-  /** An indented `- ` line is code to markdown, so markdown's Enter adds no marker. */
-  describe('on an indented bullet markdown reads as code', () => {
+  it('opens a blank line above when Enter is pressed before the text', () => {
+    expect(run(continueIndent, stateOf('     - milk', 0, 0, 5)).doc).toBe('\n     - milk')
+  })
+
+  describe('on an indented list line', () => {
     const enter = (doc: string) => {
       const { container } = render(<MarkdownEditor initialMarkdown={doc} onChange={() => {}} indentWidth={5} />)
       const view = EditorView.findFromDOM(container.querySelector('.cm-editor') as HTMLElement)!
@@ -693,8 +631,12 @@ describe('Enter on an indented line', () => {
       expect(enter('     - milk\n     - ')).toBe('     - milk\n     ')
     })
 
-    it('keeps the indent of a numbered line markdown reads as code', () => {
-      expect(enter('     1. one')).toBe('     1. one\n     ')
+    it('writes the next number on a numbered line', () => {
+      expect(enter('     1. one')).toBe('     1. one\n     2. ')
+    })
+
+    it('ends the list, then moves out a level, on each Enter after', () => {
+      expect(enter('     - milk\n     ')).toBe('     - milk\n')
     })
   })
 
@@ -703,108 +645,9 @@ describe('Enter on an indented line', () => {
     expect(run(continueIndent, stateOf('plain', 5, 5, 6)).handled).toBe(false)
   })
 
-  it('keeps a blank indented line’s indent, rather than dropping to the margin', () => {
-    const after = run(continueIndent, stateOf('      ', 6, 6, 6))
-    expect(after.doc).toBe('      \n      ')
-  })
-})
-
-describe('Tab inside a list', () => {
-  const nested = (doc: string, at: number, width: number) =>
-    run(indentListItem, stateOf(doc, at, at, width))
-
-  /**
-   * **Tab moves the whole block, not the line the caret is on.** Reported as only
-   * the first line of a block indenting. Both ways of asking for more than one line
-   * were broken, because the commands read `selection.main.head` and nothing else.
-   */
-  describe('over more than one line', () => {
-    it('moves every line of a selection, keeping the shape inside it', () => {
-      const doc = '- one\n- two\n- three\n'
-      const from = doc.indexOf('- two')
-      const to = doc.indexOf('- three') + '- three'.length
-      const after = run(indentListItem, stateOf(doc, from, to, 2))
-      expect(after.handled).toBe(true)
-      // Measured before the fix: only `- three` moved, because the head was on it.
-      expect(after.doc).toBe('- one\n  - two\n  - three\n')
-    })
-
-    /** A delta and not a column, so the nesting *inside* the block survives. */
-    it('carries a nested child along with the item it belongs to', () => {
-      const doc = '- one\n- parent\n  - child\n'
-      const at = doc.indexOf('- parent') + 3
-      expect(nested(doc, at, 2).doc).toBe('- one\n  - parent\n    - child\n')
-    })
-
-    /** The run is `collectLines`' rule: deeper than the first, and a blank line in
-     *  the middle does not end it. */
-    it('does not let a blank line inside the block end it', () => {
-      const doc = '- one\n- parent\n  - a\n\n  - b\n- after\n'
-      const at = doc.indexOf('- parent') + 3
-      expect(nested(doc, at, 2).doc).toBe('- one\n  - parent\n    - a\n\n    - b\n- after\n')
-    })
-
-    /** Shift-Tab clamps each line at zero, so outdenting a block whose first line
-     *  has room but whose child does not cannot push text off the front. */
-    it('outdents a block without pushing a child past the margin', () => {
-      const doc = '- one\n  - parent\n    - child\n'
-      const at = doc.indexOf('- parent') + 3
-      const after = run(outdentListItem, stateOf(doc, at, at, 2))
-      expect(after.doc).toBe('- one\n- parent\n  - child\n')
-    })
-  })
-
-  it('nests at the item above’s content column, whatever the indent width is', () => {
-    const doc = '- one\n- two\n'
-    for (const width of [2, 4, 6, 8]) {
-      const after = nested(doc, doc.indexOf('- two') + 5, width)
-      expect(after.handled).toBe(true)
-      expect(after.doc).toBe('- one\n  - two\n')
-    }
-  })
-
-  it('nests an ordered item by its own marker’s width', () => {
-    const doc = '1. one\n2. two\n'
-    const after = nested(doc, doc.length - 1, 6)
-    expect(after.doc).toBe('1. one\n   2. two\n')
-  })
-
-  it('goes one level at a time, since a list cannot skip one', () => {
-    const doc = '- one\n  - two\n'
-    // `two` is already the child of `one`; there is nothing deeper to be.
-    expect(nested(doc, doc.length - 1, 6).handled).toBe(false)
-  })
-
-  it('declines on a line that is not an item, so Tab still indents', () => {
-    expect(nested('plain prose\n', 5, 6).handled).toBe(false)
-    // The first item of a list has nothing above it to nest under.
-    expect(nested('- one\n', 5, 6).handled).toBe(false)
-  })
-
-  /** The whole gesture, through the editor the app mounts: nest an item, type it,
-   *  and press Enter. The bullet has to still be a bullet on the next line. */
-  it('keeps a nested item a list item, so Enter continues it', () => {
-    const doc = '- one\n- two'
-    const { container } = render(
-      <MarkdownEditor initialMarkdown={doc} onChange={() => {}} indentWidth={6} />
-    )
-    const view = EditorView.findFromDOM(container.querySelector('.cm-editor') as HTMLElement)!
-    view.dispatch({ selection: { anchor: doc.length } })
-    fireEvent.keyDown(view.contentDOM, { key: 'Tab' })
-    fireEvent.keyDown(view.contentDOM, { key: 'Enter' })
-    expect(view.state.doc.toString()).toBe('- one\n  - two\n  - ')
-    // Six spaces and no marker is what this produced before: the item had become
-    // an indented code block, and Enter copied its whitespace.
-    expect(view.state.doc.toString()).not.toContain('      ')
-  })
-
-  it('backs out to the level of the item it sits under', () => {
-    const doc = '- one\n      - two\n'
-    const after = run(outdentListItem, stateOf(doc, doc.length - 1, doc.length - 1, 6))
-    expect(after.handled).toBe(true)
-    expect(after.doc).toBe('- one\n- two\n')
-    // And at the margin there is nowhere to go.
-    expect(run(outdentListItem, stateOf('- one\n', 5, 5, 6)).handled).toBe(false)
+  it('moves an empty indented line out one level', () => {
+    expect(run(continueIndent, stateOf('      ', 6, 6, 6)).doc).toBe('')
+    expect(run(continueIndent, stateOf('            ', 12, 12, 6)).doc).toBe('      ')
   })
 })
 
@@ -827,14 +670,8 @@ describe('the mounted editor', () => {
     expect(view.hasFocus).toBe(true)
   })
 
-  /**
-   * **Tab, through the keymap rather than by a direct call — which is the coverage
-   * that was missing.** The block-indent tests further up call `indentListItem`, so
-   * they could never catch a block that never *reaches* that command: a journal
-   * entry carries no list marker, so it declined and the general Tab moved the
-   * caret's line alone. Reported twice, the second time after the list half was
-   * already fixed. A command tested only by direct call is a binding nobody tested.
-   */
+  /** Tab through the keymap: a line moves one indent width, with the lines nested
+   *  under it, and a list line is a line like any other. */
   describe('Tab over a block', () => {
     const tabbed = (doc: string, at: number, head = at, shift = false) => {
       const { container } = render(
@@ -866,17 +703,28 @@ describe('the mounted editor', () => {
       expect(tabbed(doc, 0, doc.indexOf('gamma') + 5)).toBe('  alpha\n  beta\n  gamma\n')
     })
 
-    /** And the list halves still reach their own command through the same key. */
-    it('still nests a list item and carries its child', () => {
+    /** A list line with a child moves with it, as any block does. */
+    it('moves a list item and carries its child', () => {
       const doc = '- one\n- parent\n  - child\n'
       expect(tabbed(doc, doc.indexOf('- parent') + 4)).toBe('- one\n  - parent\n    - child\n')
     })
 
-    it('still moves every selected list item', () => {
+    it('moves every selected list item', () => {
       const doc = '- one\n- two\n- three\n'
       expect(tabbed(doc, doc.indexOf('- two'), doc.indexOf('- three') + 7)).toBe(
         '- one\n  - two\n  - three\n'
       )
+    })
+
+    /** Tab then Enter: the next line keeps the new indent and the marker. */
+    it('continues a list at the depth Tab gave it', () => {
+      const doc = '- one\n- two'
+      const { container } = render(<MarkdownEditor initialMarkdown={doc} onChange={() => {}} indentWidth={5} />)
+      const view = viewOf(container)
+      view.dispatch({ selection: { anchor: doc.length } })
+      fireEvent.keyDown(view.contentDOM, { key: 'Tab' })
+      fireEvent.keyDown(view.contentDOM, { key: 'Enter' })
+      expect(view.state.doc.toString()).toBe('- one\n     - two\n     - ')
     })
 
     /** Shift-Tab is the same question backwards, and clamps at the margin. */
@@ -1699,18 +1547,9 @@ describe('a horizontal rule', () => {
    * the row below it. A list marker has to survive being typed.
    */
   it('leaves a dash that is starting a list alone', () => {
-    // `- ` cannot interrupt a paragraph as an empty item, so for now it is text.
     expect(all(stateOf('Some text\n- \nafter', 12))).toEqual([])
-    // With something in the item it is a list, and the marker becomes the bullet.
-    expect(all(stateOf('Some text\n- one\nafter', 15))).toEqual([
-      'bullet@10-12',
-      'cm-md-hang@10-10',
-    ])
-    // And on a line of its own, where an empty item is a list from the start.
-    expect(all(stateOf('Some text\n\n- \nafter', 13))).toEqual([
-      'bullet@11-13',
-      'cm-md-hang@11-11',
-    ])
+    expect(all(stateOf('Some text\n- one\nafter', 15))).toEqual([])
+    expect(all(stateOf('Some text\n\n- \nafter', 13))).toEqual([])
   })
 
   it('needs the line to hold nothing but the break', () => {
@@ -1888,7 +1727,7 @@ describe('the clock a journal line opens with', () => {
    * so `- 12:08 note` is a list item that happens to open with a time.
    */
   it('does not mark a stamp that a bullet comes before', () => {
-    expect(all(stateOf('- 12:08 note\n', 0))).toEqual(['bullet@0-2', 'cm-md-hang@0-0'])
+    expect(all(stateOf('- 12:08 note\n', 0))).toEqual([])
   })
 })
 

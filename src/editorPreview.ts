@@ -9,7 +9,7 @@ import { Facet, type EditorState, type Range as CmRange } from '@codemirror/stat
 import { Decoration, WidgetType, type DecorationSet } from '@codemirror/view'
 import { getIndentUnit, syntaxTree } from '@codemirror/language'
 import { decorated } from './EditorHost'
-import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common'
+import type { SyntaxNode } from '@lezer/common'
 import { blockProperties, PROPERTY_KEY, splitPageProperties, typeOf } from './properties'
 import type { Entries } from './configEntries'
 import { LEADING_CLOCK } from './clock'
@@ -129,6 +129,14 @@ export function taskAt(
   return hit ? { from: line.from + hit[1].length, mark: hit[2] } : null
 }
 
+/** Whether `pos` is in a fenced code block, where `[ ]` is only text. */
+function inFence(state: EditorState, pos: number): boolean {
+  for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, 1); node; node = node.parent) {
+    if (node.name === 'FencedCode') return true
+  }
+  return false
+}
+
 /** A press checks an open task and clears any other state. */
 export function toggledTask(mark: string): string {
   return mark === ' ' ? 'x' : ' '
@@ -150,19 +158,15 @@ export function isTaskClick(target: EventTarget | null): boolean {
  */
 class CheckboxWidget extends WidgetType {
   mark: string
-  box: string | null
-  constructor(mark: string, box: string | null) {
+  constructor(mark: string) {
     super()
     this.mark = mark
-    this.box = box
   }
 
   toDOM() {
     const span = document.createElement('span')
     span.className = 'cm-md-task'
     span.dataset.state = taskState(this.mark)
-    // The grid box, as the bullet takes it — see `markerBox`.
-    if (this.box) span.style.minWidth = this.box
     const box = document.createElement('span')
     box.className = 'cm-md-task-box'
     if (span.dataset.state === 'done') box.innerHTML = checkMarkup()
@@ -172,7 +176,7 @@ class CheckboxWidget extends WidgetType {
   }
 
   eq(other: CheckboxWidget) {
-    return other.mark === this.mark && other.box === this.box
+    return other.mark === this.mark
   }
 
   /** The editor's own `mousedown` handles the press, as it does for a link, so the
@@ -180,64 +184,6 @@ class CheckboxWidget extends WidgetType {
   ignoreEvent() {
     return false
   }
-}
-
-/**
- * A real bullet in place of the `-`.
- *
- * Hiding the marker outright is what headings do, but a list cannot: with `- ` gone
- * the item loses its bullet *and* its indent, and reads as a bare paragraph. So the
- * marker is replaced rather than removed, and the glyph carries the width.
- *
- * Only ever for a bullet list. An ordered list's marker is `1.`, which is content —
- * a reader needs the number — so it is left exactly as typed.
- */
-class BulletWidget extends WidgetType {
-  box: string
-  constructor(box: string) {
-    super()
-    this.box = box
-  }
-  toDOM() {
-    const span = document.createElement('span')
-    span.className = 'cm-md-bullet'
-    // The box is per item — see `markerBox` — because the document's own nesting
-    // and the app's step are different numbers.
-    span.style.minWidth = this.box
-    // No glyph and no handler: the dot is drawn by CSS, and the thing that collapses
-    // a list is the line above it, not the bullet.
-    return span
-  }
-  eq(other: BulletWidget) {
-    return other.box === this.box
-  }
-}
-
-/**
- * The marker's box: **whatever is left of the item's own step after its leading
- * spaces**, so the text lands on the grid however the document is indented.
- *
- * A list's depth in the file is markdown's — a child's marker sits at its parent's
- * content column, two or three characters in — and the grid's step is the indent
- * setting, six spaces in the vault this was found in. Those are not the same
- * number, so a box of one whole step put a nested item's text 1.33 steps in and a
- * level could not be read off the page. Given the level, the box makes up the
- * difference: `level + 1` steps, less the spaces already on the line.
- *
- * `max(0px, …)` because a document may indent further than the grid does — three
- * spaces where a step is two — and a negative box would pull the text left of the
- * margin.
- */
-function markerBox(level: number, spaces: number): string {
-  return `max(0px, calc(${level + 1} * var(--indent-step) - ${spaces} * var(--space-w)))`
-}
-
-/** How many lists this item is inside. The tree knows, and counting spaces does
- *  not: markdown nests by content column and the grid steps by the setting. */
-function listLevel(node: SyntaxNodeRef): number {
-  let level = 0
-  for (let at = node.node.parent; at; at = at.parent) if (at.name === 'ListItem') level++
-  return level
 }
 
 /**
@@ -358,12 +304,6 @@ function indentBelow(state: EditorState, line: number): number {
 }
 const markerMark = Decoration.mark({ class: 'cm-md-marker' })
 
-/** An ordered item's `1.`, boxed like a bullet so its text lands on the grid. The
- *  characters stay characters — see the `ListItem` case — and the box is the
- *  item's own, for the reason `markerBox` gives. */
-const numberMark = (box: string) =>
-  Decoration.mark({ class: 'cm-md-number', attributes: { style: `min-width:${box}` } })
-
 /** A checked task's words. One decoration, because every done item takes it. */
 const taskDone = Decoration.mark({ class: 'cm-md-task-done' })
 
@@ -391,9 +331,6 @@ const hangingLine = (hang: string) =>
   }))
 
 const HANGING: Record<string, Decoration> = {}
-
-/** The hang a list item's own depth asks for. */
-const stepHang = (steps: number) => `calc(${steps} * var(--indent-step))`
 
 /** The hang an indented prose line asks for: the width of its own leading spaces. */
 const spaceHang = (spaces: number) => `calc(${spaces} * var(--space-w))`
@@ -443,8 +380,6 @@ export function livePreviewDecorations(
   to: number
 ): DecorationSet {
   const found: CmRange<Decoration>[] = []
-  /** Lines the syntax walk gave a hang to, so the sweep below does not double it. */
-  const hung = new Set<number>()
 
   // The page properties at the top of the note, when the span reaches them, in
   // either form — `splitPageProperties` is the one answer to where they end. Marked
@@ -577,78 +512,6 @@ export function livePreviewDecorations(
     from,
     to,
     enter: (node) => {
-      // A list item's marker is the one piece of syntax that must be *replaced*
-      // rather than hidden — see `BulletWidget`.
-      if (node.name === 'ListItem') {
-        const mark = node.node.firstChild
-        if (!mark || mark.name !== 'ListMark') return
-        let end = mark.to
-        while (end < node.to && state.doc.sliceString(end, end + 1) === ' ') end++
-
-        /**
-         * The line hangs by however many steps its text is in.
-         *
-         * The first row starts where the characters put it — the leading spaces
-         * and the marker's box — and every wrapped row after it starts under that
-         * text, which is what `padding-left` with a matching negative
-         * `text-indent` does. The number is set per line because the depth is.
-         */
-        const line = state.doc.lineAt(mark.from)
-        const spaces = Math.max(line.text.search(/\S/), 0)
-        const level = listLevel(node)
-        const box = markerBox(level, spaces)
-        hung.add(line.number)
-        found.push(hangingLine(stepHang(level + 1)).range(line.from))
-
-        /**
-         * **A task's box is always drawn, and never revealed.** A checkbox has to
-         * be pressable whether or not the caret is in the line — the property that
-         * makes `.cm-md-tag` usable, for the same reason — and a `[x]` that
-         * turned back into three characters the moment you clicked into the item
-         * would be un-pressable exactly while it was being written.
-         */
-        const task = TASK_LINE.exec(line.text)
-        const taskFrom = task ? line.from + task[1].length : -1
-        let taskTo = taskFrom + 3
-        if (task) {
-          while (taskTo < line.to && state.doc.sliceString(taskTo, taskTo + 1) === ' ') taskTo++
-        }
-        // A done item's words step back to `--text-dim`. **Not a strikethrough**:
-        // `~~text~~` is its own syntax here, and drawing a checked task the same way
-        // would be two different facts wearing one mark.
-        if (task && taskState(task[2]) === 'done' && taskTo < line.to) {
-          found.push(taskDone.range(taskTo, line.to))
-        }
-
-        if (/\d/.test(state.doc.sliceString(mark.from, mark.to))) {
-          // `1.` is content, not syntax: a reader needs the number, so this is a
-          // *mark* over the characters and not a widget in their place. The caret
-          // can still get inside it and renumber the item.
-          found.push(numberMark(box).range(mark.from, end))
-          // The number already took the grid box, so the checkbox takes none.
-          if (task) {
-            found.push(
-              Decoration.replace({ widget: new CheckboxWidget(task[2], null) }).range(taskFrom, taskTo)
-            )
-          }
-          return
-        }
-        if (task) {
-          // The marker and the `[x]` go together, so the box lands on the grid.
-          found.push(
-            Decoration.replace({ widget: new CheckboxWidget(task[2], box) }).range(mark.from, taskTo)
-          )
-          return
-        }
-        // **Always** the bullet, unlike `**` or `_`, which reveal when the caret is
-        // in them. A list marker is not something you edit in place — you delete the
-        // item or outdent it — and revealing it meant that typing `- ` showed a
-        // hyphen for as long as the caret stayed on that line, which is every
-        // moment you are writing the item.
-        found.push(Decoration.replace({ widget: new BulletWidget(box) }).range(mark.from, end))
-        return
-      }
-
       // `---`, drawn as a line when the caret is elsewhere and shown as the three
       // characters when it is on them.
       //
@@ -749,21 +612,21 @@ export function livePreviewDecorations(
       }
     },
   })
-  /**
-   * **Every other indented line hangs too**, which is the half that was missing.
-   * A list item's hang comes off the syntax tree above, because its depth is
-   * markdown's; anything else hangs by the spaces it actually carries, so a
-   * journal's detail lines and a wrapped indented paragraph keep their column.
-   *
-   * After the tree walk, and skipping the lines that walk already claimed, so one
-   * line never gets two `--hang` values.
-   */
+  // Line by line: an indented line's wrapped rows hang under its text, and a task's
+  // `[ ]` is drawn as a checkbox. The checkbox is always drawn, so it can be pressed
+  // while the line is being written.
   for (let n = firstLine; n <= lastLine; n++) {
-    if (hung.has(n)) continue
     const line = state.doc.line(n)
     const spaces = line.text.search(/\S/)
-    if (spaces <= 0) continue
-    found.push(hangingLine(spaceHang(spaces)).range(line.from))
+    if (spaces > 0) found.push(hangingLine(spaceHang(spaces)).range(line.from))
+    const task = TASK_LINE.exec(line.text)
+    if (!task || inFence(state, line.from)) continue
+    const boxFrom = line.from + task[1].length
+    let boxTo = boxFrom + 3
+    while (boxTo < line.to && state.doc.sliceString(boxTo, boxTo + 1) === ' ') boxTo++
+    found.push(Decoration.replace({ widget: new CheckboxWidget(task[2]) }).range(boxFrom, boxTo))
+    // A done task's words are dimmed, not struck through: `~~` is its own syntax.
+    if (taskState(task[2]) === 'done' && boxTo < line.to) found.push(taskDone.range(boxTo, line.to))
   }
 
   // Sorted here rather than built in order: a nested run (`**_x_**`) is entered

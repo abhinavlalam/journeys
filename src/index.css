@@ -31,12 +31,9 @@
    `--text` below before touching a ground. */
 
 :root {
-  /* All three are written by `applySettings` from the settings; these are what the
-     first frame uses, and what a test that never applies them gets. A space is
-     0.29em of a proportional face, near enough, and the step is four of them. */
+  /* A space's width, for how far an indented line's wrapped rows hang. `applySettings`
+     measures it; this is the value before it does. */
   --space-w: 0.29em;
-  --marker-gap: calc(var(--indent-step) * 0.25);
-  --indent-step: calc(var(--space-w) * 4);
 
   /* A row's height: **the note's own leading, and nothing else**. There was a
      24px floor here, which is the kind of number that quietly takes over — at the
@@ -4183,43 +4180,13 @@ button.folder-toggle {
   font-weight: var(--fw-strong);
 }
 
-/* **A marker sits in the gap; its text sits on the grid.**
-   A box with the marker pushed to its right edge, so an item's text starts exactly
-   where a line indented that far starts and `9.` and `10.` put their text in one
-   column. The marker is *replaced* rather than hidden for the same reason the box
-   has a width at all: with `- ` gone the item loses its indent and the text jogs
-   sideways as the caret leaves the line.
-
-   `min-width`, not `width`: `100.` grows its own box and pushes only that item's
-   text, rather than breaking the column for the whole list. */
-.markdown-editor .cm-md-bullet,
-.markdown-editor .cm-md-number {
-  display: inline-block;
-  /* **One step wide, gap included** — `box-sizing` is what makes that true, and
-     it is why the gap is a share of the step rather than a pixel count: subtracting
-     6px from a 7.16px step left a 1.16px box that every marker overflowed, pushing
-     its own text off the grid. Wider than a step (`10.`, `100.`) the box still
-     grows, which is the one case where an item's text cannot be on it. */
-  box-sizing: border-box;
-  /* The fallback only: the decoration sets this per item, because a document's own
-     nesting (markdown's content column) and the grid's step (the indent setting)
-     are different numbers — see `markerBox`. */
-  min-width: var(--indent-step);
-  padding-right: var(--marker-gap);
-  text-align: right;
-  color: var(--text-faint);
-}
-
-/* **A task wears the bullet's box**, so an item's words land on the same grid stop
-   whether or not it is a task — the box is the marker's, and a checkbox is what
-   this item's marker is. `[ ]`, `[x]` and, per Obsidian's reading, any other single
-   character; a state the app draws no glyph for is drawn as itself. */
+/* A task's checkbox, drawn for `[ ]`, `[x]` or any other single character. A state
+   with no glyph shows the character itself. An inline-block inherits an indented
+   line's negative `text-indent`, which pulled the box left of its dash; hence the 0. */
 .markdown-editor .cm-md-task {
   display: inline-block;
-  box-sizing: border-box;
-  min-width: var(--indent-step);
-  padding-right: var(--marker-gap);
-  text-align: right;
+  margin-right: 0.35em;
+  text-indent: 0;
   cursor: pointer;
 }
 
@@ -4269,48 +4236,16 @@ button.folder-toggle {
   color: var(--text-dim);
 }
 
-/* Every row after the first starts under the text, not at the margin. `--hang` is
-   how many steps in that text is, set per line by the decoration — the first row is
-   pulled back by the same amount, so the characters still place it.
-
-   Qualified to (0,4,0) and sitting after it, because `.markdown-editor .cm-editor
-   .cm-line` sets `padding` as a **shorthand** at (0,3,0): at (0,2,0) this rule's
-   `padding-left` was reset to zero while its `text-indent` applied, which pulled
-   every list line's first row a step *left* of the margin. Measured that way:
-   padding-left 0px against a text-indent of -14.46px. */
+/* An indented line's wrapped rows start under its text. `--hang` is the width of the
+   line's leading spaces, set per line; the first row is pulled back by the same
+   amount. Four classes, to beat the (0,3,0) `padding` shorthand on `.cm-line`, and it
+   keeps the column inset, which that shorthand carries. */
 .markdown-editor .cm-editor .cm-line.cm-md-hang {
-  /* **The inset plus the hang**, because this overrides the shorthand's left and
-     the inset is now in it. Written as the hang alone, every list line sat hard
-     against the gutter. The negative `text-indent` still cancels only the hang, so
-     the first row's characters land on the column and the selection band — which
-     is `paddingLeft + min(0, textIndent)` — still resolves to the inset exactly.
-
-     `--hang` is a **length** now and not a count of steps, because two kinds of
-     line hang and they measure differently: a list item by its markdown depth in
-     `--indent-step`s, an indented prose line by the width of the spaces it carries.
-     Prose was not hanging at all, so a wrapped indented line put its second and
-     third rows at the margin while its first row sat indented. */
   padding-left: calc(var(--column-pad) + var(--hang));
   text-indent: calc(-1 * var(--hang));
 }
 
-/* Drawn rather than typed. A `•` glyph sits at whatever height its font puts it,
-   and the reading face is one of eighteen the user can choose — so the one thing
-   that cannot be got right with a character is vertical alignment. A box aligned
-   to `middle` lands on the baseline plus half the x-height, which is where the eye
-   expects a bullet whatever the face. */
-.markdown-editor .cm-md-bullet::before {
-  content: '';
-  display: inline-block;
-  width: 0.33em;
-  height: 0.33em;
-  border-radius: 50%;
-  background: currentColor;
-  vertical-align: middle;
-}
-
-/* A quote reads as a quote by its bar, since its `>` is hidden away from the caret
-   — the same trade the list marker makes, but a border can carry it.
+/* A quote reads as a quote by its bar, since its `>` is hidden away from the caret.
 
    An inset shadow and not a `border-left`: a `Decoration.mark` is split at every
    line boundary, so a border would draw once per wrapped row. `--text-dim` on the
@@ -4320,11 +4255,6 @@ button.folder-toggle {
   color: var(--text-dim);
   box-shadow: inset 2px 0 0 0 var(--border);
   padding-left: 0.6rem;
-}
-
-/* The bullet glyph that stands in for `- `, in the quote's tier. */
-.markdown-editor .cm-md-bullet {
-  color: var(--text-dim);
 }
 
 /* The `[[` picker. CodeMirror draws it; this only gives it the palette, so there is

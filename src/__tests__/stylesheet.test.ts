@@ -674,7 +674,7 @@ describe('a JSON file’s colour', () => {
   })
 })
 
-describe('a list’s own indent', () => {
+describe('the hanging indent', () => {
   /**
    * **The hanging indent has to outrank `.cm-line`'s `padding` shorthand.**
    *
@@ -696,29 +696,6 @@ describe('a list’s own indent', () => {
     expect(classes(hanging!.selector)).toBeGreaterThan(classes(lineRule!.selector))
     // And after it, since a tie goes to source order.
     expect(css.indexOf(hanging!.selector)).toBeGreaterThan(css.indexOf(lineRule!.selector))
-  })
-
-  /**
-   * Both markers take one box **one step wide, gap included**, so a bullet's text
-   * and a number's land where a line indented one step starts.
-   *
-   * Measured in Chrome before this was written: with the gap outside the box, a
-   * `-` put its text on the grid at 47.16px and a `1.` put its at 51.84px, because
-   * the box was `step - gap` = 1.16px and every marker overflowed it. `box-sizing`
-   * is what makes "one step, gap included" true, and its absence is the failure.
-   */
-  it('gives a bullet and a number one box, one step wide', () => {
-    const marker = rules().find(
-      (rule) => rule.selector.includes('.cm-md-bullet') && rule.selector.includes('.cm-md-number')
-    )
-    expect(marker).toBeTruthy()
-    expect(marker!.body).toMatch(/box-sizing:\s*border-box/)
-    expect(marker!.body).toMatch(/min-width:\s*var\(--indent-step\)/)
-    expect(marker!.body).toMatch(/padding-right:\s*var\(--marker-gap\)/)
-    expect(marker!.body).toMatch(/text-align:\s*right/)
-    // The gap can no longer be taken off the box's width: that is what left it
-    // 1.16px wide.
-    expect(marker!.body).not.toMatch(/margin-right/)
   })
 
   /**

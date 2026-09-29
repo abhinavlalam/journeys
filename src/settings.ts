@@ -165,14 +165,8 @@ export interface Settings {
   /** Whether setting a folder's icon writes it into the notes inside it that have
    *  none of their own. Display is always own-only: see `resolveNoteIcon`. */
   inheritIcons: boolean
-  /** Spaces per indent level — what Tab inserts and what a nested list steps by. */
+  /** Spaces per indent level: what Tab inserts, and what Enter steps back by. */
   indentWidth: number
-  /** How much of one indent step is the gap between a list marker and its text,
-   *  as a share of that step (0–0.5). **A share and not a pixel count**: the step
-   *  is measured from the prose face, so a gap in pixels could be — and at the
-   *  default 6px against a 2-space step of 7.16px was — the whole step, leaving
-   *  the marker no box to sit in and pushing every list's text off the grid. */
-  markerGap: number
   /** A single path segment under the vault root. */
   dailyFolder: string
   shortcuts: Record<ActionId, string>
@@ -270,7 +264,6 @@ export const BOUNDS = {
   rowGap: { min: 0, max: 12, step: 1 },
   readingWidth: { min: 480, max: 1200, step: 10 },
   indentWidth: { min: 2, max: 8, step: 1 },
-  markerGap: { min: 0, max: 0.5, step: 0.05 },
   calendarDays: { min: 1, max: 60, step: 1 },
   calendarMinutes: { min: 1, max: 60, step: 1 },
   syncSeconds: { min: 15, max: 600, step: 15 },
@@ -310,7 +303,6 @@ export const DEFAULT_SETTINGS: Settings = {
   // convention. A note already indented by two keeps its two spaces; put the slider
   // back to see them as levels again.
   indentWidth: 4,
-  markerGap: 0.25,
   inheritIcons: true,
   // `vault.ts`'s constant rather than a second `'Daily'`, so the default here and
   // `ensureDailyNote`'s fallback cannot drift apart.
@@ -439,7 +431,6 @@ export function parseSettings(raw: unknown): Settings {
       BOUNDS.indentWidth,
       DEFAULT_SETTINGS.indentWidth
     ),
-    markerGap: pickNumber(stored.markerGap, BOUNDS.markerGap, DEFAULT_SETTINGS.markerGap),
     dailyFolder: daily.ok ? daily.value : DEFAULT_SETTINGS.dailyFolder,
     shortcuts: pickShortcuts(stored.shortcuts),
     // Trailing slashes off: a folder is named as the tree spells it.
@@ -615,13 +606,8 @@ export function applySettings(settings: Settings, root?: HTMLElement): void {
   // named 80 in one, and nothing held the two together.
   el.style.setProperty('--column-pad', `${COLUMN_PADDING / 2}px`)
   el.style.setProperty('--font-prose', faceStack(settings.fontFamily))
-  // One space and the step it makes: a list marker's box is a whole number of
-  // steps less the spaces already on its line, so the sheet needs both.
-  const space = spaceWidth(settings)
-  const step = settings.indentWidth * space
-  el.style.setProperty('--space-w', `${space}px`)
-  el.style.setProperty('--indent-step', `${step}px`)
-  el.style.setProperty('--marker-gap', `${settings.markerGap * step}px`)
+  // One space's width, for how far an indented line's wrapped rows hang.
+  el.style.setProperty('--space-w', `${spaceWidth(settings)}px`)
 }
 
 /**
