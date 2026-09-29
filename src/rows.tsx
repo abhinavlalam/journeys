@@ -1,15 +1,11 @@
-// The row, wherever the app lists notes.
+// The row, wherever the app lists notes: the tree, the Actions
+// pane, and the sections at the end of a note.
 //
-// **Three panes drew this, three times**: the tree, the Actions section, and the
-// two sections at the end of a note. The same boxes in the same order — a reserved
-// chevron slot, a body holding an icon and a name — and the same classes, because
-// the sheet dresses them once. Written out three times they had already begun to
-// differ: one had the icon's column and one did not, so a line of text sat 23px
-// left of every name above it.
+// One shape and one set of classes, so every name lines up. Three copies of it had
+// drifted: one lacked the icon column and its text sat 23px left of the names above.
 //
-// What is *not* here is behaviour. A row in the tree drags, renames in place, takes
-// an icon from a picker and opens a menu; a row in a footer opens a note and
-// nothing else. Those are the caller's, passed in — this is the shape.
+// Behaviour is the caller's. A tree row drags, renames and opens
+// a menu; a footer row only opens a note.
 
 import {
   useState,
@@ -22,25 +18,21 @@ import { linkLabelSpan, type VaultFile } from './vaultModel'
 import type { CollectedNote } from './useVaultTexts'
 
 
-/** A depth as a length, in the sheet's own `--row-step`: what a nested row's
- *  `paddingLeft` and a folder's `--guide-x` are both set to, so the rows and the
- *  guide under them cannot disagree. No number here — the step is the sheet's. */
+/**
+ * A depth as a length in the sheet's `--row-step`. A nested row's `paddingLeft`
+ * and a folder's `--guide-x` both use it, so the rows and the guide agree.
+ */
 export const stepIn = (depth: number) => `calc(${depth} * var(--row-step))`
 
-/** Where a list's guide line runs: the indent of the row the list hangs from. */
+/** Where a list's guide line runs: the indent of the row above the list. */
 export const guideAt = (depth: number) => ({ '--guide-x': stepIn(depth) }) as CSSProperties
 
-/** What a page's empty row says while the vault is still being read. */
+/** What an empty page row says while the vault is still being read. */
 export const READING = 'Reading the vault…'
 
 /**
- * Opens a note from a click on the **lines** under a row, unless that click was the
- * end of a selection someone was making.
- *
- * The quoted lines under a backlink, and the lines a tag gathers, are the
- * bulk of what there is to click at, and clicking them did nothing at all. They
- * are still selectable text, so a drag that ends in a click is a selection and not
- * a request to go somewhere.
+ * Opens a note from a click on the lines under a row, unless the
+ * click ended a text selection.
  */
 export function opensNote(open: () => void): void {
   const selection = typeof window.getSelection === 'function' ? window.getSelection() : null
@@ -49,14 +41,10 @@ export function opensNote(open: () => void): void {
 }
 
 /**
- * A name typed in place, wherever a pane asks for one.
+ * A name typed in place: a new note, a new action, a rename.
  *
- * **Three copies of this existed**: the tree's new-note row, the Actions section's
- * new-action row and the rename field, all the same input with the same class,
- * `autoFocus`, Enter to commit and Escape to abandon. What differs is one thing and
- * it is the caller's: **what leaving the field means.** A rename commits on blur
- * and a create abandons, which is the decision, not the markup — so `onBlur` is
- * passed in rather than chosen here.
+ * Enter commits and Escape abandons. What blur means is the
+ * caller's: a rename commits, a create abandons.
  */
 export function NameField({
   value,
@@ -72,19 +60,19 @@ export function NameField({
 }: {
   value: string
   placeholder?: string
-  /** `password` for a passphrase, which is the same field with the glyphs held
-   *  back — an encrypted note asks in the box everything else is typed into. */
+  /**
+   * `password` for a passphrase. A locked note asks in the same box as everything else.
+   */
   type?: 'text' | 'password'
-  /** For a field whose placeholder is not its name — the search box. */
+  /** For a field whose placeholder is not its name, like the search box. */
   ariaLabel?: string
-  /** `folder-rename-input` is the tree's folder row; every other field takes none. */
+  /** `folder-rename-input` for the tree's folder row; other fields take none. */
   className?: string
   /**
-   * Whether focusing selects what is already there, so the first keystroke replaces
-   * it. True everywhere a field stands *in place of* a row — you opened it to type
-   * a name — and false for the note's title, whose box is now the whole width of
-   * the header: a stray press there followed by a keystroke would otherwise rename
-   * the note and rewrite every link into it. The caret goes to the end instead.
+   * Whether focus selects the current text, so the first key replaces
+   * it. True for a field that stands in for a row. False for the
+   * note's title: a stray click and a key there would rename the note
+   * and rewrite every link to it, so the caret goes to the end.
    */
   selectOnFocus?: boolean
   onChange: (value: string) => void
@@ -100,13 +88,13 @@ export function NameField({
       placeholder={placeholder}
       aria-label={ariaLabel}
       value={value}
-      // **A name is typed as meant.** macOS capitalised `with` as `With` at the `:`
-      // after it, and a name is what links and lines must spell.
+      // Names are typed as meant. macOS changed `with:` to
+      // `With:`, and links must spell a name exactly.
       autoCorrect="off"
       autoCapitalize="off"
       spellCheck={false}
-      // Prefilled or empty, the whole value is selected, so typing replaces it —
-      // unless the caller says otherwise, and then the caret goes to the end.
+      // Select the whole value so typing replaces it, unless the
+      // caller asks for the caret at the end.
       onFocus={(e) =>
         selectOnFocus ? e.target.select() : e.target.setSelectionRange(value.length, value.length)
       }
@@ -121,22 +109,22 @@ export function NameField({
 }
 
 interface NoteRowProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'name'> {
-  /** The icon's box. A picker in the tree, a plain glyph elsewhere, an empty
-   *  reservation for a row that names no file — the column is the same either way,
-   *  which is what keeps every name in a pane on one x. */
+  /**
+   * The icon's box: a picker in the tree, a plain glyph elsewhere, or
+   * empty. The column is always there, so every name starts at the same x.
+   */
   icon: ReactNode
-  /** Text, or text with a mark in front of it — a calendar row's clock. */
+  /** Text, or text with a mark before it, like a calendar row's clock. */
   name: ReactNode
-  /** After the name: a count, so far. */
+  /** After the name: a count. */
   trailing?: ReactNode
 }
 
 export function NoteRow({ icon, name, trailing, className, ...button }: NoteRowProps) {
   return (
     <button className={className ? `file-row ${className}` : 'file-row'} {...button}>
-      {/* The chevron's column, reserved and empty: a leaf has no chevron and a
-          folder at its depth does, and the answer is to reserve the *element*
-          rather than compute its width. */}
+      {/* The chevron's column, kept even when empty, so a leaf
+          lines up with a folder at the same depth. */}
       <span className="folder-chevron" aria-hidden="true" />
       <span className="row-body">
         {icon}
@@ -148,12 +136,9 @@ export function NoteRow({ icon, name, trailing, className, ...button }: NoteRowP
 }
 
 /**
- * The icon's column, for the rows where it is not a picker.
- *
- * `icon` is a key from the drawn set, which is the common case; `children` is for
- * a glyph that is not one of those — braces on a JSON file. Neither, and the
- * column is reserved and empty, which is what keeps a row that names no file from
- * starting its words 23px left of every name above it.
+ * The icon column for rows without a picker. `icon` is a key from the
+ * drawn set; `children` is any other glyph, like braces on a JSON file.
+ * With neither, the column is left empty so the name still lines up.
  */
 export function RowIcon({ icon, children }: { icon?: string; children?: ReactNode }) {
   return (
@@ -164,34 +149,37 @@ export function RowIcon({ icon, children }: { icon?: string; children?: ReactNod
 }
 
 interface GroupRowProps {
-  /** The name, and what the chevron's label says it will do to it. */
+  /** The name, and what the chevron's label says it will do. */
   name: string
   open: boolean
   onToggle: () => void
   icon?: ReactNode
-  /** After the name and **inside** the toggle: a count, so far. A `<span>` only —
-   *  see `actions` for anything clickable. */
+  /**
+   * After the name, inside the toggle: a count. Only a `<span>`;
+   * anything clickable goes in `actions`.
+   */
   trailing?: ReactNode
-  /** Beside the toggle and **outside** it: a control that acts on the group, like
-   *  the `+` that makes one of its kind. A button cannot contain a button — put
-   *  one in `trailing` and the browser draws it as its own row inside the toggle,
-   *  which is what a group's `+` looked like for one build. */
+  /**
+   * Next to the toggle, outside it: a control for the group, like its `+`. A button
+   * cannot hold a button; inside the toggle the browser drew it as its own row.
+   */
   actions?: ReactNode
-  /** What pressing the name does when the group is also a thing of its own — a tag
-   *  with tags under it — as a folder's name opens its note. The chevron folds. */
+  /**
+   * What clicking the name does when the group is also a thing of
+   * its own, like a tag with tags under it. The chevron folds.
+   */
   onOpen?: () => void
-  /** Its indent, on the header as the tree's folder rows have it: on the `li`, it
-   *  counted again for every row in the list the `li` holds. */
+  /**
+   * The indent goes on the header, as in the tree. On the `li`
+   * it counted again for every row inside.
+   */
   depth?: number
 }
 
 /**
- * A row that opens and shuts what is under it: the chevron, then the name.
- *
- * The tree has its own, because a folder row there is also a note you can open, a
- * drop target, a drag source and a rename field. This is the plain one, for the
- * panes whose groups are only groups — and it is the same `folder-header` box, so
- * the two read as one kind of row.
+ * A row that folds what is under it: the chevron, then the name.
+ * The tree's folder row has more to do (open, drop, drag, rename);
+ * this is the plain one, with the same `folder-header` box.
  */
 export function GroupRow({ name, open, onToggle, icon, trailing, actions, onOpen, depth }: GroupRowProps) {
   return (
@@ -215,20 +203,12 @@ export function GroupRow({ name, open, onToggle, icon, trailing, actions, onOpen
 }
 
 /**
- * One collapsible section of rows in the reading pane: the tree's folder row with
- * the app's label on it, and a list of rows under it.
+ * A folding section of rows in the reading pane: a labelled heading and a list
+ * under it. The end of a note (Inside, Backlinks) and a tag's page use it.
  *
- * **Two panes draw this.** The end of a note has Inside and Backlinks; a tag's
- * page has its properties, its table and its lines. They are
- * the same object — a labelled, countable list of the left pane's own rows on the
- * note's column — so this lives beside the rows themselves rather than in either
- * one of them.
- *
- * The open state is this component's own and starts where the caller says. It is
- * not remembered across notes: `App` keys the note footer on the note's path, so a
- * new note is a new footer. Without that key it *was* remembered, and a section
- * left open on a note with backlinks stayed open — and empty — on the next note
- * without any. A test caught it.
+ * It holds its own open state, starting where the caller says. `App` keys the
+ * note footer on the note's path, so a new note starts fresh. Without the
+ * key, a section left open on one note stayed open and empty on the next.
  */
 export function Section({
   title,
@@ -241,9 +221,14 @@ export function Section({
   title: string
   count: number
   startOpen: boolean
-  /** The heading's name opens what the section is of: a timeline day, its note. */
+  /**
+   * Clicking the heading's name opens what the section is about,
+   * like a timeline day's note.
+   */
   onOpen?: () => void
-  /** Controls on the heading, beside the toggle: a `+` that adds to the section. */
+  /**
+   * Controls on the heading next to the toggle, like a `+` that adds to the section.
+   */
   actions?: ReactNode
   children: ReactNode
 }) {
@@ -268,16 +253,9 @@ export function Section({
 }
 
 /**
- * A line of a note as the note **reads** it, for the two places that quote one.
- *
- * The lines under a backlink and the lines a tag gathers are quotations, and
- * a quotation showing `[[Entities/Cafes/Bean Street/Lakeside Arrival]]` is showing bytes
- * where the editor shows a sentence — forty-five characters of folders at the end
- * of every note that linked there. Off `linkLabelSpan`, so what a link shows is one
- * answer everywhere: a name, an alias, or the last n names of a `|!n`.
- *
- * Only links. A quotation is not rendered markdown — a `**bold**` run stays as it
- * was written, because the line is being shown as text and not re-typeset.
+ * A note's line as the note shows it, for the backlink and tag
+ * pages. Links read as their names (`linkLabelSpan`), not their
+ * paths. Nothing else is rendered: `**bold**` stays as typed.
  */
 export const readable = (text: string) =>
   text.replace(/\[\[([^\]\n]+)\]\]/g, (_, inner: string) => {
@@ -286,14 +264,11 @@ export const readable = (text: string) =>
   })
 
 /**
- * The notes a page gathers lines from, a row per note with its lines beneath. It
- * was written out twice and had already drifted: one page read a `[[link]]` in a
- * line nested under an entry as its name, and the other showed that line's bytes.
+ * The notes a page gathers lines from: a row per note with its lines below.
  *
- * An entry and the run under it are **one block**, `pre-wrap` keeping the indent
- * that says which line is under which. `head` draws the entry, because a page may
- * read it as the note does (`readBlock`); what is nested under it reads as the
- * note reads. The lines open the note too, since they are what there is to click at.
+ * An entry and the lines nested under it are one block, `pre-wrap`
+ * keeping the indent. `head` draws the entry, since a page may read
+ * it differently (`readBlock`). Clicking the lines opens the note.
  */
 export function GatheredNotes({
   notes,
@@ -342,12 +317,6 @@ export function GatheredNotes({
   ))
 }
 
-/**
- * `1 line`, `3 lines`, `12 notes` — the status word a view page puts in its header.
- *
- * Three copies of this existed, two of them identical: the line-gathering pages
- * counted lines and a property's counted notes. One function, and the
- * noun is the argument.
- */
+/** `1 line`, `3 lines`, `12 notes`: the count a page shows in its header. */
 export const countOf = (n: number, one: string, many = `${one}s`) =>
   `${n} ${n === 1 ? one : many}`

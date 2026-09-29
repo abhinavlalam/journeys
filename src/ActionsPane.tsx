@@ -22,8 +22,10 @@ interface Row {
   notes: number
 }
 
-/** A row, or a head other rows nest under on `/`: `listening` for
- *  `listening/podcast`. A head no row names is only a group. */
+/**
+ * A row, or a head that rows nest under on `/`: `listening` for
+ * `listening/podcast`. A head no row names is only a group.
+ */
 interface Branch {
   name: string
   head: string
@@ -31,11 +33,10 @@ interface Branch {
   children: Branch[]
 }
 
-/** A name's parts on `/` — the one rule tags nest by, and harmless to a kind whose
- *  names have none. */
+/** A name's parts on `/`. Tags nest by this; other kinds have no `/`. */
 const partsOf = (name: string) => name.split('/').filter(Boolean)
 
-/** Rows as a tree on `/`, in the order given. */
+/** Rows as a tree on `/`, in the given order. */
 function branches(rows: readonly Row[]): Branch[] {
   const top: Branch[] = []
   const byHead = new Map<string, Branch>()
@@ -57,11 +58,13 @@ function branches(rows: readonly Row[]): Branch[] {
   return top
 }
 
-/** A nested group's key in the one open set, under its kind's own. */
+/** A nested group's key in the open set, under its kind's key. */
 export const branchKey = (kind: ActionKind, head: string) => `${groupKey(kind)}/${head.toLowerCase()}`
 
-/** Every head names nest under, each once — `a` and `a/b` for `a/b/c` — so the
- *  section's Expand all opens them too. */
+/**
+ * Every head that names nest under, once each (`a` and `a/b` for
+ * `a/b/c`), so Expand all opens them too.
+ */
 export function headsOf(names: readonly string[]): string[] {
   const heads = new Set<string>()
   for (const name of names) {
@@ -74,65 +77,58 @@ export function headsOf(names: readonly string[]): string[] {
 
 interface ActionsPaneProps {
   vaultPath: string
-  /** How deep its group rows sit: `1` under the left pane's Actions heading. The
-   *  rows are `li`s for the caller's list, as `FolderTree`'s are. */
+  /**
+   * How deep its group rows sit: `1` under the Actions heading.
+   * The rows are `li`s for the caller's list, as in `FolderTree`.
+   */
   depth: number
-  /** The kinds to draw — `BUILT_IN_KINDS`, which is the whole list. */
+  /** The kinds to draw. */
   kinds: readonly ActionKind[]
-  /** The open file, so its row reads as selected. */
+  /** The open file, so its row shows as selected. */
   selectedPath: string | null
   onSelect: (file: VaultFile) => void
-  /** Shows a tag's or a property's page. Neither has a file to open — its row is a
-   *  name the notes carry, so the click asks the vault rather than the disk. */
+  /**
+   * Opens a tag's or a property's page. Neither is a file; the
+   * page is built from the notes.
+   */
   onView: (kind: ViewKind, name: string) => void
-  /** The page that is open — a tag's or a property's — so its row is marked. */
+  /** The open tag or property page, so its row is marked. */
   viewing: { kind: ViewKind; name: string } | null
   /**
-   * The groups the user has **opened** — `useFolderOpenState`'s own `open` set and
-   * its `toggle`, so the header's collapse-all and expand-all reach these rows for
-   * free, and a group the user opened is still open next launch.
-   *
-   * Open rather than shut, because a group is **shut until it is opened**: five
-   * groups spread out on arrival is a wall of rows nobody asked for, and it is what
-   * the tree's folders do.
+   * The groups that are open, from `useFolderOpenState`, so Collapse all and Expand all
+   * reach them and they stay open next launch. A group starts shut, as a folder does.
    */
   openGroups: ReadonlySet<string>
   onToggleGroup: (path: string, open: boolean) => void
-  /** Starts naming one of a kind, from that kind's own `+`. */
+  /** Starts naming a new one of a kind, from that kind's `+`. */
   onNew: (kind: string) => void
-  /** A folder this pane could not read. Silence there is an empty group over a
-   *  folder with files in it, which is how two fs-scope bugs survived. */
+  /**
+   * A folder this pane could not read. Staying quiet would show
+   * an empty group over a folder with files in it.
+   */
   onError: (message: string) => void
-  /** The search field's text, when it is open. Filters rows by name; the tree's
-   *  own search reads note *text*, and there is no text here to read — a file's
-   *  contents are what opening it is for. */
+  /** The search field's text, when open. Filters rows by name. */
   query: string
-  /** Bumped when a file has been written, which is the moment to list again.
-   *  Not the name field closing: that happens *before* the write finishes, and a
-   *  read racing it comes back without the new file. */
+  /**
+   * Bumped after a file is written, which is when to list again. Not
+   * when the name field closes: that is before the write finishes.
+   */
   revision: number
   /**
-   * What the **declaring** kind has declared, by name and keyed by kind — rows of
-   * their own before any note carries one, because declaring is how you set one up.
-   * One kind declares: a tag declares its structure. Keyed by kind rather than a
-   * bare list so a second one could, without the prop changing shape.
+   * What a declaring kind has declared, by kind: a tag's
+   * structure gives it a row before any note uses it.
    */
   declared: Partial<Record<string, readonly string[]>>
   /**
-   * The names the vault's notes **use**, per kind, and how many notes use each.
-   *
-   * A group with an entry here is the **union** of the files that define one of its
-   * kind and the names in play: a property a note carries turns up under
-   * Properties, and a `#tag` written on a line under Tags. Clicking one opens its
-   * page, which is the notes asked back.
-   *
-   * Keyed by kind rather than one list per kind, because it is one mechanism: the
-   * *reading* differs (a property's name, a tag) and that belongs to the
-   * module that owns the syntax, not here.
+   * The names the notes use, per kind, and how many notes use each: a property a
+   * note carries appears under Properties, a `#tag` under Tags. Clicking one
+   * opens its page. Each module that owns the syntax does the reading.
    */
   used: Partial<Record<string, readonly { name: string; notes: number }[]>>
-  /** The kind being named, and the name so far. Held by `App`, like the tree's
-   *  inline create, because the button that starts it is in the row above. */
+  /**
+   * The kind being named and the name so far. Held by `App`,
+   * like the tree's inline create.
+   */
   naming: string | null
   typed: string
   onTyped: (value: string) => void
@@ -144,16 +140,9 @@ interface ActionsPaneProps {
 type Listing = Record<string, string[]>
 
 /**
- * The Actions section of the left pane.
- *
- * **The tree's own markup, and not one class of its own.** A group is a
- * `folder-header` with a chevron and a `folder-toggle`, its files are
- * `file-row`s inside a `folder-children`, and the guide lines come off the same
- * `--guide-x` at the same depth. Anything else would be a second sidebar to keep
- * in step with the first.
- *
- * What it does not borrow is the tree's *machinery*: nothing here is dragged,
- * renamed in place or given an icon, because none of that has been asked for.
+ * The Actions section of the left pane. It uses the tree's own markup and
+ * classes (`folder-header`, `file-row`, `folder-children`, `--guide-x`), so
+ * it looks the same. Nothing here drags, renames in place or takes an icon.
  */
 export function ActionsPane({
   vaultPath,
@@ -179,17 +168,15 @@ export function ActionsPane({
 }: ActionsPaneProps) {
   const [listing, setListing] = useState<Listing>({})
 
-  /** Answers with the listing rather than setting it, so the caller decides
-   *  whether it is still wanted — a read that lands after the vault changed is the
-   *  wrong answer, and the effect below is the one that knows. */
+  /**
+   * Returns the listing rather than setting it, so the effect
+   * below can drop a read that lands after the vault changed.
+   */
   const read = useCallback(async (): Promise<Listing> => {
     const found: Listing = {}
-    // A kind with no folder has no files to list — see `ActionKind.dir`. Asking
-    // for one would be a `readDir` of the vault root dressed up as its contents.
+    // A kind with no folder (tags, properties) has no files to
+    // list. Its rows are names from the notes.
     for (const kind of kinds) {
-      // A declaring kind's files are not its rows — `App` reads those for their
-      // *contents*, and hands the names in as `declared`. Listing them here too
-      // would be one folder read twice for two halves of one answer.
       found[kind.key] = kind.dir === null
         ? []
         : kind.entry
@@ -200,13 +187,9 @@ export function ActionsPane({
   }, [vaultPath, kinds])
 
   /**
-   * On mount, on the app's own writes (`revision`), and **on window focus** — the
-   * trigger `useVaultTexts` already re-reads the notes on, and for the same reason:
-   * things are written into this vault by hands other than this app's. A skill made
-   * by the agent in the Terminal tab appeared on disk twenty-three seconds after
-   * the app had read this list and stayed invisible until a relaunch, reported as
-   * "I do not see it". The notes it wrote showed up on the next focus; the row for
-   * the skill did not, because only this listing had no such trigger.
+   * Listed on mount, after the app's own writes (`revision`), and on
+   * window focus. Other programs write to the vault too: a skill made
+   * by the agent in the terminal did not appear until a relaunch.
    */
   useEffect(() => {
     let live = true
@@ -229,27 +212,22 @@ export function ActionsPane({
   const needle = query.trim().toLowerCase()
 
   /**
-   * The rows for one kind: the files it holds, and the names the notes *use*,
-   * whether or not a file defines them yet.
-   *
-   * `file` is null for a name that is only in use. Its row is not a lesser row:
-   * the count says how many notes carry it, and clicking it is how it gets a file.
+   * The rows for one kind: the files it holds, and the names the notes use
+   * with or without a file. `file` is null for a name only in use; its
+   * count says how many notes carry it, and clicking it makes the file.
    */
   function rowsFor(kind: ActionKind): Row[] {
     const rows: Row[] = (listing[kind.key] ?? []).map((file) => ({
-      // `noteName` takes `.md` off and leaves `settings.json` as it is, which is
-      // right both times: a note is known by its name and a JSON file by its file.
-      // **A skill's name is its folder's.** Every one of them is called `SKILL.md`,
-      // so the file's own basename names nothing — `vaultFileRef` draws the same
-      // distinction for the row it opens.
+      // `noteName` drops `.md` and leaves `settings.json` as is. A skill is named by
+      // its folder, since every skill file is `SKILL.md`; `vaultFileRef` does the same.
       name: noteName(kind.entry && file.endsWith(`/${kind.entry}`) ? file.slice(0, -(kind.entry.length + 1)) : file),
       file: inDir(kind, file) as string | null,
       notes: 0,
     }))
     const inPlay = [
       ...(used[kind.key] ?? []),
-      // A declared tag is a tag: it has a row from the moment its structure is
-      // written, with no note carrying it yet.
+      // A declared tag has a row as soon as its structure is
+      // written, before any note uses it.
       ...(declares(kind) ? (declared[kind.key] ?? []).map((name) => ({ name, notes: 0 })) : []),
     ]
     if (inPlay.length === 0) return rows
@@ -257,46 +235,50 @@ export function ActionsPane({
     for (const entry of inPlay) {
       const at = entry.name.toLowerCase()
       const seen = byName.get(at)
-      // `max`, because one name can arrive twice — in use *and* declared — and the
-      // declared half carries no count.
+      // `max`, because a name can come in twice, in use and
+      // declared, and the declared one has no count.
       if (seen) seen.notes = Math.max(seen.notes, entry.notes)
       else byName.set(at, { name: entry.name, file: null, notes: entry.notes })
     }
     return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  /** A name in use, given the file that defines it. The `+` asks for a name; this
-   *  is the same act for a name the notes already carry. */
+  /**
+   * A name in use, given the file that defines it. The same as
+   * the `+`, for a name the notes already carry.
+   */
   async function define(kind: ActionKind, name: string) {
     const made = await createAction(vaultPath, kind, name)
     setListing(await read())
     if (made) onSelect(made)
   }
 
-  /** Three sorts of row: a viewing kind's opens its page, a file opens, and a name
-   *  in use with no file yet gets one. */
+  /**
+   * Three kinds of row: a page kind's row opens its page, a file
+   * opens, and a name in use with no file gets one.
+   */
   function press(kind: ActionKind, row: Row) {
     if (views(kind)) onView(kind.key, row.name)
     else if (row.file) onSelect(vaultFileRef(vaultPath, row.file))
     else void define(kind, row.name)
   }
 
-  /** A row, or a group of the rows nesting under it — its own row too, when the
-   *  head is one: a tag with tags under it opens from its name, like a folder. */
+  /**
+   * A row, or a group of the rows under it. When the head is a row
+   * too (a tag with tags under it), its name opens it, like a folder.
+   */
   function drawBranch(kind: ActionKind, branch: Branch, depth: number): ReactNode {
     const { row } = branch
     const count = row && row.notes > 0 ? <span className="row-count">{row.notes}</span> : undefined
     if (branch.children.length === 0 && row) {
-      // `inDir` already made it vault-relative — see `rowsFor`.
+      // `inDir` already made it vault-relative; see `rowsFor`.
       const file = row.file ? vaultFileRef(vaultPath, row.file) : null
       const selected = views(kind)
         ? viewing?.kind === kind.key && viewing.name === row.name
         : file !== null && file.path === selectedPath
       return (
-        // The tree's own indent for a child row: its `folder-children` sets
-        // `--guide-x` to the parent's depth and pads each child one step past it.
-        // `file` is null for a name the notes carry that nothing defines yet: the
-        // count says how many carry it, and the click writes the file.
+        // The tree's own indent for a child: `folder-children` sets `--guide-x`
+        // to the parent's depth, and each child sits one step past it.
         <li key={branch.head} style={{ paddingLeft: stepIn(depth) }}>
           <NoteRow
             className={selected ? 'selected' : undefined}
@@ -309,7 +291,7 @@ export function ActionsPane({
       )
     }
     const key = branchKey(kind, branch.head)
-    // A query opens what it matches, as the kind's own group does.
+    // A search opens whatever matches, as the kind's own group does.
     const open = openGroups.has(key) || needle !== ''
     return (
       <li className="folder-row" key={branch.head}>
@@ -338,10 +320,8 @@ export function ActionsPane({
         const rows = rowsFor(kind).filter(
           (row) => !needle || row.name.toLowerCase().includes(needle)
         )
-        // **Shut until opened**, which is what the tree's folders do and the same
-        // `open` set that remembers them — a section that opens with five groups
-        // spread out is a wall of rows nobody asked for. A query opens whatever it
-        // matches, or searching a collapsed pane would answer with nothing.
+        // Shut until opened, like the tree's folders, in the same `open` set. A search
+        // opens whatever matches, or searching a folded pane would find nothing.
         const expanded = openGroups.has(path) || (needle !== '' && rows.length > 0)
         return (
           <li className="folder-row" key={kind.key}>
@@ -352,10 +332,8 @@ export function ActionsPane({
               onToggle={() => onToggleGroup(path, expanded)}
               icon={<RowIcon icon={kind.icon} />}
               actions={
-                // The kind's own `+`, where the kind is — the rail's asks which one
-                // and this one already knows. Config has none: those files arrive
-                // with the app. In `actions` and not `trailing`, because that slot
-                // is inside the toggle and a button cannot hold a button.
+                // The kind's own `+`. Config has none: its files come with the app. In
+                // `actions`, not `trailing`, because a button cannot hold a button.
                 creatable(kind) ? (
                   <span className="folder-actions">
                     <button
@@ -383,8 +361,8 @@ export function ActionsPane({
                       onChange={onTyped}
                       onSubmit={onCommit}
                       onCancel={onCancel}
-                      // Cancels, as the tree's create row does: a half-typed name
-                      // left behind must not become a file.
+                      // Leaving cancels, as in the tree's create row,
+                      // so a half-typed name never becomes a file.
                       onBlur={onCancel}
                     />
                   </li>
@@ -397,6 +375,3 @@ export function ActionsPane({
     </>
   )
 }
-
-/** One of these, where `label` names the group of them: what a menu offers and
- *  what a name field asks for. */

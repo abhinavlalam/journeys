@@ -1,21 +1,14 @@
 /**
- * The settings panel: a centred modal over a dimmed app, four sections on a rail.
+ * The settings panel: a modal with its sections down the side.
  *
- * Everything it knows how to decide lives in `settings.ts` and `shortcuts.ts` —
- * this file renders those two and reports a whole new `Settings` upward. It holds
- * no copy of a setting: the only local state is which section is showing, which
- * keybind is capturing, and the daily-folder text *as typed*, which is the one
- * value that can legitimately be mid-edit and invalid.
+ * The rules are in `settings.ts` and `shortcuts.ts`. This file draws them
+ * and sends up a whole new `Settings`. Its only own state is the open
+ * section, the key being captured, and the drafts still being typed.
  *
- * **Not `Settings.tsx`, and this is not a style preference.** macOS is
- * case-insensitive, and `tsconfig.json`'s `include: ["src"]` expansion keeps one
- * file per path-without-extension, keyed case-insensitively, with `.ts` ranked
- * above `.tsx`. A `src/Settings.tsx` beside `src/settings.ts` is therefore dropped
- * from the program: `tsc --noEmit` passes with the panel never type-checked at
- * all, while Vite bundles it anyway. Verified by putting
- * `const n: number = 'no'` in a `src/Probe.tsx` next to a `src/probe.ts` — clean
- * check — and watching it fail the moment the lowercase twin was deleted. Never
- * give a file a name that differs from another in `src` only by case.
+ * It is named `SettingsPanel.tsx` and not `Settings.tsx` on purpose. macOS
+ * ignores case, and tsc then keeps only one of `settings.ts` and
+ * `Settings.tsx`, so the panel was never type-checked while Vite still
+ * built it. Never give two files in `src` names that differ only by case.
  */
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import {
@@ -38,12 +31,12 @@ import { agoWord, SECOND_MS } from './clock'
 
 interface SettingsProps {
   settings: Settings
-  /** A whole new `Settings`. Live — there is no OK button, so nothing to discard. */
+  /** A whole new `Settings`. Changes apply at once; there is no OK button. */
   onChange: (next: Settings) => void
   onClose: () => void
   /** The vault's sync, for its own section. */
   sync: Sync
-  /** Which section to open on: the Sync row under Applications opens Sync. */
+  /** The section to open on. The Sync row under Applications opens Sync. */
   initialSection?: SectionId
 }
 
@@ -56,12 +49,13 @@ const SECTIONS = [
   { id: 'sync', label: 'Sync' },
 ] as const
 
-/** What a feed address has to be before it is kept: the Rust side answers for
- *  these two schemes and nothing else, so the panel says so here rather than at
- *  the first Sync. */
+/**
+ * A feed address must start with one of these. Rust fetches nothing
+ * else, so the panel says so now rather than at the first sync.
+ */
 const FEED_ADDRESS = /^https?:\/\//i
 
-/** The three the repository keeps, in the order they are asked for. */
+/** What the repository keeps, in the order they are asked for. */
 const SYNC_FIELDS = [
   { key: 'name', label: 'Your name', placeholder: '' },
   { key: 'email', label: 'Your email', placeholder: '' },
@@ -70,11 +64,10 @@ const SYNC_FIELDS = [
 
 export type SectionId = (typeof SECTIONS)[number]['id']
 
-/** `MODES` is storage order — dark first, because dark is what ships. Light-first
- *  is the *display* order, so the three read as a ramp with the deferral last.
- *  A rank rather than a second literal list: `MODES` stays the only statement of
- *  which modes exist, and a new one is a type error here instead of a mode that
- *  silently never renders. */
+/**
+ * The menu shows light, dark, system. `MODES` stays the one list of
+ * modes, so a new mode is a type error here rather than a missing button.
+ */
 const MODE_RANK: Record<Mode, number> = { light: 0, dark: 1, system: 2 }
 const MODE_ORDER = [...MODES].sort((a, b) => MODE_RANK[a] - MODE_RANK[b])
 
@@ -93,8 +86,7 @@ const SCHEME_LABELS: Record<Scheme, string> = {
   midnight: 'Midnight',
 }
 
-/** The `<optgroup>` headings, in menu order. A category with no face in `FACES`
- *  renders no group at all, so this list cannot put an empty heading on screen. */
+/** The menu's groups, in order. A group with no face is not drawn. */
 const CATEGORY_ORDER: readonly FaceCategory[] = ['sans', 'serif', 'mono']
 
 const CATEGORY_LABELS: Record<FaceCategory, string> = {
@@ -108,18 +100,14 @@ const CATEGORY_LABELS: Record<FaceCategory, string> = {
 // ---------------------------------------------------------------------------
 
 /**
- * Characters on a line, and whether that is a comfortable number of them.
+ * Characters on a line, and whether that is a comfortable number.
  *
- * **Measured, not assumed.** This was `EM_PER_CHARACTER = 0.516`, one face's ratio
- * applied to all eighteen — at Helvetica Neue 13.5 it said about 100 where a
- * measured line holds 105. `characterWidth` asks the face, the way the indent step
- * already does.
+ * Measured from the face (`characterWidth`), not a fixed ratio:
+ * a fixed 0.516 said about 100 where a line held 105.
  *
- * And it says *wide* or *narrow*, because a number alone is not advice: reported
- * from the running app as "readability is poor when a page is long enough", with
- * the column sitting at 105 characters. Forty-five to eighty is the band prose has
- * been set in for a century; past it the eye loses the line it is returning to, and
- * the longer the page the more that costs.
+ * Forty-five to eighty reads well. Past that the eye loses its
+ * place when it goes back to the start of the next line, so the
+ * readout says wide or narrow and not just a number.
  */
 const COMFORTABLE = { from: 45, to: 80 }
 
@@ -134,19 +122,12 @@ function measureReadout(readingWidth: number, settings: Settings): string {
   return `${readout(readingWidth)}px · ${characters} characters${verdict}`
 }
 
-/** `0.5` steps land on floats: `1.7000000000000002` is a real slider value. */
+/** Half steps give floats like `1.7000000000000002`. */
 function readout(value: number): string {
   return String(Number(value.toFixed(2)))
 }
 
-/**
- * One slider row: the label, the track, the value.
- *
- * Eight of these were eight copies of the same fourteen lines, and the copies had
- * begun to differ — one carried a hint, its neighbour did not, and the readouts
- * did not all say what their unit was. The `format` is the only thing a row
- * genuinely owns.
- */
+/** One slider row: label, track, value. */
 function Slider({
   uid,
   name,
@@ -157,7 +138,7 @@ function Slider({
   format,
 }: {
   uid: string
-  /** Suffix for the field's own id, so the label and the readout can point at it. */
+  /** Added to the field's id, so the label and the readout can point at it. */
   name: string
   label: string
   bounds: { min: number; max: number; step: number }
@@ -177,10 +158,8 @@ function Slider({
           max={bounds.max}
           step={bounds.step}
           value={value}
-          // How much of the track is filled. The sheet draws the track itself — a
-          // hairline rather than the platform's rail — and a track of our own is
-          // not painted half-full by WebKit, so the one place that knows the value
-          // hands it over.
+          // The sheet draws its own track, which WebKit does not
+          // fill, so the fill is passed in.
           style={{ '--fill': `${((value - bounds.min) / (bounds.max - bounds.min)) * 100}%` } as CSSProperties}
           onChange={(e) => onChange(e.currentTarget.valueAsNumber)}
         />
@@ -200,21 +179,16 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
   const [section, setSection] = useState<SectionId>(initialSection)
   const [capturing, setCapturing] = useState<ActionId | null>(null)
   const [conflict, setConflict] = useState<string | null>(null)
-  // The folder *as typed*. Held locally because a half-typed name is invalid and
-  // must not be pushed up — `settings.dailyFolder` only ever holds a name that
-  // passed `validateDailyFolder`.
+  // The folder as typed. Only a valid name goes up to `settings.dailyFolder`.
   const [dailyDraft, setDailyDraft] = useState(settings.dailyFolder)
-  // A feed address being typed or pasted, kept until Add or Enter: an address is
-  // one string, and committing it a keystroke at a time would save a dozen
-  // half-addresses. `shownFeeds` is which of the saved ones are unmasked — a
-  // secret address is masked until asked for, per row.
+  // A feed being typed or pasted, kept until Add or Enter, so a half address
+  // is never saved. `shownFeeds` are the saved addresses shown unmasked.
   const [feedDraft, setFeedDraft] = useState({ name: '', url: '' })
   const [feedError, setFeedError] = useState<string | null>(null)
   const [shownFeeds, setShownFeeds] = useState<ReadonlySet<string>>(new Set())
-  // The repository's address and the identity, as typed; they go to the repository
-  // on Enter or blur, since a half-typed address is not one. Seeded from the
-  // repository when it is first read. The token is a draft until saved and is
-  // never shown back — it is in the keychain, not in anything the panel reads.
+  // The repository's address and the identity as typed. They are saved on
+  // Enter or blur, and seeded from the repository once it is read. The token
+  // is a draft until saved and never shown again; it lives in the keychain.
   const [syncDraft, setSyncDraft] = useState({ remote: '', name: '', email: '' })
   const [tokenDraft, setTokenDraft] = useState('')
   const seeded = useRef(false)
@@ -228,10 +202,8 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
   const uid = useId()
   const titleId = `${uid}-title`
 
-  // Focus into the dialog on open and back to the opener on close. The opener is
-  // read on mount rather than passed in: by the time this unmounts the button
-  // that opened it may have been re-rendered, but the node is still the one the
-  // browser will accept a focus() on.
+  // Focus the dialog on open and give focus back to the opener on close.
+  // The opener is read on mount, while it is still the node that had focus.
   useEffect(() => {
     const opener = document.activeElement
     dialog.current?.focus()
@@ -242,8 +214,7 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
 
   const patch = (next: Partial<Settings>) => onChange({ ...settings, ...next })
 
-  /** What is typed goes to the repository — the address, the identity — when it
-   *  differs from what the repository holds. */
+  /** Save the typed address and identity when they differ from the repository's. */
   async function saveSyncDraft() {
     const s = sync.status
     const same =
@@ -251,13 +222,17 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
     if (same) return
     await sync.configure(syncDraft.remote, syncDraft.name, syncDraft.email)
   }
-  /** Into the keychain, and out of the field: the panel never shows a token back. */
+  /**
+   * Save the token to the keychain and clear the field. A token is never shown again.
+   */
   async function storeToken() {
     await sync.setToken(tokenDraft.trim())
     setTokenDraft('')
   }
-  /** The first backup and every "now" after it are the same act: make sure the
-   *  repository knows the address and the identity, then run a round. */
+  /**
+   * The first backup and every Sync now do the same: save the
+   * address, the identity and the token, then run a round.
+   */
   async function backUpNow() {
     await saveSyncDraft()
     if (tokenDraft.trim()) await storeToken()
@@ -282,9 +257,10 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
     setCapturing(id)
   }
 
-  /** A captured or reset combo, or the reason it cannot be used. The rejected
-   *  combo is never written — `findConflict` is asked before `onChange`, not
-   *  after. */
+  /**
+   * Save a captured or reset combo, or say why it cannot be
+   * used. A combo that conflicts is never saved.
+   */
   function commit(id: ActionId, combo: string) {
     const reason = findConflict(combo, id, settings.shortcuts)
     if (reason) {
@@ -302,13 +278,9 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
   }
 
   /**
-   * One handler for the whole dialog, because the three jobs are ordered and not
-   * independent.
-   *
-   * While capturing, every keystroke belongs to the capture — including Tab, and
-   * including Escape, which **cancels** rather than closing the dialog. Losing
-   * that ordering is how Escape ends up shutting the panel out from under someone
-   * who only wanted to abandon a rebind.
+   * One key handler for the whole dialog. While a key is being
+   * captured, every key goes to the capture, Tab and Escape included.
+   * Escape then cancels the capture and does not close the panel.
    */
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     if (capturing) {
@@ -319,7 +291,7 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
         setConflict(null)
         return
       }
-      // `null` while only modifiers are down: ⌘ on its own is not a combo yet.
+      // `null` while only modifiers are down: ⌘ alone is not a combo.
       const combo = comboFromEvent(event)
       if (combo) commit(capturing, combo)
       return
@@ -420,8 +392,8 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
                         className={
                           scheme === settings.scheme ? 'settings-swatch selected' : 'settings-swatch'
                         }
-                        // The sheet keys each swatch's own accent off this, since a
-                        // scheme's colour cannot come from the palette in force.
+                        // The sheet colours each swatch by its
+                        // own scheme, not the one in use.
                         data-scheme={scheme}
                         aria-pressed={scheme === settings.scheme}
                         onClick={() => patch({ scheme })}
@@ -450,34 +422,25 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
               <section className="settings-section">
                 <h3>Typography</h3>
 
-                {/* **Two groups, and the labels are the whole explanation.** Nine
-                    controls read as a wall of prose when each carries a sentence,
-                    and the sentences said what the label and the readout already
-                    say. What is left is the one thing a label cannot: which face
-                    the setting reaches. */}
+                {/* The labels are enough. Only a hint the label cannot
+                    give is kept: which text the setting changes. */}
                 <p className="settings-group">Text</p>
 
-                {/* A grouped `<select>`, not the radio list this replaced:
-                    eighteen faces as radios is eighteen rows in a dialog that is
-                    capped and already scrolls, and `<optgroup>` states the
-                    category once instead of once per row. The native menu also
-                    gives keyboard type-ahead over the names for free. */}
+                {/* A grouped menu rather than eighteen radio
+                    buttons. It also gives type-ahead over the names. */}
                 <div className="settings-field">
                   <label htmlFor={`${uid}-font`}>Face</label>
                   <select
                     id={`${uid}-font`}
                     className="settings-select"
                     value={settings.fontFamily}
-                    // Every `<option>` below carries a `FaceId`, so this is the
-                    // one place the string can be narrowed back to one.
+                    // Every option's value is a `FaceId`.
                     onChange={(e) => patch({ fontFamily: e.currentTarget.value as FaceId })}
                   >
                     {CATEGORY_ORDER.map((category) => (
                       <optgroup key={category} label={CATEGORY_LABELS[category]}>
                         {FACES.filter((face) => face.category === category).map((face) => (
-                          // The option in its own face, where the platform honours
-                          // it — a font menu that shows the fonts. Cosmetic: a
-                          // native popup that ignores it still reads correctly.
+                          // Each option in its own face, where the menu allows it.
                           <option key={face.id} value={face.id} style={{ fontFamily: face.stack }}>
                             {face.name}
                           </option>
@@ -508,9 +471,8 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
                   onChange={(proseWeight) => patch({ proseWeight })}
                   format={readout}
                 />
-                {/* Beside the text's weight, because it is the same question for
-                    the glyphs: a `stroke-width` is in viewBox units, so the sheet
-                    turns this one number into a stroke per grid. */}
+                {/* Next to text weight: the sheet turns this one
+                    number into a stroke width for each icon grid. */}
                 <Slider
                   uid={uid}
                   name="iconweight"
@@ -529,10 +491,8 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
                   onChange={(lineHeight) => patch({ lineHeight })}
                   format={readout}
                 />
-                {/* The measure rides in the readout rather than on a line of its
-                    own: it is the number that matters here, and it moves with the
-                    *size* as well as the width — which is how a note quietly went
-                    from 85 characters to 91 with this slider untouched. */}
+                {/* The characters per line are in the readout, since
+                    they change with the size as well as the width. */}
                 <Slider
                   uid={uid}
                   name="width"
@@ -547,10 +507,8 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
 
                 <p className="settings-group">Spacing</p>
 
-                {/* Between the lines rather than inside them, so it reads as a
-                    paragraph gap and not more leading. The rows have their own:
-                    one slider moved both for a while, and a list of names does not
-                    want the air a paragraph does. */}
+                {/* Space between lines, not more leading. The rows have their
+                    own gap: a list of names does not want a paragraph's air. */}
                 <Slider
                   uid={uid}
                   name="gap"
@@ -584,8 +542,7 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
             {section === 'shortcuts' && (
               <section className="settings-section">
                 <h3>Shortcuts</h3>
-                {/* Each row reads across, not down: the sheet turns it with
-                    `:has(.settings-keybind)` rather than taking a fifth class. */}
+                {/* The sheet lays each row out across with `:has(.settings-keybind)`. */}
                 {ACTIONS.map((action) => (
                   <div className="settings-field" key={action.id}>
                     <label id={`${uid}-${action.id}`}>{action.label}</label>
@@ -633,9 +590,9 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
                     onChange={(e) => {
                       const typed = e.currentTarget.value
                       setDailyDraft(typed)
-                      // Only a name that passes goes up. An invalid one stays in
-                      // the box, so the field can be empty mid-edit without the
-                      // app losing where its daily notes live.
+                      // Only a valid name goes up. An invalid one
+                      // stays in the field, so it can be empty while
+                      // typing without losing where daily notes go.
                       const check = validateDailyFolder(typed)
                       if (check.ok) patch({ dailyFolder: check.value })
                     }}
@@ -668,10 +625,9 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
             {section === 'calendar' && (
               <section className="settings-section">
                 <h3>Calendar</h3>
-                {/* One row per calendar: its name, typed here and changed here — that
-                    name is what `source::` says on every line the sync writes — and
-                    the address masked: it is a secret, and anyone holding it can read
-                    the calendar. Show unmasks one. */}
+                {/* One row per calendar: its name, which every synced line's
+                    `source::` carries, and its address, masked because
+                    anyone with it can read the calendar. Show unmasks one. */}
                 {settings.calendarFeeds.map((feed, at) => {
                   const id = `${uid}-feed-${at}`
                   const shown = shownFeeds.has(feed.url)
@@ -787,7 +743,7 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
             {section === 'sync' && (
               <section className="settings-section">
                 <h3>Sync</h3>
-                {/* The one sentence, the same one the row under Applications says. */}
+                {/* The same words the Sync row under Applications shows. */}
                 <p className="settings-sync-word">
                   {syncWord(sync)}
                   {sync.status?.lastCommit && (

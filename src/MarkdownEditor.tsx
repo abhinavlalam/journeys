@@ -1,16 +1,12 @@
-// The note pane, over the file's own bytes.
+// The note editor, over the file's own bytes.
 //
-// **The document is the markdown.** There is no serialiser here and nothing parses
-// and regenerates the text: what CodeMirror holds is the string that was read off
-// disk, and what autosave writes is that string with the user's edits in it. That
-// single property is what this file is for. The editor before it was a WYSIWYG that
-// rewrote text nobody had touched on its way back out — `[[wikilink]]` escaped,
-// `- ` turned into `* `, a blank line inserted between every list item — and a
-// whole module existed to repair one of those. Nothing here needs repairing.
+// The document is the markdown. Nothing parses and regenerates the text:
+// autosave writes what was read, with the edits in it. The editor before
+// this one was a WYSIWYG that rewrote text nobody touched (`[[links]]`
+// escaped, `- ` turned into `* `, blank lines between list items).
 //
-// Formatting is therefore *syntax*. ⌘B puts `**` in the document, deleting the `**`
-// by hand unbolds, and the markers are hidden by a decoration rather than consumed
-// by a parser — so there is always a caret position between them.
+// So formatting is syntax. ⌘B types `**`, and the markers are hidden
+// by a decoration, so there is always a caret position between them.
 
 import { useRef } from 'react'
 import { type Extension } from '@codemirror/state'
@@ -43,51 +39,52 @@ import type { Entries } from './configEntries'
 
 interface MarkdownEditorProps {
   /**
-   * Read at mount only, exactly as `EditorHost`'s is: the parent keys this component on
-   * the open note's path and `editorEpoch`, so switching notes or picking up an
-   * external edit *remounts* it rather than pushing text into a live editor.
-   *
-   * That is what makes "this editor holds this note" a fact instead of an invariant
-   * to maintain — and it is also why `onChange` cannot fire on open: there is no
-   * programmatic document swap to fire it, and CodeMirror's update listener does
-   * not run for the initial state.
+   * Read at mount only, as in `EditorHost`. The parent keys this on the
+   * note's path and `editorEpoch`, so a new note or an outside edit
+   * remounts the editor. That is also why `onChange` never fires on open.
    */
   initialMarkdown: string
   /**
-   * The configurable insert-timestamp combo, in this app's own `mod+shift+t` form,
-   * or `null` to disable it (the settings panel is open, so capturing a rebind must
-   * not fire the action being rebound).
+   * The insert-timestamp combo, like `mod+shift+t`, or `null` to
+   * turn it off while the settings panel is capturing a rebind.
    */
   insertTimeCombo?: string | null
-  /** Every note in the vault, for the `[[` picker. Read through a ref, so a note
-      created since this mounted is still offered. */
+  /**
+   * Every note in the vault, for the `[[` popup. Read through a
+   * ref, so notes made after mount are offered too.
+   */
   notes?: VaultFile[]
-  /** Each property's type, for where a block property's value ends. */
+  /** Each property's type, to know where a block property's value ends. */
   propertyTypes?: Entries
   /** Each tag's structure, for the properties its line is offered. */
   tagStructures?: Entries
-  /** Open with the caret at the end, not below the title: a daily note is a log,
-      and its next line goes at the bottom. */
+  /** Open with the caret at the end. A daily note's next line goes at the bottom. */
   caretAtEnd?: boolean
-  /** On screen: see `EditorHost`'s. */
+  /** On screen; see `EditorHost`. */
   shown?: boolean
-  /** Spaces per indent level, from the settings. Applied through a compartment, so
-      moving the slider does not remount the editor. */
+  /**
+   * Spaces per indent level, from the settings. Changed through
+   * a compartment, so the slider does not remount the editor.
+   */
   indentWidth?: number
-  /** A click on a link, with the raw target — `Roadmap` from `[[Roadmap]]`, or
-      `Notes/Roadmap.md` from `[Roadmap](Notes/Roadmap.md)`. The caller resolves it;
-      this editor knows nothing about the vault. */
+  /**
+   * A click on a link, with its raw target: `Roadmap` from `[[Roadmap]]`, or
+   * `Notes/Roadmap.md` from `[Roadmap](Notes/Roadmap.md)`. The caller resolves it.
+   */
   onOpenLink?: (target: string, wiki: boolean) => void
-  /** A `#tag` was pressed: its page is every line in the vault carrying it. */
+  /** A `#tag` was pressed. Its page lists every line in the vault that carries it. */
   onOpenTag?: (tag: string) => void
-  /** Where today's note lives, for the `/` menu's Today. Through a ref like the
-      rest, so changing the setting does not remount the editor. */
+  /**
+   * Where today's note lives, for Today in the `/` menu. Read
+   * through the ref, so a change does not remount.
+   */
   dailyFolder?: string
-  /** Called synchronously, on every document change and on no other update. */
+  /** Called on every document change, and nothing else. */
   onChange: (markdown: string) => void
-  /** **An editor over one line** — a timeline entry's — rather than a note: no
-      gutters, and Enter, Escape and leaving it each handed the line to the caller,
-      which decides what they mean. An open popup still takes its own keys first. */
+  /**
+   * An editor for one line (a timeline entry) instead of a note: no gutters, and Enter,
+   * Escape and leaving are the caller's. An open popup still takes its keys first.
+   */
   line?: { onEnter: (text: string) => void; onEscape: () => void; onLeave?: (text: string) => void }
 }
 
@@ -96,52 +93,33 @@ interface MarkdownEditorProps {
 // ---------------------------------------------------------------------------
 
 /**
- * What is markdown about this editor. Everything else — the box, the gutters, the
- * line numbers, folding, the caret, wrapping, the change listener — is
- * `EditorHost`, and is the same for any file the app opens.
+ * What is markdown about this editor. The box, gutters, folding, caret,
+ * wrapping and change listener are `EditorHost`'s, the same for every file.
  *
- * `markdownLanguage` and not the CommonMark base: task lists and strikethrough are
- * GFM, and a vault written in Obsidian is full of both.
+ * `markdownLanguage` rather than plain CommonMark, for GFM task
+ * lists and strikethrough.
  */
 function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension[] {
   const getTypes = () => latest.current.propertyTypes ?? {}
   return [
     propertyTypes.of(getTypes),
     /**
-     * A press on a link follows it, as it does in Obsidian's live preview. The
-     * caret still lands anywhere else, so text stays editable by clicking into it
-     * — including in the space past the end of a line that ends in a link, which
-     * is what `isLinkClick` is for.
+     * A press on a link follows it. Clicks elsewhere, including past the end
+     * of a line that ends in a link (`isLinkClick`), still place the caret.
      *
-     * **`mousedown`, and this is the whole of why.** It was `click`, and a click
-     * needs the press and the release on the *same element*: pressing a link puts
-     * the caret in it, live preview reveals the syntax it had hidden, and the very
-     * span that was pressed is **replaced** before the button comes back up. So no
-     * click was ever generated, and following a link took two presses — the second
-     * landing on a line whose syntax was already revealed. Read out of the running
-     * app's own event log, after three fixes aimed at the wrong thing:
-     *
-     *     mousedown span.cm-md-link < div.cm-line < div.cm-content
-     *     mouseup   span.cm-md-link < div.cm-line < div.cm-content
-     *     (no click)
-     *
-     * The press is the only event a decoration cannot outrun.
+     * This is `mousedown` on purpose. With `click`, pressing a link moved the
+     * caret into it, the hidden syntax showed, and the pressed span was replaced
+     * before the release, so no click fired. Following a link took two presses.
      */
     EditorView.domEventHandlers({
       mousedown(event, view) {
-        // The left button alone: the right one is the menu's, and a modifier is the
-        // platform's — ⌘-click and ⌥-drag are not "follow this link".
+        // Left button only, with no modifier. Right click is the
+        // menu; ⌘-click and ⌥-drag are the platform's.
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey) return false
         /**
-         * **A press on a checkbox checks it**, and `mousedown` matters here more
-         * than anywhere else in this handler: the toggle changes the document, the
-         * decoration is rebuilt, and the very element that was pressed is gone
-         * before the button comes back up. A `click` would never be generated —
-         * exactly the bug the comment above this one records, waiting to happen a
-         * second time.
-         *
-         * One character is written, the state between the brackets. Everything
-         * else on the line is the user's and is not re-spelled.
+         * A press on a checkbox toggles it. Also `mousedown`,
+         * since the toggle rebuilds the box before the release.
+         * Only the character between the brackets is written.
          */
         if (isTaskClick(event.target)) {
           const at = event.target instanceof Node ? view.posAtDOM(event.target) : null
@@ -163,10 +141,7 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
           return true
         }
         if (!isLinkClick(event.target)) return false
-        // **From the node, not the coordinates.** The test above has already said
-        // the press landed on the mark's own element, so `posAtDOM` answers from
-        // the thing that was pressed rather than from where the pointer was — no
-        // measuring, and nothing to be wrong about at the edges of a glyph.
+        // Position from the pressed node (`posAtDOM`), not the pointer's coordinates.
         const pos = event.target instanceof Node ? view.posAtDOM(event.target) : null
         if (pos == null) return false
         const found = linkTargetAt(view.state, pos)
@@ -181,7 +156,7 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
     }),
     placeholder('Start writing…'),
     completionAppearance,
-    // Its keys are in the one array below, not at the `Prec.highest` it adds them at.
+    // Its keys are bound in the array below, not at the `Prec.highest` it would use.
     autocompletion({
       defaultKeymap: false,
       override: [
@@ -190,12 +165,12 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
         propertySource(() => latest.current.tagStructures ?? {}, getTypes),
       ],
     }),
-    // Ahead of everything, and rebuilt from a getter each keypress so a rebind in
-    // the settings panel takes effect without remounting the editor.
+    // Before everything else. The timestamp combo is read on
+    // each key press, so a rebind works without a remount.
     keymap.of([
-      // **Enter over a property's name is a new line**, not the name: the box opens
-      // as a line's tag is typed, and a line that ends there is an ordinary one. Tab
-      // takes the name. Ahead of the popup's own keys, whose Enter would take it.
+      // Enter over a property's name in the popup makes a new
+      // line, not the name: a line may end at its tag. Tab takes
+      // the name. This comes before the popup's own Enter.
       {
         key: 'Enter',
         run: (view) => {
@@ -203,9 +178,9 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
           return false
         },
       },
-      // The popup's arrows, Enter and Escape, which decline while it is shut.
+      // The popup's arrows, Enter and Escape. They do nothing while it is closed.
       ...completionKeymap,
-      // One line has no second: Enter and Escape are the caller's.
+      // A one-line editor hands Enter and Escape to the caller.
       {
         key: 'Enter',
         run: (view) => {
@@ -220,52 +195,41 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
           return latest.current.line !== undefined
         },
       },
-      // Tab takes what the popup offers, when it offers something.
+      // Tab takes the popup's pick, if there is one.
       { key: 'Tab', run: acceptCompletion },
       insertTimeKeymap(() => latest.current.insertTimeCombo ?? null),
       ...formatKeymap,
-      // `@codemirror/lang-markdown`'s own: Enter continues a list, Backspace
-      // removes the marker. These sit ahead of the host's `defaultKeymap`, whose
-      // plain Enter would otherwise win — which is what `EditorHost` puts a
-      // caller's extensions first for.
+      // lang-markdown's own keys: Enter continues a quote, Backspace removes a
+      // marker. Before the host's `defaultKeymap`, whose plain Enter would win.
       ...markdownKeymap,
     ]),
-    // **`addKeymap: false`, and the bindings above are the whole order.**
-    // `markdown()` adds `markdownKeymap` itself at `Prec.high`, which outranks any
-    // keymap a caller passes however it is ordered — so `continueIndent` was bound,
-    // reached by a direct call, and dead under the key. Switched off here, the array
-    // above is the precedence, and the same bindings are still in it.
+    // `addKeymap: false`, so the array above is the whole key order.
+    // `markdown()` would add its keymap at `Prec.high`, above
+    // everything here, and `continueIndent` never ran from the key.
     markdown({ base: markdownLanguage, addKeymap: false }),
     livePreview,
   ]
 }
 
 /**
- * Where a note opens: past its properties, and past its title.
+ * Where a note opens: after its properties, and after its title.
  *
- * Past the properties, because at offset 0 the caret sits between the opening
- * `---` and the first key, so the first thing typed edits a property. Past the
- * title for the same reason one step down — a note's first line is usually its
- * name, and the caret being *in* it both invites editing the name and reveals the
- * `#`, since this editor shows the syntax the caret is in. A new action file is
- * created as `# owner` and nothing else, which is where that was noticed.
- *
- * Only a heading on the note's *first* line after the block: further down, a
- * heading is a section and the caret has no business skipping it.
+ * At offset 0 the first key typed edits a property. On the title
+ * line it would edit the name and show the `#`. Only a heading on
+ * the first line is skipped; a heading further down is a section.
  */
 export function caretOnOpen(text: string): number {
   const body = splitPageProperties(text)
   const first = body.body.split('\n', 1)[0]
   if (!/^#{1,6}\s/.test(first)) return body.prefix.length
-  // The line after it, or the end of the note when the title is all there is.
+  // The next line, or the end of the note when the title is all there is.
   const past = body.prefix.length + first.length + 1
   return Math.min(past, text.length)
 }
 
 export function MarkdownEditor(props: MarkdownEditorProps) {
-  // The extension list is built once, for the reason the host mounts once, so what
-  // it reads — the notes, the combo, a fresh `onOpenLink` — is this render's props,
-  // through one ref.
+  // The extensions are built once, as the host mounts once, so
+  // they read this render's props through one ref.
   const latest = useRef(props)
   latest.current = props
   const extensionsRef = useRef<Extension[] | null>(null)
