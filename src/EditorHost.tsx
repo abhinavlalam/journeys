@@ -67,6 +67,9 @@ interface EditorHostProps {
   /** Spaces per indent level, from the settings. Through a compartment, so moving
    *  the slider does not remount the editor and throw away the undo history. */
   indentWidth?: number
+  /** Line numbers and folding, which every file has; a field over one line, such
+   *  as a timeline entry, has neither. */
+  gutters?: boolean
 }
 
 const indentSize = new Compartment()
@@ -80,22 +83,21 @@ const indentSize = new Compartment()
 function shared(
   onChange: (text: string) => void,
   ariaLabel: string,
-  indentWidth: number
+  indentWidth: number,
+  gutters: boolean
 ): Extension[] {
   return [
     indentSize.of(indentUnit.of(' '.repeat(indentWidth))),
-    codeFolding(),
     // By indentation, and that is the whole reason it works for both: a pretty
     // printed `{` opens an indented block exactly as a heading opens a section, so
     // JSON folds between its braces without a grammar to tell it where they are.
-    indentFoldGutter,
-    indentFold,
+    gutters ? [codeFolding(), indentFoldGutter, indentFold] : [],
     drawSelection(),
     // **Line numbers, for every file type.** They were taken off notes for a day
     // on the argument that a note is not code, and asked straight back: they were
     // never the complaint. The gutter they sit in is right-aligned and a fixed
     // width, so a count crossing 10 or 100 moves nothing — see `.cm-lineNumbers`.
-    lineNumbers(),
+    gutters ? lineNumbers() : [],
     history(),
     keymap.of([
       // Tab indents, ⇧Tab outdents. `defaultKeymap` leaves Tab alone on purpose —
@@ -193,6 +195,7 @@ export function EditorHost({
   initialSelection = 0,
   indentWidth = 2,
   shown = true,
+  gutters = true,
 }: EditorHostProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -227,7 +230,7 @@ export function EditorHost({
         extensions: [
           EditorState.lineSeparator.of(lineBreak),
           ...extensions,
-          ...shared((text) => onChangeRef.current(text), ariaLabel, indentWidth),
+          ...shared((text) => onChangeRef.current(text), ariaLabel, indentWidth, gutters),
         ],
       }),
       parent: root,

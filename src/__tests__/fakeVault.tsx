@@ -281,20 +281,32 @@ export function markdownEditorModule() {
       initialMarkdown,
       onChange,
       shown = true,
+      line,
     }: {
       initialMarkdown: string
       onChange: (markdown: string) => void
       shown?: boolean
-    }) => (
-      // A tab out of sight keeps its editor mounted; "the editor" is the one shown.
-      <textarea
-        data-testid={shown ? 'editor' : 'hidden-editor'}
-        className="markdown-editor"
-        aria-label="Markdown source"
-        defaultValue={initialMarkdown}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    ),
+      line?: { onDone: (text: string) => void; onCancel: () => void }
+    }) =>
+      // An editor over one line keeps the real one's Enter, Escape and leaving.
+      line ? (
+        <input
+          data-testid="line-editor"
+          aria-label="Markdown source"
+          defaultValue={initialMarkdown}
+          onKeyDown={(e) => (e.key === 'Enter' ? line.onDone(e.currentTarget.value) : e.key === 'Escape' && line.onCancel())}
+          onBlur={(e) => line.onDone(e.currentTarget.value)}
+        />
+      ) : (
+        // A tab out of sight keeps its editor mounted; "the editor" is the one shown.
+        <textarea
+          data-testid={shown ? 'editor' : 'hidden-editor'}
+          className="markdown-editor"
+          aria-label="Markdown source"
+          defaultValue={initialMarkdown}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      ),
   }
 }
 

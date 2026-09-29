@@ -95,6 +95,20 @@ export function dayEntries(note: VaultFile, raw: string): TimelineEntry[] {
   return [...entries.filter((one) => one.start === null), ...timed]
 }
 
+/**
+ * The note with an entry's line reading `text` — its indent and line ending kept,
+ * and nothing else in the note touched — or null when that line is no longer the
+ * entry's: the note changed since it was read, and writing would land on another.
+ */
+export function withEntry(raw: string, entry: TimelineEntry, text: string): string | null {
+  const lines = raw.split('\n')
+  const line = lines[entry.at]
+  if (line === undefined || line.trim() !== entry.text) return null
+  const indent = line.slice(0, line.length - line.trimStart().length)
+  lines[entry.at] = indent + text.replace(/\s+/g, ' ').trim() + (line.endsWith('\r') ? '\r' : '')
+  return lines.join('\n')
+}
+
 /** `HH:MM` for minutes into a day, a block's end past midnight included. */
 export const clockText = (minutes: number) =>
   `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`

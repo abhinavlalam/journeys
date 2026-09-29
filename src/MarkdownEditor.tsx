@@ -85,6 +85,10 @@ interface MarkdownEditorProps {
   dailyFolder?: string
   /** Called synchronously, on every document change and on no other update. */
   onChange: (markdown: string) => void
+  /** **An editor over one line** — a timeline entry's — rather than a note: no
+      gutters, and Enter or leaving it is `onDone` with the line, Escape `onCancel`.
+      An open popup still takes its own Enter and Escape first. */
+  line?: { onDone: (text: string) => void; onCancel: () => void }
 }
 
 // ---------------------------------------------------------------------------
@@ -171,6 +175,9 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
         latest.current.onOpenLink?.(found.target, found.wiki)
         return true
       },
+      blur(_event, view) {
+        latest.current.line?.onDone(view.state.sliceDoc())
+      },
     }),
     placeholder('Start writing…'),
     completionAppearance,
@@ -198,6 +205,21 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
       },
       // The popup's arrows, Enter and Escape, which decline while it is shut.
       ...completionKeymap,
+      // One line has no second: Enter is done with it, Escape leaves it as it was.
+      {
+        key: 'Enter',
+        run: (view) => {
+          latest.current.line?.onDone(view.state.sliceDoc())
+          return latest.current.line !== undefined
+        },
+      },
+      {
+        key: 'Escape',
+        run: () => {
+          latest.current.line?.onCancel()
+          return latest.current.line !== undefined
+        },
+      },
       // Tab takes what the popup offers, when it offers something.
       { key: 'Tab', run: acceptCompletion },
       insertTimeKeymap(() => latest.current.insertTimeCombo ?? null),
@@ -260,6 +282,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
       ariaLabel="Markdown source"
       className="markdown-editor"
       indentWidth={indentWidth}
+      gutters={!props.line}
     />
   )
 }

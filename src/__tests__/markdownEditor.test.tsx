@@ -2010,6 +2010,60 @@ describe('the properties a tag’s line is offered', () => {
 })
 
 /**
+ * **An editor over one line** — a timeline entry's — through the real keymap: Enter
+ * is done with the line and Escape leaves it, unless a popup is open, whose own
+ * Enter comes first; leaving it is done too; and it has no gutters.
+ */
+describe('an editor over one line', () => {
+  afterEach(() => vi.restoreAllMocks())
+  const mounted = (doc: string) => {
+    const done: string[] = []
+    const cancelled: true[] = []
+    const { container } = render(
+      <MarkdownEditor
+        initialMarkdown={doc}
+        caretAtEnd
+        notes={NOTES}
+        onChange={() => {}}
+        line={{ onDone: (text) => done.push(text), onCancel: () => cancelled.push(true) }}
+      />
+    )
+    return { view: viewOf(container), container, done, cancelled }
+  }
+
+  it('is done on Enter, with the line as it stands, and makes no second line', () => {
+    const { view, done } = mounted('09:00 standup')
+    view.dispatch({ changes: { from: 13, insert: ', late' } })
+    fireEvent.keyDown(view.contentDOM, { key: 'Enter' })
+    expect([done, view.state.doc.toString()]).toEqual([['09:00 standup, late'], '09:00 standup, late'])
+  })
+
+  it('leaves on Escape, and is done on leaving it', () => {
+    const escaped = mounted('09:00 standup')
+    fireEvent.keyDown(escaped.view.contentDOM, { key: 'Escape' })
+    expect([escaped.done, escaped.cancelled]).toEqual([[], [true]])
+    const left = mounted('10:00 review')
+    fireEvent.blur(left.view.contentDOM)
+    expect(left.done).toEqual(['10:00 review'])
+  })
+
+  it('lets an open popup take Enter first', async () => {
+    const { view, done } = mounted('see [[Roadm')
+    startCompletion(view)
+    await vi.waitFor(() => expect(completionStatus(view.state)).toBe('active'))
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 1000)
+    fireEvent.keyDown(view.contentDOM, { key: 'Enter' })
+    expect([view.state.doc.toString(), done]).toEqual(['see [[Roadmap]]', []])
+  })
+
+  it('has no gutters, where a note has its line numbers', () => {
+    expect(mounted('09:00 standup').container.querySelector('.cm-gutters')).toBeNull()
+    const { container } = render(<MarkdownEditor initialMarkdown="09:00 standup" onChange={() => {}} />)
+    expect(container.querySelector('.cm-lineNumbers')).not.toBeNull()
+  })
+})
+
+/**
  * **Following a link takes one press, and the press is the point.**
  *
  * It was bound to `click`, and a click needs the press and the release on the *same

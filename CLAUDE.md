@@ -335,6 +335,11 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   properties in the sentence (`wordsOf`, `fieldsOf`), and the day closes on its
   `number` fields' totals (`totalsOf`). A timeline is one more memo over the one
   read (`useVaultTexts`' `timeline`), so it follows typing as the graph does.
+- **A press on an entry edits its one line** under the note's own editor in `line`
+  mode (no gutters; Enter or leaving is done, Escape is not, an open popup's own
+  keys first), done once however it ends. The write is `withEntry` through
+  `mutate`: that line, its indent and line ending kept, refused if the line is no
+  longer the entry's. A day's name opens its note.
 
 ## Sync
 

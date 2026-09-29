@@ -7,7 +7,8 @@ import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } f
  * **The timeline**: the daily notes as each day happened, oldest at the top and
  * today at the bottom. A note written by kind — groups headed by a line of tags —
  * reads by clock; a moment and a block of time read apart; a tag drawn as a table
- * shows its fields, and the day closes on its totals.
+ * shows its fields, and the day closes on its totals. A press on an entry edits its
+ * line where it stands.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -73,6 +74,36 @@ describe('the timeline', () => {
       ['13:00–13:5050 min', 'review with Mira Vance', 'timeline', 'block'],
     ])
     expect(second.querySelector('.timeline-totals')!.textContent).toBe('#expense amount 540')
+  })
+
+  it('edits an entry’s line where it stands, on a press, and writes nothing else', async () => {
+    await openTimeline()
+    const before = disk.read('/v/Daily/2026-09-21.md')!
+    fireEvent.click(viewer().getByText('standup'))
+    const field = await waitFor(() => screen.getByTestId('line-editor') as HTMLInputElement)
+    expect(field.value).toBe('09:00 standup')
+    fireEvent.change(field, { target: { value: '09:10 standup, late' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    await waitFor(() => expect(disk.read('/v/Daily/2026-09-21.md')).toBe(before.replace('09:00 standup', '09:10 standup, late')))
+    await waitFor(() => expect(viewer().getByText('standup, late')).toBeTruthy())
+    expect(screen.queryByTestId('line-editor')).toBeNull()
+  })
+
+  it('leaves the note as it was on Escape', async () => {
+    await openTimeline()
+    const before = disk.read('/v/Daily/2026-09-21.md')
+    fireEvent.click(viewer().getByText('standup'))
+    const field = await waitFor(() => screen.getByTestId('line-editor'))
+    fireEvent.change(field, { target: { value: '09:10 standup, late' } })
+    fireEvent.keyDown(field, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByTestId('line-editor')).toBeNull())
+    expect(disk.read('/v/Daily/2026-09-21.md')).toBe(before)
+  })
+
+  it('opens a day’s note from its name', async () => {
+    await openTimeline()
+    fireEvent.click(days()[1].querySelector('.folder-toggle')!)
+    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('2026-09-21'))
   })
 
   it('opens a link’s note and a tag’s page from the entry', async () => {

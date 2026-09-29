@@ -234,12 +234,15 @@ export function Section({
   title,
   count,
   startOpen,
+  onOpen,
   actions,
   children,
 }: {
   title: string
   count: number
   startOpen: boolean
+  /** The heading's name opens what the section is of: a timeline day, its note. */
+  onOpen?: () => void
   /** Controls on the heading, beside the toggle: a `+` that adds to the section. */
   actions?: ReactNode
   children: ReactNode
@@ -251,6 +254,7 @@ export function Section({
         name={title}
         open={open}
         onToggle={() => setOpen((shown) => !shown)}
+        onOpen={onOpen}
         trailing={<span className="row-count">{count}</span>}
         actions={actions && <span className="folder-actions">{actions}</span>}
       />

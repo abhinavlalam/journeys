@@ -2941,6 +2941,12 @@ button.folder-toggle {
   color: var(--text);
 }
 
+/* An entry being edited stays lit while it is; its editor's own type and air are
+   set after the editor's rules, which they override. */
+.timeline-entry:has(.timeline-edit) {
+  background: var(--bg-hover);
+}
+
 /* A table tag's fields, beside what the entry says: the value in the text's own
    tone and its name a step back, as a label outside a sentence reads. */
 .timeline-fields {
@@ -4360,6 +4366,19 @@ button.folder-toggle {
      Anything with a weight of its own — a heading, a `**bold**` run — still wins,
      because those set their own. */
   font-weight: var(--fw-prose);
+}
+
+/* **A timeline entry being edited**: the note's own editor over its one line, in
+   the row's type and air rather than a page's — no inset, no paragraph gap, no
+   pane padding. Four classes, over the editor's three. */
+.timeline-edit .code-editor .cm-editor .cm-scroller {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.timeline-edit .code-editor .cm-editor .cm-content,
+.timeline-edit .code-editor .cm-editor .cm-line {
+  padding: 0;
 }
 
 /* Three sizes and then a weight: h1–h3 scale, h4–h6 take the body size and the

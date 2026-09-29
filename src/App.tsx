@@ -10,6 +10,7 @@ import {
   vaultFileRef,
   writeNoteProperty,
   writePathProperty,
+  writeVaultFile,
 } from './vault'
 import { folderNoteRef, isTextFile, knownPath, noteName, SETTINGS_FILE } from './vaultModel'
 import { FileView } from './FileView'
@@ -34,6 +35,7 @@ import {
 import { useConfigEntries } from './useConfigEntries'
 import { readEntries } from './configEntries'
 import { propertiesOf, tablesOf, TAG_NAME, TAGS_FILE, viewOf } from './tags'
+import { withEntry, type TimelineEntry } from './timeline'
 import { TimelineView } from './TimelineView'
 import { GraphView } from './GraphView'
 import { PropertyView } from './PropertyView'
@@ -762,6 +764,23 @@ export default function App() {
    * anyway. The icon is different: it is the folder's, and the point of the setting
    * is that everything in the folder wears it.
    */
+  /** A timeline entry's line, rewritten where it stands: the one line, and through
+   *  `mutate`, so typing queued in the note is written first and its buffer re-reads. */
+  async function editEntry(entry: TimelineEntry, text: string) {
+    await vault.mutate(
+      async () => {
+        const next = withEntry(await readVaultFile(entry.note), entry, text)
+        if (next === null) throw new Error(`${entry.note.name} changed since the timeline read it; the entry was not written.`)
+        await writeVaultFile(entry.note, next)
+        return next
+      },
+      async (next) => {
+        patch(new Set([entry.note.path]), () => next)
+        await buffers.reread(entry.note)
+      }
+    )
+  }
+
   async function inheritIcon(file: VaultFile) {
     if (!settings.inheritIcons || !vault.vaultPath) return
     const inherited = await folderIcon(vault.vaultPath, file.path)
@@ -1232,6 +1251,8 @@ export default function App() {
                     tables={tablesOf(tagStructures.entries)}
                     typeOf={(name) => typeOf(propertyTypes.entries, name)}
                     loading={reading}
+                    offers={{ notes, propertyTypes: propertyTypes.entries, tagStructures: tagStructures.entries }}
+                    onEdit={(entry, text) => void editEntry(entry, text)}
                     onOpen={(file) => void openNote(file)}
                     onOpenLink={(target) => void openLinkTarget(target, true)}
                     onOpenTag={(tag) => view('tag', tag)}
