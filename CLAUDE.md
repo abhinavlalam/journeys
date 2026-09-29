@@ -370,7 +370,7 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   blur. A commit that found changes re-walks the tree. `sync_status` cannot fail,
   so an error there is the bridge missing, and the sync says nothing.
 - **Offline is the network not being there** (`isOffline`: resolve, connect, timed
-  out, unreachable, reset) — quiet, and retried. A certificate the machine does not
+  out, unreachable, reset, broken pipe) — quiet, and retried. A certificate the machine does not
   trust is not offline, and is said: a bare `SSL|TLS` in the rule made a sync that
   could never succeed say only "offline".
 

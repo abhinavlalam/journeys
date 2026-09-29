@@ -272,6 +272,7 @@ describe('what counts as offline', () => {
       'failed to resolve address for github.com: nodename nor servname provided, or not known; class=Net (12)',
       'failed to connect to github.com: Network is unreachable; class=Os (2)',
       'SSL error: syscall failure: Connection reset by peer; class=Ssl (16)',
+      'error receiving data from socket: Broken pipe; class=Net (12)',
       'curl: (6) Could not resolve host: calendar.example',
       'curl: (28) Operation timed out after 30001 milliseconds',
     ]) {
