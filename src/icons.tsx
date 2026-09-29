@@ -1,45 +1,34 @@
 import { folderNotePath } from './vaultModel'
 
 /**
- * **The weight of every glyph is a setting, and it lives in the sheet.**
+ * Glyph weight is a setting, set in the sheet. A `stroke-width` is in
+ * viewBox units, so the same number looks different on each grid. Each
+ * glyph states only its grid (`data-grid`), and `index.css` works out
+ * the stroke from `--icon-weight`. No weights live in this file.
  *
- * A `stroke-width` is in viewBox units, so the same number is a different *rendered*
- * thickness on every grid and at every size: the set once spanned 0.85px to 1.50px
- * across seven hand-written numbers, with the `+` at 2 on a 16-unit grid the
- * heaviest thing on screen. Each glyph now says only which grid it is drawn on —
- * `data-grid` — and `index.css` works the stroke out from `--icon-weight`, which
- * `applySettings` writes from the reading settings. One dial, every glyph, and no
- * weight in this file at all.
- *
- * The dots some glyphs carry are `fill`ed rather than stroked, so they are sized
- * from the same token: a filled 2-unit circle beside a 1.5-unit stroke is what made
- * the graph and the gear read heavier than the lens beside them.
+ * Dots are filled rather than stroked, so they are sized from the same token.
  */
 const GRID_16 = { 'data-grid': '16', viewBox: '0 0 16 16' } as const
 const GRID_10 = { 'data-grid': '10', viewBox: '0 0 10 10' } as const
 const GRID_24 = { 'data-grid': '24', viewBox: '0 0 24 24' } as const
 
 /**
- * **The size a chrome glyph is drawn at**, and it is the sheet's `--glyph` rather
- * than a number of its own: the row of controls held a 15px search, a 16px fold
- * pair and a 12px `+` — three numbers, three files, one row — and every one is
- * drawn on the same 16-unit grid, so the difference was arbitrary. Reading the
- * token means the size lives in one place for CSS and for JSX alike.
+ * The size a chrome glyph is drawn at: the sheet's `--glyph`, so
+ * CSS and JSX share one size.
  */
 export const GLYPH = 'var(--glyph)'
 
-/** A disclosure arrow: it points rather than depicts, so it is the smaller step of
- *  the scale. Also in the sheet, also in `em`. */
+/**
+ * A disclosure arrow points rather than depicts, so it uses the
+ * smaller size. Also in the sheet, in `em`.
+ */
 export const GLYPH_SM = 'var(--glyph-sm)'
 
 /**
- * The chevron's two paths — **down for open, right for shut** — and the box they
- * are drawn in.
- *
- * `chevronMarkup` hands them out because the note's fold gutter builds its marker by
- * hand (a `GutterMarker`, not JSX) and drew `›` and `⌄` from the font instead: two glyphs
- * of a different weight and size from the arrow on every row in the tree. One
- * source, so the two panes cannot disagree about what an arrow looks like.
+ * The chevron's two paths, down for open and right for closed, and
+ * the box they are drawn in. `chevronMarkup` exists because the
+ * fold gutter builds its marker by hand and used to draw `›` and
+ * `⌄` from the font, which looked different from the tree's arrows.
  */
 const CHEVRON = {
   open: 'M1.5 3.5 5 7l3.5-3.5',
@@ -55,13 +44,8 @@ const CHECK = {
 }
 
 /**
- * The tick inside a checked task, as markup: a CodeMirror widget builds its DOM by
- * hand, exactly as the fold gutter does.
- *
- * It states its grid and nothing else, so `--icon-weight` sets its stroke like
- * every other glyph — a tick drawn with a hand-picked `stroke-width` would be the
- * one mark in the app that does not follow the setting, which is the mistake the
- * whole `data-grid` arrangement exists to stop.
+ * The tick in a checked task, as markup for a CodeMirror widget. It states
+ * only its grid, so `--icon-weight` sets its stroke like every other glyph.
  */
 export function checkMarkup(): string {
   return `<svg ${CHECK.box} fill="none" aria-hidden="true"><path d="${CHECK.path}" ${CHECK.stroke}/></svg>`
@@ -88,19 +72,14 @@ export function ChevronIcon({ open }: { open: boolean }) {
 }
 
 /**
- * Two chevrons, pointing at each other to shut the whole tree and apart to open it.
- *
- * The pair every tree view uses. Both are on screen at once, because a half-open
- * tree has both gestures to offer and a single button can only ever name one.
+ * Two chevrons, pointing together to collapse the whole tree and apart to
+ * expand it. Both are shown, since a half-open tree can go either way.
  */
 export function FoldAllIcon({ collapse }: { collapse: boolean }) {
   return (
     <svg width={GLYPH} height={GLYPH} {...GRID_16} fill="none" aria-hidden="true">
-      {/* Wide chevrons: a narrow pair is mostly whitespace, and it would read as a
-          smaller control than the gear beside it at the same nominal size. The
-          3.2-unit channel down the middle is the whole legibility of the thing —
-          closer together, the two strokes met and the glyph read as a rhombus one
-          way and a multiplication sign the other. */}
+      {/* Wide chevrons: a narrow pair reads smaller than the gear beside it. The
+          3.2-unit gap in the middle keeps it legible; closer, the strokes met. */}
       <path
         d={
           collapse
@@ -129,13 +108,12 @@ export function TerminalIcon() {
   )
 }
 
-/** A pane split in two: a frame with a line down or across it. `row` puts the
- *  new pane beside, `column` below — the two buttons on a tab strip. */
+/** A pane split in two. `row` puts the new pane beside, `column` below. */
 export function SplitIcon({ direction }: { direction: 'row' | 'column' }) {
   return (
     <svg width={GLYPH} height={GLYPH} {...GRID_16} fill="none" aria-hidden="true">
-      {/* The frame as a path: the sheet's test refuses a `width`/`height` on a
-          glyph, and a `<rect>` would need both. */}
+      {/* The frame as a path: the sheet's test refuses
+          `width`/`height` on a glyph, which a `<rect>` needs. */}
       <path
         d={`M4 2.5h8a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 4 2.5z${direction === 'row' ? 'M8 2.5v11' : 'M2.5 8h11'}`}
         stroke="currentColor"
@@ -145,11 +123,7 @@ export function SplitIcon({ direction }: { direction: 'row' | 'column' }) {
   )
 }
 
-/**
- * The `+`, **one size wherever it is**: the rail's and a row's were 22px and a
- * CSS-overridden 1.35em, so the same gesture had two weights on one screen. It is
- * `GLYPH` now, like every other control.
- */
+/** The `+`, one size everywhere: `GLYPH`, like every other control. */
 export function PlusIcon() {
   return (
     <svg width={GLYPH} height={GLYPH} {...GRID_16} fill="none" aria-hidden="true">
@@ -159,8 +133,10 @@ export function PlusIcon() {
 }
 
 
-/** Braces, for a file rather than a panel. Two strokes, each the mirror of the
-    other, so the pair reads as one shape and not as two brackets. */
+/**
+ * Braces, for a file rather than a panel. Two mirrored strokes,
+ * so they read as one shape.
+ */
 export function BracesIcon() {
   return (
     <svg width={GLYPH} height={GLYPH} {...GRID_16} fill="none" aria-hidden="true">
@@ -174,8 +150,7 @@ export function BracesIcon() {
   )
 }
 
-/** A magnifier. The handle starts just outside the ring, on the diagonal, so the
-    two strokes meet without one crossing into the other. */
+/** A magnifier. The handle starts just outside the ring, so the strokes don't cross. */
 export function SearchIcon() {
   return (
     <svg width={GLYPH} height={GLYPH} {...GRID_16} fill="none" aria-hidden="true">
@@ -189,8 +164,10 @@ export function SearchIcon() {
   )
 }
 
-/** Three notes and the links between them. The edges are one path drawn *before*
-    the circles, so each line ends under the node it lands on rather than beside it. */
+/**
+ * Three notes and their links. The edges are drawn before the
+ * circles, so each line ends under its node.
+ */
 export function GraphIcon() {
   return (
     <svg width={GLYPH} height={GLYPH} {...GRID_16} fill="none" aria-hidden="true">
@@ -206,8 +183,7 @@ export function GraphIcon() {
   )
 }
 
-/** Sliders, not a gear: WebKit resolves U+2699 through Apple Color Emoji without a
-    VS15 selector, which would drop a colour glyph into monochrome chrome. */
+/** Sliders, not a gear: WebKit draws U+2699 as a colour emoji. */
 export function SettingsIcon() {
   return (
     <svg width={GLYPH} height={GLYPH} {...GRID_16} fill="none" aria-hidden="true">
@@ -224,34 +200,22 @@ export function SettingsIcon() {
 }
 
 /**
- * The icons a note can carry.
+ * The icons a note can carry. Drawn paths rather than emoji, so they take
+ * `currentColor` and follow the row and the palette; emoji ignore it.
  *
- * Monochrome and drawn here rather than emoji: every one is a path stroked like the
- * chevron and the folder glyph, and every one takes `currentColor` — so a chosen
- * icon dims with its row, brightens when the row is selected, and works in every
- * palette without a colour of its own. Emoji went in first and could do none of
- * that: WebKit resolves them through Apple Color Emoji, which ignores
- * `currentColor` entirely.
+ * Geometry from Lucide (lucide.dev), ISC; `LICENSE-lucide` at the
+ * repository root has the licence, with Feather's MIT notice. Inlined,
+ * not installed: the app uses about sixty of fifteen hundred.
  *
- * Geometry from **Lucide** (lucide.dev), ISC — `LICENSE-lucide` at the root of this
- * repository is that licence verbatim, Feather's MIT notice included, because
- * several of these descend from it. Inlined rather than installed: this app wants
- * sixty-odd glyphs out of some fifteen hundred, and a package for that is a
- * dependency to track and a bundle to tree-shake in exchange for nothing.
+ * One `d` per icon, since this draws a single path and Lucide
+ * also uses `<circle>`, `<rect>` and `<line>`. When joining
+ * paths, a relative moveto must be made absolute first.
  *
- * One `d` per icon, because this renders a single stroked path and Lucide draws
- * with `<circle>`, `<ellipse>`, `<rect>` and `<line>` as well. The conversion is
- * mechanical; what it has to get right is that a path beginning with a *relative*
- * moveto must be made absolute before it is concatenated onto the one before it, or
- * the second half of `code` starts wherever the first half stopped.
+ * The order is the layout: the picker shows seven per row, grouped by
+ * subject (writing, keeping, time, work, people, home, away, making, media).
  *
- * **The order is the layout.** The picker draws these seven to a row, so each run of
- * seven below is a row on screen and they are grouped by what a note is *about* —
- * writing, keeping, time, work, people, home, away, making, media. Alphabetical
- * would scatter every group across the grid.
- *
- * Keys are permanent: a note in the vault says `icon: calendar` in its own text, so
- * a key renamed here orphans it. Labels are only the tooltip and can be reworded.
+ * Keys are permanent: a note says `icon:: calendar` in its own
+ * text, so renaming a key orphans it. Labels are only tooltips.
  */
 export const NOTE_ICONS: readonly { key: string; label: string; path: string }[] = [
   { key: 'book', label: 'Book', path: 'M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20' },
@@ -320,11 +284,8 @@ export const NOTE_ICONS: readonly { key: string; label: string; path: string }[]
 ]
 
 /**
- * What a note shows before anyone picks an icon: a page with a folded corner.
- *
- * Deliberately *not* in `NOTE_ICONS` — that list is the menu, and "page" is what
- * having no icon looks like rather than a choice in it. Every row therefore draws
- * something, so a name never starts at a different place from the row above it.
+ * What a note shows with no icon picked: a page. Not in `NOTE_ICONS`,
+ * which is the menu. Every row draws something, so names line up.
  */
 export const DEFAULT_NOTE_ICON = 'page'
 
@@ -336,30 +297,24 @@ const PAGE = {
 
 const BY_KEY = new Map([...NOTE_ICONS, PAGE].map((icon) => [icon.key, icon]))
 
-/** An emoji, and not the name of an icon this app does not have: anything without
- *  an ASCII letter in it is a glyph the font can draw. `icon: compass` used to
- *  render the word *compass* into the icon's box, where it overflowed across the
- *  name beside it — the same way `settings` did in the create menu. */
+/**
+ * An emoji, rather than the name of an icon the app doesn't have:
+ * anything with no ASCII letter is a glyph the font can draw. An
+ * unknown name like `compass` used to be drawn as the word.
+ */
 const isGlyph = (icon: string) => icon.length <= 4 && !/[\x00-\x7F]/.test(icon)
 
 /**
- * A note's chosen icon, by key.
- *
- * A key this set does not know is not dropped: an emoji — set before this list
- * existed, or typed into the frontmatter by hand — is drawn as itself, and any other
- * word as the page. An emoji will not take the row's colour, which is the cost of
- * not being one of these.
+ * A note's chosen icon, by key. An unknown key isn't dropped: an emoji is drawn as
+ * itself, and any other word as the page. An emoji doesn't take the row's colour.
  */
 export function NoteIcon({ icon }: { icon: string }) {
   const found = BY_KEY.get(icon)
   if (!found) return isGlyph(icon) ? <>{icon}</> : <NoteIcon icon={DEFAULT_NOTE_ICON} />
   return (
     <svg width={GLYPH} height={GLYPH} {...GRID_24} fill="none" aria-hidden="true">
-      {/* Lucide's own grid is 24 and it draws at 1.7, not the 2 it ships: 1.7 of 24
-          rendered at 15px is 1.06 CSS pixels, which is the weight the rest of this
-          file's glyphs settled on. The colour is the stylesheet's — `.folder-icon`
-          paints every note's icon in the scheme's, whether or not the note holds
-          others. */}
+      {/* Lucide's grid is 24, drawn at 1.7 rather than its default 2, to match
+          the other glyphs' weight. The colour comes from `.folder-icon`. */}
       <path
         d={found.path}
         stroke="currentColor"
@@ -371,16 +326,10 @@ export function NoteIcon({ icon }: { icon: string }) {
 }
 
 /**
- * A folder note's icon.
- *
- * Display is **own only**: what a row draws is the property inside that one note,
- * so what you see in the tree is what is written in the file. Icons spread down a
- * folder by being *written* — when the folder's icon is set (`claimsIcon`) and when
- * a note is made in it (`endowNote`) — and never by being derived at render time.
- *
- * The note's path is derived rather than looked up, because a row knows its own
- * path and not the file inside it — `folderNotePath` is that rule, shared with
- * everything else that needs a folder's own note from a string.
+ * A folder note's icon. A row shows only the note's own icon, so the tree
+ * shows what is written in the file. Icons spread down a folder only by
+ * being written, when the folder's icon is set (`claimsIcon`) or a note is
+ * made in it (`endowNote`). The note's path comes from `folderNotePath`.
  */
 export function resolveNoteIcon(
   folderPath: string,
@@ -390,15 +339,10 @@ export function resolveNoteIcon(
 }
 
 /**
- * Whether a note inside a folder takes the icon just set on that folder.
- *
- * Two kinds of note do: one with no icon of its own, and one still carrying the
- * folder's *previous* icon — which is what makes changing a folder's icon carry the
- * notes it already gave one to, and makes removing it take them back. A note with
- * an icon somebody chose is left alone.
- *
- * Removing (`icon` null) claims only the second kind. Claiming the first would
- * rewrite every note in the subtree to produce the text it already had.
+ * Whether a note in a folder takes the icon just set on the folder: one with no
+ * icon, or one still carrying the folder's previous icon. So changing a folder's
+ * icon updates the notes it gave one to, and removing it takes theirs back. A note
+ * with an icon someone chose is left alone. Removing only claims the second kind.
  */
 export function claimsIcon(
   current: string | undefined,

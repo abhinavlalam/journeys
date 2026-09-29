@@ -1,23 +1,14 @@
-// The vault's domain model: the two shapes the whole app speaks.
-//
-// **No filesystem import of any kind belongs here** — that is the point of the
-// file. `vault.ts` imports `@tauri-apps/plugin-fs` at module scope, so anything
-// taking a *value* from it inherits that edge; a module that only needs to name a
-// note takes its types from here and stays testable without a disk.
-//
-// What belongs here: a shape, or an operation on names and shapes that could not
-// touch a disk if it wanted to. `vault.ts` imports from this file like any other
-// consumer, and there are deliberately **no re-exports** back through it.
+// The vault's shapes and the rules about names. No filesystem import
+// belongs here: `vault.ts` imports `@tauri-apps/plugin-fs`, so a module
+// that only needs to name a note takes its types from here and stays
+// testable without a disk. Nothing is re-exported through `vault.ts`.
 
-/**
- * A file in the vault — a note or not. What kind is `fileKind`'s answer, from the
- * path, so there is no `kind` here to disagree with it.
- */
+/** A file in the vault, a note or not. `fileKind` decides its kind from the path. */
 export interface VaultFile {
   /** Vault-relative, `/`-separated, with the extension: `Ideas/pingbird.md`. */
   path: string
   absolutePath: string
-  /** The basename without `.md` — what the tree shows. */
+  /** The basename without `.md`: what the tree shows. */
   name: string
 }
 
@@ -29,11 +20,9 @@ export interface VaultFolder {
   folders: VaultFolder[]
   files: VaultFile[]
   /**
-   * The folder's own note — `Areas/Areas.md` for a folder named Areas.
-   *
-   * A nested note is a folder plus a same-named note inside it, so a tree node is
-   * both a note you can open and a container that holds children. Undefined for a
-   * folder that has no note yet; one is written the first time you type in it.
+   * The folder's own note: `Areas/Areas.md` for a folder named Areas. A nested
+   * note is a folder plus a same-named note inside it, so a tree node is both
+   * a note and a container. Undefined until the note is first typed in.
    */
   note?: VaultFile
 }
@@ -42,36 +31,28 @@ export interface VaultFolder {
 // Operations on those shapes
 // ---------------------------------------------------------------------------
 //
-// Here rather than in `vault.ts` for the reason at the top of this file: these are
-// facts about names, they could not touch a disk if they wanted to, and every one
-// of them has a caller that has no business importing the filesystem.
+// Facts about names that never touch a disk, here so callers don't import the
+// filesystem.
 
 /**
- * Are these two vault paths one file?
- *
- * macOS volumes are case-insensitive but case-preserving, so `exists()` reports
- * true for `Index.md` while only `index.md` is on disk. Renaming a file to a
- * different casing of its own name would therefore trip an "already exists" guard
- * against itself. `rename(2)` handles the case-only rename fine — it is only the
- * guard that needs to know the two paths are one file.
+ * Whether two vault paths are one file. macOS volumes are
+ * case-insensitive, so `exists()` says yes to `Index.md` when only
+ * `index.md` is on disk, and a case-only rename would collide with itself.
+ * `rename(2)` is fine with it; only the collision check needs this.
  */
 export function isSamePath(a: string, b: string): boolean {
   return a === b || a.toLowerCase() === b.toLowerCase()
 }
 
-/** The folder a *vault-relative* path sits in — `''` for one at the root, which is
- *  why this cannot slice blindly: `slice(0, -1)` on `roadmap.md` is `''` by luck
- *  and on a path with no slash at all it would be wrong by construction. */
+/** The folder a vault-relative path is in, `''` at the root. */
 export function folderOf(relativePath: string): string {
   const cut = relativePath.lastIndexOf('/')
   return cut === -1 ? '' : relativePath.slice(0, cut)
 }
 
 /**
- * A folder's own note, whether or not it is on disk yet.
- *
- * Deliberately does not create it — browsing would litter the vault with blank
- * files. The file is written on first edit instead.
+ * A folder's own note, whether or not it is on disk. It isn't created here, or
+ * browsing would fill the vault with blank files; it is written on the first edit.
  */
 export function folderNoteRef(folder: VaultFolder): VaultFile {
   if (folder.note) return folder.note
@@ -86,75 +67,55 @@ export function folderNoteRef(folder: VaultFolder): VaultFile {
 export const SETTINGS_FILE = 'settings.json'
 
 /**
- * Whether a path names a **note** — a markdown file.
- *
- * The tree holds more than notes now: a `.json` file in the vault opens in the
- * same pane, as text. Everything that treats a file as a *note* has to ask first,
- * because the note machinery writes page properties — an `icon::`, a `path::` — and
- * those in a JSON file are a JSON file that no longer parses.
- *
- * **An encrypted note is not one**, in either spelling. What it says is the owner's
- * alone, so no note machinery reads it or writes into it — and v1's `.enc.md` ends
- * in `.md`, which had an icon picked for one written as plain text into the
- * ciphertext.
+ * Whether a path is a note: a markdown file. Note machinery writes
+ * page properties, which would break a `.json` file, so it asks this
+ * first. A locked note is not one, in either spelling: only its owner
+ * writes into it (an icon once went into a `.enc.md` as plain text).
  */
 export function isNote(path: string): boolean {
   return path.toLowerCase().endsWith('.md') && !isEncrypted(path)
 }
 
 /**
- * Whether a path is an encrypted note. **Both spellings**: v1 wrote `Private.enc.md`,
- * and `.enc` is what this app asks for — a file already in a vault has to keep
- * opening, and the format inside is the same either way.
+ * Whether a path is a locked note, in both spellings: v1 wrote
+ * `Private.enc.md`, and this app writes `.enc`. The format inside is the same.
  */
 export function isEncrypted(path: string): boolean {
   return /\.enc(\.md)?$/i.test(path)
 }
 
-/** The last segment of a path: a file's or folder's own name, extension and all. */
+/** The last segment of a path: a file's or folder's name, extension included. */
 export function baseName(path: string): string {
   return path.slice(path.lastIndexOf('/') + 1)
 }
 
 /**
- * A folder's own note, **by path alone** — `Areas/Plans` is `Areas/Plans/Plans.md`.
- *
- * `folderNoteRef` is the same rule for a folder the tree is holding; this is for
- * the callers that have only a string, and it existed three times as the same
- * slice-and-join before it had a name.
+ * A folder's own note from its path alone: `Areas/Plans` is `Areas/Plans/Plans.md`.
+ * `folderNoteRef` is the same rule for a folder in the tree.
  */
 export function folderNotePath(folder: string): string {
   return `${folder}/${baseName(folder)}.md`
 }
 
 /**
- * **What a file in the vault is**, and the only place that decides.
+ * What a file in the vault is, and the only place that decides. The
+ * tree shows every file; this decides what the pane does with it:
  *
- * A vault is a folder of files somebody keeps, and not all of them are notes: a
- * PDF of a lease, the photograph of a whiteboard, a CSV an export left behind. The
- * tree shows them all — what differs is what the reading pane does with one, and
- * that is this answer:
+ * - `note`, `json`, `csv`, `text` are text and open in the editor; typing saves them.
+ * - `image` and `pdf` are shown, not edited (`FileView`).
+ * - `other` is a file the app has nothing to show for.
  *
- * - `note`, `json`, `csv`, `text` are **text**, and open in the editor. Typing
- *   saves them, as it always has: a file of yours that the app shows and keeps and
- *   does not otherwise read.
- * - `image` and `pdf` are shown, not edited — `FileView` hands the webview the
- *   file's own URL.
- * - `other` is a file the app has nothing to say about, which it says.
- *
- * An `.enc` is a `note`: a locked note is a note, and the passphrase is asked for
- * before anything reads it.
+ * A `.enc` is a `note`; the passphrase is asked before anything reads it.
  */
 export type FileKind = 'note' | 'json' | 'csv' | 'text' | 'image' | 'pdf' | 'other'
 
 const KINDS: [RegExp, FileKind][] = [
   [/\.(md|enc)$/i, 'note'],
   [/\.json$/i, 'json'],
-  // A `.tsv` is a CSV whose separator is a tab — `csvPreview` reads the line and
-  // decides, so one kind covers both.
+  // A `.tsv` is a CSV with tabs; `csvPreview` reads the line and decides.
   [/\.(csv|tsv)$/i, 'csv'],
-  // `conf` because the app writes one itself (`.config/tmux.conf`), and a file the
-  // app writes is a file it has to be able to open.
+  // `conf`, because the app writes one (`.config/tmux.conf`) and
+  // has to be able to open it.
   [/\.(txt|log|ya?ml|toml|ini|env|conf)$/i, 'text'],
   [/\.(png|jpe?g|gif|webp|avif|bmp|svg|heic)$/i, 'image'],
   [/\.pdf$/i, 'pdf'],
@@ -164,39 +125,29 @@ export function fileKind(path: string): FileKind {
   return KINDS.find(([extension]) => extension.test(path))?.[1] ?? 'other'
 }
 
-/** Whether the app may read this file as text — into the editor, and into the one
- *  vault read the graph, the backlinks and the search are built from. A PDF read
- *  as text is a megabyte of nonsense in the corpus and nothing in the pane. */
+/**
+ * Whether the app reads this file as text: into the editor, and
+ * into the vault read that the graph, backlinks and search use.
+ * A PDF read as text would be a megabyte of nonsense.
+ */
 export function isTextFile(path: string): boolean {
   const kind = fileKind(path)
   return kind === 'note' || kind === 'json' || kind === 'csv' || kind === 'text'
 }
 
 /**
- * A path or a file name with the note extension taken off — the name the app
- * *shows*, since a row, a link and a graph node all read `Ideas` and not
- * `Ideas.md`.
- *
- * One function because it was one regex written out in eleven places, across the
- * walk, the tree, the graph, the links and the completions — and **one for every
- * extension a note wears**: `.md`, and the `.enc.md` or `.enc` of one that is
- * locked. A locked note is a note, and its row says its name.
+ * A path or name with the note extension taken off: the name a
+ * row, link or graph node shows. Covers every extension a note
+ * has: `.md`, and a locked note's `.enc.md` or `.enc`.
  */
 export function noteName(path: string): string {
   return path.replace(/(\.enc)?\.md$/i, '').replace(/\.enc$/i, '')
 }
 
 /**
- * The path a note is **known by**: what the tree calls it, and what a link should
- * name.
- *
- * A nested note is a folder plus a same-named note inside it, so `Areas/Northwind`
- * and `Areas/Northwind/Northwind.md` are one note under two spellings. The tree
- * draws the first. The second is a path the app shows nowhere — there is no row for
- * it — so writing it into a `path:` property, or offering it in the `[[` picker,
- * asks the reader to know about a file the app keeps out of sight.
- *
- * The extension goes too: a link never carries one.
+ * The path a note is known by: what the tree calls it and what a link should name. A
+ * nested note is `Areas/Northwind`, not the file `Areas/Northwind/Northwind.md`,
+ * which has no row. The extension goes too, since a link never has one.
  */
 export function knownPath(path: string): string {
   const bare = noteName(path)
@@ -208,10 +159,7 @@ export function knownPath(path: string): string {
   return isSamePath(parent, name) ? folder : bare
 }
 
-/**
- * Where the last `names` names of a path begin — 0 if the path holds no more than
- * that many, so the count clamps to what is there rather than failing.
- */
+/** Where the last `names` names of a path begin, or 0 if there aren't that many. */
 function tailFrom(path: string, names: number): number {
   let at = path.length
   for (let n = 0; n < names; n++) {
@@ -223,41 +171,24 @@ function tailFrom(path: string, names: number): number {
 }
 
 /**
- * The span of a wikilink's inner text that is **shown**; the rest is syntax.
+ * The part of a wikilink's inner text that is shown; the rest is
+ * syntax. The editor and every page quoting a line use this, so a link
+ * reads the same everywhere. A span, because the editor hides ranges.
  *
- * Three readers asked this and answered it three ways: the editor showed the name
- * alone, while a gathered page and its table showed the whole target — so one
- * link read as a name in the note and as a run of folders on the page quoting it.
- * "The page draws what the note draws", and now off one function.
+ * - `[[a/b/c]]` shows `c`: a path is how the app finds a note, not its name.
+ * - `[[a/b/c|the office]]` shows `the office`.
+ * - `[[a/b/c|!2]]` shows `b/c`, `!3` shows `a/b/c`, and `!` shows
+ *   the whole path, for a name that needs its parent to make sense.
  *
- * A **span** rather than a string because the editor hides ranges: it needs to know
- * where the shown text is, not what it says. Everything else slices.
- *
- * - `[[a/b/c]]` shows `c`. A path is how the app finds a note, not what it is
- *   called — `noteName` and `knownPath` already say so.
- * - `[[a/b/c|the office]]` shows `the office`. An alias is how a link gets a name.
- * - `[[a/b/c|!2]]` shows `b/c`, and `!3` shows `a/b/c`. **A name is sometimes a
- *   fragment**: `Lakeside Terminal Arrival` does not say whose, and here the folder
- *   above it is a *page* and not a directory, so what `!n` adds is the n-1 pages
- *   this one is under. `!` with no number shows every one of them.
- *
- * The marker goes in the **alias slot**, for three reasons that all point one way.
- * That slot already means "what this link shows", so a depth is the same kind of
- * fact as an alias rather than a second mechanism. A rename replaces the
- * destination *where it sits inside the link* and leaves the rest alone, so the
- * marker survives every move and rename with no code carrying it — and
- * `linkTargetAt` already reads the left of the pipe, so it is inert for resolving,
- * following and the graph. And outside the brackets it would be a second thing to
- * parse for every reader of this vault, this app's and anyone else's: a tool that
- * greps `[[...]]` would see the link and miss the marker. Obsidian's `!` prefix
- * means *embed*, which is a different act, so borrowing the spelling there would
- * invert it.
+ * The depth marker goes where an alias would: that part already says
+ * what the link shows, a rename leaves it alone, and resolving ignores
+ * it. Obsidian's `!` before a link means embed, which is different.
  */
 export function linkLabelSpan(inner: string): { from: number; to: number } {
   const pipe = inner.indexOf('|')
   if (pipe === -1) return { from: tailFrom(inner, 1), to: inner.length }
   const depth = /^\s*!(\d*)\s*$/.exec(inner.slice(pipe + 1))
-  // Anything else after the pipe is an alias, and an alias is shown verbatim.
+  // Anything else after the pipe is an alias, shown as written.
   if (!depth) return { from: pipe + 1, to: inner.length }
   const target = inner.slice(0, pipe)
   return { from: depth[1] ? tailFrom(target, Math.max(1, Number(depth[1]))) : 0, to: pipe }

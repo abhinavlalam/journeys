@@ -19,8 +19,10 @@ import {
 const DRAG_MIME = 'application/x-journeys-file'
 const DRAG_MIME_FOLDER = 'application/x-journeys-folder'
 
-/** Where the dragged label sits under the pointer: a little down and to the right,
- *  so the cursor is beside the name rather than on top of it. */
+/**
+ * Where the dragged label sits under the pointer: a little down
+ * and right, so the cursor is beside the name.
+ */
 const GHOST_OFFSET = { x: 12, y: 14 }
 
 function setCustomDragImage(e: React.DragEvent, label: string) {
@@ -32,8 +34,10 @@ function setCustomDragImage(e: React.DragEvent, label: string) {
   setTimeout(() => ghost.remove(), 0)
 }
 
-/** The passphrase question, under the file it is about. `name` is what the field's
- *  accessible name says, since the row above it says nothing to a reader. */
+/**
+ * The passphrase question, under the file it is about. `name` is
+ * the field's accessible name.
+ */
 export interface InlineUnlock {
   path: string
   name: string
@@ -43,13 +47,15 @@ export interface InlineUnlock {
   onCancel: () => void
 }
 
-/** A name being typed for a note or folder about to be created, rendered in place. */
+/** A name being typed for a new note or folder, shown in place. */
 export interface InlineCreate {
-  /** The folder the new note goes in, `''` for the vault itself. */
+  /** The folder the new note goes in; `''` is the vault itself. */
   parentPath: string
-  /** The tree that asked for it — see `where`. Only that tree draws the field. */
+  /** The tree that asked for it (see `where`). Only that tree draws the field. */
   owner: string
-  /** Set while that folder is still a plain note: its path, until it is committed. */
+  /**
+   * Set while that folder is still a plain note: its path, until the name is committed.
+   */
   insideNote?: string
   /** A locked note's passphrase, asked in the same field once its name is in. */
   secret?: { placeholder: string; label: string }
@@ -63,72 +69,69 @@ interface FolderTreeProps {
   folder: VaultFolder
   depth: number
   /**
-   * **Which tree this is.** Two panes draw one: the left pane's (`'tree'`) and the
-   * *Inside* section at the end of a nested note (`'inside'`). A name being typed
-   * belongs to the tree the `+` was pressed in — both drew it otherwise, and the
-   * second field to mount took the focus and blurred the first, which cancels a
-   * create. Also what keeps a passphrase question in the pane, where the row it is
-   * about has just been revealed.
+   * Which tree this is: the left pane's (`'tree'`) or the Inside section at the end of
+   * a nested note (`'inside'`). A name being typed belongs to the tree whose `+` was
+   * pressed; if both drew the field, the second took the focus and cancelled the first.
    */
   where: string
-  /** The folders that are open — `useFolderOpenState`'s one set, and the only
-   *  reason a folder is open. */
+  /** The open folders: `useFolderOpenState`'s set, the only reason a folder is open. */
   openFolders: Set<string>
   onToggleFolder: (path: string, isOpen: boolean) => void
-  /** Rendered in place, under the folder it will create into. */
+  /** Shown in place, under the folder it creates into. */
   create: InlineCreate | null
-  /** The file waiting on a passphrase, if one is. */
+  /** The file waiting for a passphrase, if any. */
   unlock: InlineUnlock | null
   selectedPath: string | null
   /**
-   * The notes **picked** to act on together, by path — ⌘-click and ⇧-click put them
-   * here and nothing opens. A row in it paints; see `.picked` in the sheet.
+   * Notes picked to act on together, by path. ⌘-click and ⇧-click add to
+   * it without opening. A picked row gets a background (see `.picked`).
    */
   picked: ReadonlySet<string>
-  /** Deletes every picked note, behind one question. */
+  /** Deletes every picked note, after one confirmation. */
   onDeletePicked: () => void
-  /** A folder note's chosen emoji, by the note's path. */
+  /** A folder note's icon, by the note's path. */
   icons: Record<string, string>
   onSetFileIcon: (file: VaultFile, icon: string | null) => void
   onSetFolderIcon: (folder: VaultFolder, icon: string | null) => void
-  /** A click on a leaf row, and which gesture it was — see `picking.ts`. `only`
-   *  opens the note; the other two pick without opening. */
+  /**
+   * A click on a row, and which gesture it was (see `picking.ts`).
+   * `only` opens the note; the other two pick without opening.
+   */
   onSelectFile: (file: VaultFile, mode: PickMode) => void
   onSelectFolderNote: (folder: VaultFolder) => void
-  /** A note inside this path — `''` is the vault itself. */
+  /** A new note inside this path; `''` is the vault itself. */
   onNewNote: (parentPath: string) => void
-  /** A note inside a note that has none yet, which converts it on the way. */
+  /** A new note inside a plain note, which converts it on the way. */
   onNewNoteInside: (file: VaultFile, owner: string) => void
   onMoveFile: (file: VaultFile, newParentPath: string) => void
   onMoveFolder: (folder: VaultFolder, newParentPath: string) => void
-  /** **Files dragged in from outside**, copied into that folder under their own
-   *  names. A vault is a folder, and filing a PDF in one is a drag. */
+  /** Files dragged in from outside, copied into that folder under their own names. */
   onImportFiles: (files: readonly File[], to: string) => void
-  /** The same, dropped on a **plain note**: it becomes a nested note and they go
-   *  inside it — the `+` on that row, for a file rather than a name. */
+  /**
+   * The same, dropped on a plain note: it becomes a nested note and they go inside it.
+   */
   onImportFilesInside: (note: VaultFile, files: readonly File[]) => void
-  /** **A note dragged onto a plain note** goes inside it, converting it on the way:
-   *  the same act, for one of the vault's own notes rather than a file from
-   *  outside. Any note can hold notes; it becomes nested the moment one arrives. */
+  /**
+   * A note dragged onto a plain note goes inside it, converting
+   * it on the way. Any note can hold notes.
+   */
   onAdoptFile: (note: VaultFile, dragged: VaultFile) => void
-  /** And a nested note — a folder with its own note — dragged onto a plain one. */
+  /** And a nested note (a folder with its own note) dragged onto a plain one. */
   onAdoptFolder: (note: VaultFile, dragged: VaultFolder) => void
   onRenameFile: (file: VaultFile, newName: string) => void
   onRenameFolder: (folder: VaultFolder, newName: string) => void
   onDeleteFile: (file: VaultFile) => void
   onDeleteFolder: (folder: VaultFolder) => void
-  /** Takes an *absolute* path, which is all Finder needs and the one thing both
-      row kinds have. `App` holds the side effect, as it does for every other
-      thing a menu item does. */
+  /**
+   * Takes an absolute path, which is what Finder needs. `App`
+   * does the actual work, as for every menu item.
+   */
   onReveal: (absolutePath: string) => void
 }
 
 /**
- * The icon picker: the same menu for a page and for a nested page.
- *
- * `own` is the note's *own* icon and not an inherited one — it is what marks a row
- * as chosen and what Remove can act on. The two rows had this twice, and the copies
- * had already begun to differ in how they spelled the same thing.
+ * The icon picker, the same for a note and a nested note. `own` is the note's own
+ * icon, not an inherited one: it marks the chosen icon and is what Remove removes.
  */
 function useIconMenu(own: string | undefined, onSet: (icon: string | null) => void) {
   return useContextMenu(
@@ -144,13 +147,8 @@ function useIconMenu(own: string | undefined, onSet: (icon: string | null) => vo
 }
 
 /**
- * **A passphrase, asked where the file is.** An encrypted note opens by being
- * unlocked, so the question belongs under its own row rather than in a dialog over
- * the note it is about to show — and it is asked in the field everything else is
- * typed into, with the glyphs held back.
- *
- * Blur cancels, like every field that is not a rename: leaving the question is an
- * answer.
+ * The passphrase question, asked under the file's own row rather than in a dialog,
+ * in the same field as everything else, with the characters hidden. Blur cancels.
  */
 function unlockRow(unlock: InlineUnlock, depth: number) {
   return (
@@ -169,9 +167,10 @@ function unlockRow(unlock: InlineUnlock, depth: number) {
   )
 }
 
-/** The name field for a new note, at whatever depth it is being made. Blur
- *  **cancels** here, where a rename's commits: browsing away from a half-typed
- *  name must not make a note called half of it. */
+/**
+ * The name field for a new note, at the depth it will have. Blur cancels here, unlike a
+ * rename: clicking away from a half-typed name mustn't make a note called half of it.
+ */
 function createRow(create: InlineCreate, depth: number) {
   return (
     <li style={{ paddingLeft: stepIn(depth) }}>
@@ -222,17 +221,15 @@ export function FolderTree(props: FolderTreeProps) {
           onDeleteFile={onDeleteFile}
           onReveal={props.onReveal}
         />,
-        // The note has no folder yet, so there is nowhere in the tree for the field
-        // to sit but under the row itself — and it sits at the depth the new note
-        // will have. The folder is made when the name is committed, not when the
-        // `+` is clicked, so cancelling here leaves the note exactly as it was.
+        // The note has no folder yet, so the field sits under the
+        // row, at the new note's depth. The folder is made when the
+        // name is committed, so cancelling leaves the note as it was.
         create?.insideNote === file.path && create.owner === props.where
           ? createRow(create, depth + 1)
           : null,
-        // An encrypted note asks for its passphrase in the same slot, at its own
-        // depth: the question is about *this* file. **The pane's tree only** — the
-        // row it is about is revealed there, and two fields would fight for the
-        // keyboard the way two create rows did.
+        // A locked note asks for its passphrase in the same place,
+        // at its own depth. Only in the pane's tree, where its row
+        // is shown; two fields would fight for the keyboard.
         props.unlock?.path === file.path && props.where === 'tree'
           ? unlockRow(props.unlock, depth)
           : null,
@@ -242,11 +239,9 @@ export function FolderTree(props: FolderTreeProps) {
 }
 
 /**
- * **What a row's glyph says a file is.** The tree lists every file in the vault
- * now, so a row has to say which kind it is at a glance — a photograph, a PDF, a
- * table of values — from the one drawn set (`NOTE_ICONS`), because an icon this app
- * does not have renders as its own name. JSON keeps its braces, which is a glyph of
- * its own; anything the app has nothing to say about takes the page.
+ * The icon for a file by its kind, so a photo, a PDF and a table look different
+ * at a glance. Drawn from `NOTE_ICONS`, since an unknown icon shows as its
+ * name. JSON keeps its braces; anything else unknown gets the page icon.
  */
 const GLYPHS: Partial<Record<FileKind, string>> = {
   csv: 'list',
@@ -255,8 +250,10 @@ const GLYPHS: Partial<Record<FileKind, string>> = {
   text: 'quote',
 }
 
-/** The glyph for a file that is not a note. JSON wears braces, which is a drawn
- *  glyph of its own rather than one of the set; everything else names one. */
+/**
+ * The icon for a file that isn't a note. JSON gets braces;
+ * everything else names one from the set.
+ */
 function glyphFor(path: string) {
   if (isEncrypted(path)) return <NoteIcon icon="lock" />
   const kind = fileKind(path)
@@ -265,26 +262,18 @@ function glyphFor(path: string) {
 }
 
 /**
- * The second click of a double click, which the browser has already counted for
- * us in `detail`.
- *
- * A double click renames, and both rows do something on a single click — a leaf
- * opens, a folder's row opens *and* toggles. Without this the row expanded and
- * shut again underneath the field that had just appeared. The *first* click still
- * does its work: waiting to see whether a second one follows would put a delay on
- * every note in the vault to serve the rarer gesture.
+ * The second click of a double click, from the event's `detail`. A double click
+ * renames, but the first click still does its own work (opening a note, or opening and
+ * toggling a folder); waiting to see if a second click follows would slow every click.
  */
 function isDoubleClick(e: React.MouseEvent): boolean {
   return e.detail > 1
 }
 
 /**
- * Rename in place: the state, the input, and the three ways out of it.
- *
- * Local to this file because it has exactly two callers and both are here. The
- * create row above is deliberately *not* a caller — it has no prefill and
- * **cancels** on blur, where these commit. Committing on blur is the decision being
- * shared, not the markup.
+ * Rename in place: the state, the input, and the three ways out.
+ * Here because both callers are here. The create row is not one
+ * of them: it cancels on blur, where a rename commits.
  */
 function useRename(name: string, onRename: (newName: string) => void) {
   const [renaming, setRenaming] = useState(false)
@@ -305,13 +294,13 @@ function useRename(name: string, onRename: (newName: string) => void) {
     input: (className?: string) => (
       <NameField
         value={value}
-        // A rename stands in for a row that is on screen: same height, no gap.
+        // A rename replaces a row on screen: same height, no gap.
         className={className ? `rename-in-row ${className}` : 'rename-in-row'}
         onChange={setValue}
         onSubmit={submit}
         onCancel={() => setRenaming(false)}
-        // **Blur commits**, unlike the create row's: the name was already there,
-        // and clicking away from an edit of it means keep the edit.
+        // Blur commits, unlike the create row: the name was
+        // already there, and clicking away means keep the edit.
         onBlur={submit}
       />
     ),
@@ -343,13 +332,15 @@ function FileRow({
   onImportFilesInside: (note: VaultFile, files: readonly File[]) => void
   onAdoptFile: (note: VaultFile, dragged: VaultFile) => void
   onAdoptFolder: (note: VaultFile, dragged: VaultFolder) => void
-  /** In the picked set: the row paints, and its menu acts on the whole set. */
+  /**
+   * In the picked set: the row gets a background, and its menu acts on the whole set.
+   */
   picked: boolean
   pickedCount: number
   onDeletePicked: () => void
-  /** Its own or inherited — what is drawn. */
+  /** Its own or inherited: what is drawn. */
   icon: string | undefined
-  /** Only its own, which is what Remove can act on. */
+  /** Only its own: what Remove can act on. */
   own: string | undefined
   onSetIcon: (file: VaultFile, icon: string | null) => void
   onSelectFile: (file: VaultFile, mode: PickMode) => void
@@ -362,9 +353,10 @@ function FileRow({
   const drag = usePrimaryDrag()
   const drop = useNoteDropTarget(file, onImportFilesInside, onAdoptFile, onAdoptFolder)
   const rename = useRename(file.name, (newName) => onRenameFile(file, newName))
-  /** **The menu acts on the set when this row is in one.** Rename goes with it:
-   *  one name cannot stand for twenty notes. Reveal stays — it is about the row
-   *  that was pressed, and one path is all Finder takes. */
+  /**
+   * When this row is in a picked set, the menu acts on the set. There is no Rename
+   * (one name can't cover twenty notes). Reveal stays, for the row that was pressed.
+   */
   const many = picked && pickedCount > 1
   const [menu, openMenu] = useContextMenu(() => [
     ...(many ? [] : [{ label: 'Rename', onSelect: rename.start }]),
@@ -381,15 +373,13 @@ function FileRow({
 
   return (
     <li className="note-row" style={{ paddingLeft: stepIn(depth) }}>
-      {/* `NoteRow` is the shape — the reserved chevron, the body, the icon's
-          column, the name — shared with the Actions section and the sections at the
-          end of a note. What is a leaf row's *own* is all here: it drags, it renames
-          on a double click, and its icon is a picker.
+      {/* `NoteRow` is the shared row shape: chevron space, body, icon
+          column, name. What belongs to a leaf row is here: it drags,
+          it renames on a double click, and its icon is a picker.
 
-          A file that is not a note wears braces and is **not** a picker: an icon is
-          an `icon:` property written into the file, and frontmatter in a JSON file
-          is a JSON file that no longer parses. `writeNoteProperty` refuses it as
-          well — this is the half that says so on screen. */}
+          A file that isn't a note shows braces and has no picker: an
+          icon is an `icon::` property written into the file, and that
+          would break a JSON file. `writeNoteProperty` refuses it too. */}
       <NoteRow
         className={`${selected ? 'selected' : ''} ${picked ? 'picked' : ''} ${drop.over ? 'drag-over' : ''} ${dragging ? 'dragging' : ''}`.trim()}
         {...drop.handlers}
@@ -418,9 +408,9 @@ function FileRow({
           if (drag.refused(e)) return
           e.dataTransfer.effectAllowed = 'move'
           e.dataTransfer.setData(DRAG_MIME, JSON.stringify(file))
-          // The payload is not readable during dragover, only the type list, so
-          // the path rides along as a type — the folder's own arrangement — and a
-          // note's row can refuse the drag that started on it.
+          // The payload can't be read during dragover, only the
+          // type list, so the path rides along as a type, and a
+          // note's row can refuse a drag that started on it.
           e.dataTransfer.setData(`${DRAG_MIME}+${file.path.toLowerCase()}`, '')
           setCustomDragImage(e, file.name)
           setDragging(true)
@@ -437,20 +427,16 @@ function FileRow({
         onContextMenu={openMenu}
       />
       {/* Every note takes a note inside it. This one has no folder yet, so the
-          handler makes one — `Ideas.md` becomes `Ideas/Ideas.md` and the new note
-          goes in beside it. Same cluster as a folder row's, so the two `+`s sit in
-          one column. */}
-      {/* Only a note takes a note inside it: `Ideas.md` becomes `Ideas/Ideas.md`,
-          and there is no such move for `data.json`. The cluster stays, empty, so
-          the column it shares with a folder row's `+` does not collapse. */}
+          handler makes one: `Ideas.md` becomes `Ideas/Ideas.md` with the new note
+          beside it. Same cluster as a folder row's, so the `+` buttons line up. */}
+      {/* Only a note takes a note inside it; there is no such move for
+          `data.json`. The empty cluster stays so the `+` column lines up. */}
       <span className="folder-actions">
         {isNote(file.path) && (
           <button
             aria-label={`New note in ${file.name}`}
-            // **Holds the focus where it is.** A create field abandons on blur, so
-            // pressing this while one is open threw away what had been typed and
-            // then opened an empty one — the close racing the click, the same thing
-            // the search results list refuses the focus change for.
+            // Keep the focus where it is: a create field closes on blur, so
+            // pressing this while one is open would throw away what was typed.
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => onNewNoteInside(file)}
           >
@@ -465,16 +451,10 @@ function FileRow({
 }
 
 /**
- * **A drag starts on the primary button and no other.**
- *
- * WebKit begins a drag session when the *right* button is pressed on a `draggable`
- * element, where Chrome does not — so a right-click on a note in the app started a
- * drag it never finished: the list under the pointer took the drop wash and kept
- * it, a blue outline across the whole left pane with a context menu open over it.
- * Reported exactly that way, and invisible to every test because jsdom and Chrome
- * both decline the gesture.
- *
- * The button is read on `mousedown`, because a `DragEvent` does not carry one.
+ * A drag starts on the primary button only. WebKit starts a drag on a
+ * right-press over a draggable element, so a right-click on a note
+ * left the left pane lit as a drop target behind the menu. The button
+ * is read on `mousedown`, since a drag event doesn't carry it.
  */
 function usePrimaryDrag() {
   const primary = useRef(true)
@@ -482,7 +462,7 @@ function usePrimaryDrag() {
     onMouseDown: (event: React.MouseEvent) => {
       primary.current = event.button === 0
     },
-    /** True when this drag must not happen — and it is refused on the way out. */
+    /** True when this drag must not happen; it is cancelled as it starts. */
     refused(event: React.DragEvent): boolean {
       if (primary.current) return false
       event.preventDefault()
@@ -492,10 +472,9 @@ function usePrimaryDrag() {
 }
 
 /**
- * A drop wash cannot outlive the gesture that lit it. `dragleave` clears it, but a
- * drag that ends without one — Escape, or the right-button drag WebKit starts by
- * itself — left the pane painted; `dragend` fires on the source and `drop` anywhere,
- * and either means this is over. Both drop targets in the tree use it.
+ * Clears a drop target's highlight when the drag ends. `dragleave`
+ * isn't enough: a drag ended with Escape, or WebKit's right-button
+ * drag, left it lit. `dragend` and `drop` both mean it is over.
  */
 function useClearOnDragEnd(over: boolean, clear: () => void) {
   useEffect(() => {
@@ -512,20 +491,18 @@ function useClearOnDragEnd(over: boolean, clear: () => void) {
 }
 
 /**
- * A dragged row's own path, lowercased, from the marker type it rides on. The
- * payload is unreadable until the drop — only the type list is — so the path goes
- * along as a MIME suffix, which is what lets a target refuse at `dragover`.
+ * A dragged row's path, lowercased, read from the type it rides on.
+ * The payload can't be read until the drop, so the path travels as
+ * a MIME suffix, which lets a target refuse at `dragover`.
  */
 const markedPath = (types: readonly string[], mime: string) =>
   types.find((t) => t.startsWith(`${mime}+`))?.slice(mime.length + 1) ?? ''
 
 /**
- * What a drop carries, read one way for both kinds of target: files from outside
- * first — asked the way the dragover asked it, since a `DataTransfer` that never
- * said it carries files need not have a `files` list at all — then a note, then a
- * folder. What each target *does* with it, and what it refuses, stays its own: a
- * refused drop on a folder row must be swallowed there, or it bubbles to the root
- * and moves the folder to the top of the vault.
+ * What a drop carries, read the same way for both kinds of target: files
+ * from outside first, then a note, then a folder. Each target decides what
+ * to do and what to refuse. A refused drop on a folder row must be swallowed
+ * there, or it bubbles to the root and moves the folder to the top.
  */
 function payloadOf(e: React.DragEvent): { files?: File[]; file?: VaultFile; folder?: VaultFolder } | null {
   if (e.dataTransfer.types.includes('Files')) return { files: [...(e.dataTransfer.files ?? [])] }
@@ -536,24 +513,12 @@ function payloadOf(e: React.DragEvent): { files?: File[]; file?: VaultFile; fold
 }
 
 /**
- * **A plain note takes what is dropped on it and becomes a nested note**: a file
- * from outside, one of the vault's own notes, or a nested note. Each goes inside it,
- * the same act the `+` on the row performs for a typed name. Only a note takes one —
- * a PDF is not a page that can hold anything — and anything else falls through to
- * the list below, which is the vault itself.
+ * A plain note takes what is dropped on it and becomes a nested note: a
+ * file from outside, a note, or a nested note, which goes inside it.
+ * Only a note takes one; anything else falls through to the vault.
  *
- * It took files from outside first and refused the vault's own notes, on the
- * grounds that a note dragged onto a note had no meaning yet. It has one, and it is
- * the obvious one: asked for as "I want to be able to move notes under any other
- * note; a note should just automatically convert." A note is not a kind of thing
- * that can or cannot hold notes; it is a note, and it holds notes the moment one is
- * put in it.
- *
- * Two refusals, both at `dragover` so the row does not light up for a drop it would
- * not take. A note cannot be dropped on itself — its path rides on the drag as a
- * type suffix, since the payload is unreadable until the drop. And a folder cannot
- * be dropped on a note that is *inside* it, which would move the destination along
- * with the source; the same guard `useDropTarget` has, asked of the note's folder.
+ * Two refusals, both at `dragover` so the row doesn't light up: a note can't
+ * be dropped on itself, and a folder can't be dropped on a note inside it.
  */
 function useNoteDropTarget(
   file: VaultFile,
@@ -590,7 +555,7 @@ function useNoteDropTarget(
         if (dropped?.files) {
           if (dropped.files.length > 0) onImportFilesInside(file, dropped.files)
         } else if (dropped?.file) {
-          // The drop-time half of the self check, for a drag that carried no marker.
+          // The self check again at drop time, for a drag that carried no marker.
           if (dropped.file.path !== file.path) onAdoptFile(file, dropped.file)
         } else if (dropped?.folder && !isSelfOrDescendant(dropped.folder.path, folderOf(file.path))) {
           onAdoptFolder(file, dropped.folder)
@@ -601,32 +566,25 @@ function useNoteDropTarget(
 }
 
 /**
- * A place a note or a folder can be dropped: a folder's row, or the tree's own
- * container, which is the **root**.
- *
- * There was no root target at all, so dragging anything out of a folder and back
- * to the top of the vault had nowhere to land — reported from the running app.
- * One hook for both, because "what may be dropped here and what that means" is one
- * question with one answer, and the root is just `''` as a destination.
+ * Where a note or folder can be dropped: a folder's row, or the
+ * tree's container, which is the root (`''`).
  */
 export function useDropTarget(
   to: string,
   onMoveFile: (file: VaultFile, to: string) => void,
   onMoveFolder: (folder: VaultFolder, to: string) => void,
-  /** Files dragged in from outside the app — see `onImportFiles`. */
+  /** Files dragged in from outside the app (see `onImportFiles`). */
   onImportFiles: (files: readonly File[], to: string) => void
 ) {
   const [over, setOver] = useState(false)
 
   useClearOnDragEnd(over, () => setOver(false))
 
-  // A folder cannot be dropped into itself or its own subtree; refusing the
-  // dragover is what stops the drop indicator appearing on an invalid target.
+  // A folder can't be dropped into itself or its own subtree;
+  // refusing the dragover keeps the highlight off.
   function canAccept(e: React.DragEvent): boolean {
-    // **From outside the app.** A drag out of Finder carries `Files`, and taking it
-    // is the whole of what stops the webview doing its own thing with it: its
-    // default for a dropped file is to *navigate to it*, which replaced the app
-    // with the PDF somebody meant to file.
+    // Files from outside the app: taking the drop stops the
+    // webview's default, which is to navigate to the dropped file.
     if (e.dataTransfer.types.includes('Files')) return true
     if (e.dataTransfer.types.includes(DRAG_MIME)) return true
     if (!e.dataTransfer.types.includes(DRAG_MIME_FOLDER)) return false
@@ -679,25 +637,21 @@ function FolderRow(props: FolderTreeProps) {
     onSetFolderIcon,
   } = props
 
-  /** Open because it is in the set, and for no other reason — see
-   *  `useFolderOpenState` for what the other reasons were and what they cost. */
+  /**
+   * Open because it is in the set, and for no other reason (see `useFolderOpenState`).
+   */
   const expanded = openFolders.has(folder.path)
 
-  /** The chevron's answer, taking the state on screen. */
+  /** The chevron's action, given the state on screen. */
   function toggleSelf() {
     onToggleFolder(folder.path, expanded)
   }
 
-  // Against the path `folderNoteRef` *would* produce, not just an existing note: a
-  // folder note is written lazily, so a folder without one yet could otherwise
-  // never show as selected however long you waited.
+  // Compared with the path `folderNoteRef` would produce, since a folder note is
+  // written lazily; otherwise a folder with no note file could never show as selected.
   /**
-   * Whether anything is actually inside this note.
-   *
-   * A folder note with nothing beside it is a note that *can* hold others and does
-   * not — clicking `+` and thinking better of it used to leave exactly that, drawn
-   * with an arrow and an accent as though it were full. `files` excludes the
-   * folder's own note, so this is the honest question.
+   * Whether anything is inside this note. `files` excludes the folder's
+   * own note, so an empty folder note isn't drawn as having children.
    */
   const hasNotesInside = folder.folders.length > 0 || folder.files.length > 0
 
@@ -710,15 +664,14 @@ function FolderRow(props: FolderTreeProps) {
   const rename = useRename(folder.name, (newName) => onRenameFolder(folder, newName))
   const [menu, openMenu] = useContextMenu(() => [
     { label: 'Rename', onSelect: rename.start },
-    // The folder, not its own note: the row stands for the folder, and revealing it
-    // shows the container with its note and its children inside. A folder note that
-    // has never been typed in has no file to select anyway.
+    // Reveal the folder, not its note: it shows the folder with everything
+    // inside. A folder note never typed in has no file to select anyway.
     ...(onAndroid ? [] : [{ label: 'Reveal in Finder', onSelect: () => onReveal(folder.absolutePath) }]),
     { label: 'Delete', onSelect: () => onDeleteFolder(folder), danger: true },
   ])
-  /** Its own — what is written in the note, which is all a row draws. */
+  /** Its own icon: what is written in the note, which is what the row draws. */
   const shownIcon = resolveNoteIcon(folder.path, icons)
-  /** Only its own — what the menu's Remove is about, and what it can remove. */
+  /** Only its own: what the menu's Remove removes. */
   const ownIcon = icons[folderNoteRef(folder).path]
   const [iconMenu, openIconMenu] = useIconMenu(ownIcon, (icon) =>
     onSetFolderIcon(folder, icon)
@@ -736,8 +689,8 @@ function FolderRow(props: FolderTreeProps) {
           e.stopPropagation()
           e.dataTransfer.effectAllowed = 'move'
           e.dataTransfer.setData(DRAG_MIME_FOLDER, JSON.stringify(folder))
-          // Type-list marker so drop targets can reject their own subtree during
-          // dragover, when getData() is not allowed to return the payload.
+          // A type-list marker, so drop targets can refuse their own
+          // subtree during dragover, when the payload can't be read.
           e.dataTransfer.setData(`${DRAG_MIME_FOLDER}+${folder.path}`, '')
           setCustomDragImage(e, folder.name)
           setDragging(true)
@@ -749,13 +702,10 @@ function FolderRow(props: FolderTreeProps) {
           rename.input('folder-rename-input')
         ) : (
           <>
-            {/* Both do both: the chevron expands, and the name opens the folder's
-                own note *and* toggles. A node is a note and a container at once, so
-                clicking it twice has to close what the first click opened — the
-                alternative is a row that only ever expands. `toggleSelf` reads the
-                rendered state and drops the reveal, which is what lets the second
-                click win even though the open note keeps the folder on the selected
-                path. */}
+            {/* The chevron expands; the name opens the folder's note and toggles.
+                A second click closes what the first opened. `toggleSelf` reads
+                the state on screen and drops the reveal, so the second click wins
+                even though the open note keeps the folder on the selected path. */}
             {hasNotesInside ? (
               <button
                 className="folder-chevron"
@@ -768,8 +718,8 @@ function FolderRow(props: FolderTreeProps) {
                 <ChevronIcon open={expanded} />
               </button>
             ) : (
-              // Nothing inside: the same empty slot a leaf row reserves, so this
-              // note reads as what it is — a note — until something is in it.
+              // Nothing inside: the same empty slot a leaf row
+              // has, so it reads as a plain note.
               <span className="folder-chevron" aria-hidden="true" />
             )}
             <button
@@ -785,9 +735,9 @@ function FolderRow(props: FolderTreeProps) {
               }}
               onContextMenu={openMenu}
             >
-              {/* The icon is its own button: clicking it picks one, and clicking the
-                  name still opens the note. `stopPropagation` is what keeps those
-                  two apart, since the icon sits inside the name's button. */}
+              {/* The icon is its own button: clicking it picks an icon, and
+                  clicking the name opens the note. `stopPropagation` keeps
+                  them apart, since the icon is inside the name's button. */}
               <span
                 role="button"
                 tabIndex={-1}
@@ -804,8 +754,7 @@ function FolderRow(props: FolderTreeProps) {
             </button>
           </>
         )}
-        {/* A note inside this one. No menu: there is one kind of note, and where
-            it goes is what this button already says. */}
+        {/* A note inside this one. No menu: there is one kind of note. */}
         <span className="folder-actions">
           <button
             aria-label={`New note in ${folder.name}`}
@@ -819,9 +768,8 @@ function FolderRow(props: FolderTreeProps) {
         {iconMenu}
       </div>
       {showChildren && (
-        // `--guide-x` is this folder's own indent; the stylesheet adds the half
-        // chevron that centres the rule under the arrow, because that is where the
-        // chevron's size is written down.
+        // `--guide-x` is this folder's indent; the stylesheet adds
+        // half the chevron so the guide sits under the arrow.
         <ul className="folder-children" style={guideAt(depth)}>
           <FolderTree {...props} depth={depth + 1} />
         </ul>
