@@ -5,21 +5,15 @@ import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFake
 import { decryptNote, encryptNote, lockAll } from '../crypto'
 
 /**
- * An encrypted note: `.enc` in the tree, a passphrase under its own row, and then
- * a note like any other.
- *
- * **The seam is `vault.ts`.** Reading decrypts and writing re-encrypts, so
- * everything above — the buffer, the editor, the autosave, the focus re-read — is
- * handed plain text and never learns the difference. What is worth testing is that
- * boundary: that the plaintext never reaches the disk, and that the question is
- * asked instead of the file being opened.
+ * A locked note: `.enc` in the tree, a passphrase under its row, then a note like
+ * any other. The seam is `vault.ts`: reading decrypts and writing re-encrypts, so
+ * everything above gets plain text. Tested at that boundary: plaintext never
+ * reaches the disk, and the question is asked instead of the file opening.
  */
 
 /**
- * **jsdom's `crypto` has no `subtle`.** It brings its own `crypto` object with
- * `getRandomValues` and nothing else, which shadows Node's — so every derive and
- * every decrypt throws `TypeError` here and the app reports it as a passphrase it
- * could not use. The webview has the real thing; this hands the test Node's.
+ * jsdom's `crypto` has no `subtle`: its own `crypto` object has only `getRandomValues`
+ * and hides Node's, so every derive and decrypt threw here. This hands the test Node's.
  */
 vi.hoisted(() => {
   const { webcrypto } = require('node:crypto') as { webcrypto: Crypto }
@@ -59,8 +53,9 @@ describe('an encrypted file', () => {
     expect(within(tree()).getByText('private')).toBeTruthy()
   })
 
-  /** The question is asked where the file is, and nothing is opened until it is
-   *  answered: a locked file has no text to show. */
+  /**
+   * The question is asked where the file is, and nothing opens until it is answered.
+   */
   it('asks for a passphrase instead of opening', async () => {
     await openApp()
     fireEvent.click(within(tree()).getByText('private'))
@@ -85,8 +80,10 @@ describe('an encrypted file', () => {
     expect(field()).toBeNull()
   })
 
-  /** A wrong passphrase and a damaged file are different answers; both leave the
-   *  field open, because retyping is the only thing that can help either. */
+  /**
+   * A wrong passphrase and a damaged file are different answers;
+   * both keep the field open.
+   */
   it('says so on a wrong passphrase and keeps asking', async () => {
     await openApp()
     fireEvent.click(within(tree()).getByText('private'))
@@ -101,10 +98,9 @@ describe('an encrypted file', () => {
   })
 
   /**
-   * **The plaintext never lands on disk.** This is the one that matters: the
-   * editor holds the note's own text and the file keeps its armour, with a fresh
-   * IV each save and the same salt — so the derived key stays cached and typing
-   * does not pay 600,000 PBKDF2 rounds a keystroke.
+   * The plaintext never lands on disk. The editor holds the note's text and the
+   * file stays sealed, with a new IV each save and the same salt, so the derived
+   * key stays cached and typing does not pay 600,000 PBKDF2 rounds per key.
    */
   it('writes ciphertext back, never the text you typed', async () => {
     await openApp()
@@ -129,7 +125,7 @@ describe('an encrypted file', () => {
     expect(armoured.split('\n')[3]).not.toBe(wasLines[3])
   })
 
-  /** Escape is the way out, and it leaves the file as it was. */
+  /** Escape leaves the file as it was. */
   it('closes the question on Escape', async () => {
     await openApp()
     fireEvent.click(within(tree()).getByText('private'))
@@ -141,12 +137,10 @@ describe('an encrypted file', () => {
 })
 
 /**
- * **A locked note keeps its links, quietly.** Renaming rewrites every `[[link]]`
- * that pointed at the moved note, and a note nobody has unlocked cannot be read to
- * be rewritten — which was reported on every rename, a banner about a permanent
- * condition. A locked note is opaque to the rest of the app too: not in the graph,
- * not in the backlinks, not in search. So it is opaque here as well, and the banner
- * is kept for a note that is there, is not locked, and still could not be read.
+ * A locked note keeps its links, quietly. A rename rewrites every link to the moved
+ * note, and a note no one unlocked cannot be read, which used to be reported on every
+ * rename. A locked note is outside the rest of the app too (graph, backlinks, search),
+ * so the message is kept for a note that is not locked and still could not be read.
  */
 describe('renaming beside a locked note', () => {
   it('says nothing about it', async () => {
@@ -158,7 +152,7 @@ describe('renaming beside a locked note', () => {
     fireEvent.keyDown(name, { key: 'Enter' })
 
     await waitFor(() => expect(disk.has('/v/plan.md')).toBe(true))
-    // The note is still encrypted on disk, and nothing was said about it.
+    // The note is still sealed on disk, and nothing was said.
     expect(disk.read('/v/private.enc')!.startsWith('# Private')).toBe(false)
     expect(screen.queryByRole('alert')).toBeNull()
   })
@@ -166,8 +160,8 @@ describe('renaming beside a locked note', () => {
   it('reports one that is not locked and still cannot be read', async () => {
     disk.write('/v/unreadable.md', 'see [[roadmap]]\n')
     await openApp()
-    // A note that exists, is not encrypted, and is refused on the way in: a sync
-    // placeholder, a permissions error — a real failure, and worth saying.
+    // A note that exists, is not locked, and is refused on read (a sync
+    // placeholder, a permissions error): a real failure, worth saying.
     disk.corrupt('/v/unreadable.md')
 
     fireEvent.contextMenu(within(tree()).getByText('roadmap'))
@@ -181,10 +175,9 @@ describe('renaming beside a locked note', () => {
 })
 
 /**
- * **Unlocked is not in play.** A note open in its own editor is still its owner's
- * alone: the one read of the vault leaves it out, so search, the tags and the
- * graph are built without it, and nothing the app does to other notes
- * writes into it.
+ * Unlocked is not shared. A note open in its own editor is still
+ * its owner's alone: the vault read leaves it out, so search, tags
+ * and the graph are built without it, and nothing writes into it.
  */
 describe('an unlocked encrypted note', () => {
   async function unlock(name: string) {
@@ -198,8 +191,8 @@ describe('an unlocked encrypted note', () => {
   it('is not found by search', async () => {
     await openApp()
     await unlock('private')
-    // The vault is read again on focus, which is when an unlocked note would join
-    // it; the plain note saying the same thing is what shows the read has landed.
+    // The vault is read again on focus, when an unlocked note would join
+    // it; the plain note saying the same thing shows the read landed.
     disk.write('/v/roadmap.md', '# Roadmap\n\nThe number is 123456 here too.\n')
     fireEvent.focus(window)
     fireEvent.click(screen.getByLabelText('Search in notes'))
@@ -209,8 +202,10 @@ describe('an unlocked encrypted note', () => {
     expect(screen.queryByText('The number is 123456.')).toBeNull()
   })
 
-  /** v1's spelling ends in `.md`, which is how it was being handed to the note
-   *  machinery: a rename rewrote the links inside it. */
+  /**
+   * v1's `.enc.md` ends in `.md`, so it reached the note code: a
+   * rename rewrote links inside it.
+   */
   it('keeps its own links when the note they name is renamed', async () => {
     disk.write('/v/old.enc.md', await encryptNote('see [[roadmap]]\n', PW))
     await openApp()
@@ -236,9 +231,9 @@ describe('an unlocked encrypted note', () => {
 })
 
 /**
- * **A note is locked from the moment it is made, or never.** The lock beside the
- * Notes `+` asks for a name and a passphrase, twice, in one field, and the first
- * bytes on disk are ciphertext — a plain copy synced once stays in the history.
+ * A note is locked from the moment it is made, or never. The lock beside the
+ * Notes `+` asks for a name and the passphrase twice, in one field, and the first
+ * bytes on disk are ciphertext; a plain copy synced once stays in the history.
  */
 describe('a new locked note', () => {
   const typeInto = (label: string, value: string) => {
@@ -258,7 +253,7 @@ describe('a new locked note', () => {
     fireEvent.keyDown(named, { key: 'Enter' })
     const first = typeInto('Passphrase for Letters', PW)
     expect(first.type).toBe('password')
-    // **One element throughout**: a field replaced mid-question would lose the
+    // One element throughout: a replaced field would lose the
     // keyboard, and a create gives up on blur.
     expect(first).toBe(named)
     typeInto('Passphrase again for Letters', PW)
@@ -303,8 +298,8 @@ describe('a new locked note', () => {
 })
 
 /**
- * **Lock, by hand.** The typing goes out sealed first, the tab closes, and the
- * note asks for its passphrase again — the header's button on an unlocked note.
+ * Locking by hand: the typing is written sealed first, the tab
+ * closes, and the note asks for its passphrase again.
  */
 describe('locking a note by hand', () => {
   it('seals what was typed, closes it, and asks again', async () => {
@@ -315,7 +310,7 @@ describe('locking a note by hand', () => {
     fireEvent.keyDown(field()!, { key: 'Enter' })
     await waitFor(() => expect(editor()).toBeTruthy())
 
-    // Typed and not yet saved: the lock is what writes it.
+    // Typed and not yet saved: locking writes it.
     fireEvent.change(editor()!, { target: { value: `${SECRET}and the last word\n` } })
     fireEvent.click(screen.getByRole('button', { name: 'Lock' }))
 

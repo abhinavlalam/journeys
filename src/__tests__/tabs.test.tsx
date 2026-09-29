@@ -4,14 +4,14 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
- * **The reading pane is a workspace**: notes open as tabs, and a group of tabs can
- * be split into panes. `workspace.test.ts` holds the model; this drives the app —
- * the strip, the split buttons, and what the sidebar opens into.
+ * The reading pane is a workspace: notes open as tabs, and a group of
+ * tabs can split into panes. `workspace.test.ts` covers the model; this
+ * drives the strip, the split buttons and where the sidebar opens.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
 vi.mock('../MarkdownEditor', () => markdownEditorModule())
-// xterm paints to a canvas jsdom does not have; what the tab *is* is the model's.
+// xterm draws to a canvas jsdom lacks; what the tab is comes from the model.
 vi.mock('../TerminalPane', () => ({
   TerminalPane: ({ session }: { session: string }) => <div data-testid="terminal">{session}</div>,
 }))
@@ -48,7 +48,7 @@ describe('tabs', () => {
     await openFromTree('beta')
     expect(tabs()).toEqual(['alpha', 'beta'])
     expect(title()).toBe('beta')
-    // One editor on screen: the other tab keeps its buffer and draws nothing.
+    // One editor shown: the other tab keeps its buffer, hidden.
     expect(screen.getAllByTestId('editor')).toHaveLength(1)
 
     fireEvent.mouseDown(screen.getByRole('tab', { name: /alpha/ }))
@@ -76,8 +76,10 @@ describe('tabs', () => {
     expect(screen.getByText(/Choose a note on the left/)).toBeTruthy()
   })
 
-  /** The graph is a tab like the rest, and the footer's button still toggles it:
-   *  opened over the note, closed back to it. */
+  /**
+   * The graph is a tab too, and its button still toggles it:
+   * opened over the note, closed back to it.
+   */
   it('opens the graph as a tab and closes it back to the note', async () => {
     await openApp()
     await openFromTree('alpha')
@@ -96,9 +98,10 @@ describe('a terminal', () => {
     await openFromTree('alpha')
     fireEvent.click(screen.getByLabelText('Terminal'))
     await waitFor(() => expect(activeTabs()).toEqual(['Terminal']))
-    // The pane is loaded when the first terminal opens, so it arrives a tick later.
+    // The terminal pane loads when the first terminal opens, so
+    // it arrives a tick later.
     await waitFor(() => expect(screen.getByTestId('terminal')).toBeTruthy())
-    // Back to the note: the terminal stays mounted — its shell lives on — hidden.
+    // Back to the note: the terminal stays mounted and hidden, and its shell lives on.
     fireEvent.mouseDown(screen.getByRole('tab', { name: /alpha/ }))
     await waitFor(() => expect(activeTabs()).toEqual(['alpha']))
     expect(screen.getByTestId('terminal').closest('.viewer')?.hasAttribute('hidden')).toBe(true)
@@ -114,9 +117,10 @@ describe('a terminal', () => {
 })
 
 describe('what survives a move', () => {
-  /** **The same element, in a new place.** A split re-parented every element under
-   *  it, and a terminal in the pane lost its shell — reported as the terminal
-   *  restarting whenever anything moved across panes. The DOM is flat now. */
+  /**
+   * The same element in a new place. Nested, a split re-parented every element under
+   * it, and a terminal lost its shell whenever panes changed. The DOM is flat now.
+   */
   it('keeps a terminal’s element through a split and a move to the new pane', async () => {
     await openApp()
     await openFromTree('alpha')
@@ -176,7 +180,7 @@ describe('panes', () => {
     expect(title()).toBe('alpha')
   })
 
-  /** A tab is moved by dragging it onto another pane's strip. */
+  /** A tab moves by dragging it onto another pane's strip. */
   it('moves a tab to another pane by drag', async () => {
     await openApp()
     await openFromTree('alpha')
@@ -199,12 +203,12 @@ describe('panes', () => {
     expect(second.getAttribute('data-focused')).toBe('true')
   })
 
-  /** Dragging a page to a pane's right edge gives it a pane of its own there. */
+  /** Dragging a tab to a pane's right edge gives it a pane there. */
   it('splits a pane by dropping a tab at its edge', async () => {
     await openApp()
     await openFromTree('alpha')
     await openFromTree('beta')
-    // The drop target exists only while a tab is being dragged.
+    // The drop target exists only while a tab is dragged.
     const startDrag = () => fireEvent.dragStart(screen.getByRole('tab', { name: /beta/ }), { dataTransfer })
     const bodyOf = () => document.querySelector('.pane-drop') as HTMLElement
     const measured = (el: HTMLElement) => (el.getBoundingClientRect = () =>
@@ -237,7 +241,7 @@ describe('panes', () => {
     expect(within(first).queryByRole('tab', { name: /beta/ })).toBeNull()
   })
 
-  /** A press in a pane focuses it, so a click in the sidebar opens there. */
+  /** A press in a pane focuses it, so a sidebar click opens there. */
   it('opens into the pane last pressed', async () => {
     await openApp()
     await openFromTree('alpha')

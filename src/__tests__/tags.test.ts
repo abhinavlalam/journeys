@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { collectTagLines, tagAt, tagNames } from '../tags'
 
 /**
- * `#word` in a note's prose. **The guards are most of the definition**, so most of
- * this file is about what is *not* a tag — a heading, an anchor, a colour, a shell
- * shebang — because every one of those is a thing a real vault holds.
+ * `#word` in a note's prose. Most of this file is what is not a tag (a heading,
+ * an anchor, a colour, a shebang), since a real vault holds all of those.
  */
 describe('tagNames', () => {
   it('reads a tag, and nests one on a slash', () => {
@@ -13,25 +12,23 @@ describe('tagNames', () => {
     expect(tagNames('#inbox-triage and #read_later')).toEqual(['inbox-triage', 'read_later'])
   })
 
-  /** The line CommonMark draws too: a heading *requires* the space, so `#Plans`
-   *  was never one and is free to be a tag. */
+  /** As in CommonMark: a heading needs the space, so `#Plans` is free to be a tag. */
   it('is not a heading', () => {
     expect(tagNames('# Plans')).toEqual([])
     expect(tagNames('## Section')).toEqual([])
     expect(tagNames('###### Deep')).toEqual([])
-    // No space, so not a heading — and therefore a tag, folded like every other.
+    // No space, so not a heading, and so a tag, folded like the rest.
     expect(tagNames('#Plans')).toEqual(['plans'])
   })
 
-  /** A `#` in the middle of a word is somebody's text, which is the guard
-   *  `OPENER` uses for `--` and for the same reason. */
+  /** A `#` in the middle of a word is someone's text. */
   it('is not an anchor or part of a word', () => {
     expect(tagNames('see https://example.invalid/page#section')).toEqual([])
     expect(tagNames('see [[Areas/Plans#Roadmap]]')).toEqual([])
     expect(tagNames('issue abc#42 was closed')).toEqual([])
   })
 
-  /** A tag carries a letter. A number after a hash is a number somebody wrote. */
+  /** A tag has a letter. A number after a hash is just a number. */
   it('is not a bare number', () => {
     expect(tagNames('#2026 was the year')).toEqual([])
     expect(tagNames('#1')).toEqual([])
@@ -40,9 +37,8 @@ describe('tagNames', () => {
   })
 
   /**
-   * Off `proseLines`, so code is not scanned — a vault holds `#!/bin/sh` and
-   * `#include` in fenced blocks and `#ef476f` in a backtick span. The colour is the
-   * interesting one: it carries letters, so only the mask keeps it out.
+   * Read off `proseLines`, so code is skipped: `#!/bin/sh` and `#include` in fences,
+   * `#ef476f` in a code span. The colour has letters, so only the mask keeps it out.
    */
   it('does not read code', () => {
     expect(tagNames('```sh\n#!/bin/sh\n#include <x>\n```')).toEqual([])
@@ -56,11 +52,8 @@ describe('tagNames', () => {
   })
 
   /**
-   * **Lowercased, and it is the one name in the app that is folded rather than
-   * kept as first written.** A property keeps its spelling, because `Status` is a
-   * word someone chose for a block. A tag is a *label*, and `#Travel` beside
-   * `#travel` is one label that looks like two — the case is never information.
-   * The note's own bytes are untouched; this is only the name the app shows.
+   * Folded to lower case, the one name the app folds. `#Travel` and `#travel`
+   * are one label; case carries nothing. The note's text is untouched.
    */
   it('folds a tag to one spelling', () => {
     expect(tagNames('#Travel and #TRAVEL and #travel')).toEqual(['travel', 'travel', 'travel'])
@@ -69,8 +62,10 @@ describe('tagNames', () => {
 })
 
 describe('collectTagLines', () => {
-  /** `gatherLines`' rule: the run nested under an entry comes with it, and a blank
-   *  line does not break it. */
+  /**
+   * `gatherLines`' rule: the run nested under an entry comes
+   * with it, and a blank line does not break it.
+   */
   it('gathers the line and the run nested under it', () => {
     const note = ['# Monday', '', '- #travel to Harbour City', '  - terminal 1', '', '  - gate 14', '- #food later', ''].join('\n')
     const found = collectTagLines(note, 'travel')
@@ -94,7 +89,7 @@ describe('collectTagLines', () => {
   it('stops the run at the entry’s own level, and keeps the nesting relative to it', () => {
     const note = ['09:42 #expense lunch', '  - taxi 240', '    - tipped', '10:00 standup'].join('\n')
     expect(collectTagLines(note, 'expense')[0].below).toEqual(['  - taxi 240', '    - tipped'])
-    // The entry's own indent comes off and nothing else does.
+    // The entry's own indent comes off and nothing else.
     const nested = ['  - 09:42 #expense at the airport', '    - taxi 240', '      - tipped'].join('\n')
     expect(collectTagLines(nested, 'expense')[0].below).toEqual(['  - taxi 240', '    - tipped'])
   })
@@ -107,7 +102,7 @@ describe('collectTagLines', () => {
     ])
   })
 
-  /** A fence *under* an entry is its content; an entry inside one is not an entry. */
+  /** A fence under an entry is its content; an entry inside a fence is not an entry. */
   it('finds no entry inside code, and keeps a fence that is under one', () => {
     expect(collectTagLines(['```sh', 'echo #build', '```'].join('\n'), 'build')).toEqual([])
     expect(collectTagLines('Ran `#build` by hand', 'build')).toEqual([])
@@ -121,8 +116,7 @@ describe('collectTagLines', () => {
 })
 
 describe('tagAt', () => {
-  /** What a press reads. The offset may land anywhere in the tag, the `#`
-   *  included, because the whole run is what was marked and pressed. */
+  /** What a press reads. The offset may be anywhere in the tag, the `#` included. */
   it('answers the tag under an offset, and null elsewhere', () => {
     const line = 'booked it #travel today'
     const at = line.indexOf('#travel')
@@ -139,8 +133,7 @@ describe('tagAt', () => {
     expect(tagAt(line, line.indexOf('#one') + 1)).toBe('one')
   })
 
-  /** Folded, so pressing `#Travel` opens the page the pane's `travel` row opens
-   *  rather than a second page for the same tag. */
+  /** Folded, so pressing `#Travel` opens the same page as the `travel` row. */
   it('folds what a press reads', () => {
     expect(tagAt('went #Travel today', 6)).toBe('travel')
   })

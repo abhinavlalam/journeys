@@ -4,18 +4,13 @@ import type { DecorationSet } from '@codemirror/view'
 import { jsonDecorations } from '../jsonPreview'
 
 /**
- * The colour a JSON file gets, as marks over offsets.
- *
- * A scan and not a grammar, so the tests are the cases a scan gets wrong: a colon
- * inside a string, an escaped quote, a bracket in a string, and the depth of a
- * bracket in a span that does not start at the top of the file.
+ * The colours a JSON file gets, as marks over offsets. A scan, not a grammar,
+ * so the tests are what a scan gets wrong: a colon in a string, an escaped
+ * quote, a bracket in a string, and depth in a span that starts mid-file.
  */
 /**
- * A caret parked where it is on **no** bracket.
- *
- * The default is offset 0, which in most of these documents is the opening `{` —
- * so without this every list below would also carry the pair highlight, and the
- * tests about tokens would be about two things.
+ * A caret on no bracket. The default, offset 0, is usually the
+ * opening `{`, so every result would also carry the pair highlight.
  */
 function clearOfBrackets(doc: string): number {
   for (let at = 0; at <= doc.length; at++) {
@@ -46,8 +41,9 @@ function spans(set: DecorationSet, doc: string): string[] {
 
 const all = (doc: string) => spans(jsonDecorations(state(doc), 0, doc.length), doc)
 
-/** The **raw text** of every mark carrying `cls`, for the cases where the point is
- *  what the token swallowed rather than which offsets it covered. */
+/**
+ * The raw text of every mark with `cls`, where the point is what the token swallowed.
+ */
 function textOf(doc: string, cls: string): string[] {
   const found: string[] = []
   const iter = jsonDecorations(state(doc), 0, doc.length).iter()
@@ -82,8 +78,10 @@ describe('what each token is', () => {
     ])
   })
 
-  /** The case a naive scan gets wrong: the colon is *inside* the value, so the
-   *  value is not a name and the text after it is not a value. */
+  /**
+   * What a naive scan gets wrong: the colon is inside the value,
+   * so the value is not a name and what follows is not a value.
+   */
   it('leaves a colon inside a string alone', () => {
     expect(all('{ "when": "09:05 sharp" }')).toEqual([
       'bracket depth-0:"{"',
@@ -94,9 +92,8 @@ describe('what each token is', () => {
   })
 
   it('does not let an escaped quote end a string', () => {
-    // `String.raw`, so what is written here is what is in the file: one value,
-    // quotes and all. Read as three tokens, the second `"` would end the string and
-    // `no` would become bare words with a colour of their own.
+    // `String.raw`, so this is the file's text: one value, quotes and
+    // all. Read as three tokens, the second `"` would end the string.
     const doc = String.raw`{ "said": "he said \"no\"" }`
     expect(textOf(doc, 'string')).toEqual([String.raw`"he said \"no\""`])
     expect(textOf(doc, 'key')).toEqual(['"said"'])
@@ -104,8 +101,8 @@ describe('what each token is', () => {
 
   it('does not read a bracket inside a string as structure', () => {
     const doc = '{ "shape": "{not a brace}" }'
-    // The braces in the value neither take a colour nor move the depth: the pair
-    // around the object is still depth 0, which it would not be if they counted.
+    // The braces in the value neither take a colour nor change
+    // the depth: the object's pair is still depth 0.
     expect(all(doc).filter((one) => one.startsWith('bracket'))).toEqual([
       'bracket depth-0:"{"',
       'bracket depth-0:"}"',
@@ -139,10 +136,9 @@ describe('bracket depth', () => {
   })
 
   /**
-   * A span from the middle of the file still knows how deep it is: the scan starts
-   * at the top of the document and only *marks* from `from`. Depth is not visible
-   * in a slice, so a viewport-sized span would otherwise colour the same bracket
-   * differently depending on where the window happened to be.
+   * A span from mid-file still knows its depth: the scan starts at
+   * the top and only marks from `from`. Otherwise a bracket's
+   * colour would depend on the scroll position.
    */
   it('is right in a span that does not start at the top', () => {
     const doc = '{\n  "a": {\n    "b": 1\n  }\n}\n'
@@ -157,12 +153,9 @@ describe('bracket depth', () => {
 })
 
 /**
- * The pair under the caret.
- *
- * Read off the brackets **the scan collected**, which is what makes a brace inside
- * a string unable to be one: the scan never offered it as a bracket at all.
- * `bracketMatching` from `@codemirror/language` counts characters, and with no
- * grammar to say what a string is, one brace in a value shifts every pair after it.
+ * The pair under the caret, read from the brackets the scan collected, so a brace
+ * inside a string is never one. CodeMirror's `bracketMatching` counts characters,
+ * and with no grammar one brace in a value shifts every pair after it.
  */
 describe('the pair the caret is on', () => {
   const matches = (doc: string, head: number) =>
@@ -172,7 +165,7 @@ describe('the pair the caret is on', () => {
 
   it('marks both halves, from either side of either half', () => {
     const doc = '{ "a": 1 }'
-    // Before the opener, after the opener, before the closer, after the closer.
+    // Before the opener, after it, before the closer, after it.
     for (const head of [0, 1, 9, 10]) {
       expect(matches(doc, head)).toBe('match:"{" match:"}"')
     }
@@ -188,7 +181,7 @@ describe('the pair the caret is on', () => {
       'match:"{"',
       'match:"}"',
     ])
-    // The outer pair, so the closer marked is the *last* brace and not the inner one.
+    // The outer pair, so the marked closer is the last brace, not the inner one.
     const marked = jsonDecorations(state(doc, 0), 0, doc.length)
     const ends: number[] = []
     const iter = marked.iter()
@@ -206,8 +199,10 @@ describe('the pair the caret is on', () => {
     expect(matches(doc, 7)).toBe('match:"[" match:"]"')
   })
 
-  /** The case the library's matcher gets wrong: the brace in the value is not a
-   *  bracket, so it neither pairs with anything nor breaks the pair that spans it. */
+  /**
+   * What the library's matcher gets wrong: the brace in the value
+   * is not a bracket, so it pairs with nothing and breaks nothing.
+   */
   it('never pairs with a brace inside a string', () => {
     const doc = '{ "shape": "a { in prose" }'
     expect(matches(doc, 0)).toBe('match:"{" match:"}"')
@@ -218,8 +213,7 @@ describe('the pair the caret is on', () => {
     expect(matches('  }', 3)).toBe('unmatched:"}"')
   })
 
-  // Highlighting a pair while text is selected says something about the selection
-  // that is not true.
+  // No pair highlight while text is selected.
   it('is a cursor thing, not a selection thing', () => {
     const doc = '{ "a": 1 }'
     const selected = EditorState.create({ doc, selection: { anchor: 0, head: 6 } })

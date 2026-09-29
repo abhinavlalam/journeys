@@ -8,9 +8,9 @@ import { useCalendarSync } from '../useCalendarSync'
 import { DEFAULT_SETTINGS } from '../settings'
 
 /**
- * The calendar, driven from the row to the disk: a feed is fetched on Sync, its
- * occurrences land in the daily notes as `#event` lines, the page shows them
- * beside a line typed by hand, and a second Sync writes nothing twice.
+ * The calendar from the row to the disk: Sync fetches a feed, its
+ * events land in daily notes as `#event` lines, the page shows them
+ * beside a typed line, and a second Sync writes nothing twice.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -79,7 +79,7 @@ describe('the calendar', () => {
     await openCalendar()
     await waitFor(() => expect(rows().some((row) => row?.includes('Dinner'))).toBe(true))
     const dinner = viewer().getByText('Dinner').closest('button')!
-    // The clock first, as the line has it, then the title, then the rest.
+    // The clock first, as in the line, then the title, then the rest.
     expect(dinner.textContent).toBe('19:00Dinnerwith Ravi Iyer')
     // Its section is today's, headed by the word and the date.
     expect(dinner.closest('.note-section')!.textContent).toMatch(/^Today · /)
@@ -115,7 +115,7 @@ describe('the calendar', () => {
     expect(disk.read(`/v/Daily/${today}.md`)!.split('#event')).toHaveLength(2)
   })
 
-  /** The vault's structure is the one written: reordered, or a property taken off. */
+  /** The vault's structure as written: reordered, or with a property removed. */
   it('writes the properties the vault’s structure lists, in its order', async () => {
     disk.write('/v/.config/tags.json', JSON.stringify({ event: { properties: ['source', 'with'] } }))
     await openCalendar()
@@ -149,22 +149,22 @@ describe('the calendar', () => {
     const monthName = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' })
     const thisMonth = monthName.format(new Date())
     await waitFor(() => expect(viewer().getByText(thisMonth)).toBeTruthy())
-    // Seven weekday names, then whole weeks of days.
+    // Seven weekday names, then whole weeks.
     expect(document.querySelectorAll('.calendar-weekday')).toHaveLength(7)
     expect(document.querySelectorAll('.calendar-cell').length % 7).toBe(0)
     const cell = document.querySelector('.calendar-cell.today')!
     expect(cell.querySelector('.calendar-date')!.textContent).toBe(String(new Date().getDate()))
     const chips = [...cell.querySelectorAll('.calendar-chip')].map((chip) => chip.textContent)
-    // All day first, then by time — the typed dinner beside the standup the
-    // calendar's own sync wrote as the vault opened.
+    // All day first, then by time: the typed dinner beside the
+    // standup the sync wrote as the vault opened.
     expect(chips).toEqual(['Offsite', '09:30Standup', '19:00Dinner'])
     expect(cell.querySelector('.calendar-chip.all-day')!.textContent).toBe('Offsite')
 
     fireEvent.click(viewer().getByLabelText('Next month'))
     const [y, m] = today.split('-').map(Number)
     expect(viewer().getByText(monthName.format(new Date(y, m, 1)))).toBeTruthy()
-    // None of next month's own days is today. Today may still be on the page, as a
-    // day of this month in the first week's row — marked there, and outside.
+    // None of next month's own days is today. Today may still be on the page
+    // as a day of this month in the first row, marked there and outside.
     expect(document.querySelector('.calendar-cell.today:not(.outside)')).toBeNull()
     fireEvent.click(viewer().getByText('Today'))
     expect(viewer().getByText(thisMonth)).toBeTruthy()
@@ -182,18 +182,18 @@ describe('the calendar', () => {
   })
 
   /**
-   * An event deleted, moved or renamed in the calendar takes its line back out of the
-   * day's note on the next Sync — and only a line that is wholly the calendar's:
-   * one with words added, a note beneath it, or no feed's name in `source::` is the
-   * owner's and stays. A day left with nothing is not given a page.
+   * An event deleted, moved or renamed in the calendar takes its line out
+   * of the day's note on the next Sync, but only a line wholly the
+   * calendar's. One with added words, a note under it, or no feed name in
+   * `source::` is the owner's and stays. A day left empty gets no page.
    */
   it('takes back the lines of events the calendar no longer has, and nothing of yours', async () => {
     await openCalendar()
     fireEvent.click(viewer().getByText('Sync'))
     await waitFor(() => expect(disk.has(`/v/Daily/${tomorrow}.md`)).toBe(true))
-    // The owner writes into tomorrow's page: words on the end of the Standup line, a
-    // note under a synced line of their own making, and a dinner with no source. A
-    // lunch line from before the feed was named says the calendar's own name.
+    // The owner writes into tomorrow's page: words after the Standup line, a
+    // note under a synced line of their own, and a dinner with no source. A
+    // lunch line from before the feed was named carries the calendar's own name.
     disk.write(
       `/v/Daily/${tomorrow}.md`,
       disk
@@ -207,7 +207,7 @@ describe('the calendar', () => {
     feed.text = FEED.replace('COUNT=2', 'COUNT=1').replace(/BEGIN:VEVENT\r\nUID:o1[\s\S]*?END:VEVENT\r\n/, '')
     fireEvent.click(viewer().getByText('Sync'))
     await waitFor(() => expect(disk.read(`/v/Daily/${tomorrow}.md`)).not.toContain('Offsite'))
-    // The lunch is gone too: a feed answers to its own name as well as the one given.
+    // The lunch goes too: a feed answers to its own name as well as the given one.
     expect(disk.read(`/v/Daily/${tomorrow}.md`)).toBe(
       [
         '09:30 to 10:00 #event Standup with:: "Mira Vance" source:: Work and bring the notes',
@@ -232,9 +232,8 @@ describe('the calendar', () => {
 })
 
 /**
- * **The calendar keeps itself current.** It was a button, and a meeting moved in
- * Google stayed at its old time in the day's note until someone pressed it — which
- * nobody would think to, beside a vault that syncs on its own.
+ * The calendar keeps itself current. With only a button, a moved
+ * meeting stayed at its old time in the note until someone pressed it.
  */
 describe('the calendar’s own sync', () => {
   afterEach(() => vi.useRealTimers())
@@ -262,7 +261,7 @@ describe('the calendar’s own sync', () => {
     fireEvent(window, new Event('focus'))
     await act(() => vi.advanceTimersByTimeAsync(0))
     expect(sync).toHaveBeenCalledTimes(1)
-    // Past the interval with the timer held off — a throttled background window.
+    // Past the interval with the timer held back, as in a throttled background window.
     vi.setSystemTime(Date.now() + 5 * MINUTE_MS)
     fireEvent(window, new Event('focus'))
     await act(() => vi.advanceTimersByTimeAsync(0))

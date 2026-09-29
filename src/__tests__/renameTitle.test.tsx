@@ -6,17 +6,10 @@ import { localDateStamp } from '../clock'
 import { readProperty } from '../properties'
 
 /**
- * **Renaming a note by its title, and every link that pointed at it following.**
- *
- * A note's title is the one place its name is already written large, so typing over
- * it is the shortest thing that could mean "call it something else". What has to
- * come with it is the rest of the vault: a link into a renamed note is otherwise a
- * link to a note waiting to be created, which is what `[[Roadmap]]` means once
- * `Roadmap.md` is called something else.
- *
- * The rename itself is the tree's own handler — one act, two places to start it —
- * so what these cover is the title as a way in, and the link rewriting, which is
- * new. `links.test.ts` pins the rewriting rule; here it is the whole way through.
+ * Renaming a note by its title, with every link to it following; otherwise
+ * `[[Roadmap]]` points at a note to be created once `Roadmap.md` is renamed.
+ * The rename is the tree's own handler, so this covers the title as a way in
+ * and the link rewriting end to end. `links.test.ts` pins the rewriting rule.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -36,13 +29,13 @@ const tree = () => within(document.querySelector('.sidebar .file-list')!)
 const viewer = () => within(document.querySelector('.viewer:not([hidden])')!)
 
 
-/** Opens `name` from the tree and waits for the reading pane to be showing it. */
+/** Opens `name` from the tree and waits for the reading pane to show it. */
 async function open(name: string) {
   fireEvent.click(tree().getByText(name))
   await waitFor(() => expect(viewer().getByText(name)).toBeTruthy())
 }
 
-/** Types a new name over the title and commits it with Enter. */
+/** Types a new name over the title and commits with Enter. */
 function renameTo(typed: string) {
   fireEvent.click(document.querySelector('.viewer:not([hidden]) .viewer-title') as HTMLElement)
   const field = screen.getByLabelText('Note name')
@@ -59,11 +52,11 @@ describe('renaming from the title', () => {
 
     await waitFor(() => expect(disk.has('/v/quarry.md')).toBe(true))
     expect(disk.has('/v/target.md')).toBe(false)
-    // The title is the new name, and the pane is still showing the note.
+    // The title is the new name, and the pane still shows the note.
     await waitFor(() => expect(viewer().getByText('quarry')).toBeTruthy())
   })
 
-  /** The whole point: a link into the note follows it. */
+  /** A link into the note follows it. */
   it('rewrites the links that pointed at it', async () => {
     disk.write('/v/target.md', '# Target\n')
     disk.write('/v/source.md', '# Source\n\nSee [[target]] and [[target|the detail]].\n')
@@ -73,20 +66,15 @@ describe('renaming from the title', () => {
     renameTo('quarry')
 
     await waitFor(() => expect(disk.read('/v/source.md')).toContain('[[quarry]]'))
-    // The alias is what the link is called, and is not the note's name.
+    // The alias is what the link is called, not the note's name.
     expect(disk.read('/v/source.md')).toContain('[[quarry|the detail]]')
     await waitFor(() => expect(disk.read('/v/elsewhere.md')).toContain('[named link](quarry.md)'))
   })
 
   /**
-   * **The editor takes up the `path:` the rename wrote.**
-   *
-   * Reported as "a new line appears above the title, and goes away when I leave and
-   * come back". It was the property block arriving on disk while the editor went on
-   * holding the text from before it — so the next keystroke saved the old text back
-   * and the property was gone. Measured before the fix: the file had
-   * `---\npath: quarry\n---`, the editor had `# Target`, and one keystroke left the
-   * file with no property at all.
+   * The editor takes up the `path` the rename wrote. The property block
+   * landed on disk while the editor held the text from before it, so
+   * the next key saved the old text back and the property was lost.
    */
   it('keeps the path property the rename wrote when typing continues', async () => {
     disk.write('/v/target.md', '# Target\n\nSome body.\n')
@@ -95,7 +83,7 @@ describe('renaming from the title', () => {
     renameTo('quarry')
     await waitFor(() => expect(readProperty(disk.read('/v/quarry.md') ?? '', 'path')).toBe('quarry'))
 
-    // The editor is holding the note as it is now, property and all.
+    // The editor holds the note as it is now, property and all.
     const editor = screen.getByTestId('editor') as HTMLTextAreaElement
     await waitFor(() => expect(readProperty(editor.value, 'path')).toBe('quarry'))
 
@@ -117,10 +105,9 @@ describe('renaming from the title', () => {
   })
 
   /**
-   * **A nested note is its folder.** `Areas/Plans/Plans.md` pairs with `Areas/Plans/`,
-   * so renaming the file alone would leave the folder holding a note of another name
-   * — a folder with no note and a stray child. The tree renames such a row by
-   * renaming the folder, and the title does the same thing.
+   * A nested note is its folder: `Areas/Plans/Plans.md` pairs with
+   * `Areas/Plans/`, so renaming the file alone would leave a folder with no note.
+   * The tree renames such a row by renaming the folder, and so does the title.
    */
   it('renames the folder when the note is a folder’s own', async () => {
     disk.write('/v/Areas/Plans/Plans.md', '---\npath: Areas/Plans\n---\n\n# Plans\n')
@@ -140,11 +127,11 @@ describe('renaming from the title', () => {
     expect(disk.has('/v/Areas/Roadmaps/Q3.md')).toBe(true)
     expect(disk.has('/v/Areas/Plans/Plans.md')).toBe(false)
 
-    // The link written as a path follows the folder; the child's own name did not
-    // change, so the link to it is left alone.
+    // The path link follows the folder; the child's name did not
+    // change, so the link to it stays.
     await waitFor(() => expect(disk.read('/v/index.md')).toContain('[[Areas/Roadmaps]]'))
     expect(disk.read('/v/index.md')).toContain('[[Q3]]')
-    // And every note under it says where it now is.
+    // And every note under it says where it is now.
     await waitFor(() => expect(readProperty(disk.read('/v/Areas/Roadmaps/Q3.md') ?? '', 'path')).toBe('Areas/Roadmaps/Q3'))
   })
 
@@ -168,16 +155,10 @@ describe('renaming from the title', () => {
   })
 
   /**
-   * **The field renames the note it was opened for, or nothing.**
-   *
-   * Reported from the running app: the field open and typed into, then ⌘⇧O — which
-   * opened the daily note, which took the keyboard, which blurred the field, which
-   * committed *the name meant for the other note* against the daily one. Measured
-   * before the fix: `Daily/wayfinding.md` on disk, the day's note gone, and the note
-   * actually being renamed untouched.
-   *
-   * The blur is fired by hand here because that is the worst case — the field still
-   * mounted when the note under it changes.
+   * The field renames the note it was opened for, or nothing. With the field
+   * open and typed into, ⌘⇧O opened the daily note, the field blurred, and
+   * the daily note got the other note's new name. The blur is fired by hand
+   * here: the worst case, with the field still mounted as the note changes.
    */
   it('abandons the rename when the open note changed underneath it', async () => {
     const today = localDateStamp()
@@ -195,15 +176,17 @@ describe('renaming from the title', () => {
     fireEvent.blur(field)
     await new Promise((resolve) => setTimeout(resolve, 200))
 
-    // The day's note keeps its name, and nothing is renamed anywhere.
+    // The day's note keeps its name, and nothing is renamed.
     expect(disk.has(`/v/Daily/${today}.md`)).toBe(true)
     expect(disk.has('/v/Daily/wayfinding.md')).toBe(false)
     expect(disk.has('/v/wayfinding.md')).toBe(false)
     expect(disk.has('/v/target.md')).toBe(true)
   })
 
-  /** A JSON file has a name too, and nothing about it is a note's: no frontmatter,
-   *  no links, and the title is a label. */
+  /**
+   * A JSON file has a name too, but nothing of a note's: no
+   * properties, no links, and the title is a label.
+   */
   it('offers no rename for a file that is not a note', async () => {
     disk.write('/v/data.json', '{ "a": 1 }\n')
     await openApp()
@@ -213,12 +196,8 @@ describe('renaming from the title', () => {
 })
 
 /**
- * **A click anywhere in a backlink opens the note.**
- *
- * The row above is a name; the lines under it are the sentence the link was written
- * in, and they are most of what a backlink is on screen. A click on them did
- * nothing at all, which reads as a backlink that needs two clicks — and, because
- * they are selectable text, as a field with a cursor in it.
+ * A click anywhere in a backlink opens the note. The lines under the
+ * row are most of a backlink on screen, and clicking them did nothing.
  */
 describe('a backlink', () => {
   const withBacklink = async () => {
@@ -245,7 +224,7 @@ describe('a backlink', () => {
     )
   })
 
-  /** Selecting the text of a mention is not a request to go somewhere. */
+  /** Selecting a mention's text does not open anything. */
   it('does not open when the click ends a selection', async () => {
     await withBacklink()
     const line = document.querySelector('.backlink-lines li') as HTMLElement
@@ -263,12 +242,9 @@ describe('a backlink', () => {
 })
 
 /**
- * **A folder rename must not leave a note named after the old name.**
- *
- * `followFolder` was a prefix swap, and a folder rename changes its own note's
- * basename too: `Plans/Plans.md` became `Roadmaps/Plans.md` in the editor, which is
- * not a file. The next keystroke autosaved and *created* it — an empty note named
- * after the note that had just been renamed. Reported exactly that way.
+ * A folder rename must not leave a note named after the old name. `followFolder` was a
+ * prefix swap, and a folder rename changes its own note's name too: `Plans/Plans.md`
+ * became `Roadmaps/Plans.md` in the editor, and the next save created that file.
  */
 describe('after a folder note is renamed', () => {
   it('leaves no note behind under the old name', async () => {
@@ -284,8 +260,7 @@ describe('after a folder note is renamed', () => {
     renameTo('Roadmaps')
     await waitFor(() => expect(disk.has('/v/Areas/Roadmaps/Roadmaps.md')).toBe(true))
 
-    // The editor is holding the note under its new name, so what is typed next is
-    // saved into it and not into a file named after the old one.
+    // The editor holds the note under its new name, so the next typing is saved there.
     const editor = screen.getByTestId('editor') as HTMLTextAreaElement
     fireEvent.change(editor, { target: { value: '# Roadmaps\n\nStill the same note.\n' } })
     await waitFor(
@@ -293,7 +268,7 @@ describe('after a folder note is renamed', () => {
     )
     expect(disk.has('/v/Areas/Roadmaps/Plans.md')).toBe(false)
     expect(disk.has('/v/Areas/Plans/Plans.md')).toBe(false)
-    // And the title says what the note is now called.
+    // And the title shows the new name.
     expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('Roadmaps')
   })
 })

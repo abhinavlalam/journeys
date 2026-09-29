@@ -16,7 +16,7 @@ import { isEncrypted, isNote, noteName } from '../vaultModel'
 
 const PW = 'correct horse battery staple'
 
-/** An armored note with its header lines replaced, for the malformed-file cases. */
+/** A sealed note with its header lines replaced, for the malformed-file cases. */
 async function damaged(edit: (lines: string[]) => string[]): Promise<string> {
   return edit((await encryptNote('secret', PW)).split('\n')).join('\n')
 }
@@ -36,7 +36,7 @@ describe('note encryption', () => {
     await expect(decryptNote(armored, 'wrong')).rejects.toBeInstanceOf(WrongPassphraseError)
   })
 
-  // GCM authenticates: tampering must fail loudly rather than return garbage.
+  // GCM authenticates: tampering must fail loudly, not return garbage.
   it('detects tampering', async () => {
     const lines = (await encryptNote('x', PW)).split('\n')
     const bytes = [...atob(lines[4])]
@@ -45,8 +45,8 @@ describe('note encryption', () => {
     await expect(decryptNote(lines.join('\n'), PW)).rejects.toBeInstanceOf(WrongPassphraseError)
   })
 
-  // Two PBKDF2 derivations at the real iteration count: 8.7s under a loaded suite,
-  // against vitest's 5s default. The assertion judges; the runner stays out of it.
+  // Two PBKDF2 derivations at the real count took 8.7s under a loaded suite, past
+  // vitest's 5s default. The assertion judges; the runner stays out of the way.
   it('never produces identical ciphertext for identical input', { timeout: 60000 }, async () => {
     expect(await encryptNote('same', PW)).not.toBe(await encryptNote('same', PW))
   })
@@ -57,9 +57,10 @@ describe('note encryption', () => {
     expect(await decryptNote(await encryptNote(u, PW), PW)).toBe(u)
   })
 
-  /** Both spellings: `.enc` is what this app asks for and `.enc.md` is what v1
-   *  wrote, and a file already in a vault has to keep opening. The name a row shows
-   *  is `noteName`'s answer — one function for every extension a note wears. */
+  /**
+   * Both spellings: `.enc` is what the app makes and `.enc.md` what v1 wrote,
+   * and existing files must keep opening. The row's name is `noteName`'s answer.
+   */
   it('knows one when it sees it, whichever way it is spelled', () => {
     expect(noteName('Private.enc.md')).toBe('Private')
     expect(noteName('Private.enc')).toBe('Private')
@@ -67,17 +68,16 @@ describe('note encryption', () => {
     expect(isEncrypted('Areas/Private.enc.md')).toBe(true)
     expect(isEncrypted('Areas/Private.md')).toBe(false)
     expect(isEncrypted('encoder.md')).toBe(false)
-    // And neither spelling is a note: no note machinery reads one or writes into it.
+    // And neither is a note: no note code reads or writes into one.
     expect(isNote('Areas/Private.enc.md')).toBe(false)
     expect(isNote('Areas/Private.enc')).toBe(false)
     expect(isNote('Areas/Private.md')).toBe(true)
   })
 
   /**
-   * **The passphrase is remembered for the window and nowhere else.** `vault.ts`
-   * asks for it on every read and every write — that is what lets the buffer, the
-   * editor and the autosave stay ignorant of encryption — and a vault change locks
-   * everything again.
+   * The passphrase is remembered for the window and nowhere else. `vault.ts`
+   * asks for it on every read and write, so the buffer, editor and autosave
+   * know nothing of encryption. A vault change locks everything.
    */
   it('remembers a passphrase per path, follows a move, and locks on demand', () => {
     remember('Areas/Private.enc', PW)
@@ -99,13 +99,12 @@ describe('note encryption', () => {
   })
 })
 
-// A damaged file and a wrong passphrase are different situations with different
-// remedies, and only one of them is the user's to fix. Secure/ is Drive-synced, so
-// half a file is a real shape; "wrong passphrase" sent people to retype a passphrase
-// that was never wrong.
+// A damaged file and a wrong passphrase need different fixes, and
+// only one is the owner's. A synced folder can hold half a file,
+// and "wrong passphrase" sent people to retype a correct one.
 describe('damaged files', () => {
-  // The count is plain text in the file and PBKDF2 runs on the main thread: 600
-  // million rounds measured ~45s of frozen window, on *selecting* the note.
+  // The count is plain text in the file, and PBKDF2 runs on the main thread:
+  // 600 million rounds froze the window for about 45s on selecting the note.
   it('refuses an absurd iteration count without deriving it', async () => {
     const file = await damaged((l) => [l[0], 'pbkdf2-sha256:600000000', ...l.slice(2)])
     const t0 = performance.now()
@@ -113,22 +112,20 @@ describe('damaged files', () => {
     expect(performance.now() - t0).toBeLessThan(100)
   })
 
-  // Number() takes exponent notation, so a short header can still ask for billions.
+  // `Number()` takes exponent notation, so a short header can still ask for billions.
   it('refuses an exponent-notation count', async () => {
     await expect(decryptNote(await damaged((l) => [l[0], 'pbkdf2-sha256:1e9', ...l.slice(2)]), PW))
       .rejects.toBeInstanceOf(DamagedFileError)
   })
 
-  // The ceiling is inclusive: 10M rounds is ~730ms — slow, not absurd — so this file
-  // reaches decryption and fails there on the passphrase, which is what proves it.
+  // The ceiling is inclusive: 10M rounds is about 730ms, slow but sane, so this
+  // file reaches decryption and fails on the passphrase, which proves it got there.
   it('still derives at the ceiling and at the honest 600k', async () => {
     await expect(decryptNote(await damaged((l) => [l[0], 'pbkdf2-sha256:10000000', ...l.slice(2)]), PW))
       .rejects.toBeInstanceOf(WrongPassphraseError)
     expect(await decryptNote(await encryptNote('x', PW), PW)).toBe('x')
-    // Explicit, because this is the one test in the suite whose cost is a
-    // deliberate 10M PBKDF2 rounds rather than anything it could be waiting on.
-    // It measures 1.2–1.7s idle; under the loaded suite it has overrun the 5s
-    // default and reported as a flake, which it is not.
+    // Explicit, because this test deliberately spends 10M PBKDF2 rounds:
+    // 1.2–1.7s idle, and past the 5s default under a loaded suite.
   }, 30000)
 
   it('reports a truncated file as damaged, not as a wrong passphrase', async () => {
@@ -142,7 +139,7 @@ describe('damaged files', () => {
       .rejects.toBeInstanceOf(DamagedFileError)
   })
 
-  // atob throws a DOMException, which App.tsx has no case for and showed raw.
+  // `atob` throws a DOMException, which App had no case for and showed raw.
   it('reports an undecodable header field as damaged', async () => {
     for (const line of [2, 3, 4]) {
       const file = await damaged((l) => l.map((text, i) => (i === line ? '!!! not base64 !!!' : text)))
@@ -157,8 +154,8 @@ describe('damaged files', () => {
   })
 })
 
-// Deriving a key is 600k PBKDF2 rounds; the cache must speed that up without
-// weakening anything.
+// Deriving a key is 600k rounds; the cache must speed that up
+// without weakening anything.
 describe('key cache', () => {
   it('reuses a salt without repeating the IV', async () => {
     const first = await encryptNote('one', PW)

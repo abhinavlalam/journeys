@@ -5,13 +5,10 @@ const untyped = () => 'text' as const
 const propertyKeys = (raw: string) => noteProperties(raw, untyped).map((one) => one.name)
 
 /**
- * One page property, as plain text — in a YAML block, or in the `key:: value`
- * lines a note opens with.
- *
- * The whole point of this module is that it *does not reformat*. The app came to
- * change one line; every other line, the key order, the spacing and the line
- * endings are the user's and have to come back unchanged. Most of what follows is
- * that invariant from a different angle.
+ * One page property as plain text, in a YAML block or in the `key::
+ * value` lines a note opens with. The module must not reformat: it
+ * changes one line, and every other line, the order, the spacing and
+ * the line endings come back unchanged. Most of these check that.
  */
 describe('readProperty', () => {
   it('reads a value, with or without quotes', () => {
@@ -52,9 +49,8 @@ describe('withProperty', () => {
     )
   })
 
-  // A note with no properties is given the one form every property takes, page or
-  // block. The blank line is not cosmetic: the note's first line would otherwise
-  // read as the block's next one.
+  // A note with no properties gets the `::` form. The blank line matters:
+  // otherwise the note's first line would read as part of the block.
   it('starts a `::` block, with the blank line after it', () => {
     expect(withProperty('# Reading\n', 'icon', '📚')).toBe('icon:: 📚\n\n# Reading\n')
     expect(withProperty('', 'path', 'Kickoff')).toBe('path:: Kickoff\n\n')
@@ -89,11 +85,8 @@ describe('withProperty', () => {
 })
 
 /**
- * The block held aside from the body, off the same rule `readProperty` uses.
- *
- * The editor shows frontmatter now — the document is the file's own text — so this
- * is no longer about putting a prefix back on save. `parseNoteLinks` is the caller:
- * a `path:` full of slashes is a property, not a set of links.
+ * The block split from the body, by the same rule `readProperty` uses.
+ * `parseNoteLinks` calls it: a `path` full of slashes is a property, not links.
  */
 describe('splitting page properties off the body', () => {
   it('holds a leading block in the prefix, verbatim', () => {
@@ -107,8 +100,8 @@ describe('splitting page properties off the body', () => {
     expect(splitPageProperties('# Title\n')).toEqual({ prefix: '', body: '# Title\n' })
   })
 
-  // Only a *leading* block is frontmatter. A `---` in the middle of a note is a
-  // horizontal rule, and taking it would eat everything above it.
+  // Only a block at the start counts. A `---` further down is a
+  // horizontal rule, and taking it would eat everything above.
   it('ignores a block that does not start the file', () => {
     const raw = '# Title\n\n---\nnot: frontmatter\n---\n'
     expect(splitPageProperties(raw)).toEqual({ prefix: '', body: raw })
@@ -121,11 +114,8 @@ describe('splitting page properties off the body', () => {
 })
 
 /**
- * Every property a note names.
- *
- * The Actions pane lists these, so what counts as a property here and what gets
- * the accent in the note are one rule — `PROPERTY_KEY`, exported from the same
- * module and used by both.
+ * Every property a note names. The Actions pane lists these, and
+ * the note colours them, by one rule: `PROPERTY_KEY`.
  */
 describe('the names of the properties a note carries', () => {
   it('answers with the names, in the order written', () => {
@@ -140,8 +130,7 @@ describe('the names of the properties a note carries', () => {
     expect(propertyKeys('text\n---\nicon: compass\n---\n')).toEqual([])
   })
 
-  // The same rule `readProperty` reads by: an indented key belongs to the key
-  // above it, and this app does not know what that means.
+  // As `readProperty` reads: an indented key belongs to the key above.
   it('skips an indented key', () => {
     expect(propertyKeys('---\nmeta:\n  nested: yes\n---\n')).toEqual(['meta'])
   })
@@ -156,10 +145,9 @@ describe('the names of the properties a note carries', () => {
 })
 
 /**
- * **The `::` form**, which is what every property is in this app, page or block.
- * The note opens with its `key:: value` lines and the first line that is not one
- * ends them — so a blank line, a heading or prose closes the block, and a
- * `key:: value` further down the note is not a page property.
+ * The `::` form: the note opens with its `key:: value` lines and the
+ * first other line ends them, so a blank line, heading or prose closes
+ * the block, and a `key:: value` further down is not a page property.
  */
 describe('page properties written as key:: value', () => {
   const note = 'icon:: book\npath:: Areas/Plans\n\n# Plans\n\nlater:: not one\n'
@@ -172,7 +160,7 @@ describe('page properties written as key:: value', () => {
     expect(readProperty('# Plans\nicon:: book\n', 'icon')).toBeNull()
   })
 
-  // `later:: not one` is not a page property, but it is a property: a block's.
+  // `later:: not one` is not a page property, but it is a block property.
   it('names them, and splits them off the body', () => {
     expect(propertyKeys(note)).toEqual(['icon', 'path', 'later'])
     expect(splitPageProperties(note)).toEqual({
@@ -194,7 +182,7 @@ describe('page properties written as key:: value', () => {
     expect(withProperty('icon:: book', 'icon', 'star')).toBe('icon:: star')
   })
 
-  // A YAML block is written as YAML: a skill's must stay the frontmatter Claude
+  // A YAML block is written as YAML: a skill's must stay the YAML Claude
   // Code reads, and nothing converts a note's form behind its owner's back.
   it('leaves a YAML block YAML', () => {
     expect(withProperty('---\nname: summarise\n---\n', 'icon', 'zap')).toBe('---\nname: summarise\nicon: zap\n---\n')
@@ -202,10 +190,9 @@ describe('page properties written as key:: value', () => {
 })
 
 /**
- * **A block property** is the same `key:: value`, on a line, and its value is
- * exactly what its type says — a number, a date, one link, or text: one word, or a
- * run between quotes — so the words around it are the owner's. Strict: a value not
- * of its type is not one, and says so (`valid`) rather than being read as text.
+ * A block property is `key:: value` on a line, and its value is exactly its type: a
+ * number, a date, one link, or text (one word, or a quoted run), so the words around
+ * it are the owner's. A value not of its type is not read, and says so (`valid`).
  */
 describe('block properties', () => {
   const types = { currency: 'backlink', amount: 'number', account: 'backlink', merchant: 'backlink', due: 'date', site: 'url', mood: 'icon', home: 'path' } as const
@@ -222,7 +209,7 @@ describe('block properties', () => {
       ['merchant', '[[Harbour Bistro]]', true],
       ['description', 'two [[Lakeside Pies]] and a [[Ginger Beer]]', true],
     ])
-    // The words between are the line's own: nothing of them is in a value.
+    // The words between are the line's own, not part of a value.
     const found = blockProperties(line, typeOf)
     const gaps = found.slice(1).map((one, at) => line.slice(found[at].to, one.from).trim())
     expect(gaps).toEqual(['', 'using', 'at', 'for'])
@@ -231,7 +218,7 @@ describe('block properties', () => {
   it('reads text as one word, or as the run between quotes, the curly ones too', () => {
     expect(read('category:: food at lunch')).toEqual([['category', 'food', true]])
     expect(read('note:: “smart quotes from macOS” then prose')).toEqual([['note', 'smart quotes from macOS', true]])
-    // A label inside quotes is part of the value, not the next property.
+    // A label inside quotes is part of the value.
     expect(read('note:: "see a:: b" and x:: y')).toEqual([
       ['note', 'see a:: b', true],
       ['x', 'y', true],
@@ -260,7 +247,7 @@ describe('block properties', () => {
     expect(read('home:: "Areas/Harbour View" then')).toEqual([['home', 'Areas/Harbour View', true]])
   })
 
-  // `icon` and `path` are the app's own, and no entry in the vault retypes them.
+  // `icon` and `path` are the app's own, and no vault entry retypes them.
   it('types the app’s own properties as the app does', () => {
     const entries = { icon: { type: 'number' }, owner: { type: 'backlink' } }
     expect([typeIn(entries, 'icon'), typeIn(entries, 'Path'), typeIn(entries, 'OWNER'), typeIn(entries, 'other')]).toEqual([

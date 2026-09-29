@@ -5,10 +5,9 @@ import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFake
 import { readProperty } from '../properties'
 
 /**
- * **A vault is a folder of files, and the tree shows them.** A PDF, a photograph
- * and an export are what a vault of notes fills up with; the pane shows what it
- * can and says so when it cannot. `files.test.ts` holds what a file *is* and how a
- * delimited one is coloured; this drives the app.
+ * A vault is a folder of files, and the tree shows them: PDFs, photos and exports sit
+ * beside the notes. The pane shows what it can and says when it cannot. `files.test.ts`
+ * covers what a file is and how a delimited one is coloured; this drives the app.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -17,8 +16,8 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: vi.fn(async () => null),
   confirm: vi.fn(async () => true),
 }))
-// The reading pane's editor for a CSV is the real CodeMirror, and jsdom has none
-// of what it measures with. What a CSV *tab* is, is the model's answer.
+// A CSV's editor is the real CodeMirror, which jsdom cannot lay
+// out. What a CSV tab is comes from the model.
 vi.mock('../CsvEditor', () => ({
   CsvEditor: ({ initialText }: { initialText: string }) => (
     <div data-testid="csv">{initialText}</div>
@@ -57,7 +56,7 @@ describe('the reading pane', () => {
     const image = document.querySelector('img.file-image') as HTMLImageElement
     expect(image).toBeTruthy()
     expect(image.getAttribute('src')).toContain('whiteboard.png')
-    // No editor over it, and no buffer: the bytes are what they were.
+    // No editor and no buffer: the bytes stay as they were.
     expect(screen.queryByTestId('editor')).toBeNull()
     expect(disk.read('/v/whiteboard.png')).toBe('pretend pixels')
   })
@@ -86,7 +85,7 @@ describe('the reading pane', () => {
     await waitFor(() => expect(screen.getByTestId('csv').textContent).toBe('day,amount\n2026-09-18,480\n'))
   })
 
-  /** A file tab is a tab: it lives beside the notes, and it follows its file. */
+  /** A file tab is a tab: it sits beside the notes and follows its file. */
   it('opens beside a note, and closes when the file is deleted', async () => {
     await openApp()
     fireEvent.click(sidebar().getByText('roadmap'))
@@ -102,17 +101,14 @@ describe('the reading pane', () => {
 })
 
 /**
- * **A file dragged in from outside is filed where it is dropped.**
- *
- * What happened before: the webview's own answer to a dropped file is to navigate
- * to it, so a PDF aimed at the left pane and missed replaced the whole app with the
- * PDF. Nothing outside a drop target may do anything now, and a target copies.
+ * A file dragged in from outside is filed where it is dropped. The webview's default is
+ * to open a dropped file in place of the app, so a PDF that missed the left pane
+ * replaced everything. Now nothing outside a drop target acts, and a target copies.
  */
 /**
- * **A file is moved the way a note is**: the same drag, the same targets, the same
- * `moveFile`. Nothing about the tree's rows was ever specific to notes — what is
- * specific is the *machinery* a note carries, and a move rewrites a `path:` and the
- * links only for the files that have them.
+ * A file moves the way a note does: the same drag, targets and
+ * `moveFile`. Only a note's own parts (its `path` and links) are
+ * rewritten, and only for files that have them.
  */
 describe('moving a file that is not a note', () => {
   const FILE_MIME = 'application/x-journeys-file'
@@ -135,7 +131,7 @@ describe('moving a file that is not a note', () => {
     })
     await waitFor(() => expect(disk.has('/v/Ideas/deck.pdf')).toBe(true))
     expect(disk.has('/v/deck.pdf')).toBe(false)
-    // Its bytes are its own: a move writes no `path:` into a file that is not a note.
+    // Its bytes are its own: a move writes no `path` into a file that is not a note.
     expect(disk.read('/v/Ideas/deck.pdf')).toBe('%PDF-1.7 pretend')
   })
 })
@@ -156,7 +152,7 @@ describe('a file dragged in from outside', () => {
       dataTransfer: dropping(new File(['%PDF pretend'], 'lease.pdf', { type: 'application/pdf' })),
     })
     await waitFor(() => expect(disk.read('/v/Ideas/lease.pdf')).toBe('%PDF pretend'))
-    // And it is a row, once the folder it landed in is open.
+    // And it is a row, once its folder is open.
     fireEvent.click(within(tree()).getByText('Ideas'))
     await waitFor(() => expect(within(tree()).getByText('lease.pdf')).toBeTruthy())
   })
@@ -174,11 +170,8 @@ describe('a file dragged in from outside', () => {
   })
 
   /**
-   * **A copy that failed is not a copy that was already there.** The two were one
-   * list once: `fs:allow-write-file` was missing from the capability, every write
-   * was refused, and the app answered "already in the vault" for a file it had
-   * never written — which sends you looking in Finder for nothing. Reported exactly
-   * that way.
+   * A failed copy is not one that was already there. When both were one list and every
+   * write was refused, the app said "already in the vault" for files it never wrote.
    */
   it('says a refused copy failed, and does not claim the file is there', async () => {
     await openApp()
@@ -191,8 +184,10 @@ describe('a file dragged in from outside', () => {
     expect(disk.has('/v/new.png')).toBe(false)
   })
 
-  /** **Never over a file that is there.** A same-named file is said out loud and
-   *  the one on disk is left exactly as it was. */
+  /**
+   * Never over an existing file: a same-named file is reported
+   * and the one on disk is left alone.
+   */
   it('refuses to copy over a file already there, and says which', async () => {
     await openApp()
     fireEvent.drop(tree(), {
@@ -204,11 +199,9 @@ describe('a file dragged in from outside', () => {
 })
 
 /**
- * **A file dropped on a plain note gives that note children.** A note with notes in
- * it is a folder plus a same-named note, and that is a state a note gets *into*
- * rather than a kind it is — the `+` on a row already says so for a typed name, and
- * this says it for a file dragged in from Finder. Asked for after a PDF dropped on
- * a note landed at the top of the vault instead.
+ * A file dropped on a plain note gives that note children: the note
+ * becomes a folder with its own note, as the row's `+` does for a typed
+ * name. A PDF dropped on a note once landed at the top of the vault.
  */
 describe('a file dropped on a note', () => {
   const dropping = (...files: File[]) => ({ types: ['Files'], files, getData: () => '' })
@@ -222,18 +215,19 @@ describe('a file dropped on a note', () => {
       dataTransfer: dropping(new File(['%PDF plan'], 'plan.pdf', { type: 'application/pdf' })),
     })
 
-    // The note became a folder with its own note inside it…
+    // The note became a folder with its own note inside…
     await waitFor(() => expect(disk.has('/v/roadmap/roadmap.md')).toBe(true))
     expect(disk.has('/v/roadmap.md')).toBe(false)
     // …and the file is in there with it.
     expect(disk.read('/v/roadmap/plan.pdf')).toBe('%PDF plan')
-    // The note that moved knows where it is now.
+    // The moved note knows where it is now.
     expect(readProperty(disk.read('/v/roadmap/roadmap.md') ?? '', 'path')).toBe('roadmap')
   })
 
-  /** **And the tab follows it.** Converting a note moved the buffer and left the
-   *  tab naming a file that no longer existed — found when this became the second
-   *  caller of the conversion. */
+  /**
+   * And the tab follows it. Converting a note moved the buffer
+   * but left the tab on a missing file.
+   */
   it('carries the open tab with it', async () => {
     await openApp()
     fireEvent.click(within(tree()).getByText('roadmap'))
@@ -243,15 +237,17 @@ describe('a file dropped on a note', () => {
       dataTransfer: dropping(new File(['%PDF plan'], 'plan.pdf', { type: 'application/pdf' })),
     })
     await waitFor(() => expect(disk.has('/v/roadmap/roadmap.md')).toBe(true))
-    // One tab, still open, still the same note — now at its new path.
+    // One tab, still open, still the same note, at its new path.
     expect(tabs()).toEqual(['roadmap'])
     expect(screen.getByRole('tab', { name: /roadmap/ }).getAttribute('title')).toBe(
       'roadmap/roadmap.md'
     )
   })
 
-  /** A file that is not a note is not a page that can hold one: the drop falls
-   *  through to the tree, which is the vault itself. */
+  /**
+   * A file that is not a note cannot hold one: the drop falls
+   * through to the tree, the vault itself.
+   */
   it('falls through to the vault when the row is not a note', async () => {
     await openApp()
     fireEvent.drop(rowFor('deck.pdf'), {

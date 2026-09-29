@@ -162,8 +162,8 @@ export interface Settings {
   dailyFolder: string
   shortcuts: Record<ActionId, string>
   /**
-   * Folders the graph leaves out, as vault-relative paths (`Entities/Currencies`).
-   * Useful for notes every line links, like a currency, which crowd the graph. Set
+   * Folders the graph leaves out, as vault-relative paths (`Archive/Old`). Useful
+   * for notes that every line links, which crowd the graph. Set
    * in `settings.json`; there is no control in the panel.
    */
   graphHides: string[]

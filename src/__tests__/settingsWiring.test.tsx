@@ -13,20 +13,16 @@ import { DEFAULT_SETTINGS, SETTINGS_KEY, type Settings } from '../settings'
 
 /**
  * The wiring: settings in `App.tsx`, and the two shortcuts reading them.
+ * `settings.test.ts` covers what a setting is and `settings-panel.test.tsx` what
+ * the panel draws; this covers the seams where the app might use a stale copy:
+ * - the window listener is registered once, so a combo read from
+ *   its first render would be frozen at launch;
+ * - `ensureDailyNote` once had its own `'Daily'`, whatever the setting said;
+ * - the panel is modal, so a shortcut firing under it acts on a note no
+ *   one is looking at, and firing the action being rebound is worse.
  *
- * `settings.test.ts` owns what a setting *is* and `settings-panel.test.tsx` owns
- * what the panel renders; neither can see the seams this file is about, and every
- * one of them is a seam where the value the app uses is a stale copy:
- *
- * - the window listener is registered once with `[]` deps, so a combo it reads
- *   from that render's closure is frozen at launch;
- * - `ensureDailyNote` used to close over its own `'Daily'`, so the setting could
- *   be anything and the folder would still be `Daily/`;
- * - the panel is modal, so an app shortcut that still fires under it acts on the
- *   note nobody is looking at — and firing the action you are mid-rebind is worse.
- *
- * `Editor` is stubbed as a textarea here; the editor-scope combo needs a real
- * Milkdown and lives in `insertTime.test.tsx`.
+ * The editor is a textarea stub here; the editor's own key is
+ * tested with the real editor in `markdownEditor.test.tsx`.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -36,9 +32,10 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   confirm: vi.fn(async () => true),
 }))
 
-/** jsdom has no `matchMedia`, and `mode: 'system'` subscribes to it. `settings.ts`
- *  is tested against its own copy of this; what is under test here is whether
- *  `App`'s effect returns the teardown it is handed. */
+/**
+ * jsdom has no `matchMedia`, and `mode: 'system'` subscribes to it.
+ * What is tested here is whether `App`'s effect returns the teardown.
+ */
 function stubMatchMedia(dark: boolean) {
   const listeners = new Set<() => void>()
   const mql = {
@@ -72,8 +69,7 @@ beforeEach(() => {
   rememberVault('/v')
 })
 
-/** Settings on disk before the app reads them, which is the only way in: `App`
- *  initialises from `loadSettings()`. */
+/** Settings on disk before the app reads them. */
 function remember(settings: Partial<Settings>) {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...DEFAULT_SETTINGS, ...settings }))
 }
@@ -85,14 +81,15 @@ async function openApp() {
 }
 
 const row = (name: string) => within(document.querySelector('.file-list')!).getByText(name)
-/** In the footer with the graph and Configure actions — the app's own three
- *  controls — rather than in the header with what changes the vault. */
+/** The Settings button in the sidebar. */
 const gear = () => within(document.querySelector('.sidebar')!).getByLabelText('Settings')
 const dialog = () => document.querySelector('.settings-dialog')
 const today = () => localDateStamp()
 
-/** Long enough that "nothing was written" is a fact and not a race won: every step
- *  of `mutate` is a microtask on the fake disk. */
+/**
+ * Long enough that "nothing was written" is a fact, not a race
+ * won: every step of `mutate` is a microtask on the fake disk.
+ */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 100))
 
 describe('settings reaching the app', () => {
@@ -108,16 +105,14 @@ describe('settings reaching the app', () => {
 
     fireEvent.keyDown(window, { key: 'j', metaKey: true, altKey: true })
     await waitFor(() => expect(disk.has(`/v/Daily/${today()}.md`)).toBe(true))
-    // Opened, not merely created — the shortcut goes through `openNote` either way.
+    // Opened, not just created: the shortcut goes through `openNote` either way.
     await waitFor(() => expect(row(today())).toBeTruthy())
   })
 
   /**
-   * The same combo, but arriving *after* launch — which is the half a seeded
-   * `localStorage` cannot test. The window listener is registered once with `[]`
-   * deps, so a combo read from that render's closure holds whatever was stored at
-   * launch and a rebind does nothing until the app is restarted. Reading it from a
-   * ref is what this pins.
+   * The same combo arriving after launch, which a seeded `localStorage`
+   * cannot test. The listener is registered once, so a combo read from
+   * that render would ignore rebinds until restart. It reads from a ref.
    */
   it('follows a rebind made in the panel, with no relaunch', async () => {
     await openApp()
@@ -134,7 +129,7 @@ describe('settings reaching the app', () => {
     fireEvent.keyDown(dialog()!, { key: 'Escape' })
     await waitFor(() => expect(dialog()).toBeNull())
 
-    // The combo it was launched with is not the shortcut any more.
+    // The combo it launched with is no longer the shortcut.
     fireEvent.keyDown(window, { key: 'O', metaKey: true, shiftKey: true })
     await settle()
     expect(disk.has('/v/Daily')).toBe(false)
@@ -151,7 +146,7 @@ describe('settings reaching the app', () => {
 
     await waitFor(() => expect(disk.has(`/v/Logbook/${today()}.md`)).toBe(true))
     expect(disk.has('/v/Daily')).toBe(false)
-    // A container of dated notes, not a note with children — as with `Daily/`.
+    // A container of dated notes, not a note with children, as with `Daily/`.
     expect(disk.has(`/v/Logbook/Logbook.md`)).toBe(false)
     await waitFor(() => expect(row(today())).toBeTruthy())
   })
@@ -163,7 +158,7 @@ describe('settings reaching the app', () => {
     fireEvent.click(gear())
     await waitFor(() => expect(dialog()).toBeTruthy())
 
-    // The panel's own Escape, so the next case starts from closed.
+    // The panel's own Escape, so the next case starts closed.
     fireEvent.keyDown(dialog()!, { key: 'Escape' })
     await waitFor(() => expect(dialog()).toBeNull())
 
@@ -176,19 +171,18 @@ describe('settings reaching the app', () => {
     fireEvent.click(gear())
     await waitFor(() => expect(dialog()).toBeTruthy())
 
-    // On the dialog, because that is where a real keystroke lands — the panel has
-    // focus. The panel does not stop a key it has no use for, so the event reaches
-    // `window` and only `App`'s own guard can refuse it. Then on `window` itself,
-    // which is the same refusal with nothing in between.
+    // On the dialog, where a real key lands (the panel has focus). The
+    // panel does not stop keys it has no use for, so only `App`'s own
+    // guard refuses it. Then on `window`, the same refusal directly.
     fireEvent.keyDown(dialog()!, { key: 'O', metaKey: true, shiftKey: true })
     fireEvent.keyDown(window, { key: 'O', metaKey: true, shiftKey: true })
     await settle()
     expect(disk.has('/v/Daily')).toBe(false)
-    // Still up: nothing behind the dialog moved, and the dialog did not close.
+    // Still up: nothing behind the dialog moved, and the dialog stayed open.
     expect(dialog()).toBeTruthy()
 
-    // ⌘, does not toggle either. It is suppressed with the rest, which is what
-    // keeps *capturing* a rebind from acting on the combo being captured.
+    // ⌘, does not toggle either; suppressing it keeps capturing
+    // a rebind from acting on the combo.
     fireEvent.keyDown(dialog()!, { key: ',', metaKey: true })
     await settle()
     expect(dialog()).toBeTruthy()
@@ -196,7 +190,7 @@ describe('settings reaching the app', () => {
 
   it('applies a change from the panel and remembers it', async () => {
     await openApp()
-    // Nothing stored until something changes: a copy of the defaults written at
+    // Nothing stored until something changes: writing the defaults at
     // launch would freeze them for anyone who never opens the panel.
     expect(localStorage.getItem(SETTINGS_KEY)).toBeNull()
     expect(document.documentElement.getAttribute('data-scheme')).toBe('slate')
@@ -210,9 +204,8 @@ describe('settings reaching the app', () => {
   })
 
   /**
-   * A face chosen after launch, which is the half a seeded store cannot show:
-   * `--font-prose` is written from `Settings`, and only a change made in the
-   * session proves the panel's value is what reaches the page.
+   * A face chosen after launch: only a change during the session
+   * shows the panel's value reaching the page's `--font-prose`.
    */
   it('sends a chosen face to --font-prose, and stores the id and not the stack', async () => {
     await openApp()
@@ -227,16 +220,13 @@ describe('settings reaching the app', () => {
     await waitFor(() =>
       expect(html.style.getPropertyValue('--font-prose')).toBe('Charter, var(--font-serif), serif')
     )
-    // The id, so a change to the stack reaches a user who already chose the face.
+    // The id, so a change to the stack reaches someone who already chose the face.
     expect(JSON.parse(localStorage.getItem(SETTINGS_KEY)!).fontFamily).toBe('charter')
   })
 
   /**
-   * The sidebar's row spacing is a *token*, not a class, and it is written inline
-   * on <html> with the other four — which is the only way it can outrank
-   * `.file-list button`'s (0,1,1). A seeded store cannot see this: the first
-   * render already holds the stored value however it is read. Changing it mid
-   * session is what shows the write happening.
+   * The row spacing is a token written inline on <html>, which is how it outranks
+   * `.file-list button`. Only a change during the session shows the write happening.
    */
   it('sends a gap change to the pane it belongs to', async () => {
     await openApp()
@@ -248,8 +238,8 @@ describe('settings reaching the app', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Typography' }))
     fireEvent.change(screen.getByLabelText('Lines'), { target: { value: '6' } })
 
-    // `--line-gap` is the note's, below each of its lines; `--row-gap` is the
-    // panes' rows. Moving one must not move the other — they were one slider.
+    // `--line-gap` is the note's, below each line; `--row-gap`
+    // is the panes' rows. Moving one must not move the other.
     await waitFor(() => expect(html.style.getPropertyValue('--line-gap')).toBe('6px'))
     expect(html.style.getPropertyValue('--row-gap')).toBe('0px')
     expect(JSON.parse(localStorage.getItem(SETTINGS_KEY)!).lineGap).toBe(6)
@@ -265,16 +255,16 @@ describe('settings reaching the app', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Typography' }))
     fireEvent.change(screen.getByLabelText('Line height'), { target: { value: '1.5' } })
 
-    // One token, both panes: a tree row's height is a line of the note.
+    // One token for both panes: a tree row is a line of the note tall.
     await waitFor(() => expect(html.style.getPropertyValue('--line-height-prose')).toBe('1.5'))
     expect(JSON.parse(localStorage.getItem(SETTINGS_KEY)!).lineHeight).toBe(1.5)
   })
 
   /**
-   * `applySettingsLive` returns a teardown because `mode: 'system'` subscribes to
-   * the OS. Dropping it — `useEffect(() => { applySettingsLive(s) }, [s])`, the
-   * braces being the whole difference — leaves one live listener per change, all
-   * of them writing `data-theme` from a stale `Settings`.
+   * `applySettingsLive` returns a teardown because `mode: 'system'` listens
+   * to the OS. Dropping it (`useEffect(() => { applySettingsLive(s) },
+   * [s])`, the braces being the difference) leaves a live listener per
+   * change, each writing `data-theme` from stale settings.
    */
   it('keeps exactly one OS-theme listener across a change', async () => {
     const media = stubMatchMedia(true)
