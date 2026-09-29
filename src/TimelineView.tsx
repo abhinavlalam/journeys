@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { dayTitle, localDateStamp } from './clock'
 import type { Entries } from './configEntries'
 import { MarkdownEditor } from './MarkdownEditor'
@@ -34,15 +34,15 @@ interface Offers {
  * drawn as a table shows its entries' fields, and the day's totals close the day.
  *
  * **A press on an entry edits it**, its one line under the note's own editor; a
- * day's name opens its note.
+ * day's name opens its note; and a new entry is typed at the bottom of today.
  */
 export function TimelineView({
   days,
   tables,
   typeOf,
-  loading,
   offers,
   onEdit,
+  onAdd,
   ...opens
 }: {
   /** Null while the vault is still being read. */
@@ -50,10 +50,11 @@ export function TimelineView({
   /** Every tag drawn as a table, with its structure (`tablesOf`). */
   tables: Record<string, string[]>
   typeOf: (name: string) => PropertyType
-  loading: boolean
   offers: Offers
   /** An entry's line was edited to read `text`. */
   onEdit: (entry: TimelineEntry, text: string) => void
+  /** A new entry was typed at the bottom of today. */
+  onAdd: (text: string) => void
 } & Opens) {
   const today = localDateStamp()
   /** The entry being edited, by its note and line: one at a time. */
@@ -66,58 +67,60 @@ export function TimelineView({
     end.current?.scrollIntoView?.({ block: 'end' })
   }, [read])
   const total = days?.reduce((sum, one) => sum + one.entries.length, 0) ?? 0
+  const editorFor = (entry: TimelineEntry) => {
+    const done = (text: string) => {
+      setEditing(null)
+      // Emptied is not deleted: what is nested under it would lose its line.
+      if (text.trim() !== '' && text.trim() !== entry.text) onEdit(entry, text)
+    }
+    return <EntryEditor text={entry.text} offers={offers} onEnter={done} onLeave={done} onEscape={() => setEditing(null)} {...opens} />
+  }
+  const newEntry = <NewEntry offers={offers} onAdd={onAdd} rowRef={end} {...opens} />
 
   return (
     <>
       <ViewerHeader name="Timeline" status={total > 0 ? countOf(total, 'entry', 'entries') : ''} />
-      {!days?.length ? (
+      {!read && (
         <Section title="Days" count={0} startOpen>
           <li style={{ paddingLeft: stepIn(1) }}>
-            <NoteRow icon={<RowIcon />} name={loading || !read ? READING : 'No day written yet.'} disabled />
+            <NoteRow icon={<RowIcon />} name={READING} disabled />
           </li>
         </Section>
-      ) : (
-        days.map((day) => (
-          <Section
-            key={day.day}
-            title={dayTitle(day.day, today)}
-            count={day.entries.length}
-            startOpen
-            onOpen={() => opens.onOpen(day.note)}
-          >
-            <li className="timeline-box" ref={day === days[days.length - 1] ? end : undefined}>
-              <ol className="timeline-entries">
-                {day.entries.map((entry) => (
-                  <Entry
-                    key={entry.at}
-                    entry={entry}
-                    tables={tables}
-                    typeOf={typeOf}
-                    editor={
-                      editing === keyOf(entry) && (
-                        <EntryEditor
-                          text={entry.text}
-                          offers={offers}
-                          onDone={(text) => {
-                            setEditing(null)
-                            // Emptied is not deleted: what is nested under it would
-                            // lose the line it belongs to.
-                            if (text.trim() !== '' && text.trim() !== entry.text) onEdit(entry, text)
-                          }}
-                          onCancel={() => setEditing(null)}
-                          {...opens}
-                        />
-                      )
-                    }
-                    onPress={() => setEditing(keyOf(entry))}
-                    {...opens}
-                  />
-                ))}
-              </ol>
-              <Totals entries={day.entries} tables={tables} typeOf={typeOf} />
-            </li>
-          </Section>
-        ))
+      )}
+      {days?.map((day) => (
+        <Section
+          key={day.day}
+          title={dayTitle(day.day, today)}
+          count={day.entries.length}
+          startOpen
+          onOpen={() => opens.onOpen(day.note)}
+        >
+          <li className="timeline-box">
+            <ol className="timeline-entries">
+              {day.entries.map((entry) => (
+                <Entry
+                  key={entry.at}
+                  entry={entry}
+                  tables={tables}
+                  typeOf={typeOf}
+                  editor={editing === keyOf(entry) && editorFor(entry)}
+                  onPress={() => setEditing(keyOf(entry))}
+                  {...opens}
+                />
+              ))}
+              {day.day === today && newEntry}
+            </ol>
+            <Totals entries={day.entries} tables={tables} typeOf={typeOf} />
+          </li>
+        </Section>
+      ))}
+      {/* Today with nothing in it yet still has the line a first entry is typed on. */}
+      {read && days[days.length - 1]?.day !== today && (
+        <Section title={dayTitle(today, today)} count={0} startOpen>
+          <li className="timeline-box">
+            <ol className="timeline-entries">{newEntry}</ol>
+          </li>
+        </Section>
       )}
     </>
   )
@@ -176,22 +179,24 @@ function Entry({
 }
 
 /**
- * An entry's line under the note's own editor — its syntax, its popups, Tab — and
- * done **once**, whichever of Enter and leaving it comes first: the press that ends
- * it can blur it too, and a second write would find its line already changed.
+ * A line under the note's own editor — its syntax, its popups, Tab — and ended
+ * **once**, whichever of Enter, Escape and leaving it comes first: the press that
+ * ends it can blur it too, and a second write would find its line already changed.
  */
 function EntryEditor({
   text,
   offers,
-  onDone,
-  onCancel,
+  onEnter,
+  onEscape,
+  onLeave,
   onOpenLink,
   onOpenTag,
 }: {
   text: string
   offers: Offers
-  onDone: (text: string) => void
-  onCancel: () => void
+  onEnter: (text: string) => void
+  onEscape: () => void
+  onLeave?: (text: string) => void
 } & Opens) {
   const finished = useRef(false)
   const once = (then: () => void) => {
@@ -210,9 +215,46 @@ function EntryEditor({
         onOpenLink={onOpenLink}
         onOpenTag={onOpenTag}
         onChange={() => {}}
-        line={{ onDone: (line) => once(() => onDone(line)), onCancel: () => once(onCancel) }}
+        line={{
+          onEnter: (line) => once(() => onEnter(line)),
+          onEscape: () => once(onEscape),
+          onLeave: onLeave && ((line) => once(() => onLeave(line))),
+        }}
       />
     </span>
+  )
+}
+
+/**
+ * The line a new entry is typed on, at the bottom of today: Enter files it and
+ * starts the next, Escape starts over, and leaving it keeps what is typed — a draft,
+ * until it is filed.
+ */
+function NewEntry({
+  offers,
+  onAdd,
+  rowRef,
+  ...opens
+}: { offers: Offers; onAdd: (text: string) => void; rowRef: RefObject<HTMLLIElement | null> } & Opens) {
+  // A fresh line each round: the editor's text is read at mount only.
+  const [round, setRound] = useState(0)
+  const next = () => setRound((was) => was + 1)
+  return (
+    <li className="timeline-entry timeline-new" ref={rowRef}>
+      <span className="timeline-when" />
+      <span className="timeline-rail" aria-hidden />
+      <EntryEditor
+        key={round}
+        text=""
+        offers={offers}
+        onEnter={(text) => {
+          if (text.trim() !== '') onAdd(text.trim())
+          next()
+        }}
+        onEscape={next}
+        {...opens}
+      />
+    </li>
   )
 }
 

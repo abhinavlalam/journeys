@@ -336,10 +336,18 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   `number` fields' totals (`totalsOf`). A timeline is one more memo over the one
   read (`useVaultTexts`' `timeline`), so it follows typing as the graph does.
 - **A press on an entry edits its one line** under the note's own editor in `line`
-  mode (no gutters; Enter or leaving is done, Escape is not, an open popup's own
-  keys first), done once however it ends. The write is `withEntry` through
-  `mutate`: that line, its indent and line ending kept, refused if the line is no
-  longer the entry's. A day's name opens its note.
+  mode (no gutters; Enter, Escape and leaving each the caller's, an open popup's own
+  keys first), ended once however it ends. An edit writes on Enter or leaving, and
+  the write is `withEntry` through `mutate`: that line, its indent and line ending
+  kept, refused if the line is no longer the entry's. A day's name opens its note.
+- **A new entry is typed at the bottom of today** (a Today section of its own until
+  the day has one): Enter files it, Escape clears it, and leaving keeps the draft.
+  `withNewEntry` files it as the day is written — under the group its tag heads,
+  else where its tag's entries already are (`#food` under `#diet`), else
+  `#timeline`, made at the end if missing — after the group's last line, indented
+  as its lines are. With no clock it is stamped with the time, or it would sort to
+  the top of the day it was typed at the bottom of. Today's note is made then, with
+  the icon only, as ⌘⇧O makes it.
 
 ## Sync
 

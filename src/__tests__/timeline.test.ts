@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clockText, dayEntries, fieldsOf, lengthOf, timelineDays, totalsOf, withEntry, wordsOf } from '../timeline'
+import { clockText, dayEntries, fieldsOf, lengthOf, timelineDays, totalsOf, withEntry, withNewEntry, wordsOf } from '../timeline'
 import type { PropertyType } from '../properties'
 
 /**
@@ -135,5 +135,34 @@ describe('writing an entry back', () => {
 
   it('writes nothing when the line is no longer the entry’s', () => {
     expect(withEntry(raw.replace('standup', 'stand-up'), standup, '09:15 standup')).toBeNull()
+  })
+})
+
+/** **A new entry is filed as the day is written**: under its tag's group, and every
+ *  other byte of the note as it was. */
+describe('filing a new entry', () => {
+  const raw = ['#timeline', '     09:00 standup', '', '#expense', '     12:30 #expense lunch amount:: 480', '', '#diet', '     08:45 #food oats', ''].join('\n')
+  const filed = (text: string, into = raw) => withNewEntry(day, into, text, '    ')
+
+  it('goes under the group its tag heads, after the group’s last line, indented as its lines are', () => {
+    expect(filed('19:00 #expense dinner')).toBe(raw.replace('amount:: 480\n', 'amount:: 480\n     19:00 #expense dinner\n'))
+  })
+
+  it('goes where its tag’s entries already are, as #food is under #diet', () => {
+    expect(filed('13:00 #food rice')).toBe(raw.replace('#food oats\n', '#food oats\n     13:00 #food rice\n'))
+  })
+
+  it('goes under #timeline with no tag, or with none that has a group', () => {
+    expect(filed('18:00 walk')).toBe(raw.replace('standup\n', 'standup\n     18:00 walk\n'))
+    expect(filed('18:00 #travel cab')).toBe(raw.replace('standup\n', 'standup\n     18:00 #travel cab\n'))
+  })
+
+  it('makes #timeline at the end of a note with none, a blank line from what is above it', () => {
+    expect(filed('09:00 run', 'mood:: calm\n')).toBe('mood:: calm\n\n#timeline\n    09:00 run\n')
+    expect(filed('09:00 run', '')).toBe('#timeline\n    09:00 run\n')
+  })
+
+  it('indents a group with no lines yet one step in from its heading', () => {
+    expect(filed('12:00 #expense tea', '#expense\n')).toBe('#expense\n    12:00 #expense tea\n')
   })
 })

@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { localDateStamp } from '../clock'
 import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
@@ -44,7 +45,10 @@ beforeEach(() => {
 })
 
 const viewer = () => within(document.querySelector('.viewer:not([hidden])') as HTMLElement)
+/** The days, and today last: with nothing written yet, it still has its new line. */
 const days = () => [...document.querySelectorAll('.viewer:not([hidden]) .note-section')]
+const lineIn = (section: Element) => section.querySelector<HTMLInputElement>('[data-testid="line-editor"]')
+const today = () => `/v/Daily/${localDateStamp()}.md`
 const entries = (day: Element) =>
   [...day.querySelectorAll('.timeline-entry')].map((one) => [
     one.querySelector('.timeline-when')!.textContent,
@@ -58,7 +62,7 @@ async function openTimeline() {
   render(<App />)
   await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
   fireEvent.click(screen.getByLabelText('Timeline'))
-  await waitFor(() => expect(days()).toHaveLength(2))
+  await waitFor(() => expect(days()).toHaveLength(3))
 }
 
 describe('the timeline', () => {
@@ -80,24 +84,49 @@ describe('the timeline', () => {
     await openTimeline()
     const before = disk.read('/v/Daily/2026-09-21.md')!
     fireEvent.click(viewer().getByText('standup'))
-    const field = await waitFor(() => screen.getByTestId('line-editor') as HTMLInputElement)
+    const field = await waitFor(() => lineIn(days()[1])!)
     expect(field.value).toBe('09:00 standup')
     fireEvent.change(field, { target: { value: '09:10 standup, late' } })
     fireEvent.keyDown(field, { key: 'Enter' })
     await waitFor(() => expect(disk.read('/v/Daily/2026-09-21.md')).toBe(before.replace('09:00 standup', '09:10 standup, late')))
     await waitFor(() => expect(viewer().getByText('standup, late')).toBeTruthy())
-    expect(screen.queryByTestId('line-editor')).toBeNull()
+    expect(lineIn(days()[1])).toBeNull()
   })
 
   it('leaves the note as it was on Escape', async () => {
     await openTimeline()
     const before = disk.read('/v/Daily/2026-09-21.md')
     fireEvent.click(viewer().getByText('standup'))
-    const field = await waitFor(() => screen.getByTestId('line-editor'))
+    const field = await waitFor(() => lineIn(days()[1])!)
     fireEvent.change(field, { target: { value: '09:10 standup, late' } })
     fireEvent.keyDown(field, { key: 'Escape' })
-    await waitFor(() => expect(screen.queryByTestId('line-editor')).toBeNull())
+    await waitFor(() => expect(lineIn(days()[1])).toBeNull())
     expect(disk.read('/v/Daily/2026-09-21.md')).toBe(before)
+  })
+
+  it('files a new entry typed at the bottom of today, making the day and stamping the time', async () => {
+    await openTimeline()
+    const field = lineIn(days()[2])!
+    fireEvent.change(field, { target: { value: 'coffee with [[Mira Vance]]' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    await waitFor(() => expect(disk.read(today())).toMatch(/^#timeline\n {4}\d\d:\d\d coffee with \[\[Mira Vance\]\]\n$/))
+    await waitFor(() => expect(entries(days()[2])[0][1]).toBe('coffee with Mira Vance'))
+    // And a fresh line for the next.
+    expect(lineIn(days()[2])!.value).toBe('')
+  })
+
+  it('files a new entry under its tag’s group in today’s note, and keeps a draft on leaving', async () => {
+    disk.write(today(), '#expense\n     08:30 #expense amount:: 60\n')
+    await openTimeline()
+    const field = lineIn(days()[2])!
+    fireEvent.change(field, { target: { value: '12:00 #expense lunch' } })
+    fireEvent.blur(field)
+    // Long enough for a write that should not happen to have landed.
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(disk.read(today())).toBe('#expense\n     08:30 #expense amount:: 60\n')
+    expect(field.value).toBe('12:00 #expense lunch')
+    fireEvent.keyDown(field, { key: 'Enter' })
+    await waitFor(() => expect(disk.read(today())).toBe('#expense\n     08:30 #expense amount:: 60\n     12:00 #expense lunch\n'))
   })
 
   it('opens a day’s note from its name', async () => {

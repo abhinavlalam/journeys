@@ -86,9 +86,9 @@ interface MarkdownEditorProps {
   /** Called synchronously, on every document change and on no other update. */
   onChange: (markdown: string) => void
   /** **An editor over one line** — a timeline entry's — rather than a note: no
-      gutters, and Enter or leaving it is `onDone` with the line, Escape `onCancel`.
-      An open popup still takes its own Enter and Escape first. */
-  line?: { onDone: (text: string) => void; onCancel: () => void }
+      gutters, and Enter, Escape and leaving it each handed the line to the caller,
+      which decides what they mean. An open popup still takes its own keys first. */
+  line?: { onEnter: (text: string) => void; onEscape: () => void; onLeave?: (text: string) => void }
 }
 
 // ---------------------------------------------------------------------------
@@ -176,7 +176,7 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
         return true
       },
       blur(_event, view) {
-        latest.current.line?.onDone(view.state.sliceDoc())
+        latest.current.line?.onLeave?.(view.state.sliceDoc())
       },
     }),
     placeholder('Start writing…'),
@@ -205,18 +205,18 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
       },
       // The popup's arrows, Enter and Escape, which decline while it is shut.
       ...completionKeymap,
-      // One line has no second: Enter is done with it, Escape leaves it as it was.
+      // One line has no second: Enter and Escape are the caller's.
       {
         key: 'Enter',
         run: (view) => {
-          latest.current.line?.onDone(view.state.sliceDoc())
+          latest.current.line?.onEnter(view.state.sliceDoc())
           return latest.current.line !== undefined
         },
       },
       {
         key: 'Escape',
         run: () => {
-          latest.current.line?.onCancel()
+          latest.current.line?.onEscape()
           return latest.current.line !== undefined
         },
       },

@@ -286,7 +286,7 @@ export function markdownEditorModule() {
       initialMarkdown: string
       onChange: (markdown: string) => void
       shown?: boolean
-      line?: { onDone: (text: string) => void; onCancel: () => void }
+      line?: { onEnter: (text: string) => void; onEscape: () => void; onLeave?: (text: string) => void }
     }) =>
       // An editor over one line keeps the real one's Enter, Escape and leaving.
       line ? (
@@ -294,8 +294,8 @@ export function markdownEditorModule() {
           data-testid="line-editor"
           aria-label="Markdown source"
           defaultValue={initialMarkdown}
-          onKeyDown={(e) => (e.key === 'Enter' ? line.onDone(e.currentTarget.value) : e.key === 'Escape' && line.onCancel())}
-          onBlur={(e) => line.onDone(e.currentTarget.value)}
+          onKeyDown={(e) => (e.key === 'Enter' ? line.onEnter(e.currentTarget.value) : e.key === 'Escape' && line.onEscape())}
+          onBlur={(e) => line.onLeave?.(e.currentTarget.value)}
         />
       ) : (
         // A tab out of sight keeps its editor mounted; "the editor" is the one shown.

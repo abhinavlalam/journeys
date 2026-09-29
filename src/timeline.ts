@@ -45,20 +45,29 @@ const isGroupHead = (prose: string) => prose.trim() !== '' && prose.replace(TAG,
 const minutesOf = (clock: string) =>
   [...clock.matchAll(/(\d{1,2}):(\d{2})/g)].map((hit) => Number(hit[1]) * 60 + Number(hit[2]))
 
+/** A group of a day's note: its heading's first tag, the heading's line and indent,
+ *  and the last line of its run. */
+interface Group {
+  name: string
+  at: number
+  indent: number
+  end: number
+}
+
 /**
- * A day's entries in the order it happened: those with no clock first, as written,
- * then by when they start — a tie keeps the order written.
+ * A day's note read: its entries as written, and its groups.
  *
  * An entry is a line that is not a group's heading, and **what is nested under an
  * entry is its detail**, as a tag's page reads it. A heading's lines are its group's
  * however deep the headings nest; code is nobody's entry.
  */
-export function dayEntries(note: VaultFile, raw: string): TimelineEntry[] {
+function readDay(note: VaultFile, raw: string): { entries: TimelineEntry[]; groups: Group[] } {
   const lines = raw.split(/\r?\n/)
   const prose = proseLines(raw)
   const first = splitPageProperties(raw).prefix.split('\n').length - 1
   const entries: TimelineEntry[] = []
-  const heads: { indent: number; name: string }[] = []
+  const groups: Group[] = []
+  const heads: Group[] = []
   let entry: { indent: number; below: string[] } | null = null
   for (let at = first; at < lines.length; at++) {
     const line = lines[at]
@@ -66,13 +75,17 @@ export function dayEntries(note: VaultFile, raw: string): TimelineEntry[] {
     const indent = line.length - line.trimStart().length
     if (entry && indent > entry.indent) {
       entry.below.push(line.slice(entry.indent).trimEnd())
+      for (const head of heads) head.end = at
       continue
     }
     entry = null
     if (prose[at].trim() === '') continue
     while (heads.length > 0 && heads[heads.length - 1].indent >= indent) heads.pop()
+    for (const head of heads) head.end = at
     if (isGroupHead(prose[at])) {
-      heads.push({ indent, name: tagNames(prose[at])[0] })
+      const head = { name: tagNames(prose[at])[0], at, indent, end: at }
+      heads.push(head)
+      groups.push(head)
       continue
     }
     const text = line.trim()
@@ -91,8 +104,45 @@ export function dayEntries(note: VaultFile, raw: string): TimelineEntry[] {
     entries.push(one)
     entry = { indent, below: one.below }
   }
+  return { entries, groups }
+}
+
+/** A day's entries in the order it happened: those with no clock first, as written,
+ *  then by when they start — a tie keeps the order written. */
+export function dayEntries(note: VaultFile, raw: string): TimelineEntry[] {
+  const { entries } = readDay(note, raw)
   const timed = entries.filter((one) => one.start !== null).sort((a, b) => a.start! - b.start!)
   return [...entries.filter((one) => one.start === null), ...timed]
+}
+
+/** The group an entry is filed under when none of its tags has one. */
+export const TIMELINE_GROUP = 'timeline'
+
+/**
+ * A day's note with a new entry filed in it, as its owner writes a day: under the
+ * group headed by one of its tags; else the group already holding an entry that
+ * carries one (`#food` under `#diet`); else `#timeline`, made at the note's end when
+ * it has none. It goes after the group's last line, indented as the group's own
+ * lines are — or `indent` in from the heading, in a group with none — and nothing
+ * else in the note moves.
+ */
+export function withNewEntry(note: VaultFile, raw: string, text: string, indent: string): string {
+  const { entries, groups } = readDay(note, raw)
+  const tags = tagNames(text)
+  const carrying = entries.find((one) => one.group && tagNames(one.text).some((tag) => tags.includes(tag)))
+  const group =
+    groups.find((one) => tags.includes(one.name)) ??
+    groups.find((one) => one.name === carrying?.group) ??
+    groups.find((one) => one.name === TIMELINE_GROUP)
+  if (!group) {
+    const gap = raw === '' || raw.endsWith('\n\n') ? '' : raw.endsWith('\n') ? '\n' : '\n\n'
+    return `${raw}${gap}#${TIMELINE_GROUP}\n${indent}${text}\n`
+  }
+  const lines = raw.split('\n')
+  const inside = lines.slice(group.at + 1, group.end + 1).find((line) => line.trim() !== '')
+  const pad = inside ? inside.slice(0, inside.length - inside.trimStart().length) : ' '.repeat(group.indent) + indent
+  lines.splice(group.end + 1, 0, pad + text)
+  return lines.join('\n')
 }
 
 /**

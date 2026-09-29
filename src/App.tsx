@@ -35,7 +35,7 @@ import {
 import { useConfigEntries } from './useConfigEntries'
 import { readEntries } from './configEntries'
 import { propertiesOf, tablesOf, TAG_NAME, TAGS_FILE, viewOf } from './tags'
-import { withEntry, type TimelineEntry } from './timeline'
+import { withEntry, withNewEntry, type TimelineEntry } from './timeline'
 import { TimelineView } from './TimelineView'
 import { GraphView } from './GraphView'
 import { PropertyView } from './PropertyView'
@@ -45,7 +45,7 @@ import { EVENT, EVENT_PROPERTIES, eventLine } from './calendar'
 import { syncEvents } from './calendarSync'
 import { fetchFeed } from './calendarFeed'
 import { occurrences, parseIcs } from './ics'
-import { dayDate, daysAfter, localDateStamp } from './clock'
+import { dayDate, daysAfter, leadingClock, localDateStamp, localTimeStamp } from './clock'
 import { Resizer } from './Resizer'
 import { useContextMenu } from './useContextMenu'
 import { useFolderOpenState } from './useFolderOpenState'
@@ -781,6 +781,26 @@ export default function App() {
     )
   }
 
+  /** A new timeline entry, filed in today's note — made if it is not there yet —
+   *  where `withNewEntry` says. Stamped with the time when it has no clock, so it
+   *  lands where it was typed, at the end of the day. */
+  async function addEntry(text: string) {
+    const line = leadingClock(text) ? text : `${localTimeStamp()} ${text}`
+    await vault.mutate(
+      async (v) => {
+        const { file, created } = await ensureDailyNote(v, settings.dailyFolder)
+        const next = withNewEntry(file, await readVaultFile(file), line, ' '.repeat(settings.indentWidth))
+        await writeVaultFile(file, next)
+        return { file, created, next }
+      },
+      async ({ file, created, next }) => {
+        patch(new Set([file.path]), () => next)
+        if (created) await inheritIcon(file)
+        await buffers.reread(file)
+      }
+    )
+  }
+
   async function inheritIcon(file: VaultFile) {
     if (!settings.inheritIcons || !vault.vaultPath) return
     const inherited = await folderIcon(vault.vaultPath, file.path)
@@ -1250,9 +1270,9 @@ export default function App() {
                     days={timeline}
                     tables={tablesOf(tagStructures.entries)}
                     typeOf={(name) => typeOf(propertyTypes.entries, name)}
-                    loading={reading}
                     offers={{ notes, propertyTypes: propertyTypes.entries, tagStructures: tagStructures.entries }}
                     onEdit={(entry, text) => void editEntry(entry, text)}
+                    onAdd={(text) => void addEntry(text)}
                     onOpen={(file) => void openNote(file)}
                     onOpenLink={(target) => void openLinkTarget(target, true)}
                     onOpenTag={(tag) => view('tag', tag)}

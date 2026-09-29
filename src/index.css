@@ -2941,9 +2941,10 @@ button.folder-toggle {
   color: var(--text);
 }
 
-/* An entry being edited stays lit while it is; its editor's own type and air are
-   set after the editor's rules, which they override. */
-.timeline-entry:has(.timeline-edit) {
+/* An entry being typed in — an edit, or the new line at the bottom of today —
+   stays lit while it is; its editor's own type and air are set after the editor's
+   rules, which they override. */
+.timeline-entry:has(.cm-focused) {
   background: var(--bg-hover);
 }
 

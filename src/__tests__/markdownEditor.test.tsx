@@ -2010,25 +2010,26 @@ describe('the properties a tag’s line is offered', () => {
 })
 
 /**
- * **An editor over one line** — a timeline entry's — through the real keymap: Enter
- * is done with the line and Escape leaves it, unless a popup is open, whose own
- * Enter comes first; leaving it is done too; and it has no gutters.
+ * **An editor over one line** — a timeline entry's — through the real keymap: Enter,
+ * Escape and leaving it are each handed to the caller, unless a popup is open, whose
+ * own Enter comes first; and it has no gutters.
  */
 describe('an editor over one line', () => {
   afterEach(() => vi.restoreAllMocks())
   const mounted = (doc: string) => {
     const done: string[] = []
     const cancelled: true[] = []
+    const left: string[] = []
     const { container } = render(
       <MarkdownEditor
         initialMarkdown={doc}
         caretAtEnd
         notes={NOTES}
         onChange={() => {}}
-        line={{ onDone: (text) => done.push(text), onCancel: () => cancelled.push(true) }}
+        line={{ onEnter: (text) => done.push(text), onEscape: () => cancelled.push(true), onLeave: (text) => left.push(text) }}
       />
     )
-    return { view: viewOf(container), container, done, cancelled }
+    return { view: viewOf(container), container, done, cancelled, left }
   }
 
   it('is done on Enter, with the line as it stands, and makes no second line', () => {
@@ -2038,13 +2039,13 @@ describe('an editor over one line', () => {
     expect([done, view.state.doc.toString()]).toEqual([['09:00 standup, late'], '09:00 standup, late'])
   })
 
-  it('leaves on Escape, and is done on leaving it', () => {
+  it('hands Escape and leaving it to the caller, each on its own', () => {
     const escaped = mounted('09:00 standup')
     fireEvent.keyDown(escaped.view.contentDOM, { key: 'Escape' })
-    expect([escaped.done, escaped.cancelled]).toEqual([[], [true]])
-    const left = mounted('10:00 review')
-    fireEvent.blur(left.view.contentDOM)
-    expect(left.done).toEqual(['10:00 review'])
+    expect([escaped.done, escaped.cancelled, escaped.left]).toEqual([[], [true], []])
+    const gone = mounted('10:00 review')
+    fireEvent.blur(gone.view.contentDOM)
+    expect([gone.done, gone.left]).toEqual([[], ['10:00 review']])
   })
 
   it('lets an open popup take Enter first', async () => {
