@@ -3,18 +3,14 @@ import { markdownKeymap } from '@codemirror/lang-markdown'
 import { formatKeymap } from './editorCommands'
 
 /**
- * Key combos: one text form, one matcher, one list of what is already taken.
+ * Key combos: one text form, one matcher, one list of what is taken.
  *
- * The text form is what goes to storage and comes back from a capture field —
- * lowercase, `+`-joined, modifiers in a fixed order: `mod+ctrl+alt+shift+key`.
- * `formatCombo` is the only thing that renders symbols, so nothing else has to
- * know that ⌘ comes last on macOS while `mod` comes first in the text form.
+ * The text form is what is stored and what a capture field returns: lower
+ * case, joined by `+`, modifiers in a fixed order
+ * (`mod+ctrl+alt+shift+key`). Only `formatCombo` draws symbols.
  *
- * **`mod` is `metaKey`, on every platform.** `App.tsx` and `Editor.tsx` both
- * require `metaKey` outright rather than switching on the platform, and this app
- * bundles for macOS only; a platform switch here would silently give the matcher
- * behaviour the two existing listeners do not have. If Journeys ever ships for
- * Windows, `matchesCombo` and `formatCombo` are the two places to change.
+ * `mod` is `metaKey` on every platform; the app ships for macOS only. For
+ * another platform, `matchesCombo` and `formatCombo` are the places to change.
  */
 
 // ---------------------------------------------------------------------------
@@ -30,13 +26,9 @@ interface Action {
 }
 
 /**
- * Adding a third action is this list plus its handler — nothing else here.
- *
- * There was a `scope: 'window' | 'editor'` beside each one, and nothing read it:
- * *where* a shortcut is installed is what makes it the window's or the editor's —
- * `openToday` is a `window` listener in `App` and `insertTime` is a keymap inside
- * `MarkdownEditor` — and that is code. The field only restated it, and its comment
- * pointed at `Editor.tsx`, a file two rewrites gone.
+ * A new action is an entry here plus its handler. Where the
+ * handler is installed makes it the window's (`openToday` in
+ * `App`) or the editor's (`insertTime` in `MarkdownEditor`).
  */
 export const ACTIONS: readonly Action[] = [
   { id: 'openToday', label: "Open today's page", defaultCombo: 'mod+shift+o' },
@@ -59,11 +51,11 @@ interface Combo {
   ctrl: boolean
   alt: boolean
   shift: boolean
-  /** Canonical key name: a single lowercased character, or one of `NAMED_KEYS`. */
+  /** The key's name: one lower-case character, or one of `NAMED_KEYS`. */
   key: string
 }
 
-/** The shape `matchesCombo` needs — a `KeyboardEvent` satisfies it. */
+/** What `matchesCombo` needs. A `KeyboardEvent` has it. */
 interface KeyChord {
   key: string
   metaKey: boolean
@@ -86,9 +78,8 @@ const MOD_ALIASES: Record<string, keyof Omit<Combo, 'key'>> = {
 }
 
 /**
- * Canonical names are the lowercased `event.key`, so `Enter` is `enter` and no
- * table is needed to go from an event to a combo. The space bar is the one
- * exception — its `event.key` is `' '`, which cannot survive a `+`-joined string.
+ * Key names are `event.key` in lower case, so `Enter` is `enter`. The space bar is
+ * the exception: its `event.key` is `' '`, which cannot sit in a `+`-joined string.
  */
 const NAMED_KEYS = new Set([
   'enter',
@@ -122,9 +113,10 @@ const MODIFIER_KEY_NAMES = new Set(['shift', 'control', 'alt', 'meta', 'capslock
 
 const FUNCTION_KEY = /^f([1-9]|1[0-2])$/
 
-/** The canonical key name for a pressed key. `event.key`, lowercased — the rule
- *  the two existing listeners use, so a remapped layout follows the printed letter
- *  and a shifted `O` still reads as `o`. */
+/**
+ * The name of a pressed key: `event.key` in lower case, so a remapped
+ * layout follows the printed letter and a shifted `O` reads as `o`.
+ */
 function keyFromEvent(event: KeyChord): string {
   return event.key === ' ' ? 'space' : event.key.toLowerCase()
 }
@@ -139,8 +131,10 @@ function comboToText(combo: Combo): string {
   return parts.join('+')
 }
 
-/** `null` for anything this module cannot represent — never a throw, since both
- *  storage and a capture field feed it. `+` itself cannot be bound. */
+/**
+ * `null` for anything it cannot represent, never a throw: storage
+ * and a capture field both feed it. `+` itself cannot be bound.
+ */
 export function parseCombo(text: unknown): Combo | null {
   if (typeof text !== 'string') return null
   const parts = text
@@ -188,7 +182,7 @@ const KEY_SYMBOLS: Record<string, string> = {
   end: 'End',
 }
 
-/** macOS order — ⌃⌥⇧⌘ then the key — which is not the text form's order. */
+/** macOS order, ⌃⌥⇧⌘ then the key, which differs from the text form's. */
 export function formatCombo(combo: string | Combo): string {
   const parsed = typeof combo === 'string' ? parseCombo(combo) : combo
   if (!parsed) return ''
@@ -206,9 +200,8 @@ export function formatCombo(combo: string | Combo): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Every modifier is compared for equality, not merely required. That is what the
- * two existing listeners do — `metaKey && shiftKey && !altKey && !ctrlKey` — and
- * it is the half that stops ⌘⌥⇧O from also firing ⇧⌘O.
+ * Every modifier must match exactly, not just be present, so
+ * ⌘⌥⇧O does not also fire ⇧⌘O.
  */
 export function matchesCombo(event: KeyChord, combo: string | Combo): boolean {
   const parsed = typeof combo === 'string' ? parseCombo(combo) : combo
@@ -222,8 +215,9 @@ export function matchesCombo(event: KeyChord, combo: string | Combo): boolean {
   )
 }
 
-/** For a capture field: the combo just pressed, or `null` while only modifiers are
- *  down. */
+/**
+ * For a capture field: the combo just pressed, or `null` while only modifiers are down.
+ */
 export function comboFromEvent(event: KeyChord): string | null {
   const key = keyFromEvent(event)
   if (MODIFIER_KEY_NAMES.has(key)) return null
@@ -246,18 +240,9 @@ interface Reservation {
 }
 
 /**
- * What the editor already binds, **read out of the keymaps that are installed**.
- *
- * The list this replaces was a hand-copy of Milkdown's and ProseMirror's keymaps,
- * from when the note pane was Crepe. Those packages are gone, so it reserved two
- * dozen combos nothing binds any more (⌥⌘1 for a heading, ⇧⌘B for a quote) while
- * missing what CodeMirror actually takes. Its own comment admitted the flaw — "this
- * list is a copy of someone else's keymap, and copies drift" — so it is derived now
- * and cannot.
- *
- * `formatKeymap` is in here too: ⌘B, ⌘I and ⌘E are this app's own, and they are as
- * unavailable as CodeMirror's. Combos with no modifier are dropped, because
- * `findConflict` refuses those a step earlier anyway.
+ * What the editor already binds, read from the keymaps it installs, including the
+ * app's own ⌘B, ⌘I and ⌘E. A hand-copied list went stale when the editor changed.
+ * Combos with no modifier are dropped, since `findConflict` refuses those first.
  */
 export const EDITOR_COMBOS: ReadonlySet<string> = new Set(
   [...defaultKeymap, ...historyKeymap, ...markdownKeymap, indentWithTab, ...formatKeymap]
@@ -266,19 +251,16 @@ export const EDITOR_COMBOS: ReadonlySet<string> = new Set(
     .filter((combo): combo is string => !!combo && combo.includes('+'))
 )
 
-/** The panel's own way in, and not an action anyone can rebind. */
+/** The way into Settings, which no one can rebind. */
 export const SETTINGS_COMBO = 'mod+,'
 
 /**
- * The rest, which is not in anyone's source tree here: what the webview takes above
- * the editor, what macOS takes above the window, and the panel's own way in.
- *
- * Deliberately few. A guessed reservation refuses a shortcut that would have
- * worked, which is worse than letting one through.
+ * The rest, from outside the editor: what the webview and macOS take, and the way into
+ * Settings. Kept short, since a wrong guess refuses a shortcut that would have worked.
  */
 export const RESERVED_COMBOS: readonly Reservation[] = [
-  // The panel's own way in. Bindable otherwise, and then the gear is the only
-  // route back to Settings — which is fine until the binding is forgotten.
+  // The way into Settings. If it could be rebound and then
+  // forgotten, only the gear would lead back.
   { combo: SETTINGS_COMBO, reason: '⌘, opens Settings.' },
   // The webview, above the editor.
   { combo: 'mod+c', reason: '⌘C is copy.' },
@@ -298,10 +280,8 @@ export const RESERVED_COMBOS: readonly Reservation[] = [
 ]
 
 /**
- * Why `combo` cannot be bound to `actionId`, or `null` if it can.
- *
- * `shortcuts` is the whole current map, so rebinding one action is also checked
- * against the others — which is the collision the reserved list cannot see.
+ * Why `combo` cannot be bound to `actionId`, or `null` if it can. `shortcuts` is
+ * the whole current map, so a rebind is checked against the other actions too.
  */
 export function findConflict(
   combo: unknown,
@@ -312,7 +292,7 @@ export function findConflict(
   const parsed = canonical && parseCombo(canonical)
   if (!canonical || !parsed) return 'That is not a shortcut Journeys can read.'
 
-  // Shift alone is not a modifier for this purpose: ⇧O is typing.
+  // Shift alone does not count: ⇧O is typing.
   if (!parsed.mod && !parsed.ctrl && !parsed.alt) {
     return 'Hold ⌘, ⌥ or ⌃ — a plain key would fire while you type.'
   }

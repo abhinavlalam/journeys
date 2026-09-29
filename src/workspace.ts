@@ -1,14 +1,10 @@
-// **The reading pane is a workspace**: groups of tabs, split into panes, with one
-// group focused. A pure model — every operation takes a workspace and answers with
-// the next one — so what "open", "close" and "split" mean is decided here and
-// tested here, and `App` only asks.
+// The reading pane as a workspace: groups of tabs, split into panes,
+// one group focused. Pure: each operation takes a workspace and returns
+// the next, so open, close and split are decided and tested here.
 //
-// **A note is open in one place at a time.** Two editors on one buffer is two
-// copies of a text that have to be kept in step on every keystroke, which is a
-// document model this app does not have; opening a note that is already open, in
-// any group, focuses the tab it has. The other kinds — the graph, a tag's page, a
-// property's, the settings file — are the same everywhere, so the same rule
-// costs nothing and there is one rule.
+// A note is open in one place at a time. Two editors on one note
+// would need keeping in step on every key. Opening a tab that is
+// already open anywhere goes to it; other kinds follow the same rule.
 
 import { pathKey } from './links'
 import type { NoteMoves } from './links'
@@ -18,7 +14,7 @@ export type Tab =
   | { kind: 'note'; id: number; file: VaultFile }
   | { kind: 'graph'; id: number }
   | { kind: 'property'; id: number; name: string }
-  /** A tag's page: every line in the vault carrying `#name`. */
+  /** A tag's page: every line in the vault with `#name`. */
   | { kind: 'tag'; id: number; name: string }
   | { kind: 'calendar'; id: number }
   /** The daily notes as each day happened. */
@@ -26,21 +22,20 @@ export type Tab =
   /** Everything the app has said in this window. */
   | { kind: 'log'; id: number }
   | { kind: 'settingsFile'; id: number }
-  /** A file the pane shows rather than edits — a PDF, an image, anything else.
-   *  It carries the file for the same reason a note tab does: the tab follows it
-   *  when it moves, and closes when it is deleted. */
+  /**
+   * A file the pane shows rather than edits: a PDF, an image, anything else.
+   * It carries the file so the tab follows a move and closes on a delete.
+   */
   | { kind: 'file'; id: number; file: VaultFile }
-  /** A shell in the vault folder. `session` names its PTY; two terminals are two
-   *  tabs, so the key carries it — the one kind that is never deduplicated. */
+  /**
+   * A shell in the vault folder. `session` names its PTY. The
+   * one kind that can be open twice.
+   */
   | { kind: 'terminal'; id: number; session: string }
 
 /**
- * A tab as something asks for it — before it has an id.
- *
- * `Omit` is applied to each member of the union rather than to the union, or the
- * kinds collapse into one object carrying every field and a `{ kind: 'graph' }`
- * would typecheck with a `file` on it. A naked type parameter in a conditional is
- * what distributes; it was written inline with an `infer` that did nothing.
+ * A tab as asked for, before it has an id. `Omit` is applied to each member of
+ * the union, or a `{ kind: 'graph' }` would type-check with a `file` on it.
  */
 type WithoutId<T> = T extends unknown ? Omit<T, 'id'> : never
 export type TabRequest = WithoutId<Tab>
@@ -48,7 +43,7 @@ export type TabRequest = WithoutId<Tab>
 export interface Group {
   id: number
   tabs: Tab[]
-  /** Index into `tabs`; meaningless when there are none. */
+  /** Index into `tabs`; unused when there are none. */
   active: number
 }
 
@@ -57,7 +52,7 @@ export type Layout =
   | {
       kind: 'split'
       id: number
-      /** `row` puts the two side by side, `column` one above the other. */
+      /** `row` is side by side, `column` one above the other. */
       direction: 'row' | 'column'
       first: Layout
       second: Layout
@@ -77,7 +72,7 @@ export function emptyWorkspace(): Workspace {
   return { layout: { kind: 'group', group: { id: 1, tabs: [], active: 0 } }, focused: 1, nextId: 2 }
 }
 
-/** What makes two tabs the same tab: a note by its path, a page by its name. */
+/** What makes two tabs the same: a note by its path, a page by its name. */
 function tabKey(tab: TabRequest | Tab): string {
   switch (tab.kind) {
     case 'note':
@@ -118,7 +113,7 @@ export function tabLabel(tab: Tab): string {
   }
 }
 
-/** Every group, in reading order — left to right, top to bottom. */
+/** Every group in reading order: left to right, top to bottom. */
 export function groups(layout: Layout): Group[] {
   return layout.kind === 'group' ? [layout.group] : [...groups(layout.first), ...groups(layout.second)]
 }
@@ -127,7 +122,7 @@ function groupById(ws: Workspace, id: number): Group | null {
   return groups(ws.layout).find((group) => group.id === id) ?? null
 }
 
-/** The focused group's active tab, or null when it has none. */
+/** The focused group's active tab, or null. */
 export function activeTab(ws: Workspace): Tab | null {
   const group = groupById(ws, ws.focused)
   return group?.tabs[group.active] ?? null
@@ -162,8 +157,8 @@ export function activateTab(ws: Workspace, groupId: number, index: number): Work
 }
 
 /**
- * Opens a tab in the focused group — **after** the active one, the way a browser
- * does — or, if the same tab is open anywhere, goes to it instead.
+ * Opens a tab in the focused group after the active one, as a
+ * browser does, or goes to the same tab if it is open anywhere.
  */
 export function openTab(ws: Workspace, request: TabRequest): Workspace {
   const found = findTab(ws, tabKey(request))
@@ -175,20 +170,16 @@ export function openTab(ws: Workspace, request: TabRequest): Workspace {
   })
 }
 
-/** The prefix every session this app owns is named with, on its own tmux socket. */
+/** The prefix of every session the app owns, on its own tmux socket. */
 const TERMINAL_PREFIX = 'journeys-'
 
 /**
- * The session a new Terminal tab attaches to: the lowest `journeys-<n>` no open tab
- * is already showing.
+ * The session a new terminal tab attaches to: the lowest
+ * `journeys-<n>` no open tab shows.
  *
- * **Derived and not random, which is the whole of why a session survives a
- * restart.** It was `crypto.randomUUID()`, so every launch named a session nothing
- * had ever heard of and `new-session -A` created a fresh one each time — the app
- * reported as starting from scratch, `claude` included. A name that is a function of
- * the workspace is the *same* name next launch, and the tmux server is still holding
- * the session under it. So nothing is persisted to do this: the server is the state,
- * which is why this needs no file and cannot go stale.
+ * Worked out rather than random, so a session survives a restart. With a random
+ * name every launch started a fresh shell, `claude` included. The same name next
+ * launch finds the session the tmux server still holds, so nothing needs saving.
  */
 export function terminalName(ws: Workspace): string {
   const open = new Set(
@@ -203,10 +194,9 @@ export function terminalName(ws: Workspace): string {
 }
 
 /**
- * The Terminal row's act: back to the terminal there is — the last one in reading
- * order — or a new one when there is none. Pressing the row to *return* to a shell
- * opened a fresh shell beside it, which read as `claude` restarting; a second shell
- * is asked for by name, from the row's menu.
+ * The Terminal row: go back to the last terminal, or open one if
+ * there is none. A second shell is asked for from the row's
+ * menu; opening one on each press read as `claude` restarting.
  */
 export function openTerminal(ws: Workspace): Workspace {
   const last = groups(ws.layout)
@@ -218,8 +208,7 @@ export function openTerminal(ws: Workspace): Workspace {
     : openTab(ws, { kind: 'terminal', session: terminalName(ws) })
 }
 
-/** The graph button's act: shut it if it is what the focused group shows, open it
- *  otherwise. */
+/** The graph button: close the graph if the focused group shows it, else open it. */
 export function toggleTab(ws: Workspace, request: TabRequest): Workspace {
   const group = groupById(ws, ws.focused)
   const active = group?.tabs[group.active]
@@ -229,9 +218,8 @@ export function toggleTab(ws: Workspace, request: TabRequest): Workspace {
 }
 
 /**
- * A split with an empty child is that child's sibling; a workspace is never
- * without a group. Every operation that removes tabs ends here, so the shape is
- * one rule rather than one per operation.
+ * A split with an empty child becomes the other child, and a workspace
+ * always has a group. Every operation that removes tabs ends here.
  */
 function collapse(layout: Layout): Layout {
   if (layout.kind === 'group') return layout
@@ -251,9 +239,8 @@ function settle(ws: Workspace): Workspace {
 }
 
 /**
- * Closes one tab. The neighbour on the left becomes active — the tab that was
- * open before this one, most of the time. A group left empty is folded out of its
- * split, unless it is the only group, which stays as the empty pane.
+ * Closes one tab. The one to its left becomes active. An empty
+ * group folds out of its split, unless it is the only group.
  */
 export function closeTab(ws: Workspace, groupId: number, index: number): Workspace {
   const next = withGroup(ws, groupId, (group) => {
@@ -275,17 +262,14 @@ export function closeOtherTabs(ws: Workspace, groupId: number, index: number): W
 }
 
 /**
- * Splits a group: it becomes the first half of a split, with a **new, empty**
- * group beside or below it, which takes the focus so the next thing opened lands
- * there. Empty rather than a copy of the active tab, because a note is open in one
- * place at a time (see the top of the file), and one rule is better than one per
- * kind of tab.
+ * Splits a group: a new, empty group appears beside or below and takes the focus,
+ * so the next thing opened lands there. Empty, because a note is open in one place.
  */
 export function splitGroup(
   ws: Workspace,
   groupId: number,
   direction: 'row' | 'column',
-  /** The new group goes *before* the split one — to its left, or above it. */
+  /** The new group goes before the split one: to its left, or above. */
   before = false
 ): Workspace {
   const fresh: Group = { id: ws.nextId, tabs: [], active: 0 }
@@ -305,15 +289,13 @@ export function splitGroup(
   return { layout: place(ws.layout), focused: fresh.id, nextId: ws.nextId + 2 }
 }
 
-/** Where a dragged tab is let go over a pane: one of its four edges, or the middle. */
+/** Where a dragged tab is dropped over a pane: one of its four edges, or the middle. */
 export type DropZone = 'left' | 'right' | 'top' | 'bottom' | 'centre'
 
 /**
- * A tab dropped on a pane: in the middle it joins the pane; at an edge it gets a
- * pane of its own on that side — the pane is split and the tab moved into the new
- * half, which is what dragging a page to the right *means* in the editors the
- * owner named. A group left empty by the move folds away, so dragging a pane's
- * only tab to its own edge comes back to where it started.
+ * A tab dropped on a pane: in the middle it joins the pane; at an edge the
+ * pane splits and the tab moves into the new half. A group left empty folds
+ * away, so a pane's only tab dropped on its own edge ends where it began.
  */
 export function dropTab(
   ws: Workspace,
@@ -332,10 +314,9 @@ export function dropTab(
 }
 
 /**
- * Moves one tab to another place: another group, or another position in its own.
- * The tab arrives active and its new group focused — it was just put there by
- * hand. `to.index` is where it lands, the end when absent; a group left empty by
- * the move folds out of its split, as it does when its last tab closes.
+ * Moves a tab to another group, or another place in its own. It
+ * arrives active and its group focused. `to.index` is where it
+ * lands, the end when absent. A group left empty folds away.
  */
 export function moveTab(
   ws: Workspace,
@@ -351,7 +332,7 @@ export function moveTab(
   })
   const placed = withGroup(removed, to.groupId, (group) => {
     let at = to.index ?? group.tabs.length
-    // Leaving a slot behind in the same group shifts what comes after it.
+    // A slot left behind in the same group shifts what comes after.
     if (from.groupId === to.groupId && from.index < at) at -= 1
     at = Math.max(0, Math.min(at, group.tabs.length))
     return { ...group, tabs: [...group.tabs.slice(0, at), tab, ...group.tabs.slice(at)], active: at }
@@ -359,8 +340,10 @@ export function moveTab(
   return settle({ ...placed, focused: to.groupId })
 }
 
-/** Removes an empty group by hand — the one way out of a split nothing was opened
- *  into. A group with tabs is closed by closing them. */
+/**
+ * Removes an empty group by hand, the way out of a split nothing
+ * was opened into. A group with tabs closes by closing them.
+ */
 export function closeGroup(ws: Workspace, groupId: number): Workspace {
   const all = groups(ws.layout)
   const group = all.find((one) => one.id === groupId)
@@ -368,8 +351,10 @@ export function closeGroup(ws: Workspace, groupId: number): Workspace {
   return settle(ws)
 }
 
-/** A split's share for its first half: where a new one starts and a double-click
- *  puts it back, and how far a drag may take either half. */
+/**
+ * A split's first share: where a new split starts, where a
+ * double-click resets it, and how far a drag may go.
+ */
 export const SPLIT = { even: 0.5, min: 0.1, max: 0.9 }
 
 export function resizeSplit(ws: Workspace, splitId: number, ratio: number): Workspace {
@@ -386,8 +371,10 @@ export function resizeSplit(ws: Workspace, splitId: number, ratio: number): Work
   return { ...ws, layout: resize(ws.layout) }
 }
 
-/** Every tab that holds a file, re-pointed by `fn` — a moved note or PDF follows
- *  it — and a null answer closes the tab. */
+/**
+ * Every tab holding a file, re-pointed by `fn` so a moved note
+ * or PDF keeps its tab. A null answer closes the tab.
+ */
 function mapFileTabs(ws: Workspace, fn: (file: VaultFile) => VaultFile | null): Workspace {
   return settle({
     ...ws,
@@ -395,8 +382,7 @@ function mapFileTabs(ws: Workspace, fn: (file: VaultFile) => VaultFile | null): 
       const tabs: Tab[] = []
       let active = group.active
       group.tabs.forEach((tab, i) => {
-        // Both kinds hold a file, and both follow it: a photograph renamed in the
-        // tree keeps its tab, and one deleted closes it.
+        // Notes and files both follow a rename, and close on a delete.
         if (tab.kind !== 'note' && tab.kind !== 'file') return void tabs.push(tab)
         const next = fn(tab.file)
         if (next) tabs.push(next === tab.file ? tab : { ...tab, file: next })
@@ -407,13 +393,15 @@ function mapFileTabs(ws: Workspace, fn: (file: VaultFile) => VaultFile | null): 
   })
 }
 
-/** After a rename or a move: the tab holding `was` now holds `moved`. */
+/** After a rename or move: the tab holding `was` now holds `moved`. */
 export function followFileTabs(ws: Workspace, was: string, moved: VaultFile): Workspace {
   return mapFileTabs(ws, (file) => (pathKey(file.path) === pathKey(was) ? moved : file))
 }
 
-/** After a folder rename or move: every tab under it follows, the folder's own
- *  note by the map (its basename changed) and the rest by the prefix. */
+/**
+ * After a folder rename or move: every tab under it follows. The folder's
+ * own note goes by the map, since its name changed; the rest by the prefix.
+ */
 export function followFolderTabs(
   ws: Workspace,
   oldPrefix: string,

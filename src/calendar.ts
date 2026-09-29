@@ -1,11 +1,7 @@
-// The calendar: every `#event` line in the journal, wherever it came from.
-//
-// **One source of truth, and it is the `#event` lines.** A meeting the Google
-// feed knows about and a dinner typed into a daily note are both a line that says
-// `#event`; the sync *writes* the first kind into the day's note, and the calendar
-// reads both kinds back out of the notes. So the notes are complete on their own —
-// an agent reading the vault sees the meetings — and the calendar has nothing of
-// its own to keep. `source::` says which calendar a line came from, or nothing.
+// The calendar: every `#event` line in the journal. The sync writes a feed's
+// events into daily notes as `#event` lines, and the calendar reads all `#event`
+// lines back, typed or synced. So the notes are complete on their own, and the
+// calendar keeps nothing. `source::` names the calendar a line came from.
 
 import { clockStart, DAY_MS, dayDate, daysAfter, HOUR_MS, leadingClock, localDateStamp, localTimeStamp, MINUTE_MS } from './clock'
 import { dayOf, isDailyNote } from './daily'
@@ -19,10 +15,10 @@ import type { VaultFile } from './vaultModel'
 export const EVENT = 'event'
 
 /**
- * The `#event` structure the app declares when the vault has none, and **the names
- * the calendar reads by**: `with`, `at` and `source` are shown, `repeats` puts the
- * line on later days, and `reminder` puts it under Coming up ahead of time. Once
- * written the structure is the vault's: the sync writes what it lists, in its order.
+ * The `#event` structure the app declares when the vault has none, and the
+ * names the calendar reads: `with`, `at` and `source` are shown, `repeats`
+ * puts the line on later days, and `reminder` puts it under Coming up early.
+ * Once written, the structure is the vault's, and the sync follows its order.
  */
 export const EVENT_PROPERTIES = ['with', 'at', 'source', 'repeats', 'reminder']
 
@@ -32,8 +28,10 @@ export interface EventFormat {
   typeOf: (name: string) => PropertyType
 }
 
-/** A line as an event: its clock (`''` for all day), its title, and its values by
- *  lower-cased property name. */
+/**
+ * A line as an event: its clock (`''` for all day), its title,
+ * and its values by lower-case property name.
+ */
 export interface EventParts {
   clock: string
   what: string
@@ -46,17 +44,17 @@ export interface CalendarEvent extends EventParts {
   note: VaultFile
   /** 0-based line in the note. */
   line: number
-  /** The start as an instant: the day at the clock, or midnight. */
+  /** The start as a time: the day at the clock, or midnight. */
   startsAt: number
-  /** Put on this day by a `repeats::` rather than written on it. */
+  /** Put on this day by a `repeats::`, not written on it. */
   repeated: boolean
 }
 
 /**
- * A line read as an event. **The title is the words before its first property**,
- * less the clock and the tag — `19:00 Dinner #event with:: "Mira Vance"` is Dinner —
- * and words after a property are the line's own, so a note added to a synced line
- * leaves it the same event. A value not of its property's type is not read.
+ * A line read as an event. The title is the words before the first
+ * property, minus the clock and the tag: `19:00 Dinner #event with:: "Mira
+ * Vance"` is Dinner. Words after a property are the owner's, so adding
+ * them keeps it the same event. A value not of its type is not read.
  */
 export function readEvent(line: string, typeOf: (name: string) => PropertyType): EventParts {
   const clock = leadingClock(line) ?? ''
@@ -72,8 +70,10 @@ export function readEvent(line: string, typeOf: (name: string) => PropertyType):
   }
 }
 
-/** The line an event is written as, which `readEvent` reads back: the clock, the
- *  tag, the title, then each property of the structure it has a value for. */
+/**
+ * The line an event is written as, read back by `readEvent`: clock,
+ * tag, title, then each property of the structure that has a value.
+ */
 export function eventText(properties: readonly string[], { clock, what, fields }: EventParts): string {
   const carried = properties.filter((name) => fields[name.toLowerCase()])
   return [clock, `#${EVENT}`, what, ...carried.map((name) => textProperty(name, fields[name.toLowerCase()]))]
@@ -87,18 +87,13 @@ const startOf = (day: string, clock: string) => {
 }
 
 /**
- * The events from `from` on, read out of the collected `#event` lines and sorted
- * by start: every line written on a day from `from`, and the days a `repeats::`
- * puts a line on, up to `to`.
+ * The events from `from` on, sorted by start: every line on a
+ * day from `from`, and the days a `repeats::` adds, up to `to`.
  *
- * **A line's day is its note's**: an event lives in a daily note, which is how the
- * journal already says when something happened. A written line has no far bound —
- * a reminder is due by its own lead, however far off the day — and a repeating
- * one is followed to `to` **plus its own reminder lead**, so a weekly thing with a
- * fortnight's reminder is on the calendar's mind a fortnight before the page
- * reaches it. A repeat is dropped where a line already says the same thing — the
- * same clock and title on that day — so the sync writing next Monday's standup
- * does not double the one this Monday's repeats.
+ * A line's day is its note's. A written line has no far limit, since a
+ * reminder is due by its own lead. A repeat is followed to `to` plus its
+ * reminder lead. A repeat is dropped where a line already has the same
+ * clock and title that day, so a synced line and a repeat do not double.
  */
 export function readEvents(
   collected: readonly CollectedNote[],
@@ -145,7 +140,7 @@ const PLAIN: Record<string, Frequency> = {
 }
 const UNITS: Record<string, Frequency> = { day: 'DAILY', week: 'WEEKLY', month: 'MONTHLY', year: 'YEARLY' }
 
-/** The weekdays a phrase names — `Monday`, `Mon`, `Mondays` — as whole words. */
+/** The weekdays a phrase names (`Monday`, `Mon`, `Mondays`), as whole words. */
 function weekdaysIn(text: string): number[] {
   return WEEKDAY_NAMES.map((name, day) =>
     new RegExp(`\\b(${name}s?|${name.slice(0, 3)})\\b`, 'i').test(text) ? day : -1
@@ -153,9 +148,9 @@ function weekdaysIn(text: string): number[] {
 }
 
 /**
- * A `repeats::` value as a rule: `daily`, `everyday`, `weekly`, `monthly`,
- * `yearly`, `every 2 weeks`, `weekly on Monday, Thursday`, `every Tuesday`,
- * `Mondays`. Anything else is a note to the reader and repeats nothing.
+ * A `repeats::` value as a rule: `daily`, `everyday`, `weekly`,
+ * `monthly`, `yearly`, `every 2 weeks`, `weekly on Monday, Thursday`,
+ * `every Tuesday`, `Mondays`. Anything else repeats nothing.
  */
 export function parseRepeats(text: string): Recurrence | null {
   const value = text.trim().toLowerCase()
@@ -195,7 +190,7 @@ export function leadOf(reminder: string): number | null {
   return Number(m[1]) * unit
 }
 
-/** The events whose reminder has come due and whose start has not passed. */
+/** The events whose reminder is due and whose start has not passed. */
 export function dueReminders(events: readonly CalendarEvent[], now: number): CalendarEvent[] {
   return events.filter((one) => {
     const lead = leadOf(one.fields.reminder ?? '')
@@ -205,16 +200,15 @@ export function dueReminders(events: readonly CalendarEvent[], now: number): Cal
 
 // ---------------------------------------------------------------------------
 // Writing an occurrence as a line
+// ---------------------------------------------------------------------------
 
 /**
- * An occurrence as the line the sync writes (`eventText`), in the vault's own
- * structure. A multi-day event is written once, on the day it starts.
+ * An occurrence as the line the sync writes (`eventText`), in the vault's
+ * structure. An event over several days is written once, on its first day.
  *
- * **No `repeats::`, on purpose.** The feed already says when each occurrence is,
- * with its count, its end and the instances that were moved or dropped, and the
- * sync writes each on its day; a `repeats:: daily` on those lines would have
- * the calendar carry a series on past the day the feed ends it. `repeats::` is
- * how a line *typed* into a note says it recurs, where there is no feed to ask.
+ * No `repeats::`: the feed already gives every occurrence, and the
+ * sync writes each on its day. A `repeats::` would carry a series past
+ * the day the feed ends it. `repeats::` is for lines typed by hand.
  */
 export function eventLine(properties: readonly string[], { event, start, end }: Occurrence, source: string): string {
   const sameDay = end && end.getTime() > start.getTime() && localDateStamp(end) === localDateStamp(start)
@@ -233,36 +227,35 @@ export function eventLine(properties: readonly string[], { event, start, end }: 
 }
 
 /**
- * Whether a line says nothing but what its values hold — the line the sync wrote,
- * as it wrote it. A line someone has added words to is theirs, and the sync never
- * takes it out: rewritten from its own values, it would come out different.
+ * Whether a line holds nothing but its values, as the sync wrote it. A
+ * line with added words is the owner's, and the sync never removes it.
  */
 export function untouched(format: EventFormat, line: string): boolean {
   return line.trim() === eventText(format.properties, readEvent(line, format.typeOf))
 }
 
-/** What makes two *lines* one event, read the way the calendar reads them. */
+/** What makes two lines one event, as the calendar reads them. */
 export function lineKey(typeOf: (name: string) => PropertyType, line: string): string {
   return eventKey({ day: '', ...readEvent(line, typeOf) })
 }
 
 // ---------------------------------------------------------------------------
 // The month page
+// ---------------------------------------------------------------------------
 
 /** `YYYY-MM` of a day. */
 export const monthOf = (day: string) => day.slice(0, 7)
 
-/** `YYYY-MM`, `months` on from `month` (negative for back). */
+/** `YYYY-MM`, `months` after `month` (negative for before). */
 export function shiftMonth(month: string, months: number): string {
   const [y, m] = month.split('-').map(Number)
   return monthOf(localDateStamp(new Date(y, m - 1 + months, 1)))
 }
 
 /**
- * The locale's first day of the week, 0 Sunday … 6 Saturday, asked of `Intl`
- * rather than assumed: Sunday in the US, Monday in most of Europe and India,
- * Saturday in parts of the Middle East. `WEEK_START` where the engine cannot say,
- * which is also the week `recurrences` steps.
+ * The locale's first weekday, 0 Sunday … 6 Saturday, from `Intl`:
+ * Sunday in the US, Monday in most of Europe and India, Saturday in
+ * parts of the Middle East. `WEEK_START` when the engine cannot say.
  */
 export function firstWeekday(language = globalThis.navigator?.language): number {
   try {
@@ -278,8 +271,10 @@ export function firstWeekday(language = globalThis.navigator?.language): number 
   }
 }
 
-/** Every day on a month's page: whole weeks, from the one holding the 1st to the
- *  one holding the last, so the page is always seven wide. */
+/**
+ * Every day on a month's page: whole weeks from the one with the
+ * 1st to the one with the last, so the page is always seven wide.
+ */
 export function monthGrid(month: string, firstDay: number): string[] {
   const first = dayDate(`${month}-01`)
   const last = new Date(first.getFullYear(), first.getMonth() + 1, 0)

@@ -15,15 +15,15 @@ import {
 } from './terminal'
 
 /**
- * **The one mono face both the canvas and the DOM agree on.** xterm measures a cell
- * with a canvas and draws the glyphs with CSS, and the two resolve a font stack
- * differently: CSS reads `ui-monospace` as SF Mono, the canvas does not know the
- * keyword and falls through to Menlo — so the cells were Menlo-wide and the glyphs
- * SF-Mono-narrow, and every line sat in a grid too loose for it. Reported as the
- * font and formatting being off. So the stack is walked for the first *named*
- * family the canvas can render (measured against a serif fallback, since
- * `monospace` *is* Menlo here and would hide it), and that one name is handed to
- * xterm for both. Menlo is what a stock Mac lands on — Terminal.app's own face.
+ * The one mono face the canvas and the page agree on.
+ *
+ * xterm measures cells with a canvas and draws glyphs with CSS. CSS reads
+ * `ui-monospace` as SF Mono; the canvas does not know it and falls back to Menlo.
+ * The cells were Menlo-wide and the glyphs narrower, so lines sat in a loose grid.
+ *
+ * So the stack is walked for the first named family the canvas can
+ * draw (tested against a serif, since `monospace` is Menlo here),
+ * and that one name goes to xterm. A stock Mac lands on Menlo.
  */
 function monoFace(stack: string): string {
   const canvas = document.createElement('canvas').getContext('2d')
@@ -43,26 +43,20 @@ function monoFace(stack: string): string {
 }
 
 /**
- * The terminal's look, read off the page. xterm paints to a canvas and cannot see
- * a CSS token, so the tokens are read here from the element the terminal sits in —
- * the pane's own computed ground, text tiers, accent, face and size — and handed
- * over as its theme. Read at mount and again when the scheme changes, so the
- * terminal is the page's colours and never a black box in it. The ANSI hues a
- * program names come from `ANSI`, see there.
+ * The terminal's colours, face and size, read off the page. xterm draws to a canvas
+ * and cannot read CSS tokens, so they are read here from the pane and passed as its
+ * theme. Read at mount and when the scheme changes. The ANSI colours come from `ANSI`.
  */
 function themeFrom(el: HTMLElement) {
   const root = getComputedStyle(document.documentElement)
   const token = (name: string) => root.getPropertyValue(name).trim()
   const own = getComputedStyle(el)
   const dark = document.documentElement.getAttribute('data-theme') !== 'light'
-  // With nothing laid out — a test — the default reading size.
+  // With nothing laid out (a test), the default reading size.
   const size = parseFloat(own.fontSize) || DEFAULT_SETTINGS.proseSize
   /**
-   * A token, or a mix of one, as the `rgb()` xterm needs. The sheet's rule is that
-   * every colour is a token or a mix of one — a literal is right in one palette of
-   * twenty — and xterm takes strings, not `var()`. So the value is set on a hidden
-   * probe inside the pane and read back resolved, which is also what makes it
-   * follow the scheme: the probe resolves against this element's own tokens.
+   * A token, or a mix of one, as the `rgb()` xterm needs. Set on a hidden
+   * probe inside the pane and read back, so it follows the scheme.
    */
   const resolve = (value: string) => {
     const probe = document.createElement('span')
@@ -76,11 +70,10 @@ function themeFrom(el: HTMLElement) {
     font: {
       family: monoFace(token('--font-mono')),
       size,
-      // Read off the pane, which states a terminal's own leading of 1 — see the
-      // sheet for why a paragraph's leading is what a grid cannot have.
+      // Read off the pane, which sets a terminal's own leading of 1.
       lineHeight: (parseFloat(own.lineHeight) || size) / size,
       weight: (own.fontWeight || 'normal') as FontWeight,
-      // The sheet's own strong weight: a canvas cannot read a token, so it is read here.
+      // The sheet's strong weight, read here because a canvas cannot read a token.
       bold: (token('--fw-strong') || 'bold') as FontWeight,
     },
     theme: {
@@ -90,13 +83,9 @@ function themeFrom(el: HTMLElement) {
       cursorAccent: own.backgroundColor,
       selectionBackground: token('--bg-active'),
       /**
-       * **Without these there is no scrollbar at all.** xterm 6 scrolls with its own
-       * element (`.xterm-scrollable-element`, VS Code's), whose slider is drawn only
-       * when the theme names a colour — the class sits at `invisible scrollbar
-       * vertical fade` otherwise, which is a terminal you can scroll and cannot see
-       * scrolling. Measured: `visible.scrollbar.vertical`, 14 wide, the moment this
-       * is set. A wash of the text tone rather than a flat token, because the slider
-       * lies *over* the output.
+       * Without these there is no scrollbar. xterm 6 scrolls its own element
+       * (`.xterm-scrollable-element`), whose slider is drawn only when the theme gives
+       * it a colour. A wash of the text colour, since the slider lies over the output.
        */
       scrollbarSliderBackground: resolve('color-mix(in srgb, var(--text) 16%, transparent)'),
       scrollbarSliderHoverBackground: resolve('color-mix(in srgb, var(--text) 28%, transparent)'),
@@ -108,28 +97,24 @@ function themeFrom(el: HTMLElement) {
   }
 }
 
-/** Lines of output the pane keeps to scroll back through. tmux keeps its own for a
- *  session that is reattached; this is what the window holds. */
+/** Lines of output the pane keeps. tmux keeps its own for a reattached session. */
 const SCROLLBACK_LINES = 5000
 
-/** Counts mounts, for each one's own channel — see `TerminalPane`. */
+/** Counts mounts, for each one's own channel; see `TerminalPane`. */
 let mounts = 0
 
 /**
- * One Terminal tab: the user's own login shell in the vault folder, and whatever is
- * typed into it. A shell that exits on its own says so and restarts on Enter rather
- * than looping on a shell that cannot start.
+ * One terminal tab: the owner's login shell in the vault folder.
+ * A shell that exits says so and restarts on Enter.
  *
- * **The pane attaches to a session; it does not own one.** With tmux there, the
- * session is the tmux server's and outlives both this pane and the window — so
- * mounting *reattaches* to whatever is running under `session` and unmounting
- * detaches. A session is open in exactly one tab: `terminalName` hands out a name
- * no open tab is showing, and `tabKey` will not open a second tab on one.
+ * The pane attaches to a session; it does not own one. tmux holds the
+ * session, so it outlives the pane and the window: mounting
+ * reattaches and unmounting detaches. `terminalName` hands out a name
+ * no open tab shows, and `tabKey` will not open a second tab on one.
  *
- * **The events and commands go by the mount's own `id`**, not the session's name.
- * The spawn runs off the main thread, so a tab closed while it is under way sends
- * its detach first, for nothing yet; the spawn then lands and is detached as it
- * arrives — and by id, so that late detach cannot reach a newer tab on the session.
+ * Events and commands go by the mount's own `id`, not the session name. The
+ * spawn runs off the main thread, so a tab closed before it lands is detached
+ * on arrival, and by id, so it cannot reach a newer tab on the same session.
  */
 export function TerminalPane({ session, cwd }: { session: string; cwd: string }) {
   const container = useRef<HTMLDivElement>(null)
@@ -140,8 +125,8 @@ export function TerminalPane({ session, cwd }: { session: string; cwd: string })
   useEffect(() => {
     const el = container.current
     if (!el) return
-    // The *pane* carries the type and the ground; this box is the unpadded one
-    // xterm measures itself in — see the return below.
+    // The pane has the type and the ground; this box is the
+    // unpadded one xterm measures (see the return below).
     const look = themeFrom(el.parentElement ?? el)
     let disposed = false
     const id = `${session}-${++mounts}`
@@ -153,17 +138,13 @@ export function TerminalPane({ session, cwd }: { session: string; cwd: string })
       fontWeightBold: look.font.bold,
       letterSpacing: 0,
       /**
-       * Box-drawing and block characters drawn by xterm to fill the cell rather
-       * than taken from the font, so a border is a continuous line. **The default
-       * is already true and it does nothing here** — it is documented as not
-       * working with the DOM renderer, which is what runs with no WebGL or canvas
-       * addon loaded. Stated anyway, because it is the thing that would make a
-       * leading above 1 safe, and the next person to reach for one should find the
-       * reason it is not already on.
+       * xterm draws box and block characters itself so borders join. It
+       * is already on and has no effect with the DOM renderer; stated
+       * so the next person sees why a leading above 1 is not safe.
        */
       customGlyphs: true,
       theme: look.theme,
-      // The note's caret: a bar, two pixels, blinking — not a block.
+      // The note's caret: a two-pixel blinking bar, not a block.
       cursorStyle: 'bar',
       cursorWidth: 2,
       cursorBlink: true,
@@ -174,10 +155,8 @@ export function TerminalPane({ session, cwd }: { session: string; cwd: string })
     terminal.loadAddon(fit)
     terminal.open(el)
     fit.fit()
-    // **And again once the face has been measured.** `FitAddon` divides the box by
-    // the cell, and the cell is the font's: measured before the face is ready it
-    // came out narrower and fitted one row too many. Measured at 13/1.4 in a 356px
-    // box — 19 rows, 361px, the last clipped — against 18 after.
+    // Fit again once the face is measured. `FitAddon` divides the box by the
+    // cell, and measured before the face was ready it fitted one row too many.
     void document.fonts?.ready.then(() => {
       if (!disposed) fit.fit()
     })
@@ -187,9 +166,8 @@ export function TerminalPane({ session, cwd }: { session: string; cwd: string })
     let unlistenOutput: (() => void) | undefined
     let unlistenExit: (() => void) | undefined
 
-    // The config has to be on disk before the server reads it, and the server
-    // starts with the first session — so this is on the way in, every time, and
-    // declines when the vault already has one.
+    // The config must be on disk before the tmux server starts with the first session,
+    // so it is written on the way in. Skipped when the vault already has one.
     const start = () =>
       ensureTmuxConfig(cwd)
         .catch(() => {})
@@ -202,9 +180,9 @@ export function TerminalPane({ session, cwd }: { session: string; cwd: string })
         .catch((err: unknown) => terminal.writeln(`Could not start a shell: ${String(err)}`))
     void start()
 
-    // `disposed` is re-read on arrival, not captured: a tab closed right after it
-    // mounts runs the cleanup while these are in flight, and a listener stored
-    // then would stay registered for the window's life.
+    // `disposed` is read on arrival, not captured: a tab closed
+    // right after mount runs its cleanup while these are in flight,
+    // and a listener stored then would stay for the window's life.
     void onTerminalOutput(id, (chunk) => {
       if (!disposed) terminal.write(chunk)
     }).then((fn) => (disposed ? fn() : (unlistenOutput = fn)))
@@ -222,7 +200,7 @@ export function TerminalPane({ session, cwd }: { session: string; cwd: string })
       writeTerminal(id, data).catch(() => {})
     })
 
-    // The pane's box follows the split it is in; the grid follows the box.
+    // The pane's box follows its split; the grid follows the box.
     const resized = new ResizeObserver(() => {
       if (el.clientWidth === 0 || el.clientHeight === 0) return
       fit.fit()
@@ -230,7 +208,7 @@ export function TerminalPane({ session, cwd }: { session: string; cwd: string })
     })
     resized.observe(el)
 
-    // The scheme changing repaints the page; the terminal repaints with it.
+    // A scheme change repaints the page; the terminal repaints with it.
     const themed = new MutationObserver(() => {
       const next = themeFrom(el)
       terminal.options.theme = next.theme
@@ -257,18 +235,14 @@ export function TerminalPane({ session, cwd }: { session: string; cwd: string })
   }, [session, cwd])
 
   /**
-   * **The pane pads; the box xterm opens into does not.** `FitAddon` divides the
-   * *parent's* computed height by the cell, and with `box-sizing: border-box` that
-   * height includes the padding — so a padded host fitted a row that had nowhere to
-   * go and clipped it. Measured: 19 rows in a box with 356px inside it, 18 through
-   * this wrapper.
+   * The pane pads; the box xterm opens in does not. `FitAddon`
+   * divides the parent's height, padding included, by the cell,
+   * so a padded box fitted a row too many and clipped it.
    */
   return (
     <div className="terminal-pane" onMouseDown={() => term.current?.focus()}>
-      {/* **A fallback says so.** Without tmux the shell is this app's own child and
-          dies with the window, which is what every session used to do — and an
-          operation that quietly does less than it says is this project's most
-          repeated bug. One line, only when it is true. */}
+      {/* Say when it falls back. Without tmux the shell is the app's
+          own child and dies with the window. One line, only when true. */}
       {persists === false && (
         <p className="terminal-note">
           tmux was not found, so this session ends when the app closes. Install it to

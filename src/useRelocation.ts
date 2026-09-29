@@ -21,18 +21,16 @@ import type { useVaultTexts } from './useVaultTexts'
 const NAMED = 3
 
 /**
- * The operations that change where a note is, and what each one drags along.
+ * The operations that change where a note is, and what each one carries along.
  *
- * **What a relocation *is*, said once**: the buffer follows the note it was
- * holding, the note's `path:` is rewritten to where it now is (see
- * `writePathProperty`), and every link that pointed at it is rewritten too. A move
- * and a rename differ only in the call that does the moving; a *folder* takes every
- * note under it along, so the whole subtree is rewritten — a lot of files for one
- * drag, and the price of the property being true. The write happens after
- * `mutate`'s refresh, so the tree it reads is the one the move produced.
+ * A relocation means: the buffer follows its note, the note's `path::` is
+ * rewritten (`writePathProperty`), and every link to it is rewritten. A
+ * move and a rename differ only in the call. A folder takes every note
+ * under it, so the whole subtree is rewritten. The writes happen after
+ * `mutate`'s refresh, so they read the tree the move produced.
  *
- * `notes` and `noteIndex` are the vault **as it was** when the handler was made —
- * which is what still resolves `[[Roadmap]]` once `Roadmap.md` has another name.
+ * `notes` and `noteIndex` are the vault as it was, which is what
+ * still resolves `[[Roadmap]]` after `Roadmap.md` is renamed.
  */
 export function useRelocation({
   vault,
@@ -43,24 +41,22 @@ export function useRelocation({
   onMoved,
 }: {
   vault: ReturnType<typeof useVault>
-  /** Every open note's buffer, addressed as one. */
+  /** Every open note's buffer. */
   buffer: BufferSet
   notes: ReturnType<typeof useVaultTexts>['notes']
   noteIndex: ReturnType<typeof useVaultTexts>['noteIndex']
   setError: (message: string | null) => void
-  /** The workspace's half of a move: a tab follows the note it holds. */
+  /** The workspace's part of a move: a tab follows its note. */
   onMoved: {
     file: (was: string, moved: VaultFile) => void
     folder: (oldPrefix: string, newPrefix: string, moves: NoteMoves) => void
   }
 }) {
   /**
-   * Notes that are there and could not be read, each left as it was — a `path:`
-   * not rewritten, a link not followed — and that is worth saying. **Which note, by
-   * name**, because a count alone is a fact with nothing to do about it — asked, in
-   * as many words, *"what happened?"*. An **encrypted** note is never in this list:
-   * it was reported on every rename, a banner about a permanent condition (*"that's
-   * an unnecessary callout"*), and nothing writes into one anyway.
+   * Notes that exist but could not be read, left as they were (`path::`
+   * not rewritten, links not followed). Named, since a count alone
+   * gives nothing to act on. Locked notes are never listed: nothing
+   * writes into them, and naming them on every rename was noise.
    */
   function sayUnread(paths: readonly string[]) {
     const unread = [...new Set(paths)]
@@ -70,8 +66,10 @@ export function useRelocation({
     setError(`${names}${rest} could not be read, so nothing in ${unread.length === 1 ? 'it' : 'them'} was changed.`)
   }
 
-  /** See `retargetVaultLinks` for the one case it stays quiet about. `unread` is
-   *  what the `path:` half of the same move could not read. */
+  /**
+   * See `retargetVaultLinks` for what it does not report. `unread`
+   * is what the `path::` half of the same move could not read.
+   */
   async function followLinks(moves: Map<string, VaultFile>, unread: readonly string[]) {
     const skipped = await retargetVaultLinks(notes, moves, noteIndex).catch((err: unknown) => {
       setError(String(err))
@@ -81,13 +79,10 @@ export function useRelocation({
   }
 
   /**
-   * Where each note under a renamed or moved folder used to be.
-   *
-   * A prefix swap, and the folder's **own note** is the exception: its name changed
-   * with the folder's, so `Plans/Plans.md` became `Roadmaps/Roadmaps.md` and no
-   * prefix swap finds it. Matched **by name** — `<folder>/<folder>.md` — which is
-   * the pairing `renameFolder` itself moves the note by, rather than by the walk's
-   * `note` field, which is not always filled in on the folder handed back.
+   * Where each note under a renamed or moved folder used to be. A
+   * prefix swap, except the folder's own note, whose name changed too
+   * (`Plans/Plans.md` became `Roadmaps/Roadmaps.md`). It is matched
+   * by name, `<folder>/<folder>.md`, as `renameFolder` moves it.
    */
   function folderMoves(was: string, now: VaultFolder): Map<string, VaultFile> {
     const wasName = baseName(was)
@@ -97,8 +92,8 @@ export function useRelocation({
       const wasPath = own ? `${was}/${wasName}.md` : `${was}${file.path.slice(now.path.length)}`
       moves.set(pathKey(wasPath), file)
     }
-    // The folder's own note **whether or not it is on disk**: browsing a folder
-    // leaves it unwritten (CLAUDE.md), and the editor may be holding exactly that.
+    // The folder's own note, on disk or not: browsing a folder
+    // does not write it, and the editor may hold it.
     moves.set(pathKey(`${was}/${wasName}.md`), folderNoteRef(now))
     return moves
   }
@@ -107,22 +102,20 @@ export function useRelocation({
     buffer.followFile(was, now)
     onMoved.file(was, now)
     const unread = await writePathProperty([now])
-    // The property just changed the open note's bytes, and the editor is holding
-    // what they were before it — see `reread`.
+    // The property changed the open note's bytes, and the editor
+    // holds the old text; see `reread`.
     await buffer.reread(now)
     await followLinks(new Map([[pathKey(was), now]]), unread)
   }
 
   const relocateFolder = (was: string) => async (now: VaultFolder, root: VaultFolder | null) => {
-    // **The folder is read back out of the tree the move produced.** What the
-    // operation hands back is `{...folder, path, name}` — accurate about the folder
-    // and stale about everything under it — so a `path:` rewritten from those
-    // children named where they used to be, and a link into one of them found no
-    // move to follow.
+    // Read the folder back from the tree the move produced. The
+    // operation returns the folder with new paths but its
+    // children's old ones, so rewrites from those named old places.
     const moved = folderAt(root, now.path) ?? now
     const moves = folderMoves(was, moved)
-    // Before the writes: the buffer is holding one of these paths, and a folder
-    // rename changed the folder note's own basename — see `followFolder`.
+    // Before the writes: the buffer may hold one of these paths, and a
+    // folder rename changes its own note's name; see `followFolder`.
     buffer.followFolder(was, moved.path, moves)
     onMoved.folder(was, moved.path, moves)
     const unread = await writePathProperty(existingNotesIn(moved))
@@ -131,12 +124,9 @@ export function useRelocation({
   }
 
   /**
-   * Deleting, and the order that matters.
-   *
-   * The pending save is **discarded, not flushed**, and before the delete — so the
-   * debounce cannot fire during it. `mutate` flushes, and writing a pending edit
-   * would recreate the note just after deleting it. For a folder the discard is a
-   * prefix match, so a queued edit to any note *inside* it goes too.
+   * Deleting. The pending save is dropped, not written, and before the delete,
+   * so it cannot fire during it; `mutate` flushes, and writing it would bring
+   * the note back. For a folder, every queued save inside it is dropped.
    */
   async function confirmAndDelete(
     message: string,
@@ -149,12 +139,14 @@ export function useRelocation({
   }
 
   return {
-    /** The after-half of a move, for a caller composing its own mutation — a note
-     *  converted and something moved into it is one write, and the moved thing
-     *  still needs following. Handed out rather than duplicated. */
+    /**
+     * The second half of a move, for a caller making its own
+     * change: a note converted and something moved into it is
+     * one write, and the moved thing still needs following.
+     */
     relocateFile,
     relocateFolder,
-    /** For the other writers of `path:` — a note made, a note converted. */
+    /** For the other writers of `path::`: a new note, a converted note. */
     sayUnread,
     moveFile: (file: VaultFile, to: string) =>
       vault.mutate((v) => moveFile(file, v, to), relocateFile(file.path)),
@@ -169,10 +161,8 @@ export function useRelocation({
         deleteFile(file)
       ),
     /**
-     * Every note picked in the left pane, behind **one** question — which is the
-     * whole point of picking a set. Serial rather than together: a failure part way
-     * through leaves a state that can be read off the tree, where twenty writes in
-     * flight leave one that cannot.
+     * Every picked note behind one question. One after another, not together: a failure
+     * part way leaves a state the tree shows, where twenty writes at once do not.
      */
     deleteFiles: (files: readonly VaultFile[]) =>
       confirmAndDelete(

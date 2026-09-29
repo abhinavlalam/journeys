@@ -1,9 +1,6 @@
-// What `[[`, `/` and a tag's line open, and how the popup they share looks.
-//
-// CodeMirror's own autocomplete draws both: it places the tooltip, moves the
-// selection on the arrows, takes Enter and dismisses on Escape. So there is no
-// popup component in this app and no keyboard handling — a source answers what to
-// offer, and `completionAppearance` says what it looks like.
+// What `[[`, `/` and a tag's line offer, and how their popup looks.
+// CodeMirror's autocomplete draws the popup and handles its keys; a
+// source says what to offer, and `completionAppearance` how it looks.
 
 import { EditorView } from '@codemirror/view'
 import type { Completion, CompletionContext, CompletionResult } from '@codemirror/autocomplete'
@@ -15,12 +12,7 @@ import { propertiesOf, TAG, tagNames } from './tags'
 import type { Entries } from './configEntries'
 import type { VaultFile } from './vaultModel'
 
-/**
- * The block commands `/` offers, and the markdown each one writes.
- *
- * A flat list on purpose: these are the blocks a note is actually made of, and a
- * menu short enough to read needs no grouping.
- */
+/** The block commands `/` offers, and the markdown each writes. */
 const BLOCKS: readonly { label: string; detail: string; insert: string }[] = [
   { label: 'Heading 1', detail: '#', insert: '# ' },
   { label: 'Heading 2', detail: '##', insert: '## ' },
@@ -34,16 +26,9 @@ const BLOCKS: readonly { label: string; detail: string; insert: string }[] = [
 ]
 
 /**
- * What `/` offers **in the middle of a sentence**, where a block command cannot go.
- *
- * `# ` halfway through a line is not a heading, it is a hash — so the block list is
- * offered only where a block can start, and this list is offered everywhere. A link
- * to today's page is the first of them: it is the one thing a journal refers to
- * constantly and the only way to write it was to know today's date and type it.
- *
- * The link carries the **folder** — `[[Daily/2026-09-16]]` — so that following it
- * makes the note in the daily folder rather than at the root. It still *reads* as
- * the date, because a link reads as its name.
+ * What `/` offers in the middle of a sentence, where a block cannot start. First, a
+ * link to today's page. It carries the folder (`[[Daily/2026-09-16]]`), so
+ * following it makes the note in the daily folder; it still reads as the date.
  */
 function inlineOptions(dailyFolder: string): Completion[] {
   const today = localDateStamp()
@@ -56,28 +41,19 @@ function inlineOptions(dailyFolder: string): Completion[] {
     {
       label: 'Now',
       detail: localTimeStamp(),
-      // **The trailing space is part of the stamp**, and for the reason
-      // `insertTimeKeymap` gives: `LEADING_CLOCK` wants whitespace or the line end
-      // after the time, so a caret left tight against it turns `09:41` into `09:41w`
-      // on the next keystroke and the mark goes out. Same string as ⌘⇧T writes —
-      // one act, one spelling.
+      // The trailing space is part of the stamp, as in `insertTimeKeymap`: without
+      // it the next key turns `09:41` into `09:41w`. Same text as ⌘⇧T writes.
       apply: `${localTimeStamp()} `,
     },
   ]
 }
 
 /**
- * The `/` menu, on the same completion machinery as the `[[` picker — so CodeMirror
- * draws both, and there is one popup in this app rather than two.
+ * The `/` menu, in the same popup as `[[`.
  *
- * **It opens wherever a `/` opens a word**, the rule a tag's `#` has: at the start
- * of a line, or after a space. That guard is what keeps `http://` and
- * `Areas/Northwind` from opening a menu — the old rule was "first thing on the
- * line", which kept them out by keeping the menu out of a sentence altogether.
- *
- * What it offers depends on where it is. A block command writes `# ` or `- `, which
- * is only a block at the start of a line; mid-sentence those are punctuation. So the
- * blocks are offered where a block can begin and the inline ones everywhere.
+ * It opens where a `/` starts a word, as a tag's `#` does: at a line's start or
+ * after a space, so `http://` and `Areas/Northwind` open nothing. Block commands (`#
+ * `, `- `) are offered only where a block can begin; the inline ones everywhere.
  */
 export function slashSource(getDailyFolder: () => string) {
   return (context: CompletionContext): CompletionResult | null => {
@@ -85,7 +61,7 @@ export function slashSource(getDailyFolder: () => string) {
     if (!before) return null
     const line = context.state.doc.lineAt(before.from)
     const ahead = line.text.slice(0, before.from - line.from)
-    // A `/` has to open a word, or every URL and every path is a menu.
+    // A `/` must start a word, or every URL and path opens the menu.
     if (ahead !== '' && !/\s$/.test(ahead)) return null
 
     const query = before.text.slice(1).toLowerCase()
@@ -105,46 +81,32 @@ export function slashSource(getDailyFolder: () => string) {
 }
 
 /**
- * The `[[` note picker, as a CodeMirror completion source.
+ * The `[[` popup. `matchNotes` has ranked the notes, hence
+ * `filter: false`. It writes `[[Name]]`, which `links.ts` reads.
  *
- * CodeMirror's own autocomplete draws the popup, moves the selection on the arrows,
- * takes Enter and dismisses on Escape — so there is no popup component here, and no
- * keyboard handling. `matchNotes` has already ranked the notes, hence `filter: false`.
+ * `to` reaches over a `]]` already there: typing `[[` closes its
+ * own pair, and replacing only `[[query` would write `[[Name]]]]`.
  *
- * It inserts `[[Name]]`, which is what Obsidian writes and what `links.ts` reads.
- * There is no serialiser to escape it any more, so the plainest thing is also the
- * correct one.
- *
- * Two things beyond ranking the notes.
- *
- * `to` reaches over a `]]` that is already there. Typing `[[` closes its own pair,
- * so the usual way into this popup leaves the caret between four brackets — and a
- * completion that replaced only `[[query` would write `[[Name]]]]`.
- *
- * And the last option is the **note that does not exist**: a link is written before
- * the thing it points at, which is the whole of how a vault grows. Offered whenever
- * what has been typed is not already a note's name, so `[[Landmark Plaza]]` can be
- * made from the popup rather than by escaping out of it and closing the brackets by
- * hand. Following it is what creates the note — see `openLinkTarget`.
+ * The last option is a note that does not exist yet, whenever the
+ * typed text is not a note's name, so a link can be written before
+ * its note. Following it makes the note (`openLinkTarget`).
  */
 export function wikiLinkSource(getNotes: () => VaultFile[]) {
   return (context: CompletionContext): CompletionResult | null => {
     const before = context.matchBefore(/\[\[[^\]\n]*/)
     if (!before) return null
     const query = before.text.slice(2)
-    // The cap is `matchNotes`'s own — a second copy of it here was the same number
-    // written twice, and a popup's length is that function's business.
+    // The limit is `matchNotes`'s own.
     const matches = matchNotes(query, getNotes())
     const options = matches.map((match) => ({
       label: match.note.name,
-      // The path the tree calls it, not the file's own: a nested note's file sits
-      // at `Areas/Northwind/Northwind.md`, and offering *that* as where the page
-      // is names a row nobody can see. No `.md` either — a link never carries one.
+      // The path the tree shows, not the file's: a nested note's file is
+      // `Areas/Northwind/Northwind.md`. No `.md`; a link never carries one.
       detail: knownPath(match.note.path),
       apply: `[[${match.note.name}]]`,
     }))
-    // Not offered for a note that is already there under that spelling — by name or
-    // by the path a name with a `/` in it is asking for.
+    // Not offered when a note already has that name, or that
+    // path for a name with a `/`.
     const typed = query.trim()
     const lower = typed.toLowerCase()
     const known = matches.some(
@@ -167,11 +129,10 @@ export function wikiLinkSource(getNotes: () => VaultFile[]) {
 }
 
 /**
- * **The properties a tag takes, offered on its line**: every one the moment
- * `#expense ` is typed, and then as a name is — `cu`, which CodeMirror narrows to
- * `currency` — each written `currency:: ` by Tab. Only the ones the line does not
- * carry yet, and never while a value is being typed: after a `name::`, or inside
- * quotes. The detail is the property's type, which says how to write the value.
+ * A tag's properties, offered on its line: all of them once `#expense `
+ * is typed, then narrowed as a name is typed. Tab writes `currency:: `.
+ * Only those the line does not have yet, and never inside a value
+ * (after `name::`, or in quotes). The detail is the property's type.
  */
 const TYPING_NAME = new RegExp(`${PROPERTY_NAME}$`)
 const AFTER_TAG = new RegExp(String.raw`${TAG.source}\s$`)
@@ -182,8 +143,8 @@ export function propertySource(getTags: () => Entries, getTypes: () => Entries) 
     const before = line.text.slice(0, context.pos - line.from)
     const typed = TYPING_NAME.exec(before)?.[0] ?? ''
     const lead = before.slice(0, before.length - typed.length)
-    // A name starts after a space, and not in a value: straight after `name::`, or
-    // inside a `[[` or a quote still open. With nothing typed, only after the tag.
+    // A name starts after a space, and not in a value: right after `name::`, or
+    // inside an open `[[` or quote. With nothing typed, only right after the tag.
     const inValue = /::\s*$|\[\[[^\]]*$/.test(lead) || (lead.match(/["“”]/g) ?? []).length % 2 === 1
     if (!/\s$/.test(lead) || inValue || (!typed && !AFTER_TAG.test(before))) return null
     const typeOfName = (name: string) => typeOf(getTypes(), name)
@@ -198,16 +159,9 @@ export function propertySource(getTags: () => Entries, getTypes: () => Entries) 
 }
 
 /**
- * The completion popup, as a CodeMirror theme rather than rules in `index.css`.
- *
- * Twice these were written as ordinary CSS and twice they lost: CodeMirror injects
- * its own base theme at runtime, so equal-specificity rules in this project's sheet
- * are overridden by whatever it inserts later. A theme is scoped by CodeMirror onto
- * its own elements, so it wins by construction. **The values still come from the
- * sheet** — its tokens and its one set of gaps — because moving the cascade is not
- * a licence to invent sizes: these had a `4px` radius where the sheet has one, a
- * `0.85em` step-down where the sheet has one at `0.92em`, and two paddings in
- * numbers nothing else uses. `stylesheet.test.ts` reads this block for that now.
+ * The popup's look, as a CodeMirror theme rather than `index.css`: CodeMirror adds its
+ * base theme after the sheet, and equal rules in the sheet lost twice. The values
+ * still come from the sheet's tokens and gaps; `stylesheet.test.ts` reads this block.
  */
 export const completionAppearance = EditorView.theme({
   '.cm-tooltip.cm-tooltip-autocomplete': {
@@ -241,7 +195,7 @@ export const completionAppearance = EditorView.theme({
     color: 'var(--text)',
   },
   '.cm-completionLabel': { flex: '1', minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  // Weight, not colour: `--accent-soft` on a selected row measures 4.09:1.
+  // Weight, not colour: the accent on a selected row measured 4.09:1.
   '.cm-completionMatchedText': { textDecoration: 'none', fontWeight: 'var(--fw-strong)' },
   '.cm-completionDetail': {
     flex: 'none',
@@ -254,7 +208,7 @@ export const completionAppearance = EditorView.theme({
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
-  // No completion sets a `type`, so the icon column is empty.
+  // No icon column; the detail says the type.
   '.cm-completionIcon': { display: 'none' },
 
 })

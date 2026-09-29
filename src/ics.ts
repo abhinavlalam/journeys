@@ -1,49 +1,47 @@
 // An iCalendar feed, read for the days ahead.
 //
-// Google gives every calendar a private address whose body is this format, and
-// that address is the whole of the integration: no OAuth, no API, no token to keep.
-// The feed is read the way `csvPreview` reads a CSV — **a scan, not a library** —
-// because what the calendar wants of it is small: each event's name, when, where,
-// with whom, how it repeats and how long before it a reminder is wanted.
+// Google gives each calendar a secret address serving this format, so there is no
+// OAuth, API or token. It is read with a scan, not a library, since the calendar
+// needs little: each event's name, time, place, guests, repeat rule and reminder.
 //
-// What is deliberately not read: `BYMONTHDAY`, `BYSETPOS`, an ordinal `BYDAY`
-// ("the second Tuesday") and `WKST`. A rule the scan cannot follow falls back to
-// the event's own date and its interval, which puts the event on the calendar on
-// the wrong day rather than nowhere — and the source calendar is one click away.
+// Not read: `BYMONTHDAY`, `BYSETPOS`, a numbered `BYDAY` ("the second Tuesday") and
+// `WKST`. A rule the scan cannot follow falls back to the event's date and
+// interval, so the event lands on the wrong day rather than nowhere.
 
-/** One `VEVENT`, as much of it as the calendar reads. */
+/** One `VEVENT`, as much as the calendar reads. */
 export interface IcsEvent {
   uid: string
   summary: string
   location: string
   attendees: string[]
-  /** A local instant; for an all-day event, local midnight of its date. */
+  /** A local time; for an all-day event, local midnight of its date. */
   start: Date
-  /** Null when the feed gives none — an all-day event with no `DTEND` is one day. */
+  /** Null when the feed gives none; an all-day event with no `DTEND` is one day. */
   end: Date | null
   allDay: boolean
-  /** The zone its times are written in, `UTC` for one ending in `Z` — the clock its
-   *  rule repeats on. Null for a date or a floating time, which repeat on this
-   *  machine's. */
+  /**
+   * The zone its times are in (`UTC` for a `Z` time), whose clock its rule repeats
+   * on. Null for a date or a floating time, which repeat on this machine's clock.
+   */
   zone: string | null
-  /** The `RRULE` line's value, or `''`. */
+  /** The `RRULE` value, or `''`. */
   rrule: string
-  /** Starts the rule skips, as instants. */
+  /** Starts the rule skips. */
   exdates: number[]
-  /** For an edited instance of a repeating event: the start it stands in for. */
+  /** For an edited instance of a repeating event: the start it replaces. */
   recurrenceId: number | null
-  /** The first alarm's lead, as `reminderOf` spells it, or `''`. */
+  /** The first alarm's lead, as `reminderOf` writes it, or `''`. */
   reminder: string
   cancelled: boolean
 }
 
 export interface IcsFeed {
-  /** `X-WR-CALNAME`, which is what the calendar is called where it came from. */
+  /** `X-WR-CALNAME`: the calendar's name where it came from. */
   name: string
   events: IcsEvent[]
 }
 
-/** A long line is continued on the next by a leading space or tab. */
+/** A long line continues on the next after a leading space or tab. */
 const unfold = (text: string) => text.replace(/\r?\n[ \t]/g, '')
 const unescape = (text: string) =>
   text.replace(/\\([\;,nN])/g, (_, c: string) => (c === 'n' || c === 'N' ? '\n' : c))
@@ -54,8 +52,10 @@ interface ContentLine {
   value: string
 }
 
-/** `NAME;PARAM=one;OTHER="quoted:value":the value` — the first unquoted colon
- *  ends the head. */
+/**
+ * `NAME;PARAM=one;OTHER="quoted:value":the value`. The first
+ * unquoted colon ends the head.
+ */
 function contentLine(line: string): ContentLine | null {
   let at = 0
   let quoted = false
@@ -77,11 +77,9 @@ const DATE = /^(\d{4})(\d{2})(\d{2})$/
 const DATE_TIME = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z?)$/
 
 /**
- * An instant the feed names, as a local `Date`.
- *
- * Three spellings: a bare date (all day, and kept as a date — a birthday is the
- * same day everywhere), a time ending in `Z` (UTC), and a floating time that a
- * `TZID` parameter may place in a zone. Google writes the third.
+ * A time from the feed, as a local `Date`. Three forms: a bare date (all day, kept
+ * as a date, since a birthday is the same day everywhere), a time ending in `Z`
+ * (UTC), and a floating time a `TZID` may place in a zone. Google writes the third.
  */
 export function icsTime(value: string, params: Record<string, string>): { at: Date; allDay: boolean } | null {
   const date = DATE.exec(value)
@@ -94,8 +92,10 @@ export function icsTime(value: string, params: Record<string, string>): { at: Da
   return { at: tz ? zoned(y, mo, d, h, mi, s, tz) : new Date(y, mo, d, h, mi, s), allDay: false }
 }
 
-/** A zone's wall clock, both ways: `wall` reads an instant there, `instant` names
- *  the one a wall time there is. Wall times are written as UTC milliseconds. */
+/**
+ * A zone's wall clock, both ways: `wall` reads a time there, `instant` turns
+ * a wall time there into a time. Wall times are stored as UTC milliseconds.
+ */
 interface ZoneClock {
   wall: (instant: number) => number
   instant: (wall: number) => number
@@ -104,11 +104,10 @@ interface ZoneClock {
 const clocks = new Map<string, ZoneClock | null>()
 
 /**
- * A named zone's clock, with no zone table of our own — or null for a zone `Intl`
- * does not know, which then reads as local time, as a floating time would. `Intl`
- * can print an instant in a zone, so the wall time read as UTC is the first guess
- * at the instant, and a second pass corrects a guess that fell across a DST edge.
- * Kept per zone: a rule steps once per occurrence, and each formatter is costly.
+ * A named zone's clock with no zone table of our own, or null for a
+ * zone `Intl` does not know (read as local time). The wall time read as
+ * UTC is a first guess; a second pass fixes a guess across a DST
+ * change. Cached per zone, since each formatter is slow to make.
  */
 function clockIn(tz: string): ZoneClock | null {
   if (clocks.has(tz)) return clocks.get(tz)!
@@ -148,8 +147,10 @@ function zoned(y: number, mo: number, d: number, h: number, mi: number, s: numbe
   return clock ? new Date(clock.instant(Date.UTC(y, mo, d, h, mi, s))) : new Date(y, mo, d, h, mi, s)
 }
 
-/** `-P7D` → `7 days`, `-PT15M` → `15 minutes`, `-P1DT2H` → `1 day 2 hours`. A
- *  lead of nothing, or one the scan cannot read, is `''`. */
+/**
+ * `-P7D` → `7 days`, `-PT15M` → `15 minutes`, `-P1DT2H` → `1 day
+ * 2 hours`. Empty, or unreadable, is `''`.
+ */
 const DURATION = /^-?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/
 export function reminderOf(trigger: string): string {
   const m = DURATION.exec(trigger.trim())
@@ -172,7 +173,7 @@ const isResource = (params: Record<string, string>) => /^(RESOURCE|ROOM)$/i.test
 export function parseIcs(text: string): IcsFeed {
   const feed: IcsFeed = { name: '', events: [] }
   let event: IcsEvent | null = null
-  /** Inside a `VALARM` (or anything else nested in the event). */
+  /** Inside a `VALARM`, or anything else nested in the event. */
   let nested = 0
   const fresh = (): IcsEvent => ({
     uid: '',
@@ -211,7 +212,7 @@ export function parseIcs(text: string): IcsFeed {
       continue
     }
     if (nested > 0) {
-      // The first alarm's lead; an alarm at an absolute time is not a lead.
+      // The first alarm's lead. An alarm at a fixed time is not a lead.
       if (name === 'TRIGGER' && !params.VALUE && !event.reminder) event.reminder = reminderOf(value)
       continue
     }
@@ -264,27 +265,32 @@ export function parseIcs(text: string): IcsFeed {
 
 // ---------------------------------------------------------------------------
 // Repeating
+// ---------------------------------------------------------------------------
 
 export type Frequency = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY'
 
-/** How something repeats — an `RRULE`'s, or a `repeats::` a note wrote. */
+/** How something repeats: from an `RRULE`, or a note's `repeats::`. */
 export interface Recurrence {
   freq: Frequency
   interval: number
-  /** Weekdays (0 Sunday … 6 Saturday), for a weekly rule; empty means the start's. */
+  /** Weekdays (0 Sunday … 6 Saturday) for a weekly rule; empty means the start's. */
   byDay: number[]
   count: number | null
-  /** An instant, inclusive. */
+  /** Inclusive. */
   until: number | null
 }
 
 const WEEKDAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
 const FREQUENCIES: readonly Frequency[] = ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']
-/** The day a week is stepped from, as `Date` counts them: Monday, iCalendar's own
- *  `WKST` default — and the calendar's fallback where the locale cannot say. */
+/**
+ * The day weeks are stepped from, as `Date` counts: Monday,
+ * iCalendar's `WKST` default and the calendar's fallback.
+ */
 export const WEEK_START = 1
-/** A rule that never lands — the 31st of a month that has none, every month —
- *  would step forever; this is where the generator gives up instead. */
+/**
+ * A rule that never lands (the 31st, every month) would loop
+ * forever; the generator stops here.
+ */
 const MOST_STEPS = 100_000
 
 export function parseRule(rrule: string): Recurrence | null {
@@ -298,7 +304,7 @@ export function parseRule(rrule: string): Recurrence | null {
   return {
     freq,
     interval: Math.max(1, Number(parts.INTERVAL) || 1),
-    // `2TU` (the second Tuesday) is read as Tuesday — see the header.
+    // `2TU` (the second Tuesday) is read as Tuesday; see the top of the file.
     byDay: (parts.BYDAY ?? '')
       .split(',')
       .map((code) => WEEKDAY_CODES.indexOf(code.replace(/^[-+]?\d+/, '').toUpperCase()))
@@ -308,14 +314,15 @@ export function parseRule(rrule: string): Recurrence | null {
   }
 }
 
-/** Every start the rule names from `first` on, in order, at `first`'s own time of
- *  day — stepped on the calendar of `zone`, the event's own, or this machine's when
- *  it has none, so a 09:00 there stays 09:00 there across a DST change.
- *  Unbounded: the caller stops it. */
+/**
+ * Every start the rule gives from `first` on, in order, at `first`'s time
+ * of day. Stepped in `zone` (the event's, else this machine's), so 09:00
+ * there stays 09:00 across a DST change. Endless; the caller stops it.
+ */
 export function* recurrences(rule: Recurrence, first: Date, zone: string | null = null): Generator<Date> {
   const clock = zone ? clockIn(zone) : null
-  // The start as its clock reads it, written as UTC so the calendar arithmetic
-  // below is on dates no DST can move.
+  // The start as its clock reads it, stored as UTC, so the date
+  // sums below are not moved by DST.
   const start = new Date(
     clock
       ? clock.wall(first.getTime())
@@ -323,13 +330,13 @@ export function* recurrences(rule: Recurrence, first: Date, zone: string | null 
   )
   const [y, mo, d] = [start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()]
   const date = (yy: number, mm: number, dd: number) => new Date(Date.UTC(yy, mm, dd))
-  /** The instant a day's wall date names at the start's time of day. */
+  /** The time a wall date gives at the start's time of day. */
   const at = (day: Date) => {
     const [yy, mm, dd] = [day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate()]
     const [h, mi, s] = [start.getUTCHours(), start.getUTCMinutes(), start.getUTCSeconds()]
     return clock ? new Date(clock.instant(Date.UTC(yy, mm, dd, h, mi, s))) : new Date(yy, mm, dd, h, mi, s)
   }
-  // Weeks are stepped whole from `WEEK_START`, whichever day the rule was read on.
+  // Weeks are stepped whole from `WEEK_START`.
   const intoWeek = (day: number) => (day - WEEK_START + 7) % 7
   const days = rule.byDay.length ? [...rule.byDay].sort((a, b) => intoWeek(a) - intoWeek(b)) : [start.getUTCDay()]
   const weekStart = d - intoWeek(start.getUTCDay())
@@ -345,7 +352,7 @@ export function* recurrences(rule: Recurrence, first: Date, zone: string | null 
         }
         break
       case 'MONTHLY': {
-        // The 31st of a month that has thirty days is skipped, not rolled over.
+        // The 31st of a 30-day month is skipped, not rolled over.
         const day = date(y, mo + i * rule.interval, d)
         if (day.getUTCDate() === d) yield at(day)
         break
@@ -367,9 +374,9 @@ export interface Occurrence {
 }
 
 /**
- * Every occurrence in `[from, to)`, by start — a single event once, a repeating
- * one at each start its rule names less its `EXDATE`s, and an edited instance in
- * place of the start it overrides. A cancelled event is not one.
+ * Every occurrence in `[from, to)`, by start: a single event once, a
+ * repeating one at each start its rule gives minus its `EXDATE`s, with edited
+ * instances in place of the ones they replace. Cancelled events are left out.
  */
 export function occurrences(feed: IcsFeed, from: Date, to: Date): Occurrence[] {
   const overridden = new Set(

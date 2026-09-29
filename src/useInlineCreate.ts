@@ -6,26 +6,18 @@ import type { InlineCreate } from './FolderTree'
 import type { useVault } from './useVault'
 
 /**
- * Where a new note is going, and **which tree asked**. `convert` is set while its
- * folder does not exist yet: the note that will become one, if a name is committed.
- *
- * `owner` is there because two panes draw the same tree — the left pane's, and the
- * *Inside* section at the end of a nested note, which is `FolderTree` with the same
- * props. Both rendered the field, both autofocused it, the second blurred the first,
- * and a create abandons on blur: pressing `+` on a folder whose own note was open
- * opened a field and cancelled it in the same breath. A field belongs to the tree
- * the press happened in.
+ * Where a new note is going, and which tree asked. `convert` is set while
+ * its folder does not exist yet: the note that will become one if a name
+ * is committed. `owner` matters because two trees draw the same rows (the
+ * left pane's and a nested note's Inside section). Both drew the field,
+ * the second blurred the first, and a create abandons on blur.
  */
 type CreateTarget = { parentPath: string; convert?: VaultFile; owner: string; locked?: boolean } | null
 
 /**
- * Naming a new note in place — the field under a row that the tree's `+` opens.
- *
- * There is one kind of creation. A note with notes in it is a nested note, and
- * that is a state it is in rather than a thing to pick, so nothing here asks.
- * `App` owns the field because the `+` that starts it is in the header and the
- * field that finishes it is in the pane; `onStart` is what it does to the *other*
- * fields when this one opens — one box at a time.
+ * Naming a new note in place, in the field the tree's `+` opens. A note with
+ * notes in it is a nested note, a state it gets into, so nothing asks which kind.
+ * `App` owns the field. `onStart` closes the other fields when this one opens.
  */
 export function useInlineCreate({
   vault,
@@ -37,10 +29,12 @@ export function useInlineCreate({
 }: {
   vault: ReturnType<typeof useVault>
   openNote: (file: VaultFile) => Promise<void>
-  /** **Everything a new note is given** — its `path:`, an inherited icon. `App`
-   *  owns it, because a note is made in three places and all three must do it. */
+  /**
+   * Everything a new note is given: its `path::` and an inherited
+   * icon. `App` owns it, since notes are made in three places.
+   */
   onCreated: (file: VaultFile) => Promise<void>
-  /** Turns a plain note into a nested one, with everything that follows from it. */
+  /** Turns a plain note into a nested one, with everything that follows. */
   onConvert: (file: VaultFile, vaultPath: string) => Promise<VaultFile>
   onStart: () => void
   setError: (message: string | null) => void
@@ -48,20 +42,16 @@ export function useInlineCreate({
   const [target, setTarget] = useState<CreateTarget>(null)
   const [name, setName] = useState('')
   /**
-   * **A locked note is asked for its passphrase twice, in the name's own field.**
-   * Null while the name is being typed; then what is being typed, and the first
-   * answer once there is one. Twice, because there is no recovery: a slip of the
-   * finger here is a note nobody can open. Held for the question and nowhere else.
+   * A locked note asks for its passphrase twice, in the name's own field. Null while
+   * the name is typed; then the text being typed and the first answer once given.
+   * Twice, since a typo here is a note no one can open. Held only for the question.
    */
   const [phrase, setPhrase] = useState<{ typed: string; first: string | null } | null>(null)
 
   /**
-   * **Asking again is not a reason to start over.** Pressing the same `+` a second
-   * time reopened the field on an empty name — the press blurred the one that was
-   * up, which for a *create* abandons, and the handler then made a fresh one. So
-   * the half-typed name was gone and the box flickered. Reported from the running
-   * app. The `+` holds the focus on mousedown (see `FolderTree`), and this declines
-   * when the field is already asking the same question.
+   * Asking the same question again keeps the field. Pressing the same `+` twice
+   * blurred the field, which abandons a create, and the name typed so far was lost.
+   * The `+` keeps focus on mousedown (see `FolderTree`), and this refuses a repeat.
    */
   const asking = (next: NonNullable<CreateTarget>) =>
     target?.parentPath === next.parentPath &&
@@ -94,8 +84,8 @@ export function useInlineCreate({
     close()
     setError(null)
     try {
-      // No `onCreated`: a locked note is its owner's alone, so nothing is written
-      // into it — not a `path:`, not an inherited icon.
+      // No `onCreated`: nothing is written into a locked note,
+      // not a `path::` or an icon.
       const created = await createLockedNote(vault.vaultPath, typed, phrase.typed)
       await vault.refresh(vault.vaultPath)
       await openNote(created)
@@ -112,18 +102,15 @@ export function useInlineCreate({
     if (!asked || !vault.vaultPath || !typed) return
     setError(null)
     try {
-      // **Nothing happens on disk until a name is committed.** Converting on the
-      // click left an empty nested note behind every `+` somebody thought better
-      // of — a folder holding only its own note, drawn with an arrow as though it
-      // were full. The folder first, when the note going in is the one being given
-      // children.
-      // `App`'s, because everything holding the old path has to follow it — the
-      // buffer, the tab, the note's own `path:` — and a second caller of this
-      // (a file dropped on a plain note) must do all of it too.
+      // Nothing is written until a name is committed. Converting on
+      // the click left an empty nested note behind every cancelled
+      // `+`. The folder first, when the note is being given children.
+      //
+      // `App` converts, since everything holding the old path must follow
+      // (buffer, tab, `path::`), and a file dropped on a note needs the same.
       if (asked.convert) await onConvert(asked.convert, vault.vaultPath)
       const created = await createNote(vault.vaultPath, asked.parentPath, typed)
-      // Not `writePathProperty` alone: what a new note is given is `App`'s to say,
-      // and all three ways of making one now say the same thing.
+      // Through `App`, so all three ways of making a note give it the same things.
       await onCreated(created)
       await vault.refresh(vault.vaultPath)
       await openNote(created)
@@ -148,15 +135,17 @@ export function useInlineCreate({
   }
 
   return {
-    /** The field, for the tree to draw under its row — or nothing. */
+    /** The field, for the tree to draw under its row, or nothing. */
     create,
-    /** Ask for a name inside `parentPath`, `''` being the vault itself. `owner` is
-     *  the tree that asked — see `CreateTarget`. */
+    /**
+     * Ask for a name inside `parentPath` (`''` is the vault).
+     * `owner` is the tree that asked; see `CreateTarget`.
+     */
     start: (parentPath: string, owner = 'tree') => open({ parentPath, owner }),
-    /** A note inside a note that has no folder yet: converted when the name lands. */
+    /** A note inside a note with no folder yet: converted when the name lands. */
     startInside: (file: VaultFile, owner = 'tree') =>
       open({ parentPath: noteName(file.path), convert: file, owner }),
-    /** A locked note, at the top of the vault — see `createLockedNote`. */
+    /** A locked note at the top of the vault; see `createLockedNote`. */
     startLocked: () => open({ parentPath: '', owner: 'tree', locked: true }),
     cancel: close,
   }

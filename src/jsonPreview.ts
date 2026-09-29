@@ -1,14 +1,10 @@
 // Colour for a JSON file: what each token is, and how deep the brackets are.
 //
-// **A scan, not a grammar.** `@codemirror/lang-json` would bring a real parser and
-// a highlight style, and it would also bring a package for a job JSON makes easy:
-// its tokens are strings, numbers, three keywords and five punctuation marks, and
-// one regex reads all of them. The markdown pane hand-rolls its decorations for the
-// same reason, so this is the shape the app already has. What a grammar would add
-// on top is bracket *matching* and a parse error before you press Save.
+// A scan, not a grammar. JSON is strings, numbers, three keywords and five punctuation
+// marks, so one regex reads it, as the markdown pane builds its own decorations.
 //
-// **Pure**: a state and a span in, decorations out — which is what lets a test hand
-// it a whole document and read the marks back, without a layout.
+// Pure: a state and a span in, decorations out, so a test can
+// read the marks without a layout.
 
 import { Decoration, type DecorationSet } from '@codemirror/view'
 import type { EditorState } from '@codemirror/state'
@@ -16,22 +12,20 @@ import type { Range } from '@codemirror/state'
 import { decorated } from './EditorHost'
 
 /**
- * Every JSON token in one pattern, in the order that resolves them.
- *
- * The string case comes first and carries its own escapes — `[^"\\]|\\.` — so a
- * `"` inside a string cannot end it and a `:` inside one cannot make it a key.
- * Numbers before keywords is arbitrary; they cannot overlap.
+ * Every JSON token in one pattern. Strings come first with their escapes,
+ * so a `"` or `:` inside a string neither ends it nor makes it a key.
  */
 const TOKEN = /"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null|[{}[\]]/g
 
-/** How many bracket colours there are before the cycle repeats. */
+/** How many bracket colours before they repeat. */
 const DEPTHS = 3
 
 const MARK = {
   key: Decoration.mark({ class: 'cm-json-key' }),
-  /** The pair the caret is on, and a bracket that has no pair. Separate marks over
-   *  the same range as the depth mark below, which is what lets the pair be
-   *  highlighted without losing what depth it sits at. */
+  /**
+   * The pair the caret is on, and a bracket with no pair. Separate marks over the same
+   * range as the depth mark, so a pair is highlighted and keeps its depth colour.
+   */
   match: Decoration.mark({ class: 'cm-json-match' }),
   unmatched: Decoration.mark({ class: 'cm-json-unmatched' }),
   string: Decoration.mark({ class: 'cm-json-string' }),
@@ -43,22 +37,18 @@ const MARK = {
 }
 
 /**
- * The marks for `[from, to)`.
- *
- * Tokenising starts at the **top of the document** rather than at `from`, because
- * a bracket's colour is its nesting depth and depth is not visible in a span taken
- * out of the middle. Only tokens that reach `from` are marked. A config file is
- * small; if this ever meets a large one, the fix is to remember the depth at each
- * line rather than to colour a bracket wrongly.
+ * The marks for `[from, to)`. The scan starts at the top of the document, since
+ * a bracket's colour is its depth. Only tokens that reach `from` are marked.
+ * Config files are small; for a large one, keep the depth at each line.
  */
 export function jsonDecorations(state: EditorState, from: number, to: number): DecorationSet {
   const text = state.doc.sliceString(0, to)
   const found: Range<Decoration>[] = []
-  /** Every bracket the scan passed, in order: what and where. The pair for the
-   *  caret is read off this, so a brace *inside a string* can never be one — the
-   *  scan never offered it. `bracketMatching` from `@codemirror/language` counts
-   *  characters instead, and with no grammar to tell it what a string is, one brace
-   *  in a value shifts every pair after it. */
+  /**
+   * Every bracket the scan passed, in order. The caret's pair is read from this, so a
+   * brace inside a string is never one. CodeMirror's `bracketMatching` counts
+   * characters, and with no grammar one brace in a value shifts every pair after it.
+   */
   const brackets: { at: number; char: string }[] = []
   let depth = 0
 
@@ -68,7 +58,7 @@ export function jsonDecorations(state: EditorState, from: number, to: number): D
     const end = start + hit[0].length
     const token = hit[0]
 
-    // Closing brackets take the depth they closed, so a pair is one colour.
+    // A closing bracket takes the depth it closed, so a pair is one colour.
     if (token === '}' || token === ']') depth = Math.max(0, depth - 1)
     const mark = markFor(token, text, end, depth)
     if (token === '{' || token === '[') depth += 1
@@ -83,18 +73,16 @@ export function jsonDecorations(state: EditorState, from: number, to: number): D
   return Decoration.set(found, true)
 }
 
-/** Each bracket's other half, both ways round — which is also the test for "is
- *  this character a bracket at all". */
+/**
+ * Each bracket's other half, both ways, which also says whether
+ * a character is a bracket.
+ */
 const PARTNER: Record<string, string> = { '{': '}', '}': '{', '[': ']', ']': '[' }
 const OPENERS = '{['
 
 /**
- * The bracket the caret is on and its partner, or nothing.
- *
- * "On" means either side of the character, which is CodeMirror's own convention and
- * the only one that works: a caret sits *between* characters, so a caret after `}`
- * is as much on it as one before it. A cursor, not a range — highlighting a pair
- * while text is selected says something about the selection that is not true.
+ * The bracket the caret is on and its partner, or nothing. On means either
+ * side, as in CodeMirror. Only with a caret; a selection highlights nothing.
  */
 function pairForCaret(
   brackets: readonly { at: number; char: string }[],
@@ -124,10 +112,10 @@ function pairForCaret(
       }
       depth -= 1
     }
-    // A bracket of the *other* kind is skipped: `{ "a": [1] }` has the object's
-    // braces as a pair whatever the array between them does.
+    // A bracket of the other kind is skipped: in `{ "a": [1] }`
+    // the braces pair whatever the array does.
   }
-  // Nothing closed it. Worth saying: an unbalanced file is one Save will refuse.
+  // Nothing closed it: an unbalanced file, which Save will refuse.
   return [{ from: here.at, to: here.at + 1, matched: false }]
 }
 
@@ -138,16 +126,14 @@ function markFor(token: string, text: string, end: number, depth: number): Decor
   }
   if (token === 'true' || token === 'false' || token === 'null') return MARK.atom
   if (token.startsWith('"')) {
-    // A string is a **name** when a colon follows it: the one distinction JSON
-    // draws between the two halves of a property, and the same distinction the
-    // frontmatter block draws in a note.
+    // A string followed by a colon is a name.
     return /^\s*:/.test(text.slice(end)) ? MARK.key : MARK.string
   }
   return MARK.number
 }
 
-/** The selection is in `decorated`'s redraw list, which this needs: the bracket
- *  pair under the caret is part of what is drawn. Nothing here hides or reveals as
- *  the caret moves — that is markdown's bargain with its markers; this only
- *  highlights. */
+/**
+ * The selection is in `decorated`'s redraw list, since the caret's bracket pair
+ * is drawn. Nothing here hides or shows as the caret moves; it only highlights.
+ */
 export const jsonPreview = decorated(jsonDecorations)

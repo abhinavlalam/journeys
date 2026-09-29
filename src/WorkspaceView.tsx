@@ -20,7 +20,7 @@ import {
 import { useContextMenu } from './useContextMenu'
 import { SplitIcon } from './icons'
 
-/** The drag's payload: which tab is being carried, as `group:index`. */
+/** The drag's payload: the carried tab, as `group:index`. */
 const TAB_DRAG = 'application/x-journeys-tab'
 
 function carried(event: DragEvent): { groupId: number; index: number } | null {
@@ -30,7 +30,7 @@ function carried(event: DragEvent): { groupId: number; index: number } | null {
   return Number.isFinite(groupId) && Number.isFinite(index) ? { groupId, index } : null
 }
 
-/** A box, as fractions of the workspace: what the tree says about where a group is. */
+/** A box as fractions of the workspace: where the tree puts a group. */
 interface Rect {
   x: number
   y: number
@@ -46,14 +46,9 @@ interface Handle {
 }
 
 /**
- * **The tree is read for geometry, not drawn as DOM.** Every group is a box the
- * tree places, every split a handle on a line between two boxes — and the DOM is a
- * flat list of those boxes and handles, keyed by id. It was nested, one element per
- * split, and that is exactly what a split *is* in React terms: a new parent. So
- * splitting a pane, or dragging a tab out to a new one, re-parented every element
- * under it, React unmounted and remounted the lot, and a terminal in the pane lost
- * its shell — reported as the terminal restarting whenever anything moved across
- * panes. Flat, a group's box moves and nothing in it is touched.
+ * The tree is read for boxes, not drawn as nested DOM. Every group is a box and every
+ * split a handle, all in one flat list keyed by id. Nested, a split made a new parent,
+ * React remounted everything under it, and a terminal in the pane lost its shell.
  */
 function measure(layout: Layout, rect: Rect, boxes: Map<number, Rect>, handles: Handle[]) {
   if (layout.kind === 'group') {
@@ -74,37 +69,41 @@ function measure(layout: Layout, rect: Rect, boxes: Map<number, Rect>, handles: 
 
 const pct = (n: number) => `${n * 100}%`
 
-/** How far into a pane, as a share of its side, a dropped tab makes a new pane on
- *  that side rather than joining this one: the outer quarter. */
+/**
+ * How far into a pane, as a share of its side, a dropped tab
+ * makes a new pane on that side: the outer quarter.
+ */
 const DROP_EDGE = 0.25
 
 interface WorkspaceViewProps {
   ws: Workspace
   onChange: (next: (ws: Workspace) => Workspace) => void
-  /** What stands in a tab. Called for every note and terminal tab whether or not it
-   *  is the one showing — both keep something alive out of sight — and for other
-   *  kinds only when they show. */
+  /**
+   * What a tab shows. Called for every note and terminal tab, shown or not, since
+   * both keep something alive out of sight; for other kinds only when shown.
+   */
   render: (tab: Tab, active: boolean) => ReactNode
   /** A group with nothing open. */
   empty: ReactNode
-  /** Ends a terminal tab's session — the app's to do, since a session belongs to
-   *  the vault it runs in and the layout does not know which that is. */
+  /**
+   * Ends a terminal tab's session. The app does it, since the
+   * session belongs to the vault.
+   */
   onEndSession: (session: string) => void
 }
 
 /**
  * The reading pane as panes: the tree measured into boxes, a tab strip over each
- * group, a handle on each split, and **every tab's viewer as its own element**
- * placed over its group's box — so a tab carried to another pane is the same
- * element in a new place, and a terminal carried across keeps its shell. Every act
- * here is an operation on the model; nothing is decided in the DOM.
+ * group, a handle on each split, and each tab's viewer as its own element over its
+ * group's box. A tab moved to another pane is the same element in a new place, so
+ * a terminal keeps its shell. Every change is an operation on the model.
  */
 export function WorkspaceView({ ws, onChange, render, empty, onEndSession }: WorkspaceViewProps) {
   const boxes = new Map<number, Rect>()
   const handles: Handle[] = []
   measure(ws.layout, { x: 0, y: 0, w: 1, h: 1 }, boxes, handles)
   const many = boxes.size > 1
-  /** A tab is being dragged: every pane grows a drop target over its body. */
+  /** A tab is being dragged: every pane shows a drop target. */
   const [dragging, setDragging] = useState(false)
   const groups = [...boxes.entries()].map(([id, rect]) => ({
     group: findGroup(ws.layout, id)!,
@@ -137,8 +136,8 @@ export function WorkspaceView({ ws, onChange, render, empty, onEndSession }: Wor
       {groups.flatMap(({ group, rect }) =>
         group.tabs.map((tab, index) => {
           const active = index === group.active
-          // A note keeps its buffer and a terminal its shell out of sight; the
-          // other kinds are the same everywhere and are drawn only when they show.
+          // A note keeps its buffer and a terminal its shell
+          // while hidden; other kinds are drawn only when shown.
           if (!active && tab.kind !== 'note' && tab.kind !== 'terminal') return null
           return (
             <div
@@ -193,7 +192,7 @@ function PaneGroup({
   empty: ReactNode
   onEndSession: WorkspaceViewProps['onEndSession']
 }) {
-  /** The tab a right-click landed on, read when the menu's items are built. */
+  /** The tab that was right-clicked, read when the menu is built. */
   const menuFor = useRef(0)
   const [menu, openMenu] = useContextMenu(() => {
     const index = menuFor.current
@@ -202,11 +201,9 @@ function PaneGroup({
       { label: 'Close', onSelect: () => onChange((ws) => closeTab(ws, group.id, index)) },
       { label: 'Close others', onSelect: () => onChange((ws) => closeOtherTabs(ws, group.id, index)) },
       /**
-       * **Closing a terminal tab detaches, so ending one is its own item.** Without
-       * this the sessions only accumulate: every tab you ever closed is still a
-       * shell the tmux server is holding, with `claude` possibly still in it and no
-       * way to reach it from here. The offer is on a terminal tab alone, because it
-       * is the one kind whose tab and whose session are different lifetimes.
+       * Closing a terminal tab only detaches, so ending the session is its own
+       * item. Otherwise sessions pile up in the tmux server with no way back
+       * to them. Only on terminal tabs, whose tab and session live apart.
        */
       ...(tab?.kind === 'terminal'
         ? [
@@ -229,9 +226,8 @@ function PaneGroup({
   const [zone, setZone] = useState<DropZone | null>(null)
 
   /**
-   * **A tab is moved by dragging it** — onto another tab to land before it, or onto
-   * a strip's empty end to land last — between panes or within one. The model does
-   * the move; this only says where the pointer let go.
+   * Drag a tab onto another tab to put it before that one, or onto a
+   * strip's empty end to put it last, in any pane. The model does the move.
    */
   const dropAt = (index?: number) => (event: DragEvent) => {
     const from = carried(event)
@@ -249,10 +245,9 @@ function PaneGroup({
     setReceiving(true)
   }
   /**
-   * **Dragging a page to a pane's edge gives it a pane of its own there.** The
-   * outer quarter of the body on each side is that side; the middle joins the
-   * pane. The target is an overlay that exists only while a tab is being dragged,
-   * over the viewer, so what is under it is never touched.
+   * Drag a tab to a pane's edge to give it a pane there: the
+   * outer quarter on each side is that side; the middle joins the
+   * pane. The target is an overlay shown only while dragging.
    */
   const zoneAt = (event: DragEvent): DropZone => {
     const box = event.currentTarget.getBoundingClientRect()
@@ -272,8 +267,7 @@ function PaneGroup({
       className="pane-group"
       data-focused={focused}
       style={{ left: pct(rect.x), top: pct(rect.y), width: pct(rect.w), height: pct(rect.h) }}
-      // Capture, so a press anywhere in the pane — a tab, the strip, the empty body
-      // — focuses the group before the press does its own work.
+      // Capture, so a press anywhere in the pane focuses the group first.
       onMouseDownCapture={() => !focused && onChange((ws) => focusGroup(ws, group.id))}
     >
       <div
@@ -288,8 +282,8 @@ function PaneGroup({
         {group.tabs.map((tab, index) => {
           const label = tabLabel(tab)
           return (
-            // A `div` with the role, not a `<button>`: the close control inside it
-            // is a button, and a button cannot hold one.
+            // A `div` with the role, not a `<button>`: it holds
+            // the close button, and a button cannot hold a button.
             <div
               key={tab.id}
               role="tab"
@@ -326,8 +320,8 @@ function PaneGroup({
             </div>
           )
         })}
-        {/* `sidebar-actions` for the icon button's box, colours and hover, which
-            are measured there — the rail and the footer borrow it the same way. */}
+        {/* `sidebar-actions` gives the icon buttons their box,
+            colours and hover, as the rail and footer use it. */}
         <span className="tab-strip-actions sidebar-actions">
           <button aria-label="Split right" onClick={() => onChange((ws) => splitGroup(ws, group.id, 'row'))}>
             <SplitIcon direction="row" />
@@ -374,10 +368,9 @@ function PaneGroup({
 }
 
 /**
- * The handle on the line between a split's halves, placed by the split's own box.
- * Pointer capture, as the sidebar's resizer: the matching `pointerup` then arrives
- * even if the pointer leaves the strip. The ratio is the pointer's place along the
- * split's own extent.
+ * The handle between a split's halves, placed by the split's box.
+ * Pointer capture, as in the sidebar's resizer, so `pointerup` arrives
+ * even off the strip. The ratio is the pointer's place along the split.
  */
 function SplitHandle({ handle, onRatio }: { handle: Handle; onRatio: (ratio: number) => void }) {
   const dragging = useRef(false)
@@ -399,8 +392,8 @@ function SplitHandle({ handle, onRatio }: { handle: Handle; onRatio: (ratio: num
         event.currentTarget.setPointerCapture(event.pointerId)
       }}
       onPointerMove={(event) => {
-        // The handle is laid over the workspace body and measures the ratio in it;
-        // asked before the tree is in the document, there is nothing to measure.
+        // The handle measures the ratio in the workspace body. Before
+        // the tree is in the document there is nothing to measure.
         const workspace = dragging.current ? event.currentTarget.parentElement : null
         if (!workspace) return
         const body = workspace.getBoundingClientRect()

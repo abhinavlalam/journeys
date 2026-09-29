@@ -1,8 +1,5 @@
-// The editor's keys: every command that writes markdown syntax into the document.
-//
-// **Formatting is syntax.** ⌘B puts `**` in the document and deleting the `**` by
-// hand unbolds — see `MarkdownEditor.tsx` for why that is the whole point — so
-// every command here is an edit to the text and none of them is a mode.
+// The editor's keys that write markdown syntax. Each is an edit to the
+// text, never a mode: ⌘B types `**`, and deleting the `**` unbolds.
 
 import { EditorSelection, type EditorState, type Line } from '@codemirror/state'
 import { EditorView, type Command } from '@codemirror/view'
@@ -13,18 +10,12 @@ import { indentOf } from './prose'
 /**
  * Wrap the selection in `marker`, or unwrap it if it is already wrapped.
  *
- * Both spellings of "already wrapped" are handled, because both are what a user
- * has in front of them: the markers can be **outside** the selection (⌘B, then ⌘B
- * again — the selection is left over the word, with the `**` either side of it) or
- * **inside** it (the user dragged across `**word**` themselves). Checking only one
- * gave a command that could not undo its own work.
+ * The markers may be outside the selection (⌘B twice leaves the word selected between
+ * them) or inside it (the owner selected `**word**`). Both unwrap, so the command can
+ * undo itself. An empty selection gets `****` with the caret in the middle.
  *
- * An empty cursor gets `****` with the caret between the pairs, which is what an
- * "insert syntax" command means when there is nothing to wrap.
- *
- * `changeByRange`, so the selection is mapped through the edit rather than
- * recomputed: the two insertions shift every position after the first one, and
- * doing that arithmetic by hand is how the caret ends up inside the marker.
+ * `changeByRange` maps the selection through the edit, so the
+ * caret does not land inside a marker.
  */
 export function toggleMarker(marker: string): Command {
   const width = marker.length
@@ -62,14 +53,14 @@ export function toggleMarker(marker: string): Command {
           : EditorSelection.range(range.from + width, range.to + width),
       }
     })
-    // `userEvent: 'input'`, so `@codemirror/commands`' history groups it as typing
-    // and one ⌘Z takes the whole pair of markers back out.
+    // `userEvent: 'input'`, so history counts it as typing and
+    // one ⌘Z removes both markers.
     dispatch(state.update(spec, { scrollIntoView: true, userEvent: 'input.format' }))
     return true
   }
 }
 
-/** A `KeyboardEvent` in the same notation `cmKey` produces, so the two can be compared. */
+/** A `KeyboardEvent` in the same form `cmKey` gives, so the two can be compared. */
 function keyNameOf(event: KeyboardEvent): string {
   const mods: string[] = []
   if (event.metaKey) mods.push('Mod')
@@ -80,8 +71,8 @@ function keyNameOf(event: KeyboardEvent): string {
 }
 
 /**
- * This app's combo notation into CodeMirror's. `mod+shift+t` is ours; `Mod-Shift-t`
- * is CodeMirror's, and it wants the modifiers in that order.
+ * The app's combo form to CodeMirror's: `mod+shift+t` to
+ * `Mod-Shift-t`, modifiers in that order.
  */
 function cmKey(combo: string): string | null {
   const parts = combo.toLowerCase().split('+')
@@ -92,7 +83,9 @@ function cmKey(combo: string): string | null {
   return [...mods, key].join('-')
 }
 
-/** Tab on a line with lines nested under it: the whole block moves one indent width. */
+/**
+ * Tab on a line with lines nested under it: the whole block moves in one indent width.
+ */
 const indentBlock: Command = ({ state, dispatch }) => {
   const block = blockAt(state)
   if (!block) return false
@@ -108,8 +101,10 @@ const outdentBlock: Command = ({ state, dispatch }) => {
   return true
 }
 
-/** The line the caret is on when it heads a run of deeper lines, or null. A selection is
- *  left to `indentMore`, and a line with nothing under it to the general Tab. */
+/**
+ * The caret's line when deeper lines sit under it, or null. A selection
+ * goes to `indentMore`, and a line with nothing under it to the plain Tab.
+ */
 function blockAt(state: EditorState): { line: Line; indent: number; last: Line } | null {
   const range = state.selection.main
   if (!range.empty) return null
@@ -120,8 +115,10 @@ function blockAt(state: EditorState): { line: Line; indent: number; last: Line }
   return last.number === line.number ? null : { line, indent, last }
 }
 
-/** The last line of the block `line` heads: the deepest run below it, blanks
- *  included while something deeper follows. `collectLines`' rule, one scale down. */
+/**
+ * The last line of the block `line` heads: the run of deeper lines
+ * below it, blank lines included while something deeper follows.
+ */
 function runUnder(state: EditorState, line: Line, indent: number): Line {
   let last = line
   for (let n = line.number + 1; n <= state.doc.lines; n++) {
@@ -134,13 +131,9 @@ function runUnder(state: EditorState, line: Line, indent: number): Line {
 }
 
 /**
- * Every line of the block moved by `delta` spaces — which is all either command
- * does, and the only edit that moves a marker without touching its text.
- *
- * A **delta** and not a column, so the lines under the first keep their offsets and
- * the nesting inside the block survives. Clamped at zero per line: outdenting a
- * block whose first line has room to move but whose deepest child does not must not
- * push that child's text off the front of the line.
+ * Move every line of the block by `delta` spaces. A delta, not a
+ * column, so the nesting inside the block is kept. Clamped at
+ * zero per line, so outdenting never cuts into a child's text.
  */
 const shift = (
   state: EditorState,
@@ -160,15 +153,17 @@ const shift = (
   return state.update({ changes, userEvent })
 }
 
-/** A list line: its indent, then a bullet or a number with its `.` or `)`, the space
- *  after it, and a task's box if it has one. */
+/**
+ * A list line: its indent, a bullet or a number with `.` or `)`,
+ * the space after it, and a task box if it has one.
+ */
 const LIST_ITEM = /^([ \t]*)(?:([-*+])|(\d{1,9})([.)]))([ \t]+)(\[.\][ \t]+)?/
 
 /**
- * Enter, for a note written as plain indented lines:
+ * Enter on plain indented lines and list lines:
  *
- * - on a list line, the next line starts with the same indent and marker (the next
- *   number for a numbered one, an empty box for a task);
+ * - on a list line, the next line gets the same indent and
+ *   marker (the next number, or an empty box for a task);
  * - on an empty item, the marker goes and the indent stays;
  * - on an empty indented line, the line moves out one indent width;
  * - on any other indented line, the next line keeps the indent;
@@ -202,41 +197,35 @@ export const continueIndent: Command = ({ state, dispatch }) => {
 }
 
 export const formatKeymap = [
-  // Ahead of the markdown keymap, whose Enter follows the list the line is in.
+  // Before markdown's Enter, which would continue a list its own way.
   { key: 'Enter', run: continueIndent },
-  // Ahead of the host's Tab: a line with lines under it moves with them.
+  // Before the host's Tab, so a line moves with the lines under it.
   { key: 'Tab', run: indentBlock },
   { key: 'Shift-Tab', run: outdentBlock },
   { key: 'Mod-b', run: toggleMarker('**') },
-  // `*`, not `_`: one asterisk is italic and two are bold, so the two shortcuts
-  // and the two keystrokes all speak the same marker.
+  // `*`, not `_`: one is italic and two are bold, so the
+  // shortcuts and the keys use the same marker.
   { key: 'Mod-i', run: toggleMarker('*') },
   { key: 'Mod-e', run: toggleMarker('`') },
-  // `[` over a selection wraps it instead of replacing it, and leaves the caret
-  // inside the brackets — which is what the `[[` completion below reads, so the
-  // picker opens on the word already filtered. With no selection it returns false
-  // and a plain `[` types, which is the only reason this can own a bare character.
+  // `[` over a selection wraps it and leaves the caret inside, so the `[[` popup opens
+  // already filtered. With no selection it returns false and `[` types normally.
   { key: '[', run: wrapInWikiLink },
-  // The other half of that: the second `[` writes `[]]`, so Backspace between the
-  // pairs takes what one keystroke made.
+  // The second `[` writes `[]]`, so Backspace between the pairs
+  // removes what one key made.
   { key: 'Backspace', run: deleteWikiLinkPair },
-  // A second press wraps again: one `*` is italic, two are bold, and `~` twice is
-  // `~~struck~~` — GFM for the last one, since CommonMark has no strikethrough.
+  // Press again to wrap again: `*` twice is bold, `~` twice is `~~struck~~`.
   { key: '*', run: wrapWith('*') },
   { key: '~', run: wrapWith('~') },
   { key: '`', run: wrapWith('`') },
 ]
 
 /**
- * Wrap the selection in `mark`, keeping the selection over the word.
+ * Wrap the selection in `mark` and keep it selected, so a second press
+ * wraps again: `*` twice gives `**bold**`, `~` twice gives
+ * `~~struck~~`. ⌘B, ⌘I and ⌘E toggle, as in Obsidian.
  *
- * Keeping it is the point: pressing the key again wraps a second layer, so `*`
- * twice gives `**bold**` and `~` twice gives `~~struck~~` — the markers appear at
- * both ends and stay editable, which is what a markdown document should do.
- * Removing them is ⌘B / ⌘I / ⌘E, which toggle, exactly as Obsidian does it.
- *
- * With no selection it declines, and the character types normally. That is the only
- * reason a command may own a bare key.
+ * With no selection it does nothing and the key types normally.
+ * Only then may a command take a bare key.
  */
 export function wrapWith(mark: string): Command {
   return (view) => {
@@ -257,16 +246,11 @@ export function wrapWith(mark: string): Command {
 }
 
 /**
- * **Backspace between `[[` and `]]` takes all four.**
+ * Backspace between `[[` and `]]` removes all four.
  *
- * The second `[` writes `[]]` and puts the caret in the middle — one keystroke,
- * four characters — so one Backspace should undo it. Without this the `[[` went and
- * the `]]` stayed, sitting in the sentence as punctuation nobody typed. Reported
- * that way. This is what `closeBrackets` does for the pairs it owns; these are the
- * app's own, so the pairing is the app's to undo.
- *
- * Only with the caret exactly between them and nothing selected: `[[note|]]` is a
- * Backspace on `e`, which is the ordinary one.
+ * The second `[` writes four characters in one key, so one Backspace
+ * should undo it. Without this the `]]` stayed behind in the sentence.
+ * Only with the caret exactly between them and nothing selected.
  */
 export function deleteWikiLinkPair(view: EditorView): boolean {
   const { from, to } = view.state.selection.main
@@ -286,10 +270,8 @@ export function deleteWikiLinkPair(view: EditorView): boolean {
 export function wrapInWikiLink(view: EditorView): boolean {
   const { from, to } = view.state.selection.main
 
-  // Nothing selected: the *second* `[` closes the pair, as Obsidian does — `[[]]`
-  // with the caret in the middle, so the picker opens and a name typed into it
-  // never leaves two brackets to type by hand. The first `[` is left alone; a
-  // bracket is ordinary punctuation until it is doubled.
+  // With nothing selected, the second `[` closes the pair as `[[]]` with the caret
+  // in the middle, so the popup opens. A single `[` is ordinary punctuation.
   if (from === to) {
     if (from === 0 || view.state.sliceDoc(from - 1, from) !== '[') return false
     view.dispatch(
@@ -305,9 +287,8 @@ export function wrapInWikiLink(view: EditorView): boolean {
   const before = from > 0 ? view.state.sliceDoc(from - 1, from) : ''
   const after = to < view.state.doc.length ? view.state.sliceDoc(to, to + 1) : ''
 
-  // The second bracket is what makes a wikilink, as in Obsidian: one `[` gives
-  // `[word]`, and pressing it again over the same word gives `[[word]]`. So this
-  // only becomes a link when the selection is *already* bracketed.
+  // Over a selection already in brackets, `[` makes it a link:
+  // `[word]` becomes `[[word]]`.
   if (before === '[' && after === ']') {
     view.dispatch(
       view.state.update({
@@ -315,8 +296,7 @@ export function wrapInWikiLink(view: EditorView): boolean {
           { from: from - 1, to: from, insert: '[[' },
           { from: to, to: to + 1, insert: ']]' },
         ],
-        // Caret inside, right after the word — which is what the `[[` completion
-        // source reads, so the picker opens on it already filtered.
+        // Caret right after the word, so the `[[` popup opens filtered on it.
         selection: { anchor: to + 1 },
         scrollIntoView: true,
       })
@@ -324,8 +304,8 @@ export function wrapInWikiLink(view: EditorView): boolean {
     return true
   }
 
-  // The first bracket wraps and *keeps the selection*, so a second press can see
-  // it and complete the pair.
+  // The first bracket wraps and keeps the selection, so a second
+  // press can make the link.
   view.dispatch(
     view.state.update({
       changes: [
@@ -340,12 +320,8 @@ export function wrapInWikiLink(view: EditorView): boolean {
 }
 
 /**
- * The configurable insert-timestamp key, as a keymap entry.
- *
- * `any` rather than a `key`, because the combo is a *setting*: the binding is read
- * from a getter on every keypress, so a rebind in the settings panel takes effect
- * without remounting the editor. `cmKey` and `keyNameOf` are the two halves of
- * comparing this app's own `mod+shift+t` spelling with what the browser reports.
+ * The insert-timestamp key as a keymap entry. `any` rather than `key`, because the
+ * combo is a setting read on each key press: a rebind works without a remount.
  */
 export function insertTimeKeymap(insertTime: () => string | null) {
   return {
@@ -355,13 +331,11 @@ export function insertTimeKeymap(insertTime: () => string | null) {
       const want = cmKey(combo)
       if (!want || keyNameOf(event) !== want) return false
       const at = view.state.selection.main
-      // The space is part of the stamp. `LEADING_CLOCK` wants whitespace or the line
-      // end after the time, so a caret left tight against it turns `09:41` into
-      // `09:41w` on the next keystroke and the accent goes out.
+      // The space is part of the stamp. `LEADING_CLOCK` needs a space or the
+      // line end after the time, or the next key turns `09:41` into `09:41w`.
       const stamp = `${localTimeStamp()} `
-      // And the caret is placed rather than mapped: an insertion *at* the caret
-      // maps it to the front of what was inserted, which left every timestamp
-      // typed in behind the time it had just written.
+      // The caret is set, not mapped: an insert at the caret maps it to
+      // the front, which left the caret before the time just written.
       view.dispatch({
         changes: { from: at.from, to: at.to, insert: stamp },
         selection: { anchor: at.from + stamp.length },

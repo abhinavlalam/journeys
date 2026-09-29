@@ -1,17 +1,8 @@
 // The editor, minus the language.
 //
-// **One editor, every kind of text file.** Everything here is true of any file the
-// app opens: it scrolls inside itself, it numbers its lines, it folds by
-// indentation, it draws its own caret and selection, it wraps, and it reports every
-// document change synchronously. What is *not* here is anything that knows what the
-// bytes mean — no grammar, no completions, no decorations — because that is the
-// half that differs, and the caller passes it in.
-//
-// The JSON pane was a `<textarea>` before this. It had none of the above: no line
-// numbers, no folding, and it never joined `.viewer`'s centring list, so a config
-// file ran the full width of the window while a note sat in a 720px column beside
-// it. The list's own comment in the sheet says what happens to anything that does
-// not join it.
+// What every text file gets: it scrolls, numbers its lines, folds by indent, draws
+// its own caret and selection, wraps, and reports each change. Anything that knows
+// what the bytes mean (grammar, popups, decorations) is passed in by the caller.
 
 import { useEffect, useRef } from 'react'
 import { Compartment, EditorState, type Extension } from '@codemirror/state'
@@ -30,55 +21,50 @@ import { codeFolding, indentUnit, syntaxTree } from '@codemirror/language'
 import { indentFold, indentFoldGutter } from './editorFold'
 
 interface EditorHostProps {
-  /** Whether the editor is on screen. A tab out of sight keeps its editor, and so its
-   *  undo; hidden, it lost the keyboard, and it takes it back when it shows. */
+  /**
+   * Whether the editor is on screen. A hidden tab keeps its editor and
+   * its undo. Hidden, it lost the keyboard; it takes it back when shown.
+   */
   shown?: boolean
   /**
-   * Read at mount **only**. The caller keys this component on what the document is
-   * — a note's path and epoch, a file's version — so replacing the text is a
-   * remount rather than a push into a live editor.
-   *
-   * That is what makes "this editor holds this file" a fact instead of an invariant
-   * to maintain, and it is why `onChange` cannot fire on open: there is no
-   * programmatic document swap to fire it, and CodeMirror's update listener does
-   * not run for the initial state.
+   * Read at mount only. The caller keys this on the document (a
+   * note's path and epoch, a file's version), so new text is a
+   * remount. That is also why `onChange` never fires on open.
    */
   initialText: string
-  /** Called synchronously, on every document change and on no other update. */
+  /** Called on every document change, and nothing else. */
   onChange: (text: string) => void
-  /** The language and everything that knows what the bytes mean. Read at mount,
-   *  like `initialText`, and placed **ahead** of the shared extensions so a
-   *  language's keymap outranks `defaultKeymap` — which is how Enter continues a
-   *  markdown list instead of just breaking the line. */
+  /**
+   * The language and everything that knows what the bytes mean. Read at mount,
+   * and placed before the shared extensions so its keys outrank `defaultKeymap`.
+   */
   extensions?: Extension[]
   /** CodeMirror gives `.cm-content` `role="textbox"` and no name. */
   ariaLabel: string
-  /** Beside `code-editor`, which carries the box, the gutters and the caret. The
-   *  only thing a file type changes here is the face. */
+  /**
+   * Added to `code-editor`, which carries the box, gutters and
+   * caret. A file type only changes the face.
+   */
   className: string
   /**
-   * Where the caret starts, read at mount with the text.
-   *
-   * The default is 0, which for a note is *inside* its properties — the first
-   * thing typed would edit the frontmatter. What is past them is the language's
-   * question, so the caller answers it.
+   * Where the caret starts, read at mount. The default, 0, is
+   * inside a note's properties, so the caller says where.
    */
   initialSelection?: number
-  /** Spaces per indent level, from the settings. Through a compartment, so moving
-   *  the slider does not remount the editor and throw away the undo history. */
+  /**
+   * Spaces per indent level, from the settings. Changed through a
+   * compartment, so the slider does not remount the editor and lose the undo.
+   */
   indentWidth?: number
-  /** Line numbers and folding, which every file has; a field over one line, such
-   *  as a timeline entry, has neither. */
+  /** Line numbers and folding. A one-line field, like a timeline entry, has neither. */
   gutters?: boolean
 }
 
 const indentSize = new Compartment()
 
 /**
- * No `highlightActiveLine`, and `drawSelection` rather than the browser's own: the
- * native caret is as tall as the *line box* — which at a note's leading reads as a
- * long bar — and its colour is the OS's. Drawn, both are styleable, and the same
- * two rules dress every file type.
+ * `drawSelection` instead of the native caret, which is as tall as
+ * the line box and in the system colour. No `highlightActiveLine`.
  */
 function shared(
   onChange: (text: string) => void,
@@ -88,29 +74,24 @@ function shared(
 ): Extension[] {
   return [
     indentSize.of(indentUnit.of(' '.repeat(indentWidth))),
-    // By indentation, and that is the whole reason it works for both: a pretty
-    // printed `{` opens an indented block exactly as a heading opens a section, so
-    // JSON folds between its braces without a grammar to tell it where they are.
+    // Folding by indent works for JSON too: a pretty-printed `{`
+    // opens an indented block as a heading opens a section.
     gutters ? [codeFolding(), indentFoldGutter, indentFold] : [],
     drawSelection(),
-    // **Line numbers, for every file type.** They were taken off notes for a day
-    // on the argument that a note is not code, and asked straight back: they were
-    // never the complaint. The gutter they sit in is right-aligned and a fixed
-    // width, so a count crossing 10 or 100 moves nothing — see `.cm-lineNumbers`.
+    // Line numbers on every file type; they were taken off notes once and asked
+    // back. The gutter is a fixed width, so crossing 10 or 100 moves nothing.
     gutters ? lineNumbers() : [],
     history(),
     keymap.of([
-      // Tab indents, ⇧Tab outdents. `defaultKeymap` leaves Tab alone on purpose —
-      // it is how you move focus out of an editor — so a text editor has to opt in.
+      // Tab indents, ⇧Tab outdents. `defaultKeymap` leaves Tab
+      // alone so focus can leave the editor; a text editor opts in.
       indentWithTab,
       ...defaultKeymap,
       ...historyKeymap,
     ]),
     EditorView.lineWrapping,
     EditorView.contentAttributes.of({ 'aria-label': ariaLabel }),
-    // **Synchronous**, and `docChanged` only: a selection move is not an edit. The
-    // cost of firing per keystroke is a string copy; what the caller does with it —
-    // autosave a note, dirty a JSON file — is the caller's business. `sliceDoc` and
+    // On document changes only; a selection move is not an edit. `sliceDoc`,
     // not `doc.toString()`, which joins lines with `\n` whatever the file used.
     EditorView.updateListener.of((update) => {
       if (update.docChanged) onChange(update.state.sliceDoc())
@@ -119,9 +100,8 @@ function shared(
 }
 
 /**
- * The line break a file is written with: the commonest of the three. Left to
- * itself CodeMirror splits on all three and writes `\n`, so the first keystroke in
- * a CRLF file rewrote every line ending; told, a mixed file's strays stay as written.
+ * The line break a file uses: the most common of the three. Otherwise CodeMirror
+ * writes `\n`, and the first key in a CRLF file rewrote every line ending.
  */
 function lineBreakOf(text: string): string {
   const crlf = text.split('\r\n').length - 1
@@ -130,8 +110,10 @@ function lineBreakOf(text: string): string {
   return crlf > lf && crlf >= cr ? '\r\n' : cr > lf ? '\r' : '\n'
 }
 
-/** A field of the app's own chrome has the keyboard — a rename, a new name, the
- *  search box — and it is not inside this editor. */
+/**
+ * A field of the app's own (a rename, a new name, the search
+ * box) has the keyboard, outside this editor.
+ */
 function typingElsewhere(root: HTMLElement): boolean {
   const at = document.activeElement as HTMLElement | null
   if (!at || at === document.body || root.contains(at)) return false
@@ -139,21 +121,15 @@ function typingElsewhere(root: HTMLElement): boolean {
 }
 
 /**
- * A plugin that draws `decorate` over the visible span, and knows when to redraw.
+ * A plugin that draws `decorate` over the visible span, and
+ * knows when to redraw. Markdown and JSON both use it.
  *
- * Both editors need this and both had written it: markdown's live preview and
- * JSON's colour, each with its own copy of the same class and its own `forView`.
- * The copies had started to differ — the parse check below was in one and not the
- * other — which is the only difference that mattered and the easiest to forget.
+ * The viewport is one span: without folding, `visibleRanges` is one
+ * range, and merging its ends keeps decorations from overlapping.
  *
- * **The viewport as one span**: `visibleRanges` is a single range without folding,
- * and merging the ends is what keeps a caller's decorations free of overlap.
- *
- * **The parse is the half that is easy to forget.** A long note is parsed
- * incrementally in idle time, and the update carrying the finished tree changes
- * neither the document nor the selection — so without the tree comparison the
- * bottom of a long note renders once and never again. A file with no language
- * extension has one empty tree that never changes, so the check costs it nothing.
+ * It also redraws when the syntax tree changes. A long note is parsed in idle
+ * time, and the update carrying the finished tree changes neither the text nor
+ * the selection, so without the check the end of a long note never rendered.
  */
 export function decorated(
   decorate: (state: EditorState, from: number, to: number) => DecorationSet
@@ -199,13 +175,13 @@ export function EditorHost({
 }: EditorHostProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
-  // The mount effect pins one render, and `onChange` is a fresh function on each.
+  // The mount effect sees one render, and `onChange` is new on each.
   const onChangeRef = useRef(onChange)
   useEffect(() => {
     onChangeRef.current = onChange
   }, [onChange])
 
-  // The one setting that reaches a live editor rather than a remounted one.
+  // The one setting that reaches a live editor rather than a remount.
   useEffect(() => {
     viewRef.current?.dispatch({
       effects: indentSize.reconfigure(indentUnit.of(' '.repeat(indentWidth))),
@@ -217,9 +193,8 @@ export function EditorHost({
     if (!root) return
     viewRef.current = null
     const lineBreak = lineBreakOf(initialText)
-    // Clamped: the caller works this out from the text, and a stale answer for a
-    // shorter document would throw rather than land somewhere harmless. Then moved
-    // into the document's positions, where a `\r\n` the caller counted as two is one.
+    // Clamped, so a stale position for a shorter text does not throw. Then
+    // mapped into the document, where the caller's `\r\n` counts as one.
     const anchor = Math.min(initialSelection, initialText.length)
     const breaks = initialText.slice(0, anchor).split(lineBreak).length - 1
     const head = anchor - breaks * (lineBreak.length - 1)
@@ -234,19 +209,15 @@ export function EditorHost({
         ],
       }),
       parent: root,
-      // In sight: a caret placed at the end of a long day is otherwise below the fold.
+      // Scrolled into sight: a caret at the end of a long day is
+      // otherwise below the fold.
       scrollTo: EditorView.scrollIntoView(head, { y: 'nearest' }),
     })
     viewRef.current = view
-    // **Focused, so the caret is visible.** CodeMirror draws it only for a focused
-    // editor, and opening a file with the caret placed and nothing showing is the
-    // same as not placing it. Every mount of this component is a file arriving in
-    // the pane, which is the moment to take the keyboard.
+    // Focused, so the caret shows: CodeMirror draws it only in a focused editor.
     //
-    // Unless the user is typing somewhere else: a double click on a row opens the
-    // note *and* starts a rename, the file arrives a read later, and the rename
-    // field commits on blur — so taking the keyboard here ended the rename a
-    // moment after it appeared.
+    // Unless the owner is typing somewhere else. A double click on a row opens the
+    // note and starts a rename, and focusing here ended the rename as it appeared.
     if (!typingElsewhere(root)) view.focus()
     return () => {
       viewRef.current = null
@@ -256,9 +227,8 @@ export function EditorHost({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // **After the event that showed it**: a tab is switched on mousedown, and that
-  // press's own default then clears the focus the editor had just taken — tried in
-  // the running app, the caret did not come back until the note was clicked.
+  // After the event that showed it: a tab switches on mousedown,
+  // and that press then clears the focus the editor had just taken.
   useEffect(() => {
     if (!shown) return
     const later = setTimeout(() => {
