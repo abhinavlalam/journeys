@@ -1,22 +1,18 @@
 //! The vault's sync: git, in-process.
 //!
-//! The vault is a folder of files and the repository is that folder's `.git`, so
-//! syncing it is committing, pushing and pulling — the mechanism that already has
-//! history, merges and hosting solved, and the reason nothing here is a sync
-//! engine of its own. libgit2 rather than the `git` binary, because the same code
-//! has to build for Android, where there is none. Every command here is blocking
-//! work handed to `blocking` in `lib.rs`: a command that is not `async` runs on the main
-//! thread, and a fetch is seconds.
+//! The vault is a folder and the repository is its `.git`, so syncing is
+//! commit, push and pull, and git already handles history, merges and
+//! hosting. libgit2 rather than the `git` binary, because Android has none.
+//! Every command is blocking work passed to `blocking` in `lib.rs`: a command
+//! that is not `async` runs on the main thread, and a fetch takes seconds.
 //!
-//! **What the app promises about a merge**: it never guesses. Two devices editing
-//! different files, or different lines of one, merge silently; the same lines
-//! changed on both sides keep *both* — this device's text stays in the file, the
-//! other's arrives beside it as `name (other).md` — and the caller names the file.
-//! A remote holding a history this vault does not share is refused, not merged
-//! over.
+//! A merge never guesses. Changes to different files, or different lines of one, merge
+//! quietly. The same lines changed on both sides keep both: this device's text stays
+//! in the file, the other's arrives beside it as `name (other).md`, and the caller
+//! names the file. A remote with a history this vault does not share is refused.
 //!
-//! The token never touches the vault or `settings.json`: `secrets.rs` keeps it,
-//! keyed by the remote's address.
+//! The token never touches the vault or `settings.json`;
+//! `secrets.rs` keeps it, keyed by the remote's address.
 
 use git2::{
     build::{CheckoutBuilder, RepoBuilder},
@@ -28,10 +24,10 @@ use serde::Serialize;
 use std::path::{Path, PathBuf};
 
 const REMOTE: &str = "origin";
-/// The user a token goes with when the server names none; GitHub reads the token as
-/// the password and ignores the user.
+/// The user sent with a token when the server names none; GitHub
+/// reads the token as the password and ignores the user.
 const TOKEN_USER: &str = "x-access-token";
-/// The branch a vault made here is born on; a vault that already has one keeps it.
+/// The branch a new vault starts on; a vault that already has one keeps it.
 const DEFAULT_BRANCH: &str = "main";
 
 #[derive(Serialize, Default, Debug)]
@@ -53,9 +49,9 @@ pub struct SyncStatus {
 #[derive(Serialize, Default, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Pulled {
-    /// Vault-relative paths the pull changed on disk, the `(other)` copies included.
+    /// Vault-relative paths the pull changed on disk, `(other)` copies included.
     pub changed: Vec<String>,
-    /// The files both sides changed, whose other version was kept beside them.
+    /// Files both sides changed; the other version was kept beside them.
     pub conflicts: Vec<String>,
 }
 
@@ -80,9 +76,9 @@ fn remote_url(repo: &Repository) -> Option<String> {
     repo.find_remote(REMOTE).ok().and_then(|r| r.url().map(str::to_string))
 }
 
-/// A value from **this repository's own** config and no other level. The machine's
-/// global identity may be someone else's — an office account beside a personal
-/// journal — and a vault's commits carry what Settings → Sync said, or nothing.
+/// A value from this repository's own config and no other level.
+/// The machine's global identity may be a work account; a
+/// vault's commits carry what Settings → Sync set, or nothing.
 fn config_string(repo: &Repository, key: &str) -> String {
     repo.config()
         .and_then(|c| c.open_level(git2::ConfigLevel::Local))
@@ -99,11 +95,10 @@ fn signature(repo: &Repository) -> Result<git2::Signature<'static>> {
     git2::Signature::now(&name, &email).map_err(err)
 }
 
-/// **Android's certificates, handed to libgit2's OpenSSL from memory.** The OpenSSL
-/// built for Android has no file access (`no-stdio`, which it needs to build there),
-/// so neither a bundle nor Android's own folder can be pointed at: each certificate
-/// the phone trusts is parsed here and added to the store every connection is
-/// verified against. The updatable store first, since Android 14.
+/// Android's certificates, given to libgit2's OpenSSL from memory. OpenSSL
+/// built for Android has no file access (`no-stdio`), so no bundle or folder
+/// can be pointed at: each certificate the phone trusts is parsed here and
+/// added to the store. The updatable store first, since Android 14.
 #[cfg(target_os = "android")]
 pub fn trust_system_certificates() -> Result<usize> {
     use std::ffi::{c_int, c_void};
@@ -138,8 +133,8 @@ pub fn trust_system_certificates() -> Result<usize> {
     Ok(added)
 }
 
-/// Callbacks that answer a credential prompt with the token, and refuse without
-/// one — a `file://` remote never asks, which is how the tests run this.
+/// Callbacks that answer a credential prompt with the token, and refuse
+/// without one. A `file://` remote never asks, which is how the tests run.
 fn callbacks<'a>(token: Option<&'a str>) -> RemoteCallbacks<'a> {
     let mut cbs = RemoteCallbacks::new();
     cbs.credentials(move |_url, username, allowed| {
@@ -155,6 +150,7 @@ fn callbacks<'a>(token: Option<&'a str>) -> RemoteCallbacks<'a> {
 
 // ---------------------------------------------------------------------------
 // Status
+// ---------------------------------------------------------------------------
 
 fn status_of(vault: &str) -> SyncStatus {
     let Ok(repo) = Repository::open(vault) else {
@@ -183,8 +179,8 @@ fn status_of(vault: &str) -> SyncStatus {
     status
 }
 
-/// Every path that differs from the last commit — modified, added, deleted or
-/// untracked, the ignored ones left out — and whether it is gone.
+/// Every path that differs from the last commit (modified, added,
+/// deleted or untracked, ignored ones left out), and whether it is gone.
 fn changes(repo: &Repository) -> Vec<(String, bool)> {
     let mut opts = StatusOptions::new();
     opts.include_untracked(true).recurse_untracked_dirs(true).include_ignored(false);
@@ -204,6 +200,7 @@ fn changes(repo: &Repository) -> Vec<(String, bool)> {
 
 // ---------------------------------------------------------------------------
 // Configure, commit, push, pull, clone
+// ---------------------------------------------------------------------------
 
 fn configure(vault: &str, remote: Option<&str>, name: &str, email: &str) -> Result<()> {
     let repo = match Repository::open(vault) {
@@ -231,17 +228,13 @@ fn configure(vault: &str, remote: Option<&str>, name: &str, email: &str) -> Resu
     Ok(())
 }
 
-/// Commits everything that changed, and answers whether anything did. The message
-/// names the files, a few of them, so the history on GitHub reads as a journal's.
+/// Commits everything that changed and returns whether anything did. The
+/// message names a few of the files, so the history reads like a journal's.
 ///
-/// **A deletion of more than half the vault is not saved on its own.** A synced
-/// folder's deletions travel — that is what a sync is — so a folder emptied by
-/// hand, a mirroring service replaying an old state, or a disk that unmounted
-/// mid-walk would otherwise be pushed to every device within the minute. The
-/// owner emptied the folder "to be safe" and the sync propagated it; the history
-/// held everything, but the surprise was the point. Refused with the count, and
-/// allowed only when asked for by hand (`allow_mass_deletion`, the Sync now
-/// button).
+/// A deletion of more than half the vault is not committed on its own. Deletions
+/// sync, so a folder emptied by hand, a sync service replaying an old state, or a
+/// disk that unmounted mid-walk would reach every device within a minute. Refused
+/// with the count, and allowed only by hand (`allow_mass_deletion`, from Sync now).
 fn commit(vault: &str, allow_mass_deletion: bool) -> Result<bool> {
     let repo = open(vault)?;
     let changed = changes(&repo);
@@ -285,8 +278,8 @@ fn commit(vault: &str, allow_mass_deletion: bool) -> Result<bool> {
     Ok(true)
 }
 
-/// What a trip to the remote starts from: the repository, the branch it is on, and
-/// the token for its address.
+/// What a trip to the remote needs: the repository, its branch,
+/// and the token for its address.
 fn connect(vault: &str) -> Result<(Repository, String, Option<String>)> {
     let repo = open(vault)?;
     let url = remote_url(&repo).ok_or("No repository address is set.")?;
@@ -294,20 +287,19 @@ fn connect(vault: &str) -> Result<(Repository, String, Option<String>)> {
     Ok((repo, branch, secrets::get(&url)))
 }
 
-/// A checkout or a merge that stopped because a file was written since this round's
-/// commit — typing that landed during the fetch. libgit2 refuses *before* writing
-/// anything, so nothing was lost: the next round commits that file and merges.
+/// A checkout or merge that stopped because a file was written after this
+/// round's commit (typing during the fetch). libgit2 refuses before writing
+/// anything, so nothing is lost; the next round commits the file and merges.
 fn waits(e: &git2::Error) -> bool {
     e.code() == git2::ErrorCode::Conflict
 }
 
 fn push(vault: &str) -> Result<()> {
     let (repo, branch, token) = connect(vault)?;
-    // **Only what the remote can take**, as of the round's own fetch: nothing when
-    // there is nothing new, and nothing while the other side has commits this one
-    // has not merged — a pull that waited a round, whose next round merges first.
-    // Pushed anyway, the remote refuses it as a rewind and the round reports a
-    // failure for a state that is fine.
+    // Only what the remote can take, as of this round's fetch: nothing when
+    // there is nothing new, and nothing while the other side has commits
+    // not merged here yet (a pull waiting a round). Pushed anyway, the
+    // remote refuses it as a rewind and the round reports a false failure.
     let tracking = repo.refname_to_id(&format!("refs/remotes/{REMOTE}/{branch}"));
     if let (Ok(head), Ok(theirs)) = (repo.refname_to_id("HEAD"), tracking) {
         let (ahead, behind) = repo.graph_ahead_behind(head, theirs).map_err(err)?;
@@ -327,7 +319,7 @@ fn push(vault: &str) -> Result<()> {
     remote
         .push(&[format!("refs/heads/{branch}:refs/heads/{branch}")], Some(&mut opts))
         .map_err(err)?;
-    // So `ahead`/`behind` mean something, and a plain `git` on this folder agrees.
+    // So `ahead` and `behind` mean something, and plain `git` on this folder agrees.
     if let Ok(mut local) = repo.find_branch(&branch, git2::BranchType::Local) {
         let _ = local.set_upstream(Some(&format!("{REMOTE}/{branch}")));
     }
@@ -349,10 +341,10 @@ fn pull(vault: &str) -> Result<Pulled> {
     let theirs = repo.reference_to_annotated_commit(&remote_ref).map_err(err)?;
     let their_commit = repo.find_commit(theirs.id()).map_err(err)?;
 
-    // **Checkouts are safe, never forced.** Forced, a note typed into between this
-    // round's commit and here was overwritten on disk — even one the other device
-    // never touched — and the buffer's re-read then took the overwritten text.
-    // Their tree on disk, or `None` when a file here is mid-edit and the round waits.
+    // Checkouts are safe, never forced. Forced, a note typed into
+    // after this round's commit was overwritten on disk, and the
+    // buffer then re-read the overwritten text. Returns their tree,
+    // or `None` when a file here is being edited and the round waits.
     let take_theirs = || -> Result<Option<git2::Tree>> {
         let tree = their_commit.tree().map_err(err)?;
         match repo.checkout_tree(tree.as_object(), Some(CheckoutBuilder::new().safe())) {
@@ -361,7 +353,7 @@ fn pull(vault: &str) -> Result<Pulled> {
         }
     };
     let Some(our_commit) = repo.head().ok().and_then(|h| h.peel_to_commit().ok()) else {
-        // Nothing committed here yet: take theirs as the starting point.
+        // Nothing committed here yet: take theirs as the start.
         let Some(tree) = take_theirs()? else { return Ok(Pulled::default()) };
         repo.reference(&format!("refs/heads/{branch}"), theirs.id(), true, "sync: first pull").map_err(err)?;
         repo.set_head(&format!("refs/heads/{branch}")).map_err(err)?;
@@ -383,9 +375,9 @@ fn pull(vault: &str) -> Result<Pulled> {
         return Ok(Pulled { changed: changed_between(&repo, &before, &tree), conflicts: vec![] });
     }
 
-    // A real merge. libgit2 writes the result — conflict markers included — into
-    // the working tree; every conflicted file is then put back the way this side
-    // had it, with the other side's version written beside it.
+    // A real merge. libgit2 writes the result into the working tree,
+    // conflict markers included; each conflicted file is then put back
+    // as this side had it, with the other side's version beside it.
     match repo.merge(&[&theirs], None, None) {
         Err(e) if waits(&e) => return Ok(Pulled::default()),
         done => done.map_err(err)?,
@@ -459,8 +451,8 @@ fn clone(url: &str, into: &str) -> Result<()> {
     let mut opts = FetchOptions::new();
     opts.remote_callbacks(callbacks(token.as_deref()));
     let repo = RepoBuilder::new().fetch_options(opts).clone(url, Path::new(into)).map_err(err)?;
-    // A repository whose HEAD names a branch nobody has pushed leaves the clone
-    // with nothing checked out; take the branch that is there.
+    // When HEAD names a branch nobody pushed, the clone has
+    // nothing checked out; take the branch that is there.
     if repo.head().is_err() {
         let branches: Vec<String> = repo
             .branches(Some(git2::BranchType::Remote))
@@ -530,6 +522,7 @@ fn tree_paths(tree: &git2::Tree) -> Vec<String> {
 
 // ---------------------------------------------------------------------------
 // The commands
+// ---------------------------------------------------------------------------
 
 #[tauri::command]
 pub async fn sync_status(vault: String) -> Result<SyncStatus> {
@@ -572,6 +565,8 @@ pub async fn sync_forget_token(remote: String) -> Result<()> {
 }
 
 // ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -598,7 +593,7 @@ mod tests {
     fn read(vault: &Path, rel: &str) -> String {
         fs::read_to_string(vault.join(rel)).unwrap()
     }
-    /// A vault of its own, configured against `bare` as a `file://` remote.
+    /// A vault of its own, with `bare` as its `file://` remote.
     fn vault(name: &str, bare: &Path) -> PathBuf {
         let v = temp(name);
         configure(&s(&v), Some(&format!("file://{}", s(bare))), "Mira Vance", "mira@example").unwrap();
@@ -650,13 +645,13 @@ mod tests {
         let st = status_of(&s(&a));
         assert_eq!((st.ahead, st.behind), (0, 0));
 
-        // The second device: an empty folder pulling the history down.
+        // The second device: an empty folder pulling the history.
         let b = vault("b", &bare);
         let pulled = pull(&s(&b)).unwrap();
         assert_eq!(pulled.changed, vec!["Daily/2026-09-24.md"]);
         assert_eq!(read(&b, "Daily/2026-09-24.md"), "# Thursday\n");
 
-        // B writes, pushes; A is behind, pulls, and is told which file moved.
+        // B writes and pushes; A is behind, pulls, and is told which file changed.
         write(&b, "Daily/2026-09-25.md", "# Friday\n");
         commit(&s(&b), false).unwrap();
         push(&s(&b)).unwrap();
@@ -680,7 +675,7 @@ mod tests {
         let b = vault("b2", &bare);
         pull(&s(&b)).unwrap();
 
-        // Different files: silent.
+        // Different files: quiet.
         write(&a, "Plans.md", "- one\n- two\n");
         commit(&s(&a), false).unwrap();
         push(&s(&a)).unwrap();
@@ -712,9 +707,9 @@ mod tests {
         assert_eq!(read(&a, "Daily/2026-09-24 (other).md"), "# Thursday\n\nFrom the Mac.\n");
     }
 
-    /// Typing that lands during the fetch — after this round's commit, before its
-    /// checkout — is never overwritten: a note the other side left alone keeps it,
-    /// and a note both sides touched waits for the next round, which merges it.
+    /// Typing that lands during the fetch (after this round's commit, before its
+    /// checkout) is never overwritten: a note the other side left alone keeps
+    /// it, and a note both sides changed waits for the next round's merge.
     #[test]
     fn a_pull_never_overwrites_a_note_written_since_the_rounds_commit() {
         let bare = temp("bare5");
@@ -748,10 +743,10 @@ mod tests {
         let pulled = pull(&s(&b)).unwrap();
         assert!(pulled.changed.is_empty() && pulled.conflicts.is_empty());
         assert_eq!(read(&b, "Plans.md"), "- one\n- from the phone\n");
-        // Behind the other side, the round's push sends nothing rather than a rewind.
+        // Behind the other side, the push sends nothing rather than a rewind.
         push(&s(&b)).unwrap();
 
-        // A merge onto one: the same. And the next round commits it and merges.
+        // A merge onto one: the same. The next round commits it and merges.
         write(&b, "Ideas.md", "committed here\n");
         commit(&s(&b), false).unwrap();
         write(&b, "Plans.md", "- one\n- from the phone, again\n");
@@ -813,7 +808,7 @@ mod tests {
             write(&v, &format!("n{n}.md"), "x");
         }
         assert!(commit(&s(&v), false).unwrap());
-        // Two of four is not more than half: saved.
+        // Two of four is not more than half: committed.
         fs::remove_file(v.join("n0.md")).unwrap();
         fs::remove_file(v.join("n1.md")).unwrap();
         assert!(commit(&s(&v), false).unwrap());

@@ -1,25 +1,20 @@
 //! Plugin registration, and the app's own commands.
 //!
-//! Reading and writing the vault — pick a folder, walk it, read and write its files
-//! — is the `dialog` and `fs` plugins, whose reach is bounded by
-//! `capabilities/default.json` rather than by code here. A capability entry is the
-//! only thing standing between the webview and the disk, so **every new filesystem
-//! operation needs a matching entry** or it fails at runtime only.
+//! Reading and writing the vault goes through the `dialog` and `fs` plugins,
+//! limited by `capabilities/default.json`, not by code here. Every new
+//! filesystem call needs a matching entry there, or it fails only at runtime.
 //!
-//! The commands are each one narrow verb and refuse anything else: `reveal` and
-//! `open_url` (where `tauri-plugin-opener` would hand the webview a general "open
-//! this with the OS"), `fetch_feed`, the vault's sync in `sync.rs` and the terminal
-//! in `terminal.rs`.
+//! Each command is one narrow verb and refuses anything else: `reveal` and
+//! `open_url` (instead of `tauri-plugin-opener`'s general "open anything"),
+//! `fetch_feed`, the sync in `sync.rs` and the terminal in `terminal.rs`.
 
-/// The system's own tools, **by absolute path**, as tmux is found in `terminal.rs`: an
-/// app launched from the Dock has none of the PATH a shell sets, so a bare name is
-/// whatever that PATH happens to reach first, or nothing.
+/// System tools by absolute path, as `terminal.rs` finds tmux:
+/// an app started from the Dock has no shell PATH.
 const OPEN: &str = "/usr/bin/open";
 const CURL: &str = "/usr/bin/curl";
 
-/// Slow work off the main thread. A command that is not `async` runs *on* it, and a
-/// fetch or a push is seconds of a frozen window; every command that touches the
-/// network or the disk at length hands its work here.
+/// Slow work off the main thread. A command that is not `async` runs
+/// on it, and a fetch or a push would freeze the window for seconds.
 pub(crate) async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> Result<T, String> + Send + 'static,
 ) -> Result<T, String> {
@@ -28,12 +23,9 @@ pub(crate) async fn blocking<T: Send + 'static>(
         .map_err(|e| format!("the work did not finish: {e}"))?
 }
 
-/// Selects a path in Finder — macOS's own `open -R`.
-///
-/// Arguments are passed to the binary directly and never through a shell, so a path
-/// holding a quote or a semicolon is a path and not a second command. The path
-/// always comes from the tree the app walked; `open` refuses one that is not there,
-/// and the caller shows that.
+/// Selects a path in Finder with `open -R`. Arguments go to the binary directly,
+/// never through a shell, so a quote or semicolon in a path is just part of the
+/// path. `open` refuses a path that is not there, and the caller shows that.
 #[tauri::command]
 fn reveal(path: String) -> Result<(), String> {
     let status = std::process::Command::new(OPEN)
@@ -48,13 +40,10 @@ fn reveal(path: String) -> Result<(), String> {
     }
 }
 
-/// Opens a link a note carries, in whatever the OS has for it.
-///
-/// **The scheme is checked here, not in the webview.** `open` will launch an
-/// application, mount a volume or run a `file://` path, and a note is a document
-/// that can say anything — so this answers for `http`, `https` and `mailto` and
-/// refuses the rest. `--` ends the option list, or a target beginning with a dash
-/// would be read as a flag. Arguments never go through a shell.
+/// Opens a note's link in the system's app for it. The scheme is checked here,
+/// not in the webview: `open` can launch apps, mount volumes or run `file://`
+/// paths, so only `http`, `https` and `mailto` pass. `--` ends the options, so
+/// a target starting with a dash is not a flag. Never through a shell.
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
     if !has_scheme(&url, &["http", "https", "mailto"]) {
@@ -78,19 +67,14 @@ fn has_scheme(url: &str, allowed: &[&str]) -> bool {
         .unwrap_or(false)
 }
 
-/// The body at a calendar's feed address.
+/// The body at a calendar feed's address.
 ///
-/// **`curl`, and not an HTTP crate**: the app already speaks to the OS through
-/// `open` for the two verbs above, and the one thing wanted here is a GET of a
-/// `.ics` over TLS — which macOS's own `curl` does with its own certificate store,
-/// where an HTTP crate would add a TLS stack to the build to do the same. `http`
-/// and `https` only, since a note or a settings file can say anything; `--` ends
-/// the options, so an address beginning with a dash is an address. Off the main
-/// thread, because a command that is not `async` runs on it and a fetch is
-/// seconds (`blocking`).
+/// `curl` rather than an HTTP crate: macOS's own `curl` does a GET over TLS
+/// with the system's certificates, where a crate would add a TLS stack. `http`
+/// and `https` only; `--` ends the options. Off the main thread (`blocking`).
 ///
-/// `FEED_TIMEOUT_SECS` is the one bound: `curl` has none of its own, and a feed
-/// that never answers would otherwise hold the Sync button at "Syncing…" for good.
+/// `FEED_TIMEOUT_SECS` is the one limit: `curl` has none, and a
+/// feed that never answers would leave Sync stuck on "Syncing…".
 const FEED_TIMEOUT_SECS: &str = "30";
 
 #[tauri::command]
@@ -120,23 +104,22 @@ mod secrets;
 mod sync;
 mod terminal;
 
-/// **A quit waits for the page to write what is being typed.** On macOS tao ends the
-/// app straight from `applicationWillTerminate`, with no event anything could hold
-/// it on, so the typing in a note's last 800ms of autosave went with it. ⌘Q and a
-/// window's close come here instead: the page is asked to flush, and answers `quit`,
-/// or `stay` when a write failed and it has said so. A page that never answers gets
-/// a few seconds, not the power to keep the app open. The Dock's Quit and a logout
-/// still go straight to terminate.
+/// A quit waits for the page to write what is being typed. On macOS tao
+/// ends the app straight from `applicationWillTerminate`, with no event to
+/// hold, so the last 800ms of autosave were lost. ⌘Q and closing a window
+/// come here instead: the page flushes and answers `quit`, or `stay` when a
+/// write failed and it has said so. A page that never answers gets a few
+/// seconds. The Dock's Quit and a logout still end the app directly.
 #[cfg(desktop)]
 mod quit {
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::time::Duration;
     use tauri::{AppHandle, Emitter};
 
-    /// Each request is a generation, so a `stay` or a later request outdates the
-    /// fallback an earlier one started.
+    /// Each request is a generation, so a `stay` or a later
+    /// request cancels an earlier one's fallback.
     static ASKED: AtomicU64 = AtomicU64::new(0);
-    /// Set once the page has said `quit`, so the close that exit makes is let through.
+    /// Set once the page says `quit`, so the close that follows is let through.
     pub static LEAVING: AtomicBool = AtomicBool::new(false);
     const ANSWER_WITHIN: Duration = Duration::from_secs(3);
 
@@ -164,8 +147,8 @@ mod quit {
         ASKED.fetch_add(1, Ordering::SeqCst);
     }
 
-    /// The default menu with its Quit swapped for one that asks first: the stock
-    /// item sends `terminate:`, which is the path with no event on it.
+    /// The default menu with its Quit replaced by one that asks
+    /// first; the stock item sends `terminate:`, which has no event.
     #[cfg(target_os = "macos")]
     pub fn menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
         use tauri::menu::{Menu, MenuItem, MenuItemKind};
@@ -238,8 +221,8 @@ pub fn run() {
                         .build(),
                 )?;
             }
-            // Not fatal: without them the app still opens, and a sync says it
-            // could not connect rather than the app not starting at all.
+            // Not fatal: without them the app still opens, and a
+            // sync says it could not connect.
             #[cfg(target_os = "android")]
             match sync::trust_system_certificates() {
                 Ok(count) => log::info!("trusting {count} system certificates"),

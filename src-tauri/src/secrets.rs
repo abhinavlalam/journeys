@@ -1,11 +1,10 @@
-//! The sync token, kept by the OS and never in the vault or `settings.json`, keyed
-//! by the remote's address.
+//! The sync token, kept by the OS and never in the vault or
+//! `settings.json`, keyed by the remote's address.
 //!
-//! On macOS it is the keychain, reached through macOS's own `security`. On Android
-//! it is `SecretsPlugin.kt` in the app's own sources: a key held by the Android
-//! Keystore seals the token into the app's private files. Written for this app
-//! rather than taken from a plugin, because the token is the one credential the app
-//! holds and the available plugins are very young.
+//! On macOS it is the keychain, through macOS's own `security`. On Android
+//! it is `SecretsPlugin.kt` in the app's sources: an Android Keystore key
+//! seals the token into the app's private files. Written here rather than
+//! taken from a plugin, because it is the app's one credential.
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -14,7 +13,7 @@ mod store {
     use super::Result;
 
     const SERVICE: &str = "Journeys sync";
-    /// macOS's keychain tool, by absolute path for the reason `lib.rs` gives.
+    /// macOS's keychain tool, by absolute path (see `lib.rs`).
     const SECURITY: &str = "/usr/bin/security";
 
     fn security(args: &[&str]) -> Result<std::process::Output> {
@@ -34,7 +33,7 @@ mod store {
     }
 
     pub fn set(remote: &str, token: &str) -> Result<()> {
-        // `-U` updates an item that is there rather than failing on it.
+        // `-U` updates an existing item instead of failing.
         let out = security(&["add-generic-password", "-U", "-s", SERVICE, "-a", remote, "-w", token])?;
         if out.status.success() {
             Ok(())
@@ -44,7 +43,7 @@ mod store {
     }
 
     pub fn forget(remote: &str) -> Result<()> {
-        // Absent is the state asked for, not a failure.
+        // Already absent is what was asked for, not a failure.
         security(&["delete-generic-password", "-s", SERVICE, "-a", remote]).map(|_| ())
     }
 }
@@ -57,7 +56,7 @@ mod store {
     use tauri::plugin::{Builder, PluginHandle, TauriPlugin};
     use tauri::Wry;
 
-    /// The Kotlin half, registered once when the app starts.
+    /// The Kotlin half, registered once at startup.
     static KOTLIN: OnceLock<PluginHandle<Wry>> = OnceLock::new();
 
     pub fn init() -> TauriPlugin<Wry> {
