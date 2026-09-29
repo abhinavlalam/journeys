@@ -6,7 +6,8 @@
 
 import { EditorSelection, type EditorState, type Line } from '@codemirror/state'
 import { EditorView, type Command } from '@codemirror/view'
-import { getIndentUnit } from '@codemirror/language'
+import { getIndentUnit, syntaxTree } from '@codemirror/language'
+import type { SyntaxNode } from '@lezer/common'
 import { localTimeStamp } from './clock'
 
 /**
@@ -290,36 +291,48 @@ const shift = (
 }
 
 /**
- * **Enter keeps the indent of the line you are on.**
+ * Enter keeps the indent of the line you are on. Markdown's Enter would indent to
+ * the enclosing list item's column instead.
  *
- * Reported from the running app: Enter from a line indented six spaces put the
- * caret at three. Read out of the note's own bytes — line 17 six spaces, line 18
- * three. The lines above it were an ordered list, so the parser had that line
- * *inside* item `7.`, and `insertNewlineContinueMarkup` indents a continuation to
- * the item's content column, which for `7. ` is three. Markdown's answer, and not
- * the one a note takes: the indent is space characters the user typed, and the
- * next line starts where this one did.
- *
- * Declines on a list item's own line — there Enter continues the marker, which is
- * markdown's to do — and on a line with nothing in front of it, so a blockquote's
- * `> ` and an empty item's removal are untouched.
+ * A line markdown reads as a list item is left to markdown, which continues the
+ * marker. An indented bullet it reads as code gets its marker carried here, and an
+ * empty one ends the list. A line with no indent is left alone.
  */
 export const continueIndent: Command = ({ state, dispatch }) => {
   const range = state.selection.main
   if (!range.empty) return false
   const line = state.doc.lineAt(range.head)
-  if (contentColumn(line.text) !== null) return false
+  if (contentColumn(line.text) !== null && inList(state, line.from)) return false
   const lead = line.text.slice(0, indentOf(line.text))
   if (!lead) return false
+  // An indented bullet markdown reads as code: carry the marker, or end the list on
+  // an empty one.
+  const bullet = BULLET_LINE.exec(line.text)?.[0]
+  if (bullet && line.text === bullet) {
+    dispatch(state.update({ changes: { from: line.from, to: line.to, insert: lead }, userEvent: 'input' }))
+    return true
+  }
+  const next = bullet ?? lead
   dispatch(
     state.update({
-      changes: { from: range.head, insert: `\n${lead}` },
-      selection: { anchor: range.head + 1 + lead.length },
+      changes: { from: range.head, insert: `\n${next}` },
+      selection: { anchor: range.head + 1 + next.length },
       userEvent: 'input',
       scrollIntoView: true,
     })
   )
   return true
+}
+
+/** An indent, a `-`, `*` or `+`, and the space after it. */
+const BULLET_LINE = /^[ \t]+[-*+][ \t]+/
+
+/** Whether markdown reads the line at `from` as a list item, whose marker it continues. */
+function inList(state: EditorState, from: number): boolean {
+  for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(from, 1); node; node = node.parent) {
+    if (node.name === 'ListItem') return true
+  }
+  return false
 }
 
 /** The keys that write syntax — Enter and Tab in a list, ⌘B/⌘I/⌘E, `[` and `<` over a

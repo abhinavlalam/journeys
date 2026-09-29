@@ -671,6 +671,33 @@ describe('Enter on an indented line', () => {
     expect(run(continueIndent, stateOf('- ', 2, 2, 6)).handled).toBe(false)
   })
 
+  /** An indented `- ` line is code to markdown, so markdown's Enter adds no marker. */
+  describe('on an indented bullet markdown reads as code', () => {
+    const enter = (doc: string) => {
+      const { container } = render(<MarkdownEditor initialMarkdown={doc} onChange={() => {}} indentWidth={5} />)
+      const view = EditorView.findFromDOM(container.querySelector('.cm-editor') as HTMLElement)!
+      view.dispatch({ selection: { anchor: doc.length } })
+      fireEvent.keyDown(view.contentDOM, { key: 'Enter' })
+      const text = view.state.doc.toString()
+      // The caret is where the next word goes: the end.
+      expect(view.state.selection.main.head).toBe(text.length)
+      return text
+    }
+
+    it('starts the next line with the same indent and marker', () => {
+      expect(enter('     - milk')).toBe('     - milk\n     - ')
+      expect(enter('\t* eggs')).toBe('\t* eggs\n\t* ')
+    })
+
+    it('ends the list on an empty item, keeping the indent', () => {
+      expect(enter('     - milk\n     - ')).toBe('     - milk\n     ')
+    })
+
+    it('keeps the indent of a numbered line markdown reads as code', () => {
+      expect(enter('     1. one')).toBe('     1. one\n     ')
+    })
+  })
+
   it('declines with nothing in front of the line, so a quote still continues', () => {
     expect(run(continueIndent, stateOf('> quoted', 8, 8, 6)).handled).toBe(false)
     expect(run(continueIndent, stateOf('plain', 5, 5, 6)).handled).toBe(false)

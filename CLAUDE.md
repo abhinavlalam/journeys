@@ -236,7 +236,8 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   one `latest` ref). Enter over a property's name is a new line, since a line may
   end at its tag. Tab: a popup's pick → list item (markdown's content-column rule, at most three
   past it) → block (a line heading a deeper run) → one indent width. Enter keeps a
-  line's own indent (`continueIndent`). **Test keys through the real keymap**; a
+  line's own indent (`continueIndent`), and an indented `- ` markdown reads as
+  code keeps its marker too. **Test keys through the real keymap**; a
   command tested by direct call is a binding nobody tested. A popup refuses keys
   for its first 75 ms (`interactionDelay`), so a key test moves `Date.now` past it,
   or an Enter test passes for the wrong reason.
