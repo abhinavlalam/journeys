@@ -1,19 +1,10 @@
-// The note graph: one node per note or tag, one edge per *pair* that connect, by kind.
+// The note graph: a node per note, day or tag and an edge per pair that connect, by
+// kind (`buildNoteGraph`); its clusters; and its layouts — rings around one note, and
+// everything by cluster, simulated to rest before anything is drawn.
 //
-// Two halves, and they do not know about each other:
-//
-// - **The model** — `buildNoteGraph` folds notes and their text into nodes and
-//   weighted directed edges. One call, every time: the open note's own text is
-//   substituted into the corpus first, so what the user sees is always a rebuild.
-// - **The layouts** — rings around one note (`ringLayout`), and a hand-rolled force
-//   simulation over the whole graph, run to rest before anything is drawn.
-//
-// Like `links.ts` this module is **pure**: no filesystem, no React, no timers. It
-// takes note text as *input*, so the caller decides when to pay for reading the
-// vault, and it never calls `requestAnimationFrame` — driving a frame is the
-// renderer's business. The imports from `links.ts` are pure, but `links.ts` reaches
-// `vault.ts`, which imports `@tauri-apps/plugin-fs` at module scope, so a test of
-// this file still needs that seam mocked — see `graph.test.ts`.
+// **Pure**: no filesystem, React or timers, and note text is its input. `links.ts`
+// reaches `vault.ts`, which imports the Tauri fs plugin at module scope, so a test of
+// this file still mocks that seam.
 
 import { isDailyNote } from './daily'
 import { parseNoteLinks, pathKey, resolveTarget } from './links'
@@ -86,12 +77,11 @@ export interface GraphEdge {
 }
 
 /**
- * A built graph. Every field is derived, and every one is stable: nodes sorted by
- * `id`, edges by `(from, to, kind)`, using plain `<` rather than `localeCompare` so the
- * order cannot shift with the host's collation. That is what lets the renderer
- * diff one rebuild against the next by identity, and there is a test for it.
- *
- * Invariant the renderer may rely on: both endpoints of every edge are in `nodes`.
+ * A built graph, every field derived and **stable**: nodes by `id`, edges by `(from,
+ * to, kind)`, with plain `<` rather than `localeCompare`, which shifts with the
+ * host's collation. The same vault is the same graph down to its order — what the
+ * view's shape key and every layout's determinism stand on. Both ends of every edge
+ * are in `nodes`.
  */
 export interface NoteGraph {
   nodes: GraphNode[]
@@ -386,26 +376,18 @@ export function ringLayout(
 // Layout: a hand-rolled force simulation
 // ---------------------------------------------------------------------------
 //
-// Repulsion between every pair, a spring along every edge, a gentle pull to the
-// centre, damped velocities, integrated one step at a time. `d3-force` would do
-// this better; it would also be a sixth runtime dependency for ~120 lines, which is
-// the trade that was declined.
+// Repulsion between every pair, a spring along every edge, a pull to the centre,
+// damped velocities, one step at a time. `d3-force` would do it better, as a sixth
+// runtime dependency for ~120 lines: the trade was declined.
 //
-// **Cost.** Repulsion is O(n^2) per step — n(n-1)/2 pairs — and everything else is
-// O(n + e). At the ~23 notes this vault holds that is 253 pairs, immeasurable. The
-// measured numbers are in `graph.test.ts` beside the big-graph test. Run to rest,
-// a web of 150 notes took 42 ms, 300 took 100 ms and 700 took 0.5 s (2026-09-28):
-// paid once per change to the graph's shape, not per frame. Past that is where a
-// Barnes-Hut quadtree earns its complexity; below it, a quadtree is slower than
-// the loop it would replace.
+// **Cost**: repulsion is O(n²) a step. Run to rest, 150 notes took 42 ms, 300 took
+// 100 ms and 700 took 0.5 s (2026-09-28), paid once per change to the graph's shape.
+// Past that a Barnes-Hut quadtree earns its place; below it, it is slower.
 //
-// **Determinism is a hard requirement**: opening the graph twice on an unchanged
-// vault must give the same picture. So every initial position comes from a hash of
-// the note's own id through a seeded PRNG, never `Math.random()`, and the force
-// loops walk `graph.nodes` — sorted by id — so even the floating-point summation
-// order is fixed. Hashing *per node* rather than drawing from one shared stream is
-// deliberate: adding a note only rescales the starting disc, and every note keeps
-// its place in it, rather than the whole set being reshuffled by one insertion.
+// **Determinism is a hard requirement**: the same vault is the same picture. Each
+// starting position is a seeded hash of the node's own id, never `Math.random()` —
+// per node, so a new note does not reshuffle the rest — and the loops walk
+// `graph.nodes` in id order, so even the summation order is fixed.
 
 /** What the simulation can be tuned by. Every field has a default in `DEFAULT_LAYOUT`. */
 interface LayoutOptions {
@@ -853,14 +835,9 @@ export function everything(graph: NoteGraph, clusters: readonly string[][]): { a
   return { at, regions }
 }
 
-/**
- * The layout's extents in simulation space, or null when there is nothing to bound.
- *
- * The renderer owns a **view transform** the user pans and zooms, so it needs the
- * extents once, to work out where to start, rather than a picture squeezed into the
- * pane every frame. `fitToBox` used to do that squeezing and is gone with it: a
- * graph fitted for you is not a graph you can move around in.
- */
+/** The extents of some points, or null for none: what a fit frames. (`fitToBox`,
+ *  which squeezed the picture into the pane every frame, is gone: a graph fitted for
+ *  you is not one you can move around in.) */
 export function boundsOf(
   points: Iterable<Placed>
 ): { minX: number; maxX: number; minY: number; maxY: number } | null {

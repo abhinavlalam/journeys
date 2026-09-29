@@ -253,13 +253,11 @@ describe('parseNoteLinks', () => {
 })
 
 /**
- * **One rule for what is code**, for links, keywords and tags alike. There were two:
- * the links' took a fence indented no more than three spaces, so one under a list
- * item was masked only by being read as a code span, which a blank line ends; the
- * keywords' closed a fence on any run, so a four-backtick fence around three leaked
- * a flag.
+ * **One rule for what is code**, for links and tags alike (`maskCode`). There were
+ * two, and they disagreed about a fence under a list item and a fence inside a
+ * longer one.
  */
-describe('code, as links, keywords and tags all read it', () => {
+describe('code, as links and tags both read it', () => {
   const note = [
     '- a list item',
     '    ```sh',

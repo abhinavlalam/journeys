@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clockText, dayEntries, fieldsOf, lengthOf, timelineDays, totalsOf, withEntry, withNewEntry, wordsOf } from '../timeline'
+import { clockText, dayEntries, fieldsOf, lengthOf, timelineDays, totalsOf, withEditedEntry, withNewEntry, wordsOf } from '../timeline'
 import type { PropertyType } from '../properties'
 
 /**
@@ -128,17 +128,17 @@ describe('writing an entry back', () => {
   const [standup] = dayEntries(day, raw)
 
   it('rewrites the entry’s line where it stands, and nothing else', () => {
-    expect(withEntry(raw, standup, '09:15 standup, late')).toBe(
+    expect(withEditedEntry(raw, standup, '09:15 standup, late')).toBe(
       ['mood:: calm', '#timeline', '     09:15 standup, late\r', '     13:00 review with [[Mira Vance]]', ''].join('\n')
     )
   })
 
   it('keeps an edit to one line, whatever is pasted into it', () => {
-    expect(withEntry(raw, standup, '09:15 standup\nand more')!.split('\n')[2]).toBe('     09:15 standup and more\r')
+    expect(withEditedEntry(raw, standup, '09:15 standup\nand more')!.split('\n')[2]).toBe('     09:15 standup and more\r')
   })
 
   it('writes nothing when the line is no longer the entry’s', () => {
-    expect(withEntry(raw.replace('standup', 'stand-up'), standup, '09:15 standup')).toBeNull()
+    expect(withEditedEntry(raw.replace('standup', 'stand-up'), standup, '09:15 standup')).toBeNull()
   })
 })
 

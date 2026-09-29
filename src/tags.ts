@@ -5,7 +5,7 @@
 // the notes back. A tag has no file; its structure, if it has one, is an entry in
 // `tags.json`.
 
-import { proseLines } from './prose'
+import { indentOf, proseLines } from './prose'
 import type { Entries } from './configEntries'
 
 /**
@@ -72,7 +72,7 @@ export interface CollectedLine {
 /** A line's indent, or **-1 for a blank one**, which must not end the run below an
  *  entry and so has to be told apart from a line at indent 0. */
 function indentOrBlank(line: string): number {
-  return line.trim() === '' ? -1 : line.length - line.trimStart().length
+  return line.trim() === '' ? -1 : indentOf(line)
 }
 
 /**

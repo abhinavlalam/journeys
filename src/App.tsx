@@ -35,7 +35,7 @@ import {
 import { useConfigEntries } from './useConfigEntries'
 import { readEntries } from './configEntries'
 import { propertiesOf, tablesOf, TAG_NAME, TAGS_FILE, viewOf } from './tags'
-import { withEntry, withNewEntry, type TimelineEntry } from './timeline'
+import { withEditedEntry, withNewEntry, type TimelineEntry } from './timeline'
 import { TimelineView } from './TimelineView'
 import { LogView } from './LogView'
 import { useLog } from './useLog'
@@ -774,7 +774,7 @@ export default function App() {
   async function editEntry(entry: TimelineEntry, text: string) {
     await vault.mutate(
       async () => {
-        const next = withEntry(await readVaultFile(entry.note), entry, text)
+        const next = withEditedEntry(await readVaultFile(entry.note), entry, text)
         if (next === null) throw new Error(`${entry.note.name} changed since the timeline read it; the entry was not written.`)
         await writeVaultFile(entry.note, next)
         return next
@@ -1108,40 +1108,28 @@ export default function App() {
                 onClick={() => setWs((current) => toggleTab(current, { kind: 'graph' }))}
               />
             </li>
-            {/* The days ahead, read out of the `#event` lines in the journal. */}
-            <li style={{ paddingLeft: stepIn(1) }}>
-              <NoteRow
-                icon={<RowIcon icon="calendar" />}
-                name="Calendar"
-                className={active?.kind === 'calendar' ? 'selected' : undefined}
-                aria-label="Calendar"
-                aria-pressed={active?.kind === 'calendar'}
-                onClick={() => setWs((current) => openTab(current, { kind: 'calendar' }))}
-              />
-            </li>
-            {/* The daily notes as each day happened, today at the bottom. */}
-            <li style={{ paddingLeft: stepIn(1) }}>
-              <NoteRow
-                icon={<RowIcon icon="clock" />}
-                name="Timeline"
-                className={active?.kind === 'timeline' ? 'selected' : undefined}
-                aria-label="Timeline"
-                aria-pressed={active?.kind === 'timeline'}
-                onClick={() => setWs((current) => openTab(current, { kind: 'timeline' }))}
-              />
-            </li>
-            {/* Everything the app has said in this window. */}
-            <li style={{ paddingLeft: stepIn(1) }}>
-              <NoteRow
-                icon={<RowIcon icon="inbox" />}
-                name="Log"
-                className={active?.kind === 'log' ? 'selected' : undefined}
-                aria-label="Log"
-                aria-pressed={active?.kind === 'log'}
-                trailing={log.items.length > 0 ? <span className="row-count">{log.items.length}</span> : undefined}
-                onClick={() => setWs((current) => openTab(current, { kind: 'log' }))}
-              />
-            </li>
+            {(
+              [
+                // The days ahead, read out of the `#event` lines in the journal.
+                { kind: 'calendar', name: 'Calendar', icon: 'calendar', count: 0 },
+                // The daily notes as each day happened, today at the bottom.
+                { kind: 'timeline', name: 'Timeline', icon: 'clock', count: 0 },
+                // Everything the app has said in this window.
+                { kind: 'log', name: 'Log', icon: 'inbox', count: log.items.length },
+              ] as const
+            ).map(({ kind, name, icon, count }) => (
+              <li key={kind} style={{ paddingLeft: stepIn(1) }}>
+                <NoteRow
+                  icon={<RowIcon icon={icon} />}
+                  name={name}
+                  className={active?.kind === kind ? 'selected' : undefined}
+                  aria-label={name}
+                  aria-pressed={active?.kind === kind}
+                  trailing={count > 0 ? <span className="row-count">{count}</span> : undefined}
+                  onClick={() => setWs((current) => openTab(current, { kind }))}
+                />
+              </li>
+            ))}
             {/* The vault's sync, in one sentence, and the way to its settings. */}
             <li style={{ paddingLeft: stepIn(1) }}>
               <NoteRow

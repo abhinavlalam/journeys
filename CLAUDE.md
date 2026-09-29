@@ -350,7 +350,7 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 - **A press on an entry edits its one line** under the note's own editor in `line`
   mode (no gutters; Enter, Escape and leaving each the caller's, an open popup's own
   keys first), ended once however it ends. An edit writes on Enter or leaving, and
-  the write is `withEntry` through `mutate`: that line, its indent and line ending
+  the write is `withEditedEntry` through `mutate`: that line, its indent and line ending
   kept, refused if the line is no longer the entry's. A day's name opens its note.
 - **A new entry is typed at the bottom of today**, and today is **one** section in its
   place among the days — written or not, and before the days ahead a calendar sync

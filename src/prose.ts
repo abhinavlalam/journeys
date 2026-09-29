@@ -26,6 +26,9 @@ function blank(run: string): string {
  * deeply nested list item is far more common than an indented code sample, and
  * masking those would silently drop real links.
  */
+/** How far a line is indented: its leading whitespace, in characters. */
+export const indentOf = (line: string) => line.length - line.trimStart().length
+
 export function maskCode(text: string): string {
   const lines = text.split('\n')
   let out = ''

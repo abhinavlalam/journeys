@@ -8,7 +8,7 @@
 import { leadingClock } from './clock'
 import { dayOf, isDailyNote } from './daily'
 import { blockProperties, readBlock, splitPageProperties, type PropertyType } from './properties'
-import { proseLines } from './prose'
+import { indentOf, proseLines } from './prose'
 import { TAG, tagNames } from './tags'
 import type { VaultFile } from './vaultModel'
 
@@ -73,7 +73,7 @@ function readDay(note: VaultFile, raw: string): { entries: TimelineEntry[]; grou
   for (let at = first; at < lines.length; at++) {
     const line = lines[at]
     if (line.trim() === '') continue
-    const indent = line.length - line.trimStart().length
+    const indent = indentOf(line)
     if (entry && indent > entry.indent) {
       entry.below.push(line.slice(entry.indent).trimEnd())
       for (const head of heads) head.end = at
@@ -140,7 +140,7 @@ export function withNewEntry(note: VaultFile, raw: string, text: string, indent:
   }
   const lines = raw.split('\n')
   const inside = lines.slice(group.at + 1, group.end + 1).find((line) => line.trim() !== '')
-  const pad = inside ? inside.slice(0, inside.length - inside.trimStart().length) : ' '.repeat(group.indent) + indent
+  const pad = inside ? inside.slice(0, indentOf(inside)) : ' '.repeat(group.indent) + indent
   lines.splice(group.end + 1, 0, pad + text)
   return lines.join('\n')
 }
@@ -150,11 +150,11 @@ export function withNewEntry(note: VaultFile, raw: string, text: string, indent:
  * and nothing else in the note touched — or null when that line is no longer the
  * entry's: the note changed since it was read, and writing would land on another.
  */
-export function withEntry(raw: string, entry: TimelineEntry, text: string): string | null {
+export function withEditedEntry(raw: string, entry: TimelineEntry, text: string): string | null {
   const lines = raw.split('\n')
   const line = lines[entry.at]
   if (line === undefined || line.trim() !== entry.text) return null
-  const indent = line.slice(0, line.length - line.trimStart().length)
+  const indent = line.slice(0, indentOf(line))
   lines[entry.at] = indent + text.replace(/\s+/g, ' ').trim() + (line.endsWith('\r') ? '\r' : '')
   return lines.join('\n')
 }

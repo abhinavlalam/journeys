@@ -5,21 +5,13 @@ import type { EdgeKind, GraphNode, NoteGraph, Placed, Region, Sector } from './g
 import { countOf } from './rows'
 
 /**
- * The note graph, drawn.
+ * The note graph, drawn. **Given no filesystem**: the graph arrives built, so this
+ * mounts under a test with no disk mocked.
  *
- * **Presentational, and deliberately given no filesystem.** `vault.ts` is the only
- * module allowed to import `@tauri-apps/plugin-fs`, and `App` is the only caller
- * with a vault to read — so the graph arrives here already built and this file
- * mounts under a test with no disk mocked at all.
- *
- * **Still.** It was a force simulation animated in front of the reader — the swirl,
- * and the crowd, since it drew every note at once — and was called confusing, with
- * "nothing visually smooth or understandable about it". Now the picture is laid out
- * before it is drawn, the same every time, and moves only when what is asked of it
- * changes, gliding from the old places to the new. **Around this note** is the note
- * in the middle, what it touches on a ring, and what those touch beyond; **Every­
- * thing** is the whole vault, settled first. Three checkboxes along the top say what
- * a connection is.
+ * **Still**: laid out before it is drawn, the same every time, and moving only when
+ * what is asked changes — a simulation animated in front of the reader was called
+ * confusing. Around this note, or everything; three checkboxes say what a
+ * connection is.
  */
 
 /** Room for a node's own radius plus the label under it, so neither is clipped. */
@@ -30,13 +22,8 @@ const NODE_R_STEP = 0.9
 const NODE_R_MAX = 11
 /** Where a label sits below the circle it belongs to, in screen pixels. */
 const LABEL_OFFSET = 6
-/**
- * **The zoom range, and why there is one at all.** The layout used to be re-fitted
- * into the pane on every frame: the whole graph squeezed into the pane, which for anything past a handful
- * of notes is a knot of overlapping discs with every label on at once — reported as
- * unusable, and it was. A graph is read by moving around it, so the pane now owns a
- * transform the pointer drives and the layout is left in its own space.
- */
+/** The zoom range. The pane owns a transform the pointer drives: a layout squeezed
+ *  into the pane on every frame was a knot of overlapping discs. */
 const ZOOM_MIN = 0.15
 const ZOOM_MAX = 5
 /** Wheel notch to scale factor. Small enough that a trackpad is not a jump cut. */
@@ -52,24 +39,13 @@ const FIT_MAX = 1.2
 /** Opacity for what is not connected to the hovered node. */
 const DIM = 0.12
 
-/**
- * The label's size on screen, in pixels, and **the only place it is written.**
- *
- * It has to be here rather than in the sheet: a label is counter-scaled by the zoom
- * so a name keeps one readable size at every magnification, which is arithmetic the
- * renderer does. It was in three places — this, a bare `11` at the point of use, and
- * a `font-size` in `.graph-label` that never applied because the inline attribute
- * beats it. The sheet's rule now sets everything about a label except its size.
- */
+/** A label's size on screen, and **the only place it is written**: counter-scaled by
+ *  the zoom, which is arithmetic, so not the sheet's — whose `font-size` the inline
+ *  attribute beat anyway. */
 const LABEL_PX = 11
-/**
- * Width of a character as a share of the size, for deciding which labels fit.
- *
- * The same 0.516 `settings.ts` falls back to when there is no document to measure
- * in — and this is that case, because a label is drawn into an SVG before anything
- * has laid it out. It only has to be close: it decides whether two names *collide*,
- * and a name that is a few pixels out either way is a name that nearly collided.
- */
+/** A character's width as a share of the size, for which labels fit — `settings.ts`'s
+ *  fallback, since a label is placed before anything is laid out. Close is enough:
+ *  it only decides whether two names collide. */
 const EM_PER_CHARACTER = 0.516
 /** Air around a label before it counts as touching its neighbour. */
 const LABEL_GAP = 4
@@ -242,26 +218,10 @@ function fitView(points: Iterable<Placed>, width: number, height: number, top = 
 }
 
 /**
- * Which notes are named when nothing is hovered: **the ones that earn it**, most
- * connected first, skipping any whose name would land on a name already placed.
- *
- * The resting graph was the complaint — the hover reads well and the rest did not —
- * and the measurement said why. On the vault this was found in: 108 nodes, 198
- * edges, and a fit zoom of 0.663 against a threshold of 0.75, so **no labels at
- * all**. A hundred anonymous dots in a web of two hundred lines is a picture of
- * nothing; the threshold was meant to stop a soup of overlapping names and instead
- * removed every name there was.
- *
- * Both were the same mistake, which is deciding by *zoom* — a number that says
- * nothing about whether two particular names are on top of each other. Deciding by
- * collision says exactly that, so the graph names as much as it has room for and no
- * more, at every zoom, and more names simply appear as you zoom in. Measured on the
- * same vault: 27 of the 108 labels collided with another, so a greedy pass drops
- * about a quarter and keeps the hubs.
- *
- * Degree is the order because a hub is what orients you in a graph — if only one
- * name can be drawn in a region, it should be the one the region is about. The open
- * note is placed first whatever its degree, since "where am I" outranks that.
+ * Which notes are named when nothing is hovered: **by collision, not zoom** — a zoom
+ * threshold once left a hundred notes with no name at all. Most connected first, as
+ * a hub orients; the open note first of all; a name that would land on one placed
+ * is skipped, and zooming in makes room for more.
  */
 export function decluttered(
   graph: NoteGraph,
@@ -300,15 +260,8 @@ export function decluttered(
   return shown
 }
 
-/**
- * Who is next to whom, for the hover.
- *
- * **Hovering a node names it and everything it touches**, and dims the rest — asked
- * for in those words, and it is the one interaction that turns a hairball into
- * something you can read: a graph answers "what is this connected to", and pointing
- * is how you ask. Built off the edges the graph already has, both ways, because an
- * edge is a connection whichever end you are standing on.
- */
+/** Who is next to whom, both ways, for the hover: hovering a node names it and
+ *  everything it touches, and dims the rest. */
 function neighboursOf(graph: NoteGraph | null): ReadonlyMap<string, ReadonlySet<string>> {
   const near = new Map<string, Set<string>>()
   if (!graph) return near
@@ -440,13 +393,8 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
     [view]
   )
 
-  /**
-   * One pointer gesture, on the window rather than on the element.
-   *
-   * A drag that leaves the pane still has to finish: listeners on the node would
-   * stop firing the moment the pointer outran it, which is exactly when a graph is
-   * being pulled apart. Registered per gesture and removed with it.
-   */
+  /** The pointer's gestures, on the window rather than the node: a drag that
+   *  outruns its node still has to finish. */
   useEffect(() => {
     const onMove = (event: PointerEvent) => {
       const active = gesture.current
@@ -472,11 +420,9 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
       gesture.current = null
       if (!active) return
       if (active.kind === 'node') {
-        // **A drag is not a click**, and the browser will send one anyway: a press
-        // and a release on the same element is a click however far the pointer went
-        // in between. So the click that follows a *moved* gesture is swallowed,
-        // rather than selection being moved off `click` altogether — which would
-        // cost the keyboard and every assistive path that synthesises one.
+        // **A drag is not a click**, though the browser sends one: the click after a
+        // moved gesture is swallowed, rather than selection leaving `click`, which
+        // the keyboard and assistive tools send.
         dragged.current = active.moved
       }
     }
@@ -491,14 +437,9 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
   }, [toWorld])
 
   /**
-   * The wheel zooms **about the pointer**, so whatever is under it stays under it.
-   *
-   * Solve `screen = world * k + t` for the new translation with `world` fixed. Zoom
-   * that ignores the pointer and scales about a corner is the thing that makes a
-   * graph view feel broken, because the node you were reading leaves the pane.
-   *
-   * Not React's `onWheel`: that is passive, so `preventDefault` there is refused and
-   * the whole pane scrolls behind the zoom.
+   * The wheel zooms **about the pointer** — `screen = world * k + t` solved for the
+   * new `t` with `world` fixed — so what is under it stays there. Not React's
+   * `onWheel`, which is passive: `preventDefault` is refused and the pane scrolls.
    */
   useEffect(() => {
     const element = svgRef.current
