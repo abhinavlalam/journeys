@@ -340,8 +340,11 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   keys first), ended once however it ends. An edit writes on Enter or leaving, and
   the write is `withEntry` through `mutate`: that line, its indent and line ending
   kept, refused if the line is no longer the entry's. A day's name opens its note.
-- **A new entry is typed at the bottom of today** (a Today section of its own until
-  the day has one): Enter files it, Escape clears it, and leaving keeps the draft.
+- **A new entry is typed at the bottom of today**, and today is **one** section in its
+  place among the days — written or not, and before the days ahead a calendar sync
+  wrote (placed after the last day, it was a second Today). Its editor is typed as a
+  note's is, the time key included. Enter files it, Escape clears it, and leaving
+  keeps the draft.
   `withNewEntry` files it as the day is written — under the group its tag heads,
   else where its tag's entries already are (`#food` under `#diet`), else
   `#timeline`, made at the end if missing — after the group's last line, indented

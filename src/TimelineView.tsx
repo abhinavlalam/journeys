@@ -18,12 +18,13 @@ interface Opens {
   onOpenTag: (tag: string) => void
 }
 
-/** What an entry's editor offers as it is typed, as a note's does: the `[[` picker's
- *  notes, and the property popup's structures and types. */
-interface Offers {
+/** What an entry's editor is typed with, as a note's is: the `[[` picker's notes,
+ *  the property popup's structures and types, and the key that writes the time. */
+interface Typing {
   notes: VaultFile[]
   propertyTypes: Entries
   tagStructures: Entries
+  insertTimeCombo: string | null
 }
 
 /**
@@ -40,7 +41,7 @@ export function TimelineView({
   days,
   tables,
   typeOf,
-  offers,
+  typing,
   onEdit,
   onAdd,
   ...opens
@@ -50,7 +51,7 @@ export function TimelineView({
   /** Every tag drawn as a table, with its structure (`tablesOf`). */
   tables: Record<string, string[]>
   typeOf: (name: string) => PropertyType
-  offers: Offers
+  typing: Typing
   /** An entry's line was edited to read `text`. */
   onEdit: (entry: TimelineEntry, text: string) => void
   /** A new entry was typed at the bottom of today. */
@@ -67,15 +68,21 @@ export function TimelineView({
     end.current?.scrollIntoView?.({ block: 'end' })
   }, [read])
   const total = days?.reduce((sum, one) => sum + one.entries.length, 0) ?? 0
+  // **Today is one section, in its place**, for the line a new entry is typed on —
+  // with nothing written yet, and before the days ahead a calendar has written.
+  const shown: { day: string; note: VaultFile | null; entries: TimelineEntry[] }[] =
+    !days || days.some((one) => one.day === today)
+      ? (days ?? [])
+      : [...days, { day: today, note: null, entries: [] }].sort((a, b) => a.day.localeCompare(b.day))
   const editorFor = (entry: TimelineEntry) => {
     const done = (text: string) => {
       setEditing(null)
       // Emptied is not deleted: what is nested under it would lose its line.
       if (text.trim() !== '' && text.trim() !== entry.text) onEdit(entry, text)
     }
-    return <EntryEditor text={entry.text} offers={offers} onEnter={done} onLeave={done} onEscape={() => setEditing(null)} {...opens} />
+    return <EntryEditor text={entry.text} typing={typing} onEnter={done} onLeave={done} onEscape={() => setEditing(null)} {...opens} />
   }
-  const newEntry = <NewEntry offers={offers} onAdd={onAdd} rowRef={end} {...opens} />
+  const newEntry = <NewEntry typing={typing} onAdd={onAdd} rowRef={end} {...opens} />
 
   return (
     <>
@@ -87,13 +94,13 @@ export function TimelineView({
           </li>
         </Section>
       )}
-      {days?.map((day) => (
+      {shown.map(({ note, ...day }) => (
         <Section
           key={day.day}
           title={dayTitle(day.day, today)}
           count={day.entries.length}
           startOpen
-          onOpen={() => opens.onOpen(day.note)}
+          onOpen={note ? () => opens.onOpen(note) : undefined}
         >
           <li className="timeline-box">
             <ol className="timeline-entries">
@@ -114,14 +121,6 @@ export function TimelineView({
           </li>
         </Section>
       ))}
-      {/* Today with nothing in it yet still has the line a first entry is typed on. */}
-      {read && days[days.length - 1]?.day !== today && (
-        <Section title={dayTitle(today, today)} count={0} startOpen>
-          <li className="timeline-box">
-            <ol className="timeline-entries">{newEntry}</ol>
-          </li>
-        </Section>
-      )}
     </>
   )
 }
@@ -185,7 +184,7 @@ function Entry({
  */
 function EntryEditor({
   text,
-  offers,
+  typing,
   onEnter,
   onEscape,
   onLeave,
@@ -193,7 +192,7 @@ function EntryEditor({
   onOpenTag,
 }: {
   text: string
-  offers: Offers
+  typing: Typing
   onEnter: (text: string) => void
   onEscape: () => void
   onLeave?: (text: string) => void
@@ -209,9 +208,10 @@ function EntryEditor({
       <MarkdownEditor
         initialMarkdown={text}
         caretAtEnd
-        notes={offers.notes}
-        propertyTypes={offers.propertyTypes}
-        tagStructures={offers.tagStructures}
+        notes={typing.notes}
+        propertyTypes={typing.propertyTypes}
+        tagStructures={typing.tagStructures}
+        insertTimeCombo={typing.insertTimeCombo}
         onOpenLink={onOpenLink}
         onOpenTag={onOpenTag}
         onChange={() => {}}
@@ -231,11 +231,11 @@ function EntryEditor({
  * until it is filed.
  */
 function NewEntry({
-  offers,
+  typing,
   onAdd,
   rowRef,
   ...opens
-}: { offers: Offers; onAdd: (text: string) => void; rowRef: RefObject<HTMLLIElement | null> } & Opens) {
+}: { typing: Typing; onAdd: (text: string) => void; rowRef: RefObject<HTMLLIElement | null> } & Opens) {
   // A fresh line each round: the editor's text is read at mount only.
   const [round, setRound] = useState(0)
   const next = () => setRound((was) => was + 1)
@@ -246,7 +246,7 @@ function NewEntry({
       <EntryEditor
         key={round}
         text=""
-        offers={offers}
+        typing={typing}
         onEnter={(text) => {
           if (text.trim() !== '') onAdd(text.trim())
           next()

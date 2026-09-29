@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { localDateStamp } from '../clock'
+import { daysAfter, localDateStamp } from '../clock'
 import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
@@ -57,12 +57,12 @@ const entries = (day: Element) =>
     one.classList.contains('block') ? 'block' : 'moment',
   ])
 
-async function openTimeline() {
+async function openTimeline(sections = 3) {
   const { default: App } = await import('../App')
   render(<App />)
   await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
   fireEvent.click(screen.getByLabelText('Timeline'))
-  await waitFor(() => expect(days()).toHaveLength(3))
+  await waitFor(() => expect(days()).toHaveLength(sections))
 }
 
 describe('the timeline', () => {
@@ -127,6 +127,21 @@ describe('the timeline', () => {
     expect(field.value).toBe('12:00 #expense lunch')
     fireEvent.keyDown(field, { key: 'Enter' })
     await waitFor(() => expect(disk.read(today())).toBe('#expense\n     08:30 #expense amount:: 60\n     12:00 #expense lunch\n'))
+  })
+
+  it('has one today, in its place before a day ahead the calendar wrote, with one new line', async () => {
+    disk.write(`/v/Daily/${daysAfter(localDateStamp(), 3)}.md`, '18:00 #event flight\n')
+    await openTimeline(4)
+    const titles = days().map((one) => one.querySelector('.folder-toggle')!.textContent ?? '')
+    expect(titles.filter((one) => one.startsWith('Today'))).toHaveLength(1)
+    expect(titles.findIndex((one) => one.startsWith('Today'))).toBe(2)
+    expect(document.querySelectorAll('[data-testid="line-editor"]')).toHaveLength(1)
+  })
+
+  it('gives the new line the key that writes the time, as a note has', async () => {
+    await openTimeline()
+    const { DEFAULT_SETTINGS } = await import('../settings')
+    expect(lineIn(days()[2])!.dataset.timeKey).toBe(DEFAULT_SETTINGS.shortcuts.insertTime)
   })
 
   it('opens a day’s note from its name', async () => {

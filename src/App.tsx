@@ -1270,7 +1270,13 @@ export default function App() {
                     days={timeline}
                     tables={tablesOf(tagStructures.entries)}
                     typeOf={(name) => typeOf(propertyTypes.entries, name)}
-                    offers={{ notes, propertyTypes: propertyTypes.entries, tagStructures: tagStructures.entries }}
+                    typing={{
+                      notes,
+                      propertyTypes: propertyTypes.entries,
+                      tagStructures: tagStructures.entries,
+                      // Off while the settings are open, as a note's is: it may be being rebound.
+                      insertTimeCombo: settingsOpen ? null : settings.shortcuts.insertTime,
+                    }}
                     onEdit={(entry, text) => void editEntry(entry, text)}
                     onAdd={(text) => void addEntry(text)}
                     onOpen={(file) => void openNote(file)}

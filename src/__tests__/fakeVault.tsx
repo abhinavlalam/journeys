@@ -282,16 +282,19 @@ export function markdownEditorModule() {
       onChange,
       shown = true,
       line,
+      insertTimeCombo,
     }: {
       initialMarkdown: string
       onChange: (markdown: string) => void
       shown?: boolean
+      insertTimeCombo?: string | null
       line?: { onEnter: (text: string) => void; onEscape: () => void; onLeave?: (text: string) => void }
     }) =>
       // An editor over one line keeps the real one's Enter, Escape and leaving.
       line ? (
         <input
           data-testid="line-editor"
+          data-time-key={insertTimeCombo ?? ''}
           aria-label="Markdown source"
           defaultValue={initialMarkdown}
           onKeyDown={(e) => (e.key === 'Enter' ? line.onEnter(e.currentTarget.value) : e.key === 'Escape' && line.onEscape())}
