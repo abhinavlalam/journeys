@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { VaultFile, VaultFolder } from '../vaultModel'
 
-// `graph.ts` reaches `vault.ts` only through `links.ts`, and only for pure
-// functions, but `vault.ts` imports `@tauri-apps/plugin-fs` at module scope, so the
-// seam is still needed. Nothing here reaches a disk.
+// `graph.ts` reaches `vault.ts` only through `links.ts`, for
+// pure functions, but `vault.ts` imports the fs plugin at load,
+// so it is still mocked. Nothing here touches a disk.
 vi.mock('@tauri-apps/plugin-fs', () => ({
   readDir: vi.fn(),
   readTextFile: vi.fn(),
@@ -49,7 +49,7 @@ const root: VaultFolder = {
   name: 'Vault',
   files: [note('Index.md'), note('Sleep.md')],
   folders: [
-    // `Ideas/` has its note file; `Notes/` does not yet — both are still notes.
+    // `Ideas/` has its note file; `Notes/` does not yet. Both are notes.
     {
       path: 'Ideas',
       absolutePath: '/vault/Ideas',
@@ -76,7 +76,7 @@ const texts = {
     'See [Roadmap](Notes/Roadmap.md), the [plan](Notes/Roadmap.md) and [it again](Notes/Roadmap.md).\n' +
     'Also [Ideas](Ideas) and [home](https://pingbird.example) and [me](Index.md).\n',
   'Notes/Roadmap.md': 'Back to [Index](Index.md), forward to [Someday](Later/Someday.md).\n',
-  // The caller reads *every* note, so an unwritten folder note arrives as empty text.
+  // The caller reads every note, so an unwritten folder note comes in as empty text.
   'Notes/Notes.md': '',
   'Ideas/Ideas.md': 'Nothing links out of here.\n',
   'Sleep.md': 'Nor here.\n',
@@ -126,9 +126,9 @@ describe('buildNoteGraph', () => {
     const graph = build()
     expect(graph.nodes.some((n) => n.path.includes('pingbird'))).toBe(false)
     expect(edgeList(graph).some((e) => e.includes('pingbird'))).toBe(false)
-    // A scheme never reaches this module — `parseNoteLinks` drops it — so the
-    // externals worth pinning here are the ones only `resolveTarget` can name: a
-    // file this app does not open, and a path that walks out of the vault.
+    // A scheme never reaches this module (`parseNoteLinks` drops it),
+    // so the externals here are the ones only `resolveTarget` names:
+    // a file the app does not open, and a path leaving the vault.
     const odd = build({ 'Sleep.md': '[a](assets/plan.png) [b](../outside.md) [c](Ideas)' })
     expect(odd.nodes.map((n) => n.id).filter((id) => id !== 'ideas/ideas')).not.toContain('assets/plan')
     expect(edgeList(odd).filter((e) => e.startsWith('sleep ->'))).toEqual([
@@ -200,11 +200,10 @@ const graphOf = (all: Record<string, string>) => {
 }
 
 /**
- * **Folders left out of the picture, with the edges that touched them.** On the
- * vault this was built for, the two most linked notes were a currency code and a
- * credit card, because every expense line links both — a diagram of a schema.
- * Dropped *after* the walk, so a link into a hidden note does not come back as a
- * hollow missing node the way filtering the corpus would make it.
+ * Folders left out of the picture, with the edges that touched them.
+ * In the vault this was built for, every expense line linked the same
+ * two notes, which then dominated the graph. Dropped after the walk,
+ * so a link into a hidden note does not come back as a missing node.
  */
 describe('hidden folders', () => {
   const all = {
@@ -222,7 +221,7 @@ describe('hidden folders', () => {
     const graph = built(['Entities/Currencies'])
     expect(graph.nodes.map((one) => one.name).sort()).toEqual(['Ana', 'Cafe', 'day'])
     expect(graph.edgeCount).toBe(2)
-    // Not a hollow "missing" node either: it is gone, not unresolved.
+    // Not a missing node either: it is gone, not unresolved.
     expect(graph.nodes.some((one) => !one.exists)).toBe(false)
   })
 
@@ -236,7 +235,7 @@ describe('hidden folders', () => {
     expect(built([]).edgeCount).toBe(3)
   })
 
-  /** An encrypted note is the owner's alone, so a link into one draws nothing. */
+  /** A locked note is its owner's alone, so a link into one draws nothing. */
   it('never draws an encrypted note, in either spelling', () => {
     const idx = buildNoteIndex(['Daily/day.md', 'Private.enc', 'Old.enc.md'].map(note))
     const text = 'see [[Private]] and [[Old]]'
@@ -296,7 +295,7 @@ describe('determinism', () => {
 
   it('gives byte-identical positions for two runs on the same graph', () => {
     expect(layout(graph)).toEqual(layout(graph))
-    // Rebuilt from scratch, not the same object — the guarantee is about the input.
+    // Rebuilt from scratch, not the same object: the guarantee is about the input.
     expect(layout(chain(8))).toEqual(layout(graph))
     expect(initialLayout(chain(8))).toEqual(initialLayout(graph))
   })
@@ -320,9 +319,9 @@ describe('determinism', () => {
   })
 
   it('seeds each node from its own id, so adding a note only rescales the disc', () => {
-    // Per-node hashing rather than one shared stream: a ninth note widens the
-    // starting disc by exactly sqrt(9/8) and every note keeps its place in it. One
-    // shared stream would have reshuffled all eight.
+    // Hashed per node rather than one shared stream: a ninth note
+    // widens the starting disc by exactly sqrt(9/8) and every note
+    // keeps its place. A shared stream would reshuffle all eight.
     const before = initialLayout(graph)
     const after = initialLayout(chain(9))
     const grow = Math.sqrt(9 / 8)
@@ -333,8 +332,8 @@ describe('determinism', () => {
   })
 
   it('starts every note at its own point, not one shared point', () => {
-    // Without this, a shared seed stacks the whole vault on one spot and only the
-    // coincident-pair guard saves it — which the NaN tests would not notice.
+    // Without this, a shared seed stacks the vault on one spot, and only
+    // the coincident-pair guard saves it, which the NaN tests would miss.
     const state = initialLayout(chain(8))
     expect(new Set(state.nodes.map((n) => `${n.x},${n.y}`)).size).toBe(8)
   })
@@ -354,8 +353,8 @@ describe('stepLayout', () => {
   })
 
   it('separates two nodes sitting exactly on top of each other', () => {
-    // The classic failure: `dx / 0` is NaN, and one NaN reaches every node through
-    // the pair loop in a single frame and never leaves.
+    // The classic failure: `dx / 0` is NaN, and one NaN reaches
+    // every node through the pair loop in one frame and stays.
     const graph = graphOf({ 'A.md': '[b](B.md)', 'B.md': '' })
     let state: LayoutState = stacked(['a', 'b'])
     state = stepLayout(graph, state)
@@ -390,9 +389,8 @@ describe('stepLayout', () => {
   })
 
   it('does not let an edge weight stiffen the spring', () => {
-    // The reason duplicates were collapsed in the first place. A note mentioned
-    // three times is drawn once, at the same distance, with a thicker line left to
-    // the renderer.
+    // Why duplicates were merged: a note mentioned three times is drawn
+    // once, at the same distance, with a thicker line left to the renderer.
     const once = graphOf({ 'A.md': '[b](B.md)', 'B.md': '' })
     const thrice = graphOf({ 'A.md': '[b](B.md) [b](B.md) [b](B.md)', 'B.md': '' })
     expect(thrice.edges[0].weight).toBe(3)
@@ -410,8 +408,8 @@ describe('stepLayout', () => {
     // The incumbents kept roughly where they were.
     expect(allFinite(grown)).toBe(true)
     expect(Math.abs(grown.nodes[0].x - settled.nodes[0].x)).toBeLessThan(5)
-    // And the newcomer is *seeded*, not dropped at the origin: stepping a state
-    // that knows nothing about any of them has to match stepping frame zero.
+    // And the newcomer is seeded, not dropped at the origin: stepping
+    // a state that knows none of them must match stepping frame zero.
     expect(stepLayout(chain(5), { nodes: [], step: 0, maxSpeed: 0, converged: false })).toEqual(
       stepLayout(chain(5), initialLayout(chain(5)))
     )
@@ -420,8 +418,8 @@ describe('stepLayout', () => {
 
 describe('layout', () => {
   it('converges, and inside the bound the cooling schedule guarantees', () => {
-    // `maxVelocity * cooling ** step <= tolerance` at step 596, so nothing can
-    // still be moving after that however tangled it is.
+    // `maxVelocity * cooling ** step <= tolerance` at step 596,
+    // so nothing can still move after that.
     for (const graph of [chain(2), chain(23), chain(60), webOf(200)]) {
       const state = layout(graph)
       expect(state.converged).toBe(true)
@@ -452,8 +450,8 @@ describe('layout', () => {
     const state = layout(graph)
     expect(state.converged).toBe(true)
     expect(from).toBeGreaterThan(5)
-    // Not exactly the origin: gravity decays it exponentially and the cooling
-    // clamp calls a halt while a fraction of a pixel is still left.
+    // Not exactly the origin: gravity shrinks it exponentially
+    // and the cooling stops it with a fraction of a pixel left.
     expect(Math.hypot(state.nodes[0].x, state.nodes[0].y)).toBeLessThan(2)
   })
 
@@ -467,8 +465,8 @@ describe('layout', () => {
   })
 
   it('pulls the members of each disconnected component together', () => {
-    // Three triangles that share nothing. Repulsion alone would space all nine
-    // evenly; the springs are what has to win inside a component.
+    // Three triangles that share nothing. Repulsion alone would space
+    // all nine evenly; the springs must win inside a component.
     const parts = ['a', 'b', 'c']
     const graph = graphOf(
       Object.fromEntries(
@@ -492,13 +490,10 @@ describe('layout', () => {
   })
 
   it('stays finite and settles on a graph far larger than this vault', () => {
-    // Cost is O(n^2) per step for repulsion, O(n + e) for the rest. Measured on
-    // this machine, warmed, ms per step: 100 nodes 0.02, 250 0.12, 500 0.43,
-    // 1000 1.7, 2000 7.1, 4000 27.9 — clean quadratic, 4x per doubling. So a step
-    // fits a 60 fps frame up to ~2,000 nodes with the renderer's own work in it,
-    // and past ~3,000 the step alone overruns the frame. That is where a
-    // Barnes-Hut quadtree starts paying for its complexity; below ~500 it is
-    // slower than the loop it replaces. This vault holds ~23 notes.
+    // Repulsion is O(n²) per step, the rest O(n + e). Measured, ms per step: 100
+    // nodes 0.02, 250 0.12, 500 0.43, 1000 1.7, 2000 7.1, 4000 27.9. A step fits
+    // a 60 fps frame up to about 2,000 nodes; past about 3,000 it overruns. That
+    // is where a Barnes-Hut quadtree would pay; below about 500 it is slower.
     const graph = webOf(300)
     expect(graph.nodeCount).toBe(300)
     const state = layout(graph)
@@ -508,9 +503,10 @@ describe('layout', () => {
 })
 
 describe('boundsOf', () => {
-  /** Its own function since the renderer took a view transform of its own:
-   *  it needs the extents once, to decide where to start, rather than the mapping
-   *  done for it on every frame. */
+  /**
+   * Its own function since the renderer has its own view transform:
+   * it needs the extents once, to decide where to start.
+   */
   it('answers the extents, and null for nothing to bound', () => {
     const state = stacked(['a', 'b', 'c'])
     const only = boundsOf(state.nodes)
@@ -534,18 +530,11 @@ describe('boundsOf', () => {
 
 
 /**
- * A vault linked *only* by `[[wikilinks]]`, which is how the user's notes are
- * written — and the test whose absence let a shipped bug through.
- *
- * The graph looked "random, with no clusters" because it had **no edges at all**.
- * Two separate causes, and the first hid the second: `parseNoteLinks` did not read
- * wikilinks, and once it did, `graph.ts` still passed `link.target` — a bare string,
- * which gets *markdown* semantics — so every bare name resolved to a phantom node
- * at the vault root while the real note it named sat beside it as an orphan.
- *
- * Every link test before this one used markdown syntax, so the whole suite was
- * self-consistent and blind in the same direction. This one asserts the edges a
- * person would count by eye, across folders, with nothing but wikilinks.
+ * A vault linked only by `[[wikilinks]]`, as the owner writes. The graph once had
+ * no edges at all, for two reasons: `parseNoteLinks` did not read wikilinks, and
+ * then `graph.ts` passed the bare target string, which resolved as a markdown path
+ * to a phantom node at the root. Every earlier link test used markdown syntax. This
+ * one checks the edges a person would count, across folders, with only wikilinks.
  */
 describe('a vault written the way the user writes one', () => {
   const wikiRoot: VaultFolder = {
@@ -621,9 +610,9 @@ describe('a vault written the way the user writes one', () => {
 // ---------------------------------------------------------------------------
 
 /**
- * **Three kinds of connection**: a link written in the text, a link held in a
- * property's value, and a note carrying a tag — each a checkbox on the graph. A day's
- * note is a node of its own kind, so it can be drawn as one.
+ * Three kinds of connection, each a checkbox: a link in the
+ * text, a link in a property's value, and a note carrying a tag.
+ * A daily note is a node of its own kind, drawn as one.
  */
 describe('the kinds of connection', () => {
   const days: VaultFolder = {
@@ -661,7 +650,7 @@ describe('the kinds of connection', () => {
     const textOnly = connectionsOf(graph, { ...all, property: false, tag: false })
     expect(textOnly.graph.nodes.map((node) => node.id)).toEqual(['daily/2026-09-21', 'mira vance'])
     expect(textOnly.unconnected.map((node) => node.name).sort()).toEqual(['Harbour Bistro', 'Plans'])
-    // A tag with nothing to join is not a thing, and is not counted as a note.
+    // A tag with nothing to join is not drawn, and not counted as a note.
     expect(connectionsOf(graph, all).unconnected.map((node) => node.name)).toEqual(['Plans'])
   })
 
@@ -672,7 +661,7 @@ describe('the kinds of connection', () => {
   })
 })
 
-/** **Still, and the same every time**: laid out, not simulated. */
+/** Still, and the same every time: laid out, not simulated. */
 describe('the rings', () => {
   const distance = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y)
 
@@ -726,9 +715,9 @@ describe('spreading a layout', () => {
 })
 
 /**
- * **The groups the notes make**, drawn as regions. A day and a tag touch every
- * group, and let into the grouping they made the whole vault one; so they sit
- * between the groups, and a group is what its notes link among themselves.
+ * The groups the notes make, drawn as regions. Days and tags touch every
+ * group, and included they made the whole vault one group; so they sit
+ * between groups, and a group is what its notes link among themselves.
  */
 describe('clusters', () => {
   const texts: Record<string, string> = {
@@ -779,8 +768,8 @@ describe('clusters', () => {
     expect(near.rings[1]).toEqual(['espresso', 'harbour bistro', 'northwind', 'flight', 'tag:expense'])
     const { at, sectors } = ringLayout(near.rings, near.parents, clusters)
     expect(sectors.map((one) => one.members[0])).toEqual(['harbour bistro', 'northwind'])
-    // On the first ring, a node is inside a sector's angle exactly when it is one of
-    // that cluster's; what hangs off it on the second sits in its share, whoever's.
+    // On the first ring, a node is inside a sector's angle exactly when it is
+    // in that cluster; what hangs off it on the second ring sits in its share.
     const angle = (id: string) => {
       const a = Math.atan2(at.get(id)!.y, at.get(id)!.x)
       return a < sectors[0].from ? a + 2 * Math.PI : a

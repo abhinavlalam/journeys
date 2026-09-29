@@ -1,20 +1,15 @@
 /**
- * A fake disk that the **real** `vault.ts` runs on top of.
+ * A fake disk under the real `vault.ts`.
  *
- * The reason it exists is that a fixture written beside the assertion it has to
- * satisfy is narrower than the world in every direction the assertion does not
- * look. A hand-built `VaultFolder` literal gets shaped until the assertion is
- * clean; several real bugs have lived in exactly that gap. So this mocks
- * `@tauri-apps/plugin-fs` and runs the real `walk`, the real `isSamePath` and the
- * real rename guards over an in-memory map.
+ * A fixture written next to its assertion gets shaped until the assertion passes,
+ * and real bugs lived in that gap. So this mocks `@tauri-apps/plugin-fs` and runs
+ * the real `walk`, `isSamePath` and rename guards over an in-memory map.
  *
- * Usage, in a test file (the paths are relative to the *test*, which is why the
- * factories are functions rather than objects):
+ * In a test file (the paths are relative to the test, so the factories are functions):
  *
- *     import { disk, editorModule, fsModule, resetFakeVault } from './fakeVault'
- *     vi.mock('@tauri-apps/plugin-fs', () => fsModule())
- *     vi.mock('../Editor', () => editorModule())
- *     beforeEach(() => { resetFakeVault() })
+ * import { disk, fsModule, markdownEditorModule, resetFakeVault } from './fakeVault'
+ * vi.mock('@tauri-apps/plugin-fs', () => fsModule()) vi.mock('../MarkdownEditor', ()
+ * => markdownEditorModule()) beforeEach(() => { resetFakeVault() })
  */
 import { render, screen, waitFor } from '@testing-library/react'
 import { expect, vi } from 'vitest'
@@ -26,16 +21,14 @@ import type { VaultFile } from '../vaultModel'
 // ---------------------------------------------------------------------------
 
 /**
- * Case-insensitive, case-preserving — both volumes this app runs on are, and
- * CLAUDE.md records several bugs that only exist because of it (`exists("Index.md")`
- * answering true for `index.md`, a case-only rename tripping its own guard). A
- * case-sensitive fake disk is a fake disk that cannot reproduce any of them, so
- * every lookup here is by lowercased path and every *listing* gives back the name
- * as it was first written.
+ * Case-insensitive and case-preserving, like the volumes the app runs
+ * on; several bugs only exist because of that (`exists("Index.md")` true
+ * for `index.md`, a case-only rename tripping its own guard). Lookups
+ * are by lower-cased path, and listings give the name as first written.
  */
 interface FakeDir {
   path: string
-  /** lowercased name → the name as written. */
+  /** Lower-cased name → the name as written. */
   files: Map<string, string>
   dirs: Map<string, string>
 }
@@ -43,9 +36,9 @@ interface FakeDir {
 const dirs = new Map<string, FakeDir>()
 const files = new Map<string, { path: string; text: string }>()
 
-/** Paths whose bytes cannot be read, though the entry is listed. See `disk.corrupt`. */
+/** Paths that are listed but cannot be read. See `disk.corrupt`. */
 const corrupted = new Set<string>()
-/** Path prefixes every write/mkdir under is refused, with this message. */
+/** Path prefixes where every write and mkdir is refused, with this message. */
 const forbidden: { prefix: string; message: string }[] = []
 
 const key = (path: string) => path.toLowerCase()
@@ -71,8 +64,8 @@ function ensureDir(path: string): FakeDir {
 
 function writeFile(path: string, text: string) {
   ensureDir(parentOf(path)).files.set(key(baseOf(path)), baseOf(path))
-  // Case-preserving: a write through a differently-cased path lands on the file
-  // that is already there and does not rename it, which is what APFS does.
+  // Case-preserving: a write through a differently cased path
+  // lands on the existing file without renaming it, as APFS does.
   const already = files.get(key(path))
   files.set(key(path), { path: already?.path ?? path, text })
 }
@@ -94,7 +87,7 @@ export const disk = {
   write(path: string, text: string) {
     writeFile(path, text)
   },
-  /** The bytes, or undefined — including for a file that exists but cannot be read. */
+  /** The bytes, or undefined, including for a file that exists but cannot be read. */
   read(path: string): string | undefined {
     return files.get(key(path))?.text
   },
@@ -117,9 +110,8 @@ export const disk = {
     else removeDir(path)
   },
   /**
-   * Listed by `readDir` and refused by `readTextFile` — an ordinary file that has
-   * not materialised locally, which a `Map` mock cannot express because there
-   * `exists` denies it too.
+   * Listed by `readDir` and refused by `readTextFile`: a file
+   * not yet downloaded, which a plain `Map` mock cannot express.
    */
   corrupt(path: string) {
     corrupted.add(key(path))
@@ -141,14 +133,10 @@ export const disk = {
 // ---------------------------------------------------------------------------
 
 /**
- * The shape a folder of notes has after a little use: two notes at the top level,
- * a subfolder, a nested folder note, one note carrying frontmatter, and one note
- * whose last block is a list.
- *
- * Deliberately more than any one assertion needs. The frontmatter note is here so
- * that "the prefix is preserved and invisible" is a fact a test can trip over
- * rather than a rule nobody exercises, and the list-terminated note is the shape
- * that made *opening* a note rewrite it.
+ * A folder after a little use: two top-level notes, a subfolder, a
+ * nested folder note, a note with properties, and a note ending in a
+ * list. More than any one test needs, so tests trip over real shapes:
+ * the list-ending note is the shape that made opening a note rewrite it.
  */
 const DEFAULT_VAULT: Record<string, string> = {
   'roadmap.md': ['# Roadmap', '', 'The plan, such as it is.', ''].join('\n'),
@@ -167,7 +155,7 @@ const DEFAULT_VAULT: Record<string, string> = {
   'standup.md': ['Standup notes', '', '- shipped the tree', '- reviewed the editor', ''].join('\n'),
 }
 
-/** Lays the default vault down under `root`. Add to or overwrite it per test. */
+/** Lays the default vault under `root`. Add to or overwrite it per test. */
 function seedDefaultVault(root = '/v') {
   ensureDir(`${root}/Ideas`)
   for (const [path, text] of Object.entries(DEFAULT_VAULT)) writeFile(`${root}/${path}`, text)
@@ -212,9 +200,10 @@ const fsSpies = {
     writeFile(path, text)
   }),
   exists: vi.fn(async (path: string) => files.has(key(path)) || dirs.has(key(path))),
-  /** Bytes, for a file dragged in from outside. The fake keeps text, so they are
-   *  decoded on the way in — every test that writes bytes writes text it can read
-   *  back, and what is being tested is *where* the file landed. */
+  /**
+   * Bytes, for a file dragged in from outside. The fake keeps text,
+   * so they are decoded; what is tested is where the file landed.
+   */
   writeFile: vi.fn(async (path: string, bytes: Uint8Array) => {
     const no = refusal(path)
     if (no) throw new Error(no)
@@ -266,16 +255,11 @@ export function fsModule() {
 // ---------------------------------------------------------------------------
 
 /**
- * The factory for `vi.mock('../MarkdownEditor', () => markdownEditorModule())`.
- *
- * There is one note view, so there is one stub. A textarea: `onChange` is the same
- * callback the real component calls from CodeMirror's update listener, and
- * CodeMirror needs a layout jsdom does not have. What the real editor does on
- * mount has its own file, `openNote.test.tsx`, which mounts it for real.
- *
- * `getByTestId('editor')` is what a test asks for, and the class and accessible
- * name are the real component's own — so a test that leans on either is still
- * describing the app.
+ * The factory for `vi.mock('../MarkdownEditor', () => markdownEditorModule())`. A
+ * textarea: `onChange` is the callback the real component calls, and CodeMirror
+ * needs layout jsdom lacks. What the real editor does on mount is in
+ * `openNote.test.tsx`. Tests ask for `getByTestId('editor')`; the class and
+ * accessible name are the real component's.
  */
 export function markdownEditorModule() {
   return {
@@ -292,7 +276,7 @@ export function markdownEditorModule() {
       insertTimeCombo?: string | null
       line?: { onEnter: (text: string) => void; onEscape: () => void; onLeave?: (text: string) => void }
     }) =>
-      // An editor over one line keeps the real one's Enter, Escape and leaving.
+      // A one-line editor keeps the real one's Enter, Escape and leaving.
       line ? (
         <input
           data-testid="line-editor"
@@ -303,7 +287,7 @@ export function markdownEditorModule() {
           onBlur={(e) => line.onLeave?.(e.currentTarget.value)}
         />
       ) : (
-        // A tab out of sight keeps its editor mounted; "the editor" is the one shown.
+        // A hidden tab keeps its editor mounted; "the editor" is the one shown.
         <textarea
           data-testid={shown ? 'editor' : 'hidden-editor'}
           className="markdown-editor"
@@ -318,8 +302,8 @@ export function markdownEditorModule() {
 const stored = new Map<string, string>()
 
 /**
- * Node 26 ships a gated `localStorage` global that shadows jsdom's, so it is
- * replaced outright rather than relied on.
+ * Node 26 ships a gated `localStorage` global that hides
+ * jsdom's, so it is replaced outright.
  */
 function installLocalStorage(): Map<string, string> {
   stored.clear()
@@ -342,8 +326,8 @@ export function rememberVault(vaultPath: string) {
 }
 
 /**
- * One call in `beforeEach`: an empty disk carrying the default vault, no recorded
- * calls, and a fresh localStorage.
+ * One call in `beforeEach`: an empty disk with the default
+ * vault, no recorded calls, and a fresh localStorage.
  */
 export function resetFakeVault(options: { root?: string; seed?: boolean } = {}) {
   const { root = '/v', seed = true } = options
@@ -354,8 +338,10 @@ export function resetFakeVault(options: { root?: string; seed?: boolean } = {}) 
   installLocalStorage()
 }
 
-/** The app over the fake vault, read: its first note is in the tree. `settings`, when
- *  given, is written into the vault's settings file first. */
+/**
+ * The app over the fake vault, once its first note is in the tree.
+ * `settings`, when given, is written into the vault's settings file first.
+ */
 export async function openApp(settings?: Record<string, unknown>) {
   if (settings) disk.write('/v/.config/settings.json', JSON.stringify(settings))
   const { default: App } = await import('../App')
@@ -363,7 +349,7 @@ export async function openApp(settings?: Record<string, unknown>) {
   await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
 }
 
-/** A note in the fake vault, from its path. */
+/** A note in the fake vault, by path. */
 export const vaultFile = (path: string): VaultFile => ({
   path,
   absolutePath: `/v/${path}`,

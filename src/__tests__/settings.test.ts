@@ -22,8 +22,8 @@ let store: Map<string, string>
 
 beforeEach(() => {
   store = new Map()
-  // Node 26 ships a gated `localStorage` global that shadows jsdom's — the same
-  // workaround as `folderReveal.test.tsx`, without which this file tests nothing.
+  // Node 26 ships a gated `localStorage` global that hides
+  // jsdom's; replaced as in `folderReveal.test.tsx`.
   Object.defineProperty(globalThis, 'localStorage', {
     configurable: true,
     writable: true,
@@ -36,8 +36,10 @@ beforeEach(() => {
   })
 })
 
-/** jsdom has no `matchMedia`. This one can be flipped, so `mode: 'system'` can be
- *  tested reacting rather than only resolving. */
+/**
+ * jsdom has no `matchMedia`. This one can be flipped, so `mode:
+ * 'system'` can be tested reacting, not only resolving.
+ */
 function stubMatchMedia(dark: boolean) {
   const listeners = new Set<() => void>()
   const mql = {
@@ -74,19 +76,17 @@ afterEach(() => {
 
 describe('the defaults', () => {
   it('are what index.css already renders', () => {
-    // 0.90625rem × 16, and `--line-height-prose` and `--reading-width` from
-    // `index.css`'s `:root`. Changing one of these without the sheet makes opening
-    // the panel a visible edit.
+    // 0.90625rem × 16, and `--line-height-prose` and `--reading-width` from the sheet's
+    // `:root`. Changing one without the sheet makes opening the panel a visible change.
     expect(DEFAULT_SETTINGS.proseSize).toBeCloseTo(0.90625 * 16, 5)
     expect(DEFAULT_SETTINGS.lineHeight).toBe(1.85)
-    // Zero, so a note and a tree are as tight as their leading makes them; the
-    // slider adds to both at once.
+    // Zero, so notes and the tree are as tight as their leading; the sliders add space.
     expect(DEFAULT_SETTINGS.lineGap).toBe(0)
     expect(DEFAULT_SETTINGS.readingWidth).toBe(640)
     expect(DEFAULT_SETTINGS.mode).toBe('dark')
     expect(DEFAULT_SETTINGS.scheme).toBe('slate')
-    // `--font-prose: var(--font-sans)` in the sheet, which is what the System
-    // face's stack is — so a fresh install renders in the face it already had.
+    // `--font-prose: var(--font-sans)` in the sheet, the System
+    // face's stack, so a fresh install renders in the face it had.
     expect(DEFAULT_SETTINGS.fontFamily).toBe('system')
     expect(faceStack('system')).toBe('var(--font-sans), sans-serif')
     expect(DEFAULT_SETTINGS.dailyFolder).toBe('Daily')
@@ -128,7 +128,7 @@ describe('reading what was stored', () => {
         lineHeight: 1.8,
         readingWidth: null,
         dailyFolder: null,
-        // `shortcuts` absent entirely — an older stored shape.
+        // `shortcuts` missing entirely, an older stored shape.
       })
     )
     expect(parsed.scheme).toBe(DEFAULT_SETTINGS.scheme)
@@ -161,30 +161,24 @@ describe('reading what was stored', () => {
   })
 
   /**
-   * **The note's gap and the panes' gap are two numbers now.** One slider moved
-   * both, on the reasoning that a row is one line of the note tall — but a list of
-   * names does not want the air a paragraph does.
-   *
-   * A vault whose settings were written before the split has only `lineGap`, and
-   * that number *was* the row gap, so it is read as both: the vault looks exactly
-   * as it did until someone moves the new slider.
+   * The note's gap and the panes' gap are two numbers. Settings written
+   * before the split have only `lineGap`, which was the row gap then, so it
+   * is read as both and the vault looks the same until the new slider moves.
    */
   it('gives the rows their own gap, inherited from the old one', () => {
     expect(parseSettings(JSON.stringify({ lineGap: 6 })).rowGap).toBe(6)
     // Written down, it wins.
     expect(parseSettings(JSON.stringify({ lineGap: 6, rowGap: 2 })).rowGap).toBe(2)
     expect(parseSettings('{}').rowGap).toBe(DEFAULT_SETTINGS.rowGap)
-    // Clamped like the rest, and a rubbish value falls back rather than rendering.
+    // Clamped like the rest; a bad value falls back.
     expect(parseSettings(JSON.stringify({ rowGap: 99 })).rowGap).toBe(BOUNDS.rowGap.max)
     expect(parseSettings(JSON.stringify({ rowGap: -4 })).rowGap).toBe(BOUNDS.rowGap.min)
     expect(parseSettings(JSON.stringify({ rowGap: 'roomy', lineGap: 3 })).rowGap).toBe(3)
   })
 
   /**
-   * **The note's weight is a setting.** Reported from the running app: the reading
-   * pane was harder to read than it should be, and a face's idea of "regular"
-   * differs across the eighteen stacks. Anything with a weight of its own — a
-   * heading, a `**bold**` run — still sets it.
+   * The note's weight is a setting, since faces differ in what
+   * regular looks like. Headings and `**bold**` set their own.
    */
   it('writes the prose weight, clamped to what a face can carry', () => {
     const root = document.createElement('div')
@@ -200,11 +194,9 @@ describe('reading what was stored', () => {
   })
 
   /**
-   * **One weight for every glyph, and it is a dial.** A `stroke-width` is in viewBox
-   * units, so the same number renders differently on every grid: the set once ran
-   * 0.85px to 1.50px across seven hand-written values, with the `+` heaviest of all.
-   * The sheet derives each stroke from this one share — see `svg[data-grid]` —
-   * measured 0.78px, 1.14px and 1.69px at the ends and the default.
+   * One weight for every glyph, as a dial. A `stroke-width` is in
+   * viewBox units, so the same number renders differently per grid;
+   * the sheet derives each stroke from this share (`svg[data-grid]`).
    */
   it('writes the icon weight, clamped like the rest', () => {
     const root = document.createElement('div')
@@ -223,7 +215,7 @@ describe('reading what was stored', () => {
   })
 
   it('rejects NaN and Infinity, which are numbers', () => {
-    // They cannot come through `JSON.parse`, but they can come through a slider.
+    // They cannot come through `JSON.parse`, but can through a slider.
     const parsed = parseSettings(JSON.stringify({ proseSize: null, readingWidth: null }))
     expect(Number.isFinite(parsed.proseSize)).toBe(true)
     expect(parseSettings('{"lineHeight":1e999}').lineHeight).toBe(DEFAULT_SETTINGS.lineHeight)
@@ -302,10 +294,10 @@ describe('the daily folder', () => {
 })
 
 describe('the faces', () => {
-  /** The one thing every stack has to do, and the reason it is a list and not a
-   *  name: a face that is missing has to fall to its category's other system
-   *  faces and then to the generic. A stack that ends on a *named* face ends on
-   *  Times, which is nobody's choice of reading face. */
+  /**
+   * Every stack must end in its category's system faces and then
+   * the generic. One ending on a named face ends on Times.
+   */
   it('ends every stack in its category’s generic, through its category’s token', () => {
     const generic = { sans: 'sans-serif', serif: 'serif', mono: 'monospace' }
     for (const face of FACES) {
@@ -320,10 +312,9 @@ describe('the faces', () => {
   })
 
   /**
-   * The three values `fontFamily` held before today. Anyone who chose Serif has
-   * one of these on disk, and `pick` alone would read it as unknown and hand back
-   * the default — a reset that looks like the app forgetting rather than a
-   * migration. Each maps to the face its old stack actually resolved to.
+   * The three values `fontFamily` held before. Anyone who chose
+   * Serif has one on disk, and `pick` alone would reset it to the
+   * default, so each maps to the face its old stack resolved to.
    */
   it('migrates the three old categories onto the faces they rendered as', () => {
     expect(parseSettings(JSON.stringify({ fontFamily: 'sans' })).fontFamily).toBe('system')
@@ -332,7 +323,7 @@ describe('the faces', () => {
   })
 
   it('still refuses a face that does not exist', () => {
-    // Including the shapes a `Record` lookup would have answered for.
+    // Including the shapes a `Record` lookup would answer for.
     expect(parseSettings(JSON.stringify({ fontFamily: 'papyrus' })).fontFamily).toBe('system')
     expect(parseSettings(JSON.stringify({ fontFamily: 'constructor' })).fontFamily).toBe('system')
     expect(parseSettings(JSON.stringify({ fontFamily: 7 })).fontFamily).toBe('system')
@@ -369,8 +360,8 @@ describe('applying to the document', () => {
   })
 
   it('writes the chosen face’s own stack, not its category’s', () => {
-    // The distinction the categories could not make: Georgia and Baskerville are
-    // both serif and must not land on the same value.
+    // What the old categories could not tell apart: Georgia and
+    // Baskerville are both serif and must not map to one value.
     applySettings({ ...DEFAULT_SETTINGS, fontFamily: 'georgia' })
     const written = document.documentElement.style.getPropertyValue('--font-prose')
     expect(written).toBe('Georgia, var(--font-serif), serif')
@@ -419,7 +410,7 @@ describe('following the OS', () => {
     expect(media.listenerCount).toBe(1)
     stop()
     expect(media.listenerCount).toBe(0)
-    // And a torn-down watcher does not keep writing.
+    // And a torn-down watcher stops writing.
     media.flip(false)
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
   })
@@ -457,9 +448,8 @@ describe('the indent width', () => {
 })
 
 /**
- * `graphHides`: folders the graph leaves out. No control in the panel, since a list
- * of folders is a thing to type into `settings.json`, so the parse is the whole
- * interface and has to be forgiving of what a hand writes there.
+ * `graphHides`: folders the graph leaves out. Typed into `settings.json`,
+ * not set in the panel, so the parse must forgive what a hand writes.
  */
 describe('graphHides', () => {
   it('is empty by default and keeps only the strings', () => {
@@ -474,7 +464,7 @@ describe('graphHides', () => {
     expect(parseSettings('{"graphHides":"Entities"}').graphHides).toEqual([])
   })
 
-  /** Written back as it was read, so a saved file keeps the list. */
+  /** Written back as read, so a saved file keeps the list. */
   it('survives a round trip through the file', () => {
     const settings = parseSettings('{"graphHides":["Entities/Currencies"]}')
     expect(parseSettings(settingsJson(settings)).graphHides).toEqual(['Entities/Currencies'])
@@ -490,8 +480,10 @@ describe('graphShows', () => {
   })
 })
 
-/** The calendar's two: the feed addresses, read like `graphHides`, and how many
- *  days ahead it shows — a number with bounds, like every other number here. */
+/**
+ * The calendar's two: feed addresses, read like `graphHides`,
+ * and days ahead, a bounded number.
+ */
 describe('calendar settings', () => {
   it('keeps a feed as a name and an address, and reads a bare address as one with no name', () => {
     expect(parseSettings(null).calendarFeeds).toEqual([])

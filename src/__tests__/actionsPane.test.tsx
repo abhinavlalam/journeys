@@ -5,15 +5,9 @@ import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFake
 import { BUILT_IN_KINDS, creatable } from '../actionKinds'
 
 /**
- * The Actions section: the vault's own action files, in the left pane.
- *
- * Most kinds are markdown files, and what tells them apart is the folder they live
- * in under `.config/actions/` — so these tests are mostly about the bytes that end
- * up on disk, which is the part a later change to how they are *processed* has to
- * keep working.
- *
- * **Tags and properties are the exception**: neither is a file, so nothing here
- * writes one. `tagPage.test.tsx` covers what a tag's row opens.
+ * The Actions section of the left pane. Skills and Config are files, and these tests
+ * are mostly about the bytes that land on disk. Tags and properties are not files,
+ * so nothing here writes one; `tagPage.test.tsx` covers what a tag's row opens.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -36,9 +30,8 @@ const openActions = async () => {
 }
 
 /**
- * **A group is shut until it is opened**, as the tree's folders are, so a test
- * about rows opens the group holding them. `Expand all` is the pane's own way of
- * saying "all of them", which is what most of these want.
+ * A group is shut until opened, like the tree's folders, so a test
+ * about rows opens its group first. `Expand all` opens them all.
  */
 const openGroups = () => fireEvent.click(screen.getByLabelText('Expand all actions'))
 
@@ -48,17 +41,15 @@ const openActionsExpanded = async () => {
 }
 
 /**
- * Every row's label with its count run together — `reading2` is the row named
- * `reading` with a `2` beside it, which is what the DOM gives. Used by both unions,
- * because both draw the same row.
+ * Every row's label with its count joined (`reading2` is
+ * `reading` with a `2`), as the DOM gives it.
  */
 const rowLabels = () =>
   within(document.querySelector('.sidebar')!)
     .getAllByRole('button')
     .map((button) => button.textContent ?? '')
 
-/** Scoped to the left pane. A file's name is in the reading pane's header too, so
- *  an unscoped `getByText` matches twice the moment one is open. */
+/** Scoped to the left pane: an open file's name is in the reading pane's header too. */
 const pane = () => within(document.querySelector('.sidebar')!)
 
 const labels = (selector: string) =>
@@ -67,9 +58,10 @@ const labels = (selector: string) =>
   )
 
 describe('where the buttons are', () => {
-  /** **Three sections, each with its controls on its heading** — search, the
-   *  collapse pair and `+`, revealed on hover — and the app's own views as rows
-   *  in the third. It was two panes behind two icons over one shared rail. */
+  /**
+   * Three sections, each with its controls on the heading (search, collapse
+   * pair, `+`, shown on hover), and the app's own views as rows in the third.
+   */
   it('stacks Notes, Actions and Applications, each heading carrying its own controls', async () => {
     await openApp()
     const sections = [...document.querySelectorAll('.pane-section')]
@@ -104,9 +96,8 @@ describe('where the buttons are', () => {
 })
 
 /**
- * **Config is `.config` itself**, so whatever is kept beside the settings shows up:
- * `settings.json`, and the notes the app and its agent keep about themselves. The
- * kind of a file is still the folder it sits in — this one's folder is the root.
+ * Config is `.config` itself, so whatever sits beside the settings
+ * shows: `settings.json` and the notes the app and its agent keep.
  */
 describe('the Config group', () => {
   it('lists what is beside the settings, the settings included', async () => {
@@ -119,12 +110,14 @@ describe('the Config group', () => {
     for (const name of ['app', 'claude', 'settings.json']) {
       await waitFor(() => expect(pane().getByText(name)).toBeTruthy())
     }
-    // The action folders are folders, not files: they belong to their own groups.
+    // Folders there belong to their own groups.
     expect(pane().queryByText('actions')).toBeNull()
   })
 
-  /** `settings.json` is the one file that is not just a file: saving it
-   *  reconfigures the app, so it opens in the view that has a Save. */
+  /**
+   * `settings.json` reconfigures the app when saved, so it opens
+   * in the view with a Save.
+   */
   it('opens settings.json in the view with the Save', async () => {
     await openApp()
     await openActionsExpanded()
@@ -134,9 +127,10 @@ describe('the Config group', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy())
   })
 
-  /** **Not something you make.** `settings.json` arrives with the app and the
-   *  notes beside it are put there, so Config is the one kind with no folder of its
-   *  own and the one `creatable` says no to. */
+  /**
+   * Not something you make: `settings.json` comes with the app,
+   * so Config is the one kind `creatable` refuses.
+   */
   it('is not one of the things the + offers to create', async () => {
     await openApp()
     await openActions()
@@ -145,17 +139,13 @@ describe('the Config group', () => {
     const offered = [...document.querySelectorAll('.context-menu button')].map(
       (button) => button.textContent
     )
-    // **Property is not here**: it exists because a note carries it, and there is
-    // nothing for a `+` to write. It *was* offered for a while, writing a default
-    // into `properties.json` for every new note to start with; a template stamped
-    // into every new note is a data-collection mechanism in a journal, so it went.
-    // A Tag is here, because a tag's structure is written — into `tags.json`.
-    // Config is the one kind with files the `+` refuses: those arrive with the app.
+    // Property is not here: a property exists because a note carries
+    // it, so a `+` has nothing to write. Tag is, since its structure
+    // is written to `tags.json`. Config's files come with the app.
     expect(offered).toEqual(['Skill', 'Tag'])
   })
 
-  /** Each kind's own `+`, on its own group row: the rail's asks which kind, and
-   *  this one already knows. */
+  /** Each kind's own `+`, on its group row. */
   it('makes a kind from that kind’s own row', async () => {
     await openApp()
     await openActions()
@@ -170,15 +160,17 @@ describe('the Config group', () => {
 })
 
 describe('the pane', () => {
-  /** A section shuts like a folder: its rows go, the others stay, and the note in
-   *  the reading pane is untouched — this is the left pane's business alone. */
+  /**
+   * A section folds like a folder: its rows go, the others stay,
+   * and the open note is untouched.
+   */
   it('shuts a section and leaves the others and the reading pane alone', async () => {
     await openApp()
     fireEvent.click(within(document.querySelector('.file-list')!).getByText('roadmap'))
     await waitFor(() => expect(screen.getByTestId('editor')).toBeTruthy())
 
     fireEvent.click(screen.getByLabelText('Collapse Notes'))
-    // The tree's rows are gone — its icon buttons are the part only it has.
+    // The tree's rows are gone; its icon buttons are what only it has.
     await waitFor(() => expect(screen.queryByLabelText('Icon for roadmap')).toBeNull())
     expect(pane().getByText('Tags')).toBeTruthy()
     expect(screen.getByTestId('editor')).toBeTruthy()
@@ -187,10 +179,12 @@ describe('the pane', () => {
     await waitFor(() => expect(screen.getByLabelText('Icon for roadmap')).toBeTruthy())
   })
 
-  // Five kinds, and `BUILT_IN_KINDS` is the only place that says so: the groups,
-  // the `+` menu, and what collapse-all acts on all read it.
-  /** Every kind's icon has to be one of the drawn set: an unknown key renders as
-   *  its own name, and the create menu read "settingsConfig note". */
+  // `BUILT_IN_KINDS` is the one list of kinds: the groups, the
+  // `+` menu and Collapse all read it.
+  /**
+   * Every kind's icon must be in the drawn set: an unknown key shows
+   * its own name, and the create menu read "settingsConfig note".
+   */
   it('names an icon the set actually has', async () => {
     const { NOTE_ICONS } = await import('../icons')
     const drawn = new Set(NOTE_ICONS.map((icon) => icon.key))
@@ -211,13 +205,10 @@ describe('the pane', () => {
   })
 
   /**
-   * **A skill written by other hands appears on the next window focus.** The agent
-   * in the Terminal tab made `.claude/skills/wiki/SKILL.md` twenty-three seconds
-   * after the app had read this list, and the row stayed missing until a relaunch —
-   * reported as "I do not see it". The notes that agent wrote showed up on focus,
-   * because `useVaultTexts` re-reads on it; this listing had no such trigger. Now
-   * it is the same trigger, for the same reason: this vault is written by more than
-   * this app.
+   * A skill written by someone else appears on the next window focus. The
+   * agent in the terminal made `.claude/skills/wiki/SKILL.md` after the
+   * app had listed the folder, and the row stayed missing until a
+   * relaunch. The listing now uses the same focus trigger as the notes.
    */
   it('shows a skill added outside the app once the window is focused again', async () => {
     await openApp()
@@ -229,14 +220,16 @@ describe('the pane', () => {
     await waitFor(() => expect(pane().getByText('wiki')).toBeTruthy())
   })
 
-  /** **A tag is a row because a note carries it**, which is Properties' own
-   *  arrangement: the pane lists what the notes say, and no file is involved. */
+  /**
+   * A tag is a row because a note carries it, as with
+   * properties: the pane lists what the notes say.
+   */
   it('lists a tag the notes carry, with the number carrying it', async () => {
     disk.write('/v/roadmap.md', '# Roadmap\n\nsomeday #travel and #travel again\n')
     disk.write('/v/inbox.md', '# Inbox\n\nbook it #travel\n')
     await openApp()
     await openActionsExpanded()
-    // Two notes, not three mentions: the count is notes, as it is for a property.
+    // Two notes, not three mentions: the count is notes, as for a property.
     await waitFor(() => expect(rowLabels().some((text) => text === 'travel2')).toBe(true))
   })
 })
@@ -263,10 +256,9 @@ describe('the + ', () => {
     fireEvent.keyDown(field, { key: 'Enter' })
 
     await waitFor(() => expect(disk.read('/v/.claude/skills/Reading list/SKILL.md')).toContain('name: Reading list'))
-    // Listed by its **folder's** name — every skill's file is `SKILL.md`, so the
-    // basename names nothing — and opened on the frontmatter that makes it a skill:
-    // Claude Code will not load one whose `name` is missing. Nothing else is
-    // written; a heading repeating the name is a line the user has to delete.
+    // Listed by its folder's name, since every skill file is `SKILL.md`,
+    // and opened with the YAML that makes it a skill: Claude Code will
+    // not load one without a `name`. Nothing else is written.
     await waitFor(() => expect(pane().getByText('Reading list')).toBeTruthy())
     await waitFor(() =>
       expect((screen.getByTestId('editor') as HTMLTextAreaElement).value).toBe(
@@ -275,10 +267,10 @@ describe('the + ', () => {
     )
   })
 
-  /** **A tag's `+` declares it**: an entry in `tags.json`, folded to the tag's
-   *  one spelling, and its page opened, where its properties are added. It used to
-   *  write `.config/actions/tags/Later.md`, and an empty page named after a thing is
-   *  not the thing — so still no file of its own. */
+  /**
+   * A tag's `+` declares it: an entry in `tags.json`, in the tag's folded
+   * spelling, and its page opens to add properties. No file of its own.
+   */
   it('declares a tag into tags.json and opens its page, writing no file of its own', async () => {
     await openApp()
     await openActionsExpanded()
@@ -292,7 +284,7 @@ describe('the + ', () => {
       expect(JSON.parse(disk.read('/v/.config/tags.json')!)).toEqual({ travel: { properties: [] } })
     )
     await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('#travel'))
-    // Listed from the moment it is declared, with no note carrying it yet.
+    // Listed as soon as it is declared, before any note carries it.
     expect(pane().getByText('travel')).toBeTruthy()
     expect(disk.paths().some((path) => path.includes('/tags/'))).toBe(false)
   })
@@ -308,8 +300,8 @@ describe('the + ', () => {
     await waitFor(() => expect(disk.has('/v/.claude/skills/Summarise/SKILL.md')).toBe(true))
   })
 
-  // The creators' rule everywhere else a name is typed: the path is spliced from
-  // it, so a `/` would put the file somewhere nobody picked.
+  // Typed names go through the same rule everywhere: the path is
+  // built from it, so a `/` would put the file somewhere else.
   it('folds a name that would leave the folder', async () => {
     await openApp()
     await openActions()
@@ -318,8 +310,7 @@ describe('the + ', () => {
     const field = screen.getByPlaceholderText('Skill name…')
     fireEvent.change(field, { target: { value: '../../escape' } })
     fireEvent.keyDown(field, { key: 'Enter' })
-    // Every separator folded to a `-`, so the file lands in the folder it was
-    // named in and nowhere else.
+    // Every separator becomes a `-`, so the file lands in the folder it was named in.
     await waitFor(() => expect(disk.has('/v/.claude/skills/..-..-escape/SKILL.md')).toBe(true))
     expect(disk.has('/v/.config/escape.md')).toBe(false)
     expect(disk.has('/v/escape.md')).toBe(false)
@@ -339,19 +330,15 @@ describe('the + ', () => {
 })
 
 /**
- * The row of controls acts on whichever section is open, which is the whole reason
- * there is one row and not two. In this section: search filters the rows by name,
- * and the pair opens and shuts the two groups — through the *same*
- * `useFolderOpenState` the tree's folders use, so there is one mechanism behind a
- * group's chevron and the collapse button.
+ * The row of controls acts on whichever section it is on. Here search
+ * filters rows by name, and the pair opens and shuts the groups
+ * through the same `useFolderOpenState` the tree's folders use.
  */
 describe('the controls, in this section', () => {
   const seeded = () => {
-    // Tags are rows because the notes carry them; skills are rows because a file
-    // is there. Both kinds in the fixture, so the controls are exercised over each.
-    // The notes are named nothing like the tags they carry: a note called
-    // `reading` would put that word in the *tree* as well, and a row matched there
-    // is not the row this section is about.
+    // Tags are rows because notes carry them; skills because a file is
+    // there. Both are in the fixture. The notes are named unlike the
+    // tags, so a match in the tree is not confused with a row here.
     disk.write('/v/monday.md', '# Monday\n\nstarted #reading today\n')
     disk.write('/v/tuesday.md', '# Tuesday\n\n#inbox-triage before lunch\n')
     disk.write('/v/.claude/skills/summarise/SKILL.md', '---\nname: summarise\n---\n')
@@ -364,13 +351,13 @@ describe('the controls, in this section', () => {
     await waitFor(() => expect(pane().getByText('summarise')).toBeTruthy())
 
     fireEvent.click(screen.getByLabelText('Search in actions'))
-    // The field names what it is over: rows here, note text in the tree.
+    // The field says what it searches: rows here, note text in the tree.
     fireEvent.change(screen.getByLabelText('Search actions'), { target: { value: 'triage' } })
 
     await waitFor(() => expect(pane().queryByText('summarise')).toBeNull())
     expect(pane().getByText('inbox-triage')).toBeTruthy()
     expect(pane().queryByText('reading')).toBeNull()
-    // The groups stay: they are what says where a hit lives.
+    // The groups stay: they show where a hit lives.
     expect(pane().getByText('Tags')).toBeTruthy()
   })
 
@@ -397,7 +384,7 @@ describe('the controls, in this section', () => {
     fireEvent.click(screen.getByLabelText('Collapse all actions'))
     expect(pane().queryByText('summarise')).toBeNull()
     expect(pane().queryByText('reading')).toBeNull()
-    // The groups themselves are still there to open.
+    // The groups are still there to open.
     expect(pane().getByText('Skills')).toBeTruthy()
 
     fireEvent.click(screen.getByLabelText('Expand all actions'))
@@ -412,15 +399,14 @@ describe('the controls, in this section', () => {
 
     fireEvent.click(screen.getByLabelText('Collapse Skills'))
     expect(pane().queryByText('summarise')).toBeNull()
-    // The other group is untouched, which is what makes it a group and not a mode.
+    // The other group is untouched.
     expect(pane().getByText('reading')).toBeTruthy()
 
     fireEvent.click(screen.getByLabelText('Expand Skills'))
     expect(pane().getByText('summarise')).toBeTruthy()
   })
 
-  /** **Shut on arrival**, which is what the tree's folders do: five groups spread
-   *  open is a wall of rows nobody asked for. Opening one is remembered. */
+  /** Shut on arrival, like the tree's folders. An opened group is remembered. */
   it('starts with every group shut', async () => {
     seeded()
     await openApp()
@@ -435,8 +421,10 @@ describe('the controls, in this section', () => {
   })
 })
 
-/** **Only notes feed tags and properties**: a `#comment` in a config file is not a
- *  tag anyone keeps. A text file is still found by search. */
+/**
+ * Only notes feed tags and properties: a `#comment` in a config
+ * file is not a tag. A text file is still found by search.
+ */
 describe('a text file', () => {
   it('feeds no tag or property, and is still found by search', async () => {
     disk.write('/v/notes.txt', 'plain #fromtext mood:: calm see [[roadmap]]\n')
@@ -453,8 +441,7 @@ describe('a text file', () => {
   })
 })
 
-/** One row for a tag that is both declared and in use: the union Properties has,
- *  over a declaration rather than an empty page. */
+/** One row for a tag both declared and in use. */
 describe('the Tags group', () => {
   it('shows one row when a tag is declared and in use', async () => {
     disk.write('/v/.config/tags.json', JSON.stringify({ expense: { properties: ['amount'] } }))
@@ -467,8 +454,8 @@ describe('the Tags group', () => {
   })
 
   /**
-   * **`/` groups tags**: `#listening/podcast` is its own tag, with its own page and
-   * structure, drawn under `listening`. A head that is a tag itself opens its page
+   * `/` groups tags: `#listening/podcast` is its own tag, page and
+   * structure, drawn under `listening`. A head that is a tag opens its page
    * from its name, as a folder opens its note; one that is not only folds.
    */
   it('nests a tag under its head, and opens a head that is a tag', async () => {
@@ -477,7 +464,7 @@ describe('the Tags group', () => {
     await openActions()
     fireEvent.click(screen.getByLabelText('Expand Tags'))
     await waitFor(() => expect(pane().getByText('listening')).toBeTruthy())
-    // Shut until opened, as every group is.
+    // Shut until opened, like every group.
     expect(pane().queryByText('podcast')).toBeNull()
 
     fireEvent.click(screen.getByLabelText('Expand listening'))
@@ -502,17 +489,13 @@ describe('the Tags group', () => {
 })
 
 /**
- * **Properties are the union of what defines one and what uses one.**
- *
- * A property typed into a note's block turns up in the group, with the number of
- * notes carrying it; a name added from the `+` is a file that defines it. Clicking
- * a name that has no file yet writes that file, which is the same act minus the
- * typing.
+ * Properties are what the notes carry: a property in a note's
+ * block appears in the group with the number of notes carrying it.
  */
 describe('the Properties group', () => {
   it('lists a property the notes carry, and counts them', async () => {
-    // `stage` and not `status`: the seeded vault's own `pingbird` carries a
-    // `status:`, and a count is a fact about the whole vault.
+    // `stage`, not `status`: the seeded `pingbird` carries a
+    // `status:`, and a count covers the whole vault.
     disk.write('/v/roadmap.md', '---\nowner: me\nstage: draft\n---\n# Roadmap\n')
     disk.write('/v/inbox.md', '---\nowner: you\n---\n# Inbox\n')
     await openApp()
@@ -534,9 +517,8 @@ describe('the Properties group', () => {
   })
 
   /**
-   * **The row opens the property's page**: every note carrying it, with the value
-   * each one gives — the note leading, as a tag's table leads with it. It
-   * used to write an empty file named after the property and open that.
+   * The row opens the property's page: every note carrying it,
+   * with each note's value, the note first as in a tag's table.
    */
   it('opens the property’s page, a note and its value per row', async () => {
     disk.write('/v/roadmap.md', '---\nowner: me\n---\n# Roadmap\n')
@@ -556,18 +538,18 @@ describe('the Properties group', () => {
       ['inbox', 'Mira Vance'],
       ['roadmap', 'me'],
     ])
-    // A `[[link]]` value is a link, as it is in a tag's table.
+    // A `[[link]]` value is a link, as in a tag's table.
     expect(document.querySelector('.line-table .line-link')!.textContent).toBe('Mira Vance')
-    // And nothing was written: the page is a question asked of the notes.
+    // And nothing was written: the page is built from the notes.
     expect(disk.has('/v/.config/actions/properties/owner.md')).toBe(false)
     // The row is marked as the open one.
     expect(pane().getByText('owner').closest('.file-row')!.className).toContain('selected')
   })
 
   /**
-   * **A block property is a property**: `amount:: 480` on a line is listed with the
-   * page ones, counted by the notes that carry it, and its page gives a row for
-   * every value — one per line, so a note that says it twice is there twice.
+   * A block property is a property: `amount:: 480` on a line is
+   * listed with the page ones, counted by notes, and its page has
+   * a row per value, so a note that says it twice appears twice.
    */
   it('lists a block property with the page ones, a row per value', async () => {
     disk.write('/v/roadmap.md', 'owner:: me\n\n08:10 lunch amount:: 480\n12:00 coffee amount:: 5\n')
@@ -590,9 +572,9 @@ describe('the Properties group', () => {
   })
 
   /**
-   * **A property's type is set on its page**, for the whole vault, into
-   * `.config/properties.json` — beside whatever else the file holds, from a menu.
-   * `icon` and `path` are the app's own: their pages show their type, fixed.
+   * A property's type is set on its page for the whole vault,
+   * into `.config/properties.json` beside the rest of the file.
+   * `icon` and `path` are the app's, with fixed types.
    */
   it('sets a property’s type from its page, and shows the app’s own fixed', async () => {
     disk.write('/v/.config/properties.json', '{\n  "owner": { "type": "backlink", "note": "kept" }\n}\n')
@@ -621,16 +603,14 @@ describe('the Properties group', () => {
     expect(document.querySelector('.save-status')?.textContent).toContain('the app’s own')
   })
 
-  // `Status` and `status` are one property to anything reading the block, and the
-  // first spelling met is the one shown.
+  // `Status` and `status` are one property, shown in the first spelling met.
   it('counts one property however it is spelled', async () => {
     disk.write('/v/roadmap.md', '---\nStage: draft\n---\n# Roadmap\n')
     disk.write('/v/inbox.md', '---\nstage: done\n---\n# Inbox\n')
     await openApp()
     await openActionsExpanded()
-    // **One** row, counted twice. Which of the two spellings it wears is whichever
-    // note the read met first — tree order — and that is not worth pinning; that
-    // there is one row and it counts both notes is.
+    // One row, counting both notes. Which spelling it shows
+    // depends on read order, which is not worth pinning.
     await waitFor(() =>
       expect(rowLabels().filter((text) => text.toLowerCase() === 'stage2')).toHaveLength(1)
     )
