@@ -5,18 +5,14 @@ import { EditorView } from '@codemirror/view'
 import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
- * A JSON file kept **with** the notes: in the tree, and open in the same pane.
+ * A JSON file kept with the notes: in the tree, and open in the same pane.
+ * Typing saves it, like a note, and nothing parses it first.
+ * `.config/settings.json` is the one file with a Save (`settingsFile.test.tsx`).
  *
- * **Typing saves it**, like a note: it is a file of the user's, kept as they type,
- * and nothing here parses it before writing. `.config/settings.json` is the one
- * file with a Save, because saving *that* reconfigures the app —
- * `settingsFile.test.tsx` covers it.
- *
- * It is not a note, though, and the rest of the tests here are about that
- * difference. Every piece of note machinery writes YAML frontmatter into the file
- * it acts on — an `icon:`, a `path:` — and frontmatter in a JSON file is a JSON
- * file that no longer parses. So the icon picker is not offered, the `+` is not
- * offered, a move writes no property, and a rename keeps the extension.
+ * It is not a note, and most of these tests are about that. Note code
+ * writes properties (`icon`, `path`) into the file it acts on, and
+ * that would break a JSON file. So there is no icon picker and no
+ * `+`, a move writes no property, and a rename keeps the extension.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -26,8 +22,10 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   confirm: vi.fn(async () => true),
 }))
 
-/** The mounted view for a pane, and the way a test types into it: a transaction,
- *  which is what a keystroke becomes anyway. */
+/**
+ * The mounted view for a pane, and how a test types into it: a
+ * transaction, which is what a key becomes.
+ */
 function editor(label: string): EditorView {
   const content = screen.getByLabelText(label)
   const view = EditorView.findFromDOM(content.closest('.cm-editor') as HTMLElement)
@@ -35,9 +33,10 @@ function editor(label: string): EditorView {
   return view!
 }
 
-/** A transaction is what a keystroke becomes anyway — but it is dispatched from
- *  outside React, so the state it sets through the change listener has to be
- *  flushed before the next click can see it. */
+/**
+ * A transaction dispatched from outside React, so the state it
+ * sets must be flushed before the next click sees it.
+ */
 function type(label: string, text: string) {
   const view = editor(label)
   act(() => {
@@ -63,8 +62,7 @@ const LABEL = 'sizes.json source'
 const field = () => screen.getByLabelText(LABEL)
 
 describe('a JSON file in the vault', () => {
-  // With its extension: `sizes.json` and a note called `sizes` are two rows, and a
-  // name stripped of `.json` would make them one word twice.
+  // With its extension: `sizes.json` and a note called `sizes` are two rows.
   it('is in the tree, under its whole name', async () => {
     await openApp()
     expect(row()).toBeTruthy()
@@ -75,12 +73,12 @@ describe('a JSON file in the vault', () => {
     fireEvent.click(row())
     await waitFor(() => expect(field()).toBeTruthy())
     expect(shown(LABEL)).toBe(PRETEND)
-    // The markdown editor is not what opened.
+    // Not the markdown editor.
     expect(screen.queryByTestId('editor')).toBeNull()
   })
 
-  // No Save and no parse: this is the user's file. Autosave's own 800ms is what
-  // the wait below is for, so "it was written" is a fact and not a race won.
+  // No Save and no parse: this is the owner's file. The wait
+  // covers autosave's 800ms, so "it was written" is a fact.
   it('is written as it is typed, verbatim, like a note', async () => {
     await openApp()
     fireEvent.click(row())
@@ -92,8 +90,10 @@ describe('a JSON file in the vault', () => {
     await waitFor(() => expect(disk.read('/v/sizes.json')).toBe(edited))
   })
 
-  /** Half a JSON file of your own is your business, exactly as half a sentence is.
-   *  The app reads none of this file, so there is nothing for it to protect. */
+  /**
+   * Half a JSON file of your own is your business, as half a
+   * sentence is. The app reads none of this file.
+   */
   it('saves what you typed even when it is not valid JSON yet', async () => {
     await openApp()
     fireEvent.click(row())
@@ -125,8 +125,10 @@ describe('the note machinery keeps off it', () => {
     expect(disk.has('/v/shirt sizes.md')).toBe(false)
   })
 
-  /** The one that would have corrupted a file: every move rewrites the `path:`
-   *  property of what it moved, and that property is YAML. */
+  /**
+   * The one that would have corrupted a file: every move
+   * rewrites the moved note's `path` property, and that is YAML.
+   */
   it('is moved without a property being written into it', async () => {
     await openApp()
     const { moveFile } = await import('../vault')

@@ -6,13 +6,9 @@ import type { VaultFolder } from '../vaultModel'
 import { vaultFile as file } from './fakeVault'
 
 /**
- * Rename in place, from the row that had no test at all.
- *
- * The file row and the folder row were two copies of this state machine and are one
- * `useRename` now. What has to survive the merge is the part that is easy to get
- * wrong and invisible when it breaks: blur **commits** here (the create row and the
- * entity row both cancel), the field arrives prefilled and selected, and Escape
- * throws the edit away.
+ * Rename in place from a row. File and folder rows share `useRename`.
+ * What must hold: blur commits here (create rows cancel), the field
+ * opens prefilled and selected, and Escape drops the edit.
  */
 
 const projects: VaultFolder = {
@@ -85,7 +81,7 @@ describe('renaming a file row', () => {
     fireEvent.doubleClick(screen.getByText('inbox'))
 
     expect(input().value).toBe('inbox')
-    // Prefilled, so the whole name is selected — typing replaces rather than appends.
+    // Prefilled with the whole name selected, so typing replaces it.
     expect(input().selectionStart).toBe(0)
     expect(input().selectionEnd).toBe('inbox'.length)
 
@@ -133,16 +129,13 @@ describe('renaming a file row', () => {
 })
 
 /**
- * Reported from the running app: a double click on a nested note renamed for a
- * moment and then went away, and the folder flickered open and shut.
- *
- * Both halves are the row's single-click work firing under the gesture. The
- * browser sends click, click, dblclick — so the *second* click is part of the
- * rename and does nothing, while the first still opens, because waiting to see
- * whether a second follows would delay every note in the vault.
+ * A double click on a nested note renamed for a moment and then gave up,
+ * and the folder flickered. The browser sends click, click, dblclick, so
+ * the second click is part of the rename and does nothing, while the
+ * first still opens (waiting for a second would slow every note).
  */
 describe('a double click on a row that also acts on one', () => {
-  /** click, click, dblclick — the sequence a browser sends, `detail` and all. */
+  /** click, click, dblclick: the sequence a browser sends, `detail` and all. */
   function doubleClick(target: HTMLElement) {
     fireEvent.click(target, { detail: 1 })
     fireEvent.click(target, { detail: 2 })
@@ -172,8 +165,8 @@ describe('renaming a folder row', () => {
     tree()
     fireEvent.doubleClick(screen.getByText('Projects'))
 
-    // `rename-in-row` is every rename's — a field standing in for a row keeps that
-    // row's height — and the folder's own class rides with it, for the width.
+    // `rename-in-row` is on every rename, keeping the row's
+    // height; the folder's own class comes with it, for the width.
     expect(input().className).toBe('rename-input rename-in-row folder-rename-input')
     fireEvent.change(input(), { target: { value: 'Work' } })
     fireEvent.blur(input())

@@ -5,11 +5,10 @@ import { daysAfter, localDateStamp } from '../clock'
 import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
- * **The timeline**: the daily notes as each day happened, oldest at the top and
- * today at the bottom. A note written by kind — groups headed by a line of tags —
- * reads by clock; a moment and a block of time read apart; a tag drawn as a table
- * shows its fields, and the day closes on its totals. A press on an entry edits its
- * line where it stands.
+ * The timeline: the daily notes as each day happened, oldest at the top
+ * and today at the bottom. A note written by kind reads by clock;
+ * moments and stretches read apart; a table tag shows its fields and the
+ * day ends with totals. A press on an entry edits its line in place.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -45,7 +44,7 @@ beforeEach(() => {
 })
 
 const viewer = () => within(document.querySelector('.viewer:not([hidden])') as HTMLElement)
-/** The days, and today last: with nothing written yet, it still has its new line. */
+/** The days with today last; with nothing written, today still has its new line. */
 const days = () => [...document.querySelectorAll('.viewer:not([hidden]) .note-section')]
 const lineIn = (section: Element) => section.querySelector<HTMLInputElement>('[data-testid="line-editor"]')
 const today = () => `/v/Daily/${localDateStamp()}.md`
@@ -127,7 +126,7 @@ describe('the timeline', () => {
     const field = lineIn(days()[2])!
     fireEvent.change(field, { target: { value: '12:00 #expense lunch' } })
     fireEvent.blur(field)
-    // Long enough for a write that should not happen to have landed.
+    // Long enough for a wrong write to have landed.
     await new Promise((resolve) => setTimeout(resolve, 100))
     expect(disk.read(today())).toBe('#expense\n     08:30 #expense amount:: 60\n')
     expect(field.value).toBe('12:00 #expense lunch')

@@ -10,9 +10,9 @@ afterEach(() => {
 })
 
 /**
- * **An unlocked note locks again once it has gone unused.** Used is input while it
- * is the note in front; the clock, not a timer's count, decides, so a machine that
- * slept past the minutes finds the note locked on its first look.
+ * An unlocked note locks again once unused. Used means input while
+ * it is the note in front. The clock decides, not a timer's count,
+ * so a machine that slept past the minutes finds it locked.
  */
 describe('locking a note that has gone unused', () => {
   const mount = (front: string | null) => {

@@ -3,8 +3,8 @@ import { searchNotes } from '../search'
 import { vaultFile as note } from './fakeVault'
 
 /**
- * Finding a note, over the corpus `App` already holds. No mock of anything: this
- * module could not reach a disk if it wanted to.
+ * Finding a note, over the text `App` already holds. No mocks:
+ * this module cannot reach a disk.
  */
 
 const VAULT = [
@@ -28,15 +28,14 @@ describe('searchNotes', () => {
   })
 
   it('puts names before contents', () => {
-    // `standup` names one note and appears in the text of none; `tree` is in the
-    // text of two. Both halves come back, named first.
+    // `standup` names one note and is in no note's text; `tree`
+    // is in two notes' text. Both come back, names first.
     expect(names('tree')).toEqual(['Q3', 'standup'])
   })
 
   /**
-   * The body, not the whole file. `path: Plans/Q3` is a property, and searching it
-   * would make every note under `Plans/` a hit for "plans" — the one answer nobody
-   * is looking for, since the tree already says where a note sits.
+   * The body, not the whole file: searching `path:: Plans/Q3`
+   * would make every note under `Plans/` a hit for "plans".
    */
   it('does not search the properties', () => {
     expect(names('plans')).toEqual([])
@@ -48,7 +47,7 @@ describe('searchNotes', () => {
   })
 
   it('says a note once, by its name, when both halves would match', () => {
-    // "Pingbird" is the note's name and its `path:` — one row, no line under it.
+    // "Pingbird" is the note's name and its `path`: one row, with no line under it.
     expect(searchNotes(VAULT, 'Pingbird')).toEqual([{ note: VAULT[0].note }])
   })
 

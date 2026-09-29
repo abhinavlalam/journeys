@@ -5,14 +5,12 @@ import { EditorView } from '@codemirror/view'
 import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
- * **A text file that is not markdown opens as text.** A `.conf`, a `.yaml`, a
- * `.txt` went to the markdown editor, so every `# comment` in the tmux config the
- * app writes came out a heading with its `#` hidden. Each opens in the plain editor
- * now: the same box, face and line numbers, and nothing that reads the text.
- *
- * The markdown editor is the textarea stub here, so reaching it at all is the
- * failure; the plain one mounts CodeMirror for real — see `jsonFile.test.tsx` for
- * the two shims that takes.
+ * A text file that is not markdown opens as text. A `.conf`, `.yaml` or
+ * `.txt` once went to the markdown editor, and every `# comment` in the app's
+ * tmux config became a heading. Each opens in the plain editor now: the same
+ * box, face and line numbers, and nothing that reads the text. The markdown
+ * editor is the textarea stub here, so reaching it at all fails the test; the
+ * plain one mounts CodeMirror (see `jsonFile.test.tsx` for the shims).
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())

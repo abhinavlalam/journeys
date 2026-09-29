@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { icsTime, occurrences, parseIcs, parseRule, reminderOf } from '../ics'
 
 /**
- * The feed scan. Every fixture is the shape Google writes — folded lines, `TZID`
- * times, `BYDAY` weeks, an `EXDATE`, an edited instance with a `RECURRENCE-ID` —
- * with fictional names.
+ * The feed scan. Every fixture is shaped as Google writes it
+ * (folded lines, `TZID` times, `BYDAY` weeks, an `EXDATE`, an
+ * edited instance with `RECURRENCE-ID`), with fictional names.
  */
 const feed = (body: string) =>
   ['BEGIN:VCALENDAR', 'X-WR-CALNAME:Fable Weekly', ...body.trim().split('\n'), 'END:VCALENDAR'].join('\r\n')
@@ -169,11 +169,10 @@ END:VEVENT`)
 })
 
 /**
- * **A rule repeats on the clock it was written on.** Stepped on this machine's
- * clock instead, a New York 09:00 made in January came out at 10:00 New York all
- * summer for someone in India, and an `EXDATE` or an edited instance, which name
- * the right time, matched nothing. Only visible from a zone whose DST differs from
- * the event's, so each case says which zone it is looked at from.
+ * A rule repeats on the clock it was written in. Stepped on this machine's clock, a
+ * New York 09:00 set in January showed at 10:00 New York all summer for someone in
+ * another zone, and an `EXDATE` or edited instance matched nothing. It only shows from
+ * a zone whose DST differs from the event's, so each case names its viewing zone.
  */
 describe('occurrences, of an event written in another zone', () => {
   const from = (tz: string, check: () => void) => {

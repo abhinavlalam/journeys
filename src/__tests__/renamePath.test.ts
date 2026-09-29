@@ -3,14 +3,11 @@ import type { VaultFolder } from '../vaultModel'
 import { vaultFile as note } from './fakeVault'
 
 /**
- * Where a rename is allowed to put a file.
- *
- * `renameFile` splices its destination out of the typed name, so without folding, a
- * name that walks up moves a note out of its folder — and out of the vault — and a
- * name holding `/` moves it into a folder nobody picked. Neither layer below says
- * anything: `fs:allow-rename` is scoped `**`, and the `exists()` collision guard
- * runs on the escaped path. A leading dot is the other half: `.archive` would
- * rename a folder, its note and every note under it into something `walk` skips.
+ * Where a rename may put a file. `renameFile` builds its destination from the typed
+ * name, so without folding a name that walks up moves a note out of its folder or the
+ * vault, and a `/` moves it into an unchosen folder. Nothing below stops it:
+ * `fs:allow-rename` is scoped `**`, and the `exists()` guard runs on the escaped path.
+ * A leading dot would move a folder and all its notes into something `walk` skips.
  */
 
 const disk = new Map<string, string>()
@@ -27,9 +24,9 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   mkdir: vi.fn(async (p: string) => {
     dirs.add(p)
   }),
-  // Moves the bytes, so an escaped destination is visible as a key outside the
-  // vault. A directory carries its contents, the way rename(2) does — otherwise the
-  // folder note could not be found at its new home and would never be re-paired.
+  // Moves the bytes, so an escaped destination shows as a key
+  // outside the vault. A folder carries its contents, as rename(2)
+  // does, or the folder note would not be found at its new place.
   rename: vi.fn(async (from: string, to: string) => {
     for (const key of [...disk.keys()]) {
       if (key !== from && !key.startsWith(`${from}/`)) continue
@@ -89,9 +86,8 @@ describe('renaming a note to a name that names a path', () => {
   })
 
   /**
-   * The invariant, stated without reference to any name: a rename changes a name,
-   * never a location. `moveFile` is the operation that changes location, and its
-   * destination comes from the tree.
+   * The rule without names: a rename changes a name, never a location.
+   * `moveFile` changes location, and its destination comes from the tree.
    */
   it('never lands outside the note’s own folder, whatever is typed', async () => {
     for (const typed of ['../x', 'a/../../x', './../x', '..', 'x/../../y', '/etc/passwd']) {
@@ -112,8 +108,8 @@ describe('renaming a note that is nothing unusual', () => {
     expect([...disk.keys()]).toEqual(['/v/Notes/report.md'])
   })
 
-  // Both volumes here are case-insensitive, so the containment check has to answer
-  // on the *parent* rather than on a path equality that reads two names as one file.
+  // The volumes are case-insensitive, so the containment check answers on
+  // the parent, not on a path equality that reads two names as one file.
   it('still allows a case-only rename', async () => {
     const renamed = await renameFile(note('Notes/inbox.md'), 'Inbox')
     expect(renamed.path).toBe('Notes/Inbox.md')

@@ -5,9 +5,8 @@ import type { PropertyType } from '../properties'
 import { vaultFile as note } from './fakeVault'
 
 /**
- * **A day as it happened.** A daily note is written by kind — a line of tags alone
- * heads a group, and the group's entries are nested under it — and the timeline
- * reads it by clock, every group's entries in the order they happened.
+ * A day as it happened. A daily note is written by kind (a line of tags heads a group,
+ * its entries nested under it), and the timeline reads it by clock across groups.
  */
 const day = note('Daily/2026-09-21.md')
 const text = () => 'text' as const
@@ -122,8 +121,10 @@ describe('how an entry reads', () => {
   })
 })
 
-/** **An edit writes its one line**: its indent and line ending kept, and every other
- *  byte of the note as it was. */
+/**
+ * An edit writes its one line, keeping its indent and line
+ * ending, and every other byte as it was.
+ */
 describe('writing an entry back', () => {
   const raw = ['mood:: calm', '#timeline', '     09:00 standup\r', '     13:00 review with [[Mira Vance]]', ''].join('\n')
   const [standup] = dayEntries(day, raw)
@@ -143,8 +144,10 @@ describe('writing an entry back', () => {
   })
 })
 
-/** **A new entry is filed as the day is written**: under its tag's group, and every
- *  other byte of the note as it was. */
+/**
+ * A new entry is filed as the day is written, under its tag's
+ * group, and every other byte stays.
+ */
 describe('filing a new entry', () => {
   const raw = ['#timeline', '     09:00 standup', '', '#expense', '     12:30 #expense lunch amount:: 480', '', '#diet', '     08:45 #food oats', ''].join('\n')
   const filed = (text: string, into = raw) => withNewEntry(day, into, text, '    ')

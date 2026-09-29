@@ -4,19 +4,14 @@ import { cleanup, render, waitFor } from '@testing-library/react'
 import { disk, fsModule, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
- * **Opening a note must not write to it.**
+ * Opening a note must not write to it. This file mounts the real editor
+ * and checks the bytes on disk: open a note, wait out autosave, and the
+ * file must be identical. One case, since a real mount takes seconds.
  *
- * The one file that mounts the **real** editor rather than the textarea stub, and
- * the one that asserts the *bytes* on disk: a note is opened, autosave's window is
- * waited out, and the file has to be byte-identical. Deliberately one case — a
- * real mount is seconds, not milliseconds.
- *
- * The fault it was written for: the previous note pane was a WYSIWYG that appended
- * a paragraph to any document not ending in one, which fired the change listener on
- * mount and saved a re-serialised copy. Bullets changed character, tight lists went
- * loose, and the mtime moved — from *reading* a note. Nothing here parses and
- * regenerates a note now (CLAUDE.md), so that particular fault cannot recur, and
- * this is the guard that would catch the next thing to try it.
+ * The old WYSIWYG editor added a paragraph to any document not ending in
+ * one, which fired the change listener on mount and saved a regenerated
+ * copy: bullets changed, lists loosened, the mtime moved. Nothing parses
+ * and regenerates a note now; this catches the next thing that tries.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -35,7 +30,7 @@ beforeEach(() => {
 describe('opening a note', () => {
   it('does not rewrite one whose last block is a list', { timeout: 40000 }, async () => {
     const original = disk.read('/v/standup.md')!
-    // The default folder's `standup.md` is exactly this shape — prose, then a list.
+    // The default vault's `standup.md` has exactly this shape: prose, then a list.
     expect(original.trimEnd().endsWith('- reviewed the editor')).toBe(true)
 
     const { default: App } = await import('../App')
@@ -44,15 +39,13 @@ describe('opening a note', () => {
     await waitFor(() => expect(getByText('standup')).toBeTruthy(), { timeout: 10000 })
     getByText('standup').click()
 
-    // `.cm-content` is the real editor, mounted: the point of this file is that the
-    // assertion below is about a *real* mount and not about a stub.
+    // `.cm-content` means the real editor is mounted, not the stub.
 
     await waitFor(() => expect(document.querySelector('.cm-content')).toBeTruthy(), {
       timeout: 20000,
     })
 
-    // Autosave's 800ms plus a margin, so "nothing was written" is a fact rather
-    // than a race won.
+    // Autosave's 800ms plus a margin, so "nothing was written" is a fact.
     await new Promise((resolve) => setTimeout(resolve, 1500))
 
     expect(disk.read('/v/standup.md')).toBe(original)

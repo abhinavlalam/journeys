@@ -4,10 +4,8 @@ import { cleanup, fireEvent, waitFor, within } from '@testing-library/react'
 import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
- * **The days either side, at the top of a journal page.** The end of a note says
- * where it sits and what points at it; a daily note is also a place in a sequence.
- * `daily.test.ts` holds the model — what is a day, and what lies either side of one
- * when the journal has gaps; this drives the app.
+ * The days either side, at the top of a daily note. `daily.test.ts` covers what a
+ * day is and what lies either side when the journal has gaps; this drives the app.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -58,7 +56,7 @@ describe('a journal page', () => {
     await openApp()
     await openDay('2026-09-17')
     await waitFor(() => expect(steps()).toHaveLength(2))
-    // The step, not the row of the same name in the tree.
+    // The step, not the tree row of the same name.
     fireEvent.click(document.querySelector('.viewer:not([hidden]) .daily-step.back')!)
     await waitFor(() => expect(title()).toBe('2026-09-16'))
     // The first day has nothing before it, and its one step points forward.
@@ -70,7 +68,7 @@ describe('a journal page', () => {
     fireEvent.click(sidebar().getByText('roadmap'))
     await waitFor(() => expect(title()).toBe('roadmap'))
     expect(steps()).toEqual([])
-    // Including the daily folder's own note, which lives there without being a day.
+    // Including the daily folder's own note, which is not a day.
     await openDay('Daily')
     expect(steps()).toEqual([])
   })

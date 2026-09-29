@@ -5,13 +5,10 @@ import { FolderTree } from '../FolderTree'
 import type { VaultFile, VaultFolder } from '../vaultModel'
 
 /**
- * The right-click menu, driven from the tree — its only caller.
- *
- * `useContextMenu` owns the position state, the `preventDefault` and the node, and
- * `ContextMenu` owns the clamp and both ways of closing. What is pinned here is
- * everything a hand-rolled copy of that gets subtly wrong: the position, the clamp
- * back inside the window, Escape, click-away, and that a second right-click leaves
- * one menu rather than two.
+ * The right-click menu, driven from the tree. `useContextMenu` owns the
+ * position, the `preventDefault` and the node; `ContextMenu` the clamp
+ * and both ways of closing. Pinned: the position, the clamp inside the
+ * window, Escape, click-away, and one menu after a second right-click.
  */
 const file = (name: string): VaultFile => ({
   path: `${name}.md`,
@@ -88,8 +85,8 @@ afterEach(() => {
 describe('a row context menu', () => {
   it('opens where the click was, and takes the gesture from the OS', () => {
     tree()
-    // fireEvent returns false when the event was cancelled — the preventDefault
-    // that stops the webview's own menu appearing over ours.
+    // `fireEvent` returns false when the event was cancelled: the
+    // `preventDefault` that keeps the webview's own menu away.
     expect(fireEvent.contextMenu(row('roadmap'), { clientX: 40, clientY: 60 })).toBe(false)
 
     const menu = document.querySelector('.context-menu') as HTMLElement
@@ -99,9 +96,9 @@ describe('a row context menu', () => {
     expect(screen.getByText('Delete')).toBeTruthy()
   })
 
-  // The reason ContextMenu measures itself in a layout effect: right-clicking a
-  // note near the bottom of the sidebar put Delete off-screen. jsdom reports a
-  // zero-sized box, so the clamp lands on the margin alone — still the arithmetic.
+  // Why ContextMenu measures itself in a layout effect: a right-click
+  // near the sidebar's bottom put Delete off-screen. jsdom reports a
+  // zero box, so the clamp lands on the margin alone.
   it('is pulled back inside the window', () => {
     tree()
     fireEvent.contextMenu(row('roadmap'), { clientX: 5000, clientY: 5000 })
@@ -137,9 +134,8 @@ describe('a row context menu', () => {
   })
 
   /**
-   * Finder wants a path, and an *absolute* one — the tree's `path` is relative to
-   * the vault and would resolve against whatever the process's working directory
-   * happens to be. Both row kinds hand over the one thing they have in common.
+   * Finder needs an absolute path; the tree's path is vault-relative
+   * and would resolve against the process's working folder.
    */
   it('reveals a note by its absolute path', () => {
     tree()
@@ -149,9 +145,8 @@ describe('a row context menu', () => {
     expect(handlers.onReveal).toHaveBeenCalledWith('/v/roadmap.md')
   })
 
-  // A nested note's row stands for the folder, so that is what is revealed: it
-  // holds the note *and* its children, and a folder note nobody has typed in has no
-  // file to select.
+  // A nested note's row stands for the folder, so that is revealed: it holds
+  // the note and its children, and a folder note never typed in has no file.
   it('reveals a nested note by its folder', () => {
     tree()
     fireEvent.contextMenu(row('Ideas'))
@@ -159,9 +154,9 @@ describe('a row context menu', () => {
     expect(handlers.onReveal).toHaveBeenCalledWith('/v/Ideas')
   })
 
-  // Each row owns its own menu, so two could in principle stand open at once. The
-  // right button's mousedown reaches the open menu's click-away listener first,
-  // which is what keeps it to one — and is why the mousedown is fired here too.
+  // Each row owns its menu, so two could be open. The right
+  // button's mousedown reaches the open menu's click-away first,
+  // which keeps it to one, so the mousedown is fired here too.
   it('leaves one menu when a second row is right-clicked', () => {
     tree()
     fireEvent.contextMenu(row('roadmap'))
@@ -173,12 +168,10 @@ describe('a row context menu', () => {
 
 
 /**
- * **A right-click must not start a drag.** WebKit begins a drag session when the
- * right button is pressed on a `draggable` element — Chrome and jsdom decline it —
- * so in the app a right-click on a note started a drag nothing finished: the list
- * under the pointer took the drop wash and kept it, a blue outline across the whole
- * left pane. The guard is the button read on `mousedown`, which is the only place
- * it can be read, so the test presses before it drags.
+ * A right-click must not start a drag. WebKit starts one on a right
+ * press over a `draggable` element (Chrome and jsdom do not), and
+ * the list under the pointer kept its drop wash. The guard reads
+ * the button on `mousedown`, so the test presses before it drags.
  */
 describe('a drag', () => {
   const dataTransfer = () => ({
@@ -194,7 +187,7 @@ describe('a drag', () => {
     const transfer = dataTransfer()
     fireEvent.mouseDown(dragged, { button: 2 })
     const started = fireEvent.dragStart(dragged, { dataTransfer: transfer })
-    // Refused on the way out: nothing is carried, and the event is cancelled.
+    // Refused on the way out: nothing is carried and the event is cancelled.
     expect(transfer.setData).not.toHaveBeenCalled()
     expect(started).toBe(false)
   })

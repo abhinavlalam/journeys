@@ -3,10 +3,9 @@ import { disk, fsModule, resetFakeVault } from './fakeVault'
 import { isSamePath } from '../vaultModel'
 
 /**
- * The helper's own test: the point of `fakeVault` is that the **real** `vault.ts`
- * runs on top of it, so what is checked here is that real `walk`, real `isSamePath`
- * and the real create/rename/move/delete paths behave as they do on disk —
- * including the rules that only exist because the volume is case-insensitive.
+ * The helper's own test: the real `vault.ts` runs on the fake disk,
+ * so this checks that the real `walk`, `isSamePath`, and create,
+ * rename, move and delete behave as on disk, case rules included.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -25,17 +24,17 @@ describe('the fake disk under the real vault', () => {
     expect(root.files.map((f) => f.path)).toEqual(['inbox.md', 'roadmap.md', 'standup.md'])
 
     const ideas = root.folders[0]
-    // A nested folder note is lifted onto the folder itself rather than listed as a
-    // child of it — that is what makes a tree node both a note and a container.
+    // A nested folder note is lifted onto its folder, not listed as a
+    // child: that is what makes a tree node both a note and a container.
     expect(ideas.note?.path).toBe('Ideas/Ideas.md')
     expect(ideas.files.map((f) => f.path)).toEqual(['Ideas/pingbird.md'])
   })
 
-  /** **Every file, and no dot-prefixed entry.** The walk listed `.md`, `.json` and
-   *  `.enc` and hid the rest, which made a vault holding a lease and a photograph
-   *  two different folders depending on which app you opened it in. What differs
-   *  between a note and a PDF is what the *reading pane* does with one — `fileKind`
-   *  — and not whether the tree admits it exists. */
+  /**
+   * Every file, and no dot entry. The walk once hid everything but `.md`,
+   * `.json` and `.enc`. What differs between a note and a PDF is what the
+   * reading pane does with it (`fileKind`), not whether the tree shows it.
+   */
   it('shows every file, and skips every dot-prefixed entry', async () => {
     disk.write('/v/deck.pdf', 'not markdown')
     disk.write('/v/whiteboard.png', 'not markdown either')
@@ -45,8 +44,8 @@ describe('the fake disk under the real vault', () => {
     const root = await vault.readVault('/v')
     expect(root.files.map((f) => f.name)).toContain('deck.pdf')
     expect(root.files.map((f) => f.name)).toContain('whiteboard.png')
-    // The reason `safeNewName` refuses a leading dot rather than folding it: a
-    // `.plan.md` would be written and then be invisible here.
+    // Why `safeNewName` refuses a leading dot: a `.plan.md`
+    // would be written and then hidden here.
     expect(root.files.map((f) => f.name)).not.toContain('.plan')
     expect(root.folders.map((f) => f.name)).not.toContain('.claude')
   })
@@ -61,14 +60,14 @@ describe('the fake disk under the real vault', () => {
 
   it('is case-insensitive and case-preserving, as the volume is', async () => {
     disk.write('/v/index.md', 'first')
-    // `exists("Index.md")` answering true for `index.md` is what made a case-only
-    // rename trip an "already exists" guard against itself.
+    // `exists("Index.md")` true for `index.md` made a case-only
+    // rename trip its own guard.
     expect(disk.has('/v/INDEX.md')).toBe(true)
     expect(isSamePath('/v/Index.md', '/v/index.md')).toBe(true)
 
     disk.write('/v/Index.md', 'second')
     expect(disk.read('/v/index.md')).toBe('second')
-    // One file, still called what it was called when it was created.
+    // One file, still with the name it was created with.
     expect(disk.paths().filter((p) => /index\.md$/i.test(p))).toEqual(['/v/index.md'])
   })
 
@@ -104,8 +103,8 @@ describe('the fake disk under the real vault', () => {
 
     expect(disk.has('/v/Ideas')).toBe(false)
     expect(disk.paths()).toContain('/v/Thoughts/pingbird.md')
-    // The folder note is matched by name, so it has to follow the rename or the
-    // folder comes back with no note and a stray orphan inside it.
+    // The folder note is matched by name, so it must follow the
+    // rename, or the folder comes back without its note.
     expect(disk.paths()).toContain('/v/Thoughts/Thoughts.md')
   })
 

@@ -3,8 +3,10 @@ import { dailyNeighbours, dayOf, isDailyNote } from '../daily'
 import { vaultFile as file } from './fakeVault'
 
 
-/** A journal with a gap in it: the 16th, the 17th, then the 20th. Plus the
- *  folder's own note, and a note that lives there without naming a day. */
+/**
+ * A journal with a gap: the 16th, the 17th, then the 20th. Plus
+ * the folder's own note, and a note there that names no day.
+ */
 const NOTES = [
   file('Daily/2026-09-17.md'),
   file('Daily/2026-09-20.md'),
@@ -20,10 +22,10 @@ describe('a daily note', () => {
     // The folder's own note lives there and is not a day.
     expect(isDailyNote('Daily/Daily.md', 'Daily')).toBe(false)
     expect(isDailyNote('Daily/groceries.md', 'Daily')).toBe(false)
-    // A day's name somewhere else is somebody else's note.
+    // A day's name elsewhere is another note.
     expect(isDailyNote('2026-09-17.md', 'Daily')).toBe(false)
     expect(isDailyNote('Areas/2026-09-17.md', 'Daily')).toBe(false)
-    // The folder is a setting somebody typed, so it is compared case-blind.
+    // The folder is a typed setting, so it is compared ignoring case.
     expect(isDailyNote('daily/2026-09-17.md', 'Daily')).toBe(true)
     // A subfolder of the daily folder is not the daily folder.
     expect(isDailyNote('Daily/2026/2026-09-17.md', 'Daily')).toBe(false)
@@ -38,7 +40,7 @@ describe('the days either side', () => {
     return [previous?.name ?? null, next?.name ?? null]
   }
 
-  /** **What exists, not what the calendar says**: the 17th's next is the 20th. */
+  /** What exists, not the calendar: the 17th's next is the 20th. */
   it('steps over the gaps', () => {
     expect(steps('Daily/2026-09-17.md')).toEqual(['2026-09-16', '2026-09-20'])
   })
@@ -51,7 +53,7 @@ describe('the days either side', () => {
   it('is nothing at all for a note that is not a day', () => {
     expect(steps('roadmap.md')).toEqual([null, null])
     expect(steps('Daily/Daily.md')).toEqual([null, null])
-    // A day the read does not know about: the note is open, the vault has not
+    // A day the read does not know yet: the note is open, the vault has not
     // caught up, and a neighbour guessed from half a list would be wrong.
     expect(steps('Daily/2026-09-19.md')).toEqual([null, null])
   })

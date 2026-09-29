@@ -17,14 +17,13 @@ const press = (key: string, mods: Partial<KeyboardEventInit> = {}) =>
   new KeyboardEvent('keydown', { key, ...mods })
 
 /**
- * The condition `App.tsx` matches ⌘⇧O with, copied verbatim from lines 80–81.
- * `matchesCombo('mod+shift+o')` has to agree with it on every modifier
- * combination, or adopting the matcher changes what the app does.
+ * The hand-written condition the app matched ⌘⇧O with before `matchesCombo`.
+ * The matcher must agree with it on every modifier combination.
  */
 const appTsx = (event: KeyboardEvent) =>
   event.key.toLowerCase() === 'o' && event.metaKey && event.shiftKey && !event.altKey && !event.ctrlKey
 
-/** The same, from `Editor.tsx` lines 80–81. */
+/** The same, for ⌘⇧T. */
 const editorTsx = (event: KeyboardEvent) =>
   event.key.toLowerCase() === 't' && event.metaKey && event.shiftKey && !event.altKey && !event.ctrlKey
 
@@ -87,7 +86,7 @@ describe('the text form', () => {
   })
 
   it('renders in macOS order', () => {
-    // Apple's order is ⌃⌥⇧⌘ — a macOS menu shows ⇧⌘N, not ⌘⇧N.
+    // Apple's order is ⌃⌥⇧⌘: a macOS menu shows ⇧⌘N, not ⌘⇧N.
     expect(formatCombo('mod+shift+o')).toBe('⇧⌘O')
     expect(formatCombo('mod+ctrl+alt+shift+enter')).toBe('⌃⌥⇧⌘↩')
     expect(formatCombo('not a combo')).toBe('')
@@ -115,17 +114,15 @@ describe('conflicts', () => {
   })
 
   /**
-   * The combos here are the *installed* keymaps': CodeMirror's undo and select-all,
-   * `lang-markdown`'s list indent, and this app's own bold. The list that answers
-   * this used to be a hand-copy of Milkdown's, which is why ⇧⌘B for a block quote
-   * and ⌥⌘X for strikethrough were once in it — Crepe bound those, and nothing
-   * does now.
+   * These combos come from the installed keymaps: CodeMirror's undo and
+   * select-all, the indent key, and the app's own bold. The list was once
+   * hand-copied from an old editor, so it held combos nothing binds now.
    */
   it('refuses a combo the editor binds', () => {
     for (const combo of ['mod+z', 'mod+a', 'mod+]', 'mod+b']) {
       expect(findConflict(combo, 'openToday', current)).toMatch(/editor already uses/i)
     }
-    // And not one that only the retired editor bound.
+    // And not one only the old editor bound.
     expect(findConflict('mod+alt+x', 'openToday', current)).toBe(null)
   })
 
@@ -158,7 +155,7 @@ describe('conflicts', () => {
 describe('the registry', () => {
   it('is the list the panel and the defaults both read', () => {
     expect(ACTIONS.map((action) => action.id)).toEqual(['openToday', 'insertTime'])
-    // The registry and the stored map cannot come apart: one is built from the other.
+    // The registry and the stored map cannot drift: one is built from the other.
     expect(Object.keys(defaultShortcuts())).toEqual(ACTIONS.map((action) => action.id))
   })
 
@@ -172,18 +169,15 @@ describe('the registry', () => {
 
   it('stores every reservation in canonical form', () => {
     for (const entry of RESERVED_COMBOS) expect(normalizeCombo(entry.combo)).toBe(entry.combo)
-    // The derived set goes through `normalizeCombo` on the way in, so this is a
-    // check on the conversion from CodeMirror's `Mod-Shift-z` spelling.
+    // The derived set goes through `normalizeCombo`, so this
+    // checks the conversion from CodeMirror's `Mod-Shift-z` form.
     for (const combo of EDITOR_COMBOS) expect(normalizeCombo(combo)).toBe(combo)
   })
 
-  // ⌘, is the panel's own way in. Binding an action over it leaves the sidebar
-  // button as the only route back to Settings, which is fine right up until the
-  // binding is forgotten.
+  // ⌘, is the way into Settings. Bound over, only the sidebar button would lead back.
   it('refuses the combo that opens Settings', () => {
     expect(findConflict('mod+,', 'openToday', {})).toBe('⌘, opens Settings.')
-    // A combo no keymap in the stack claims — CodeMirror took ⇧⌘K, which is what
-    // this example used to be.
+    // A combo no keymap claims; CodeMirror took ⇧⌘K, the old example.
     expect(findConflict('mod+shift+j', 'openToday', {})).toBeNull()
   })
 })

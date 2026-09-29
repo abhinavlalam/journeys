@@ -2,11 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { agoWord, clockStart, daysAfter, daysBetween, leadingClock, localDateStamp, localTimeStamp, relativeDay } from '../clock'
 
 /**
- * The stamps are local-calendar, and the only way to prove it is from a zone that
- * is not UTC — on a UTC machine every wrong implementation passes. Node reads
- * `process.env.TZ` on each `Date` operation, so this file picks a zone (+09:30, no
- * DST) rather than trusting the one it runs in. Vitest isolates a test file in its
- * own worker, and it is restored anyway.
+ * The stamps use the local calendar, which can only be shown from a zone other than
+ * UTC. Node reads `process.env.TZ` on each `Date` call, so this file sets a zone
+ * (+09:30, no DST). Vitest gives each file its own worker, and it is restored anyway.
  */
 const realTZ = process.env.TZ
 beforeAll(() => {
@@ -18,8 +16,8 @@ afterAll(() => {
 
 describe('localDateStamp', () => {
   it('names the local day, both sides of UTC midnight', () => {
-    // 02:00 local is 16:30 the *previous* day in UTC, which is what an
-    // `toISOString().slice(0, 10)` files a small-hours daily note under.
+    // 02:00 local is 16:30 the previous day in UTC, the day
+    // `toISOString().slice(0, 10)` would file an early note under.
     expect(localDateStamp(new Date(2026, 7, 12, 2, 0))).toBe('2026-08-12')
     expect(localDateStamp(new Date(2026, 7, 12, 23, 0))).toBe('2026-08-12')
   })
@@ -38,20 +36,18 @@ describe('localTimeStamp', () => {
 })
 
 /**
- * **The clock a line opens with**, which is one rule with three readers now: the
- * mark the editor draws, the `when` column a tag's table opens with, and
- * whatever next wants to know when a line happened. It was private to
- * `editorPreview.ts`, where only the mark could see it.
+ * The clock a line opens with: one rule for the editor's mark, a
+ * tag table's `when` column, and the timeline.
  */
 describe('leadingClock', () => {
   it('reads a clock at the start of a line', () => {
     expect(leadingClock('09:42 #expense on [[Bistro]]')).toBe('09:42')
-    // Unpadded, because a stamp typed by hand is not always padded.
+    // Unpadded, since a typed stamp is not always padded.
     expect(leadingClock('9:05 woke up')).toBe('9:05')
     expect(leadingClock('12:00')).toBe('12:00')
   })
 
-  /** A range is one clock: that is one span of time, not two times. */
+  /** A range is one clock: one span of time, not two times. */
   it('reads a range as one clock', () => {
     expect(leadingClock('12:00 to 12:30 #call with [[Mira Vance]]')).toBe('12:00 to 12:30')
     expect(leadingClock('12:00-12:30 x')).toBe('12:00-12:30')

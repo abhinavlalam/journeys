@@ -3,7 +3,9 @@ import { nothingPicked, pick, pickMode, withoutUnder, type Picked } from '../pic
 import { visibleFiles } from '../links'
 import type { VaultFolder } from '../vaultModel'
 
-/** The rows as the tree draws them: `a`, then `Areas` open with `x` and `y`, then `b`. */
+/**
+ * The rows as the tree draws them: `a`, then `Areas` open with `x` and `y`, then `b`.
+ */
 const ORDER = ['Areas/x.md', 'Areas/y.md', 'a.md', 'b.md']
 const names = (picked: Picked) => [...picked.paths].sort()
 
@@ -12,7 +14,7 @@ describe('a gesture', () => {
     expect(pickMode({ metaKey: false, shiftKey: false })).toBe('only')
     expect(pickMode({ metaKey: true, shiftKey: false })).toBe('toggle')
     expect(pickMode({ metaKey: false, shiftKey: true })).toBe('range')
-    // Both: ⌘ wins, because toggling is the one that never loses what is picked.
+    // Both: ⌘ wins, because toggling never loses what is picked.
     expect(pickMode({ metaKey: true, shiftKey: true })).toBe('toggle')
   })
 })
@@ -31,7 +33,7 @@ describe('picking', () => {
     expect(picked.anchor).toBe('b.md')
     picked = pick(picked, 'b.md', 'toggle', ORDER)
     expect(names(picked)).toEqual(['a.md'])
-    // Un-picking the anchor leaves none, so the next range starts where it is asked.
+    // Un-picking the anchor clears it, so the next range starts where asked.
     expect(picked.anchor).toBeNull()
   })
 
@@ -55,7 +57,7 @@ describe('picking', () => {
     const folder = withoutUnder(picked, 'Areas')
     expect(names(folder)).toEqual(['a.md', 'b.md'])
     expect(folder.anchor).toBeNull()
-    // Nothing to drop is the same set, so a delete elsewhere costs no render.
+    // Nothing to drop gives the same set, so a delete elsewhere costs no render.
     expect(withoutUnder(picked, 'other.md')).toBe(picked)
   })
 })
@@ -78,8 +80,10 @@ describe('the order a range runs in', () => {
     files: [file('a.md'), file('b.md')],
   }
 
-  /** `FolderTree` draws a folder's subfolders before its own files, so the order is
-   *  the tree's and a range covers what lies between two clicks on screen. */
+  /**
+   * `FolderTree` draws subfolders before files, so the order is the
+   * tree's and a range covers what lies between two clicks on screen.
+   */
   it('is the tree’s own, and skips what a shut folder hides', () => {
     expect(visibleFiles(tree, new Set(['Areas'])).map((f) => f.path)).toEqual(ORDER)
     expect(visibleFiles(tree, new Set()).map((f) => f.path)).toEqual(['a.md', 'b.md'])

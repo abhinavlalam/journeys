@@ -1,16 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * What "New note…" is allowed to put on disk.
- *
- * A name holding a `/` would write into a folder the user never picked — or fail on
- * a directory that does not exist — and a name with a leading dot creates a file
- * `walk` skips: it opens in the editor and is then invisible to the tree,
- * unreachable from anywhere in the app.
- *
- * A dot is refused rather than folded, and that is the one thing `safeName` alone
- * does not fix: it folds only characters a path cannot hold, so `.plan` survives it
- * unchanged and a folder named for it would hide everything inside it.
+ * What "New note…" may put on disk. A name with a `/` would write into an
+ * unchosen folder, or fail on a missing one; a name with a leading dot
+ * makes a file `walk` skips, invisible in the tree. A dot is refused, not
+ * folded: `safeName` only replaces characters a path cannot hold, so
+ * `.plan` would pass and a folder named that would hide everything in it.
  */
 
 const disk = new Map<string, string>()
@@ -27,8 +22,8 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   mkdir: vi.fn(async (p: string) => {
     dirs.add(p)
   }),
-  // A real move, because `convertToNested` below is one: a `rename` that did
-  // nothing would let its test pass with the note left where it was.
+  // A real move, since `convertToNested` below is one: a do-nothing
+  // `rename` would let its test pass with the note left behind.
   rename: vi.fn(async (from: string, to: string) => {
     const text = disk.get(from)
     if (text === undefined) throw new Error(`no such file: ${from}`)
@@ -52,7 +47,7 @@ describe('a new note that names a path', () => {
     expect([...disk.keys()]).toEqual(['/v/Notes/Q3-Plan.md'])
   })
 
-  // Folding, not dropping: two different names must not collapse into one.
+  // Folding, not dropping, so two different names cannot become one.
   it('keeps every other character as typed', async () => {
     const file = await createNote('/v', 'Notes', 'Reading List 2026')
     expect(file.path).toBe('Notes/Reading List 2026.md')
@@ -60,16 +55,11 @@ describe('a new note that names a path', () => {
 })
 
 /**
- * A wikilink says where a note goes, not only what it is called.
- *
- * `[[Landmark Plaza/Northwind Office]]` is written before either exists, and
- * following it has to make both — the folder, and the note inside it. Before this,
- * `writeText` was handed a path whose directory was not there and the click ended
- * in the error banner.
- *
- * The folder is left as a nested note with nothing in it: a folder *is* a note and
- * its own `.md` waits for the first keystroke, so following one link must not put
- * two notes on the disk.
+ * A wikilink says where a note goes, not only its name. `[[Landmark
+ * Plaza/Northwind Office]]` is written before either exists, and following
+ * it makes the folder and the note in it. Before, `writeText` got a path
+ * whose folder was missing and the click ended in an error. The folder stays
+ * a nested note with nothing in it: its own `.md` waits for the first key.
  */
 describe('a new note under folders that are not there', () => {
   it('creates the folders, and only the note as a file', async () => {
@@ -102,8 +92,8 @@ describe('a new note whose name starts with a dot', () => {
     expect([...disk.keys()]).toEqual([])
   })
 
-  // The same rule reaches the folders a path names, which is where it matters most:
-  // a hidden folder would take every note inside it out of the tree.
+  // The same rule for the folders a path names, where it matters
+  // most: a hidden folder takes every note in it out of the tree.
   it('is refused for a folder in the path too', async () => {
     await expect(createNote('/v', '.hidden', 'plan')).rejects.toThrow(/dot/)
     expect([...dirs]).toEqual([])
@@ -118,10 +108,7 @@ describe('a name that is nothing but illegal characters', () => {
   })
 })
 
-/**
- * The rule is shared, because both creators apply it and `renameFile` and
- * `renameFolder` do too — a second copy is how the four come to disagree.
- */
+/** The rule is shared: both creators and `renameFile` and `renameFolder` use it. */
 describe('the shared new-name rule', () => {
   it('folds what a path cannot hold and keeps everything else', () => {
     expect(safeNewName('Q3/Plan')).toBe('Q3-Plan')
@@ -135,11 +122,8 @@ describe('the shared new-name rule', () => {
 })
 
 /**
- * A page becomes a nested page: `Ideas.md` → `Ideas/Ideas.md`.
- *
- * That pairing is what a nested note *is*, so this is a folder and one move. The
- * note's bytes are never read, which is the property worth pinning: a conversion
- * that rewrote the file would be a conversion that could mangle it.
+ * A page becomes a nested page: `Ideas.md` → `Ideas/Ideas.md`, a folder and one
+ * move. The note's bytes are never read, so the conversion cannot mangle it.
  */
 describe('a page becoming a nested page', () => {
   const page = (path: string) => ({
@@ -163,7 +147,7 @@ describe('a page becoming a nested page', () => {
     dirs.add('/v/Ideas')
 
     await expect(convertToNested(page('Ideas.md'), '/v')).rejects.toThrow(/already a nested note/)
-    // And the note is still where it was, rather than half-moved.
+    // And the note is still where it was, not half moved.
     expect(disk.has('/v/Ideas.md')).toBe(true)
   })
 })

@@ -3,14 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 
 /**
- * **A shell that finishes starting after its tab has gone is detached.** The spawn
- * runs off the main thread, so a tab closed while it is under way sends its detach
- * first, for a session not registered yet, and the spawn then lands a tmux client
- * nobody shows, alive until the app quits. And each mount is its own channel, so
- * that late detach can only ever reach the tab it belonged to.
- *
- * xterm draws to a canvas jsdom does not have, so it is a stand-in here, as is the
- * bridge: what is tested is the pane's side of the conversation.
+ * A shell that finishes starting after its tab is gone is detached. The
+ * spawn runs off the main thread, so a tab closed during it sends its
+ * detach first, and the spawn then leaves a tmux client no one sees. Each
+ * mount is its own channel, so that late detach only reaches its own tab.
+ * xterm and the bridge are stand-ins; this tests the pane's side.
  */
 
 vi.mock('@xterm/xterm', () => ({

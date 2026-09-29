@@ -5,9 +5,9 @@ import { confirm } from '@tauri-apps/plugin-dialog'
 import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
- * **Picking rows in the left pane, to act on them together.** Picking is not
- * opening — that is the whole ask — so these watch two things at once: what the
- * rows say, and that nothing was opened. `picking.test.ts` holds the model.
+ * Picking rows in the left pane to act on them together. Picking
+ * is not opening, so these watch what the rows say and that
+ * nothing opened. `picking.test.ts` covers the model.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -50,7 +50,7 @@ describe('picking rows', () => {
     await openApp()
     fireEvent.click(row('alpha'), { metaKey: true })
     fireEvent.click(row('roadmap'), { shiftKey: true })
-    // alpha, beta, gamma, inbox, roadmap at the root — the range is what lies between.
+    // alpha, beta, gamma, inbox, roadmap at the root; the range is what lies between.
     await waitFor(() => expect(pickedNames()).toEqual(['alpha', 'beta', 'gamma', 'inbox', 'roadmap']))
     expect(tabs()).toEqual([])
   })

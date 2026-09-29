@@ -16,12 +16,12 @@ describe('what a file is', () => {
     for (const name of ['a.png', 'b.JPG', 'c.jpeg', 'd.gif', 'e.webp', 'f.svg', 'g.heic']) {
       expect(fileKind(name), name).toBe('image')
     }
-    // Anything else is a file the app has nothing to say about, which it says.
+    // Anything else is a file the app has nothing to say about, and it says so.
     expect(fileKind('archive.zip')).toBe('other')
     expect(fileKind('Makefile')).toBe('other')
   })
 
-  /** What the corpus may read: a PDF read as text is nonsense in the index. */
+  /** What the vault read may take: a PDF read as text is noise in the index. */
   it('lets the corpus read text and nothing else', () => {
     expect(['roadmap.md', 'data.json', 'spend.csv', 'notes.txt'].every(isTextFile)).toBe(true)
     expect(['deck.pdf', 'a.png', 'archive.zip'].some(isTextFile)).toBe(false)
@@ -33,7 +33,7 @@ describe('a delimited file', () => {
     expect(separatorOf('a,b,c')).toBe(',')
     expect(separatorOf('a\tb\tc')).toBe('\t')
     expect(separatorOf('a;b;c')).toBe(';')
-    // A line with one of each is a comma file with punctuation in it.
+    // A line with one of each is a comma file with punctuation.
     expect(separatorOf('a,b;c')).toBe(',')
     expect(separatorOf('one column')).toBe(',')
   })
@@ -42,12 +42,12 @@ describe('a delimited file', () => {
     const cut = (line: string) => fieldsOf(line, ',').map((f) => line.slice(f.from, f.to))
     expect(cut('a,b,c')).toEqual(['a', 'b', 'c'])
     expect(cut('"Smith, John",42')).toEqual(['"Smith, John"', '42'])
-    // A doubled quote is an escaped one and does not end the field.
+    // A doubled quote is escaped and does not end the field.
     expect(cut('"she said ""no""",ok')).toEqual(['"she said ""no"""', 'ok'])
     // An empty field is a field: the columns after it must not shift.
     expect(cut('a,,c')).toEqual(['a', '', 'c'])
-    // A file being typed is unbalanced most of the time, and colour that vanishes
-    // mid-keystroke is worse than colour that runs to the end of the line.
+    // A file being typed is often unbalanced, and colour that
+    // vanishes mid-key is worse than colour that runs on.
     expect(cut('a,"unclosed,b')).toEqual(['a', '"unclosed,b'])
   })
 

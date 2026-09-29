@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * **A quit waits for the typing.** The app asks; the page writes the open notes and
- * quits, or stays and says why when a note could not be written.
+ * A quit waits for the typing. The app asks; the page writes the open
+ * notes and quits, or stays and says why when a note could not be written.
  */
 const handlers = new Map<string, () => Promise<void>>()
 const invoked = vi.fn(async (_command: string) => {})

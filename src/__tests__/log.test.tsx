@@ -4,9 +4,9 @@ import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@t
 import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
- * **What the app says** is shown at the bottom of the window for a while — it
- * stayed until dismissed, over sync rounds that had since gone through — and every
- * message is kept in the Log, an application of its own, for the window's life.
+ * What the app says shows at the bottom of the window for a while
+ * (it used to stay until dismissed, after later syncs had worked),
+ * and every message is kept in the Log for the window's life.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -29,7 +29,7 @@ describe('what the app says', () => {
     expect(result.current.shown?.text).toBe('The sync failed.')
     act(() => vi.advanceTimersByTime(SHOWN_MS))
     expect(result.current.shown).toBeNull()
-    // Still said, for the screen with no Log to look in, until it is put away.
+    // Still said, for the screen with no Log, until it is put away.
     expect(result.current.said?.text).toBe('The sync failed.')
     act(() => result.current.say(null))
     expect([result.current.said, result.current.items.map((one) => one.text)]).toEqual([null, ['The sync failed.']])

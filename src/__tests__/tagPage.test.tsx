@@ -4,10 +4,10 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
- * **A tag's page**: its structure — the properties its lines carry, one per row —
- * then its lines, as a table of those values or as the sentences the note reads,
- * the tag's own choice. The structure and the choice are `.config/tags.json`; each
- * property's type is its own, in `properties.json`, and a `number` column is summed.
+ * A tag's page: its structure (the properties its lines carry, one per
+ * row), then its lines as a table of values or as sentences, the tag's
+ * choice. Structure and choice are in `.config/tags.json`; each property's
+ * type is in `properties.json`, and `number` columns are summed.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -35,7 +35,7 @@ beforeEach(() => {
 
 const pane = () => within(document.querySelector('.sidebar')!)
 const viewer = () => within(document.querySelector('.viewer:not([hidden])')!)
-/** The first section on the page: the structure. The table names the same words. */
+/** The first section: the structure. The table uses the same names. */
 const structure = () => within(document.querySelector('.viewer:not([hidden]) .note-section') as HTMLElement)
 const tags = () => JSON.parse(disk.read('/v/.config/tags.json')!).expense.properties
 
@@ -90,7 +90,7 @@ describe('a tag’s page', () => {
     fireEvent.change(viewer().getByPlaceholderText('Property name…'), { target: { value: 'Amount' } })
     fireEvent.keyDown(viewer().getByPlaceholderText('Property name…'), { key: 'Enter' })
 
-    // One that is not a name keeps the field, and says why.
+    // An invalid name keeps the field and says why.
     fireEvent.click(viewer().getByLabelText('Add a property'))
     const wrong = viewer().getByPlaceholderText('Property name…')
     // Typed as meant: no autocorrect, no capitals it did not type.
@@ -105,8 +105,10 @@ describe('a tag’s page', () => {
     await waitFor(() => expect(tags()).toEqual(['amount', 'merchant', 'category', 'venue']))
   })
 
-  /** A table for a tag with a structure until it is told otherwise, and the choice
-   *  is the tag's, kept beside its structure — the timeline will draw it too. */
+  /**
+   * A table for a tag with a structure until told otherwise; the choice
+   * is kept beside the structure, and the timeline reads it too.
+   */
   it('draws its lines as a table or a list, and keeps the choice in tags.json', async () => {
     await openTag()
     const view = (name: string) => viewer().getByRole('button', { name })

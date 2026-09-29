@@ -26,8 +26,8 @@ const text = () => 'text' as const
 const format = { properties: EVENT_PROPERTIES, typeOf: text }
 
 /**
- * `eventText` is `readEvent` the other way round, and the test is that round trip:
- * what is written is read back as the same parts.
+ * `eventText` is `readEvent` in reverse, and the test is the
+ * round trip: what is written reads back as the same parts.
  */
 describe('an event’s line', () => {
   it('is written in the structure’s order, a value of more than a word quoted, and read back', () => {
@@ -44,7 +44,7 @@ describe('an event’s line', () => {
       what: 'Dinner',
       fields: { with: 'Ravi Iyer' },
     })
-    // The tag by the tag's own rule: any case, and `#events` is another tag.
+    // The tag by the tag rule: any case, and `#events` is another tag.
     expect(readEvent('#Event Walk #events', text).what).toBe('Walk #events')
   })
 
@@ -134,8 +134,8 @@ describe('readEvents', () => {
       ['Standup', '09:30 to 10:00', false],
     ])
     expect(events[0].fields.at).toBe('Goa')
-    // A written line past `to` is still read — a reminder is due by its own lead —
-    // where a repeat stops at `to`; a line on no day is not an event.
+    // A written line past `to` is still read (a reminder is due by its own
+    // lead), while a repeat stops at `to`; a line on no day is not an event.
     expect(events.map((one) => one.day).sort()).toEqual(['2026-09-24', '2026-09-24', '2026-09-24', '2026-09-25', '2026-09-25'])
   })
 
@@ -188,7 +188,7 @@ describe('the month page', () => {
     const sundays = monthGrid('2026-09', 0)
     expect(sundays[0]).toBe('2026-08-30')
     expect(sundays[sundays.length - 1]).toBe('2026-10-03')
-    // A month that starts on the first day of the week leads with nothing.
+    // A month starting on the first weekday has no lead-in days.
     expect(monthGrid('2026-06', 1)[0]).toBe('2026-06-01')
   })
 
