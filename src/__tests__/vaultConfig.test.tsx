@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 import { CONFIG_DIR } from '../vault'
 import { DEFAULT_SETTINGS, parseSettings } from '../settings'
 import { SETTINGS_FILE } from '../vaultModel'
@@ -36,11 +36,6 @@ beforeEach(() => {
   fetched.mockClear()
 })
 
-async function openApp() {
-  const { default: App } = await import('../App')
-  render(<App />)
-  await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
-}
 
 describe('a vault with no config', () => {
   it('is given one, holding the settings in force', async () => {

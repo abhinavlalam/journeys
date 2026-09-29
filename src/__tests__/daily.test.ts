@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { dailyNeighbours, dayOf, isDailyNote } from '../daily'
-import type { VaultFile } from '../vaultModel'
+import { vaultFile as file } from './fakeVault'
 
-const file = (path: string): VaultFile => ({
-  path,
-  absolutePath: `/v/${path}`,
-  name: path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/, ''),
-})
 
 /** A journal with a gap in it: the 16th, the 17th, then the 20th. Plus the
  *  folder's own note, and a note that lives there without naming a day. */

@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
+import { cleanup, fireEvent, waitFor, within } from '@testing-library/react'
+import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault, vaultFile as file } from './fakeVault'
 import { readProperty } from '../properties'
 
 /**
@@ -34,11 +34,6 @@ const carrying = (mime: string, payload: unknown, marker?: string) => ({
   getData: (asked: string) => (asked === mime ? JSON.stringify(payload) : ''),
 })
 
-const file = (path: string) => ({
-  path,
-  absolutePath: `/v/${path}`,
-  name: (path.split('/').pop() ?? path).replace(/\.md$/, ''),
-})
 
 const folder = (path: string) => ({
   path,
@@ -54,11 +49,6 @@ beforeEach(() => {
   rememberVault('/v')
 })
 
-async function openApp() {
-  const { default: App } = await import('../App')
-  render(<App />)
-  await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
-}
 
 const tree = () => document.querySelector('.file-list') as HTMLElement
 const rowFor = (name: string) =>

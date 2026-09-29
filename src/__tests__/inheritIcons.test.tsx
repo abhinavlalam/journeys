@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { disk, fsModule, rememberVault, resetFakeVault } from './fakeVault'
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { disk, fsModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 import { localDateStamp } from '../clock'
 import { readProperty } from '../properties'
 
@@ -28,20 +28,6 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
  * and the stub is a textarea. CodeMirror needs two things jsdom has not — neither
  * is a layout, and no assertion below touches a coordinate.
  */
-Object.defineProperty(globalThis, 'matchMedia', {
-  configurable: true,
-  writable: true,
-  value: (media: string) => ({
-    media,
-    matches: false,
-    onchange: null,
-    addListener: () => {},
-    removeListener: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => false,
-  }),
-})
 afterEach(cleanup)
 beforeEach(() => {
   resetFakeVault()
@@ -56,12 +42,6 @@ beforeEach(() => {
   disk.write('/v/roadmap.md', 'taxi to [[Airport/Harbour City Terminal 1]]\n')
 })
 
-async function openApp(settings?: Record<string, unknown>) {
-  if (settings) disk.write('/v/.config/settings.json', JSON.stringify(settings))
-  const { default: App } = await import('../App')
-  render(<App />)
-  await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
-}
 
 const sidebar = () => within(document.querySelector('.sidebar')!)
 const tree = () => within(document.querySelector('.pane-section .file-list') as HTMLElement)

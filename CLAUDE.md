@@ -519,8 +519,10 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   bundled binary: everything should be under `/System` or `/usr/lib`. OpenSSL is
   static (`src-tauri/.cargo/config.toml`).
 - **Tests**: a `waitFor` callback must throw to retry (put an `expect` in it); the
-  async budget is one setting in `src/__tests__/setup.ts`; a wall-clock guard needs
-  a runner timeout looser than itself.
+  async budget is one setting in `src/__tests__/setup.ts`, as are the stubs for
+  what jsdom lacks (`Range.getClientRects`, `matchMedia`) — a test needing another
+  sets its own; `openApp` and `vaultFile` are `fakeVault`'s, not each file's; a
+  wall-clock guard needs a runner timeout looser than itself.
 - **jsdom lays nothing out.** Measure layout in headless Chrome: dump a component's
   markup into a page with `index.css`, write `getBoundingClientRect()` into a
   `<pre>`, and run

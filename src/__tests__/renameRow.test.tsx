@@ -2,7 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { FolderTree } from '../FolderTree'
-import type { VaultFile, VaultFolder } from '../vaultModel'
+import type { VaultFolder } from '../vaultModel'
+import { vaultFile as file } from './fakeVault'
 
 /**
  * Rename in place, from the row that had no test at all.
@@ -13,11 +14,6 @@ import type { VaultFile, VaultFolder } from '../vaultModel'
  * entity row both cancel), the field arrives prefilled and selected, and Escape
  * throws the edit away.
  */
-const file = (path: string): VaultFile => ({
-  path,
-  absolutePath: `/v/${path}`,
-  name: (path.split('/').pop() ?? path).replace(/\.md$/, ''),
-})
 
 const projects: VaultFolder = {
   path: 'Notes/Projects',

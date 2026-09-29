@@ -1,16 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { searchNotes } from '../search'
-import type { VaultFile } from '../vaultModel'
+import { vaultFile as note } from './fakeVault'
 
 /**
  * Finding a note, over the corpus `App` already holds. No mock of anything: this
  * module could not reach a disk if it wanted to.
  */
-const note = (path: string): VaultFile => ({
-  path,
-  absolutePath: `/v/${path}`,
-  name: path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/, ''),
-})
 
 const VAULT = [
   { note: note('Pingbird.md'), text: '---\npath: Pingbird\n---\n\nWhat the messenger got right.\n' },

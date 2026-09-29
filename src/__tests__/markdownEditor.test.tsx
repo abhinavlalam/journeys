@@ -24,37 +24,15 @@ import { cleanup, fireEvent, render } from '@testing-library/react'
  */
 
 /**
- * Two shims, both before the imports, and both about the same absence: jsdom is a
- * DOM with no browser under it.
- *
- * `navigator.platform` is `''` there, and `@codemirror/view` reads it *at module
- * load* to decide whether `Mod-` means ⌘ or Ctrl. Left alone, the keymap under test
- * would be the Windows one, and a passing ⌘B case would be asserting a chord this
- * app — which bundles for macOS only, as `shortcuts.ts` says — never sends.
- *
- * `matchMedia` does not exist at all, and CodeMirror's `DOMObserver` calls
- * `matchMedia('print').addListener(…)` in its constructor, so `new EditorView`
- * throws before the editor exists. `addListener` is the deprecated spelling and the
- * one CodeMirror uses.
+ * **Before the imports**: `navigator.platform` is `''` in jsdom, and
+ * `@codemirror/view` reads it at module load to decide whether `Mod-` is ⌘ or Ctrl.
+ * Left alone, the keymap under test would be the Windows one, and a ⌘B case would
+ * assert a chord this macOS app never sends. (`matchMedia` is `setup.ts`'s.)
  */
 vi.hoisted(() => {
   Object.defineProperty(globalThis.navigator, 'platform', {
     configurable: true,
     value: 'MacIntel',
-  })
-  Object.defineProperty(globalThis, 'matchMedia', {
-    configurable: true,
-    writable: true,
-    value: (media: string) => ({
-      media,
-      matches: false,
-      onchange: null,
-      addListener: () => {},
-      removeListener: () => {},
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      dispatchEvent: () => false,
-    }),
   })
 })
 
@@ -84,6 +62,7 @@ import {
   taskAt,
   toggledTask,
 } from '../editorPreview'
+import { vaultFile as note } from './fakeVault'
 
 afterEach(cleanup)
 
@@ -1208,11 +1187,6 @@ describe('the mounted editor', () => {
 // `[` over a selection, and the `[[` picker
 // ---------------------------------------------------------------------------
 
-const note = (path: string) => ({
-  path,
-  absolutePath: `/v/${path}`,
-  name: (path.split('/').pop() ?? path).replace(/\.md$/, ''),
-})
 const NOTES = [note('Roadmap.md'), note('Notes/Reading list.md'), note('Areas/Health.md')]
 
 describe('Backspace between the brackets', () => {

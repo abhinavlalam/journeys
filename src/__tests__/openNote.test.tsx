@@ -17,8 +17,6 @@ import { disk, fsModule, rememberVault, resetFakeVault } from './fakeVault'
  * loose, and the mtime moved — from *reading* a note. Nothing here parses and
  * regenerates a note now (CLAUDE.md), so that particular fault cannot recur, and
  * this is the guard that would catch the next thing to try it.
- *
- * `matchMedia` is shimmed below, for the real component.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -26,27 +24,6 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: vi.fn(async () => null),
   confirm: vi.fn(async () => true),
 }))
-
-/**
- * jsdom has no `matchMedia` at all, and CodeMirror's `DOMObserver` calls
- * `matchMedia('print').addListener(...)` in its constructor — so `new EditorView`
- * throws before the editor exists. `addListener` is the deprecated spelling and the
- * one CodeMirror uses; both are here so nothing else has to guess which.
- */
-Object.defineProperty(globalThis, 'matchMedia', {
-  configurable: true,
-  writable: true,
-  value: (media: string) => ({
-    media,
-    matches: false,
-    onchange: null,
-    addListener: () => {},
-    removeListener: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => false,
-  }),
-})
 
 afterEach(cleanup)
 

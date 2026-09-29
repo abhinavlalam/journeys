@@ -5,7 +5,7 @@
 // entry of the day, from every group, in the order it happened. Nothing here writes;
 // an entry carries the line it came from, which is what an edit writes back.
 
-import { leadingClock } from './clock'
+import { leadingClock, minutesOf } from './clock'
 import { dayOf, isDailyNote } from './daily'
 import { blockProperties, readBlock, splitPageProperties, type PropertyType } from './properties'
 import { indentOf, proseLines } from './prose'
@@ -40,9 +40,6 @@ const DAY_MINUTES = 24 * 60
 
 /** A line of tags and nothing else heads a group. */
 const isGroupHead = (prose: string) => prose.trim() !== '' && prose.replace(TAG, '').trim() === ''
-
-const minutesOf = (clock: string) =>
-  [...clock.matchAll(/(\d{1,2}):(\d{2})/g)].map((hit) => Number(hit[1]) * 60 + Number(hit[2]))
 
 /** A group of a day's note: its heading's first tag, the heading's line and indent,
  *  and the last line of its run. */
@@ -116,7 +113,7 @@ export function dayEntries(note: VaultFile, raw: string): TimelineEntry[] {
 }
 
 /** The group an entry is filed under when none of its tags has one. */
-export const TIMELINE_GROUP = 'timeline'
+const TIMELINE_GROUP = 'timeline'
 
 /**
  * A day's note with a new entry filed in it, as its owner writes a day: under the
@@ -157,18 +154,6 @@ export function withEditedEntry(raw: string, entry: TimelineEntry, text: string)
   const indent = line.slice(0, indentOf(line))
   lines[entry.at] = indent + text.replace(/\s+/g, ' ').trim() + (line.endsWith('\r') ? '\r' : '')
   return lines.join('\n')
-}
-
-/** `HH:MM` for minutes into a day, a block's end past midnight included. */
-export const clockText = (minutes: number) =>
-  `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
-
-/** How long a block lasts: `50 min`, `1 h`, `1 h 30 min`. */
-export function lengthOf(minutes: number): string {
-  const hours = Math.floor(minutes / 60)
-  const rest = minutes % 60
-  if (hours === 0) return `${rest} min`
-  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`
 }
 
 /**

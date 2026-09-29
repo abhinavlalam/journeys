@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { VaultFile, VaultFolder } from '../vaultModel'
+import type { VaultFolder } from '../vaultModel'
+import { vaultFile as note } from './fakeVault'
 
 /**
  * Where a rename is allowed to put a file.
@@ -46,11 +47,6 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 
 const { renameFile, renameFolder } = await import('../vault')
 
-const note = (path: string): VaultFile => ({
-  path,
-  absolutePath: `/v/${path}`,
-  name: path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/, ''),
-})
 
 const folder = (path: string, withNote = false): VaultFolder => {
   const name = path.slice(path.lastIndexOf('/') + 1)

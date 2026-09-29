@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 import { decryptNote, encryptNote, lockAll } from '../crypto'
 
 /**
@@ -48,11 +48,6 @@ beforeEach(async () => {
   disk.write('/v/private.enc', await encryptNote(SECRET, PW))
 })
 
-async function openApp() {
-  const { default: App } = await import('../App')
-  render(<App />)
-  await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
-}
 
 const tree = () => document.querySelector('.file-list') as HTMLElement
 const field = () => screen.queryByLabelText('Passphrase for private') as HTMLInputElement | null

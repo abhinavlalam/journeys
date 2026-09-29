@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 import { localDateStamp } from '../clock'
 import { readProperty } from '../properties'
 
@@ -35,11 +35,6 @@ beforeEach(() => {
 const tree = () => within(document.querySelector('.sidebar .file-list')!)
 const viewer = () => within(document.querySelector('.viewer:not([hidden])')!)
 
-async function openApp() {
-  const { default: App } = await import('../App')
-  render(<App />)
-  await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
-}
 
 /** Opens `name` from the tree and waits for the reading pane to be showing it. */
 async function open(name: string) {

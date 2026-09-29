@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { EditorView } from '@codemirror/view'
-import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
+import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 import { DEFAULT_SETTINGS, parseSettings } from '../settings'
 import { SETTINGS_FILE } from '../vaultModel'
 import { CONFIG_DIR } from '../vault'
@@ -21,27 +21,6 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: vi.fn(async () => null),
   confirm: vi.fn(async () => true),
 }))
-
-/**
- * The JSON pane is the **real** editor now — the same `EditorHost` a note gets —
- * so these mount CodeMirror, which calls `matchMedia` in `DOMObserver`'s
- * constructor: jsdom has none, so `new EditorView` throws without it. It is not a
- * layout; no assertion below touches a coordinate.
- */
-Object.defineProperty(globalThis, 'matchMedia', {
-  configurable: true,
-  writable: true,
-  value: (media: string) => ({
-    media,
-    matches: false,
-    onchange: null,
-    addListener: () => {},
-    removeListener: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => false,
-  }),
-})
 
 /** The mounted view for a pane, and the way a test types into it: a transaction,
  *  which is what a keystroke becomes anyway. */
@@ -72,11 +51,6 @@ beforeEach(() => {
   rememberVault('/v')
 })
 
-async function openApp() {
-  const { default: App } = await import('../App')
-  render(<App />)
-  await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
-}
 
 const LABEL = `${SETTINGS_FILE} source`
 const field = () => screen.getByLabelText(LABEL)

@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { EditorView } from '@codemirror/view'
-import { disk, fsModule, rememberVault, resetFakeVault } from './fakeVault'
+import { disk, fsModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
  * **Tabs with the real editor under them.** The tabs tests mock the editor to a
@@ -18,20 +18,6 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   confirm: vi.fn(async () => true),
 }))
 
-Object.defineProperty(globalThis, 'matchMedia', {
-  configurable: true,
-  writable: true,
-  value: (media: string) => ({
-    media,
-    matches: false,
-    onchange: null,
-    addListener: () => {},
-    removeListener: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => false,
-  }),
-})
 afterEach(cleanup)
 beforeEach(() => {
   resetFakeVault()
@@ -40,11 +26,6 @@ beforeEach(() => {
   disk.write('/v/beta.md', 'beta text\n')
 })
 
-async function openApp() {
-  const { default: App } = await import('../App')
-  render(<App />)
-  await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
-}
 
 const sidebar = () => within(document.querySelector('.sidebar')!)
 /** The focused pane's title — there is one per pane. */

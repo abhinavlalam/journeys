@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
+import { cleanup, fireEvent, waitFor, within } from '@testing-library/react'
+import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
  * **The days either side, at the top of a journal page.** The end of a note says
@@ -28,11 +28,6 @@ beforeEach(() => {
   disk.write('/v/Daily/2026-09-20.md', 'the twentieth\n')
 })
 
-async function openApp() {
-  const { default: App } = await import('../App')
-  render(<App />)
-  await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
-}
 
 const sidebar = () => within(document.querySelector('.sidebar')!)
 const title = () => document.querySelector('.viewer:not([hidden]) .viewer-title')?.textContent ?? null

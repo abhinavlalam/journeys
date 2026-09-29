@@ -7,8 +7,9 @@ import { claimsIcon, resolveNoteIcon } from '../icons'
 import { useEffect } from 'react'
 import { useFolderOpenState } from '../useFolderOpenState'
 import { knownPath } from '../vaultModel'
-import type { VaultFile, VaultFolder } from '../vaultModel'
+import type { VaultFolder } from '../vaultModel'
 import { stepIn } from '../rows'
+import { vaultFile as file } from './fakeVault'
 
 /**
  * A folder shut by hand still has to open when the selection lands inside it.
@@ -21,11 +22,6 @@ import { stepIn } from '../rows'
  * Driven through the real `useFolderOpenState`, since the bug lives in the handshake
  * between that state and what the row derives from the selection.
  */
-const file = (path: string): VaultFile => ({
-  path,
-  absolutePath: `/v/${path}`,
-  name: (path.split('/').pop() ?? path).replace(/\.md$/, ''),
-})
 
 const deep: VaultFolder = {
   path: 'Notes/Projects/deep',

@@ -1,8 +1,8 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { confirm } from '@tauri-apps/plugin-dialog'
-import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
+import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
  * **Picking rows in the left pane, to act on them together.** Picking is not
@@ -28,11 +28,6 @@ beforeEach(() => {
   vi.mocked(confirm).mockResolvedValue(true)
 })
 
-async function openApp() {
-  const { default: App } = await import('../App')
-  render(<App />)
-  await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
-}
 
 const sidebar = () => within(document.querySelector('.sidebar')!)
 const row = (name: string) => sidebar().getByText(name).closest('button')!

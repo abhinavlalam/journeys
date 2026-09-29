@@ -1,17 +1,10 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import {
-  disk,
-  fsModule,
-  markdownEditorModule,
-  rememberVault,
-  resetFakeVault,
-} from './fakeVault'
+import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault, vaultFile as file } from './fakeVault'
 import { buildNoteGraph } from '../graph'
 import type { NoteGraph } from '../graph'
 import { buildNoteIndex } from '../links'
-import type { VaultFile } from '../vaultModel'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { GraphView, decluttered, shortName } from '../GraphView'
 
@@ -110,13 +103,6 @@ function clearMatchMedia() {
   })
 }
 
-function file(path: string): VaultFile {
-  return {
-    path,
-    absolutePath: `/v/${path}`,
-    name: path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/, ''),
-  }
-}
 
 /** A graph from `path -> text`, through the real builder and the real index. */
 function graphOf(notes: Record<string, string>): NoteGraph {

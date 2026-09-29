@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
-import { dayTitle, localDateStamp } from './clock'
+import { clockText, dayTitle, lengthOf, localDateStamp } from './clock'
 import type { Entries } from './configEntries'
 import { MarkdownEditor } from './MarkdownEditor'
 import type { PropertyType } from './properties'
 import { countOf, NoteRow, READING, readable, RowIcon, Section, stepIn } from './rows'
 import { TAG_NAME, tagNames } from './tags'
-import { clockText, fieldsOf, lengthOf, totalsOf, wordsOf, type TimelineDay, type TimelineEntry } from './timeline'
+import { fieldsOf, totalsOf, wordsOf, type TimelineDay, type TimelineEntry } from './timeline'
 import { ViewerHeader } from './ViewerHeader'
 import { linkLabelSpan, type VaultFile } from './vaultModel'
 

@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { clockText, dayEntries, fieldsOf, lengthOf, timelineDays, totalsOf, withEditedEntry, withNewEntry, wordsOf } from '../timeline'
+import { clockText, lengthOf } from '../clock'
+import { dayEntries, fieldsOf, timelineDays, totalsOf, withEditedEntry, withNewEntry, wordsOf } from '../timeline'
 import type { PropertyType } from '../properties'
+import { vaultFile as note } from './fakeVault'
 
 /**
  * **A day as it happened.** A daily note is written by kind — a line of tags alone
  * heads a group, and the group's entries are nested under it — and the timeline
  * reads it by clock, every group's entries in the order they happened.
  */
-const note = (path: string) => ({ path, absolutePath: `/v/${path}`, name: path.split('/').pop()!.replace(/\.md$/, '') })
 const day = note('Daily/2026-09-21.md')
 const text = () => 'text' as const
 const summary = (raw: string) => dayEntries(day, raw).map((one) => [one.clock, one.group, one.text])

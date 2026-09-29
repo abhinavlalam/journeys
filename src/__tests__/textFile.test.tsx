@@ -22,21 +22,6 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   confirm: vi.fn(async () => true),
 }))
 
-Object.defineProperty(globalThis, 'matchMedia', {
-  configurable: true,
-  writable: true,
-  value: (media: string) => ({
-    media,
-    matches: false,
-    onchange: null,
-    addListener: () => {},
-    removeListener: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => false,
-  }),
-})
-
 const FILES = {
   'session.conf': '# The bench session.\nset -g status off\n',
   'deploy.yaml': '# Where it goes\nregion: lakeside\n',

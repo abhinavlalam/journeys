@@ -16,7 +16,9 @@
  *     vi.mock('../Editor', () => editorModule())
  *     beforeEach(() => { resetFakeVault() })
  */
-import { vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import { expect, vi } from 'vitest'
+import type { VaultFile } from '../vaultModel'
 
 
 // ---------------------------------------------------------------------------
@@ -351,3 +353,19 @@ export function resetFakeVault(options: { root?: string; seed?: boolean } = {}) 
   if (seed) seedDefaultVault(root)
   installLocalStorage()
 }
+
+/** The app over the fake vault, read: its first note is in the tree. `settings`, when
+ *  given, is written into the vault's settings file first. */
+export async function openApp(settings?: Record<string, unknown>) {
+  if (settings) disk.write('/v/.config/settings.json', JSON.stringify(settings))
+  const { default: App } = await import('../App')
+  render(<App />)
+  await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
+}
+
+/** A note in the fake vault, from its path. */
+export const vaultFile = (path: string): VaultFile => ({
+  path,
+  absolutePath: `/v/${path}`,
+  name: path.slice(path.lastIndexOf('/') + 1).replace(/\.md$/, ''),
+})

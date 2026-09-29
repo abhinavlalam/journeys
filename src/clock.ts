@@ -14,9 +14,22 @@ export function localDateStamp(now = new Date()): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 }
 
+/** `HH:MM` for minutes into a day, a time past midnight wrapped round. */
+export const clockText = (minutes: number) => `${pad(Math.floor(minutes / 60) % 24)}:${pad(minutes % 60)}`
+
 /** `HH:MM`, 24-hour, local. */
-export function localTimeStamp(now = new Date()): string {
-  return `${pad(now.getHours())}:${pad(now.getMinutes())}`
+export const localTimeStamp = (now = new Date()) => clockText(now.getHours() * 60 + now.getMinutes())
+
+/** Minutes into a day for each `HH:MM` of a clock: one for a moment, two for a range. */
+export const minutesOf = (clock: string) =>
+  [...clock.matchAll(/(\d{1,2}):(\d{2})/g)].map((hit) => Number(hit[1]) * 60 + Number(hit[2]))
+
+/** How long a span lasts, in words: `50 min`, `1 h`, `1 h 30 min`. */
+export function lengthOf(minutes: number): string {
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  if (hours === 0) return `${rest} min`
+  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`
 }
 
 /**

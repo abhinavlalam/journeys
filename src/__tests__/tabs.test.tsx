@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
  * **The reading pane is a workspace**: notes open as tabs, and a group of tabs can
@@ -28,11 +28,6 @@ beforeEach(() => {
   disk.write('/v/beta.md', '# beta\n')
 })
 
-async function openApp() {
-  const { default: App } = await import('../App')
-  render(<App />)
-  await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
-}
 
 const sidebar = () => within(document.querySelector('.sidebar')!)
 const tabs = () => [...document.querySelectorAll('[role="tab"] .tab-name')].map((el) => el.textContent)

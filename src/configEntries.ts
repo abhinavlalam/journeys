@@ -12,7 +12,7 @@ export type Entries = Record<string, Record<string, unknown>>
 
 /** The JSON object a text holds, or null — which the callers mean as "do not
  *  overwrite", so a parse failure and a wrong shape are one answer. */
-export function asObject(text: string): Record<string, unknown> | null {
+function asObject(text: string): Record<string, unknown> | null {
   try {
     const read: unknown = JSON.parse(text)
     return read && typeof read === 'object' && !Array.isArray(read)

@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
-import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
+import { act, cleanup, fireEvent, renderHook, screen, waitFor, within } from '@testing-library/react'
+import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 import type { SyncStatus } from '../sync'
 import { isOffline, useSync } from '../useSync'
 
@@ -70,11 +70,6 @@ beforeEach(() => {
 
 const pane = () => within(document.querySelector('.sidebar')!)
 
-async function openApp() {
-  const { default: App } = await import('../App')
-  render(<App />)
-  await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
-}
 
 /** The app, with the round that opening the vault runs already finished and
  *  forgotten, so a test sees only the rounds it asks for. */

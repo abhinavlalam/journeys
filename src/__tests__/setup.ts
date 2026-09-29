@@ -30,3 +30,25 @@ if (typeof Range !== 'undefined') {
   Range.prototype.getClientRects = () =>
     [{ top: 0, bottom: 14, left: 0, right: 0, width: 0, height: 14 }] as unknown as DOMRectList
 }
+
+/**
+ * **jsdom has no `matchMedia`**, and CodeMirror calls it as an editor is made. A
+ * query that matches nothing, everywhere a window is; a test about dark mode or
+ * reduced motion puts its own in place of this one.
+ */
+if (typeof window !== 'undefined') {
+  Object.defineProperty(globalThis, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: (media: string) => ({
+      media,
+      matches: false,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+}

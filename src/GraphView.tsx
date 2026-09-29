@@ -39,10 +39,13 @@ const FIT_MAX = 1.2
 /** Opacity for what is not connected to the hovered node. */
 const DIM = 0.12
 
-/** A label's size on screen, and **the only place it is written**: counter-scaled by
- *  the zoom, which is arithmetic, so not the sheet's — whose `font-size` the inline
- *  attribute beat anyway. */
+/** A label's size on screen, and its halo's width: attributes counter-scaled by the
+ *  zoom, and **written only here** — the sheet's rules win over an attribute, so a
+ *  size or a width there undoes the scaling. */
 const LABEL_PX = 11
+const LABEL_HALO = 3
+/** A link held in a property is drawn broken, dash and gap on screen. */
+const PROPERTY_DASH = [4, 3]
 /** A character's width as a share of the size, for which labels fit — `settings.ts`'s
  *  fallback, since a label is placed before anything is laid out. Close is enough:
  *  it only decides whether two names collide. */
@@ -625,7 +628,7 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
                 strokeWidth={Math.min(1 + (edge.weight - 1) * EDGE_WIDTH.step, EDGE_WIDTH.max) * hair}
                 // A link held in a property is drawn broken: a fact about a line,
                 // where a link in the text is something written on purpose.
-                strokeDasharray={edge.kind === 'property' ? `${4 * hair} ${3 * hair}` : undefined}
+                strokeDasharray={edge.kind === 'property' ? PROPERTY_DASH.map((one) => one * hair).join(' ') : undefined}
                 opacity={opacity}
               />
             )
@@ -679,7 +682,7 @@ export function GraphView({ graph, loading, currentId, shows, onShows, onSelect 
                     x={at.x}
                     y={at.y + radius + LABEL_OFFSET * hair}
                     fontSize={labelSize}
-                    strokeWidth={3 * hair}
+                    strokeWidth={LABEL_HALO * hair}
                   >
                     {node.id === hovered ? node.name : shortName(node.name)}
                   </text>

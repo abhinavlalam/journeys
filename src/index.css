@@ -3886,10 +3886,10 @@ button.folder-toggle {
   font-weight: var(--fw-medium);
   text-anchor: middle;
   /* The halo. `stroke fill` paints the stroke *first*, so the glyph's own ink lands
-     on top of it and only the outer half shows. */
+     on top of it and only the outer half shows. Its width is `LABEL_HALO`'s, as an
+     attribute counter-scaled by the zoom: a width here would win over it, and did. */
   paint-order: stroke fill;
   stroke: var(--bg-viewer);
-  stroke-width: 3px;
   stroke-linejoin: round;
   pointer-events: none;
   user-select: none;
