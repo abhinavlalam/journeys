@@ -42,6 +42,7 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 | `configEntries.ts`, `useConfigEntries.ts` | A `.config` file of entries keyed by name (`properties.json`): merged on write, never written over when unreadable. |
 | `calendar.ts`, `ics.ts`, `calendarSync.ts`, `useCalendarSync.ts`, `CalendarView.tsx` | The calendar. |
 | `timeline.ts` / `TimelineView.tsx` | The daily notes as each day happened / its page. |
+| `useLog.ts` / `LogView.tsx` | What the app says: shown a while, kept in the Log / its page. |
 | `crypto.ts`, `useLocks.ts`, `useAutoLock.ts` | Locked notes: the format and the passphrases held / asking and locking / the clock. |
 | `sync.ts`, `useSync.ts`, `src-tauri/src/sync.rs` | Git sync. |
 | `terminal.ts`, `TerminalPane.tsx`, `src-tauri/src/terminal.rs` | The terminal. |
@@ -320,6 +321,15 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   copy may not be read yet, and "not read" is not "not declared".
 - The fetch is `curl` in Rust, off the main thread, scheme-checked.
 - Nothing about the week is assumed (`firstWeekday` from `Intl.Locale`).
+
+## What the app says
+
+- **Every message goes through one funnel** (`useLog`'s `say`, which `App` still
+  calls `setError`): shown at the bottom of the window for `SHOWN_MS`, then gone — it
+  stayed until dismissed, over sync rounds that had since gone through — and kept in
+  the **Log**, an application of its own, for the window's life, in memory. The
+  screen before a vault is open has no Log, so it shows `said`, the latest until put
+  away.
 
 ## The timeline
 

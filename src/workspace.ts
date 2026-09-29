@@ -23,6 +23,8 @@ export type Tab =
   | { kind: 'calendar'; id: number }
   /** The daily notes as each day happened. */
   | { kind: 'timeline'; id: number }
+  /** Everything the app has said in this window. */
+  | { kind: 'log'; id: number }
   | { kind: 'settingsFile'; id: number }
   /** A file the pane shows rather than edits — a PDF, an image, anything else.
    *  It carries the file for the same reason a note tab does: the tab follows it
@@ -107,6 +109,8 @@ export function tabLabel(tab: Tab): string {
       return 'Calendar'
     case 'timeline':
       return 'Timeline'
+    case 'log':
+      return 'Log'
     case 'settingsFile':
       return SETTINGS_FILE
     case 'terminal':

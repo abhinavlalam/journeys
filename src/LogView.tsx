@@ -1,0 +1,47 @@
+import { useEffect, useRef } from 'react'
+import { localDateStamp, localTimeStamp } from './clock'
+import { countOf, NoteRow, RowIcon, Section, stepIn } from './rows'
+import type { LogItem } from './useLog'
+import { ViewerHeader } from './ViewerHeader'
+
+/**
+ * The Log: everything the app has said in this window — a sync that failed, a
+ * write refused, two devices' edits kept apart — oldest at the top and the latest
+ * at the bottom, where the page opens, as the timeline reads.
+ */
+export function LogView({ items }: { items: readonly LogItem[] }) {
+  const end = useRef<HTMLLIElement>(null)
+  useEffect(() => {
+    end.current?.scrollIntoView?.({ block: 'end' })
+  }, [items.length])
+  const today = localDateStamp()
+  return (
+    <>
+      <ViewerHeader name="Log" status={items.length > 0 ? countOf(items.length, 'message') : ''} />
+      <Section title="This window" count={items.length} startOpen>
+        {items.length === 0 ? (
+          <li style={{ paddingLeft: stepIn(1) }}>
+            <NoteRow icon={<RowIcon />} name="Nothing said yet." disabled />
+          </li>
+        ) : (
+          items.map((item, at) => {
+            const when = new Date(item.at)
+            return (
+              <li
+                key={at}
+                className="log-item"
+                style={{ paddingLeft: stepIn(1) }}
+                ref={at === items.length - 1 ? end : undefined}
+              >
+                <span className="log-when">
+                  {localDateStamp(when) === today ? localTimeStamp(when) : `${localDateStamp(when)} ${localTimeStamp(when)}`}
+                </span>
+                <span className="log-text">{item.text}</span>
+              </li>
+            )
+          })
+        )}
+      </Section>
+    </>
+  )
+}

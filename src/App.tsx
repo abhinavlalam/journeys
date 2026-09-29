@@ -37,6 +37,8 @@ import { readEntries } from './configEntries'
 import { propertiesOf, tablesOf, TAG_NAME, TAGS_FILE, viewOf } from './tags'
 import { withEntry, withNewEntry, type TimelineEntry } from './timeline'
 import { TimelineView } from './TimelineView'
+import { LogView } from './LogView'
+import { useLog } from './useLog'
 import { GraphView } from './GraphView'
 import { PropertyView } from './PropertyView'
 import { TagView } from './TagView'
@@ -117,7 +119,10 @@ const LIVE_REFRESH_MS = 250
 const SIDEBAR_WIDTH = { start: 260, min: 180, max: 520 }
 
 export default function App() {
-  const [error, setError] = useState<string | null>(null)
+  // Everything the app says goes through `setError`: shown at the bottom a while,
+  // and kept in the Log.
+  const log = useLog()
+  const setError = log.say
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsSection, setSettingsSection] = useState<SectionId>('appearance')
   /** Which section's search field is open — Notes reads a note's text, Actions its
@@ -920,7 +925,7 @@ export default function App() {
             </>
           )}
           <CloneVault onOpened={(path) => void vault.loadVault(path)} onError={setError} />
-          {error && <p className="welcome-error">{error}</p>}
+          {log.said && <p className="welcome-error">{log.said.text}</p>}
         </div>
         {panel}
       </div>
@@ -1125,6 +1130,18 @@ export default function App() {
                 onClick={() => setWs((current) => openTab(current, { kind: 'timeline' }))}
               />
             </li>
+            {/* Everything the app has said in this window. */}
+            <li style={{ paddingLeft: stepIn(1) }}>
+              <NoteRow
+                icon={<RowIcon icon="inbox" />}
+                name="Log"
+                className={active?.kind === 'log' ? 'selected' : undefined}
+                aria-label="Log"
+                aria-pressed={active?.kind === 'log'}
+                trailing={log.items.length > 0 ? <span className="row-count">{log.items.length}</span> : undefined}
+                onClick={() => setWs((current) => openTab(current, { kind: 'log' }))}
+              />
+            </li>
             {/* The vault's sync, in one sentence, and the way to its settings. */}
             <li style={{ paddingLeft: stepIn(1) }}>
               <NoteRow
@@ -1180,9 +1197,9 @@ export default function App() {
       />
 
       <main className="workspace">
-        {error && (
+        {log.shown && (
           <div className="banner" role="alert">
-            <span>{error}</span>
+            <span>{log.shown.text}</span>
             <button aria-label="Dismiss" onClick={() => setError(null)}>
               ×
             </button>
@@ -1283,6 +1300,8 @@ export default function App() {
                     onOpenTag={(tag) => view('tag', tag)}
                   />
                 )
+              case 'log':
+                return <LogView items={log.items} />
               case 'calendar':
                 return (
                   <CalendarView
