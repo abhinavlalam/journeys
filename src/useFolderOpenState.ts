@@ -1,25 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
 
 /**
- * Which folders are open, keyed by path and persisted per vault.
+ * Which folders are open, by path, saved per vault. Shut by default.
  *
- * Every folder used to default to expanded and reset on restart: 1500 notes in 30
- * folders mounted 1,621 buttons at once, and the tree you left was never the tree
- * you came back to. Collapsed is the default now, and **this set is the whole
- * truth**: a folder is open because it is in here, and for no other reason.
- *
- * It used to be three sources — this set, a `closed` set for folders shut by hand,
- * and a per-row `revealed` flag for the branch holding the selected note, with a
- * collapse counter to knock that flag down. A folder could therefore be open
- * *because of the selection*, and clicking another folder moved the selection and
- * shut it: expand one, click a second, and the first collapsed. Revealing now
- * **writes** — `reveal` opens every folder above a note — so what is open stays
- * open until something shuts it, and there is one answer to "is this open".
+ * This set is the only answer: a folder is open because it is in here. It was once
+ * three sources (this set, a set of folders shut by hand, and a flag for the selected
+ * note's branch), so clicking a second folder could shut the first. Now revealing a
+ * note writes its folders into the set (`reveal`), and they stay open until shut.
  */
 const OPEN_KEY = 'journeys:folders-open'
 
-/** What is stored, or `seed` when nothing is: the sections of the left pane start
- *  open on a vault this app has not seen, and a folder starts shut. */
+/**
+ * What is stored, or `seed` when nothing is: a new vault's
+ * sections start open, and folders start shut.
+ */
 function loadOpen(vaultPath: string, seed: readonly string[]): Set<string> {
   try {
     const raw = localStorage.getItem(`${OPEN_KEY}:${vaultPath}`)
@@ -33,7 +27,7 @@ function saveOpen(vaultPath: string, open: Set<string>) {
   try {
     localStorage.setItem(`${OPEN_KEY}:${vaultPath}`, JSON.stringify([...open]))
   } catch {
-    // Losing the shape of the tree is not worth an error.
+    // Losing the tree's open state is not worth an error.
   }
 }
 
@@ -48,7 +42,7 @@ export function useFolderOpenState(vaultPath: string | null, seed: readonly stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vaultPath])
 
-  /** Every change goes through here, so the store and the state cannot disagree. */
+  /** Every change goes through here, so the store and the state agree. */
   const write = useCallback(
     (change: (current: Set<string>) => Set<string>) => {
       setOpen((current) => {
@@ -72,11 +66,8 @@ export function useFolderOpenState(vaultPath: string | null, seed: readonly stri
   )
 
   /**
-   * Opens every folder **above** `path`, so a row that far down is on screen.
-   *
-   * Above, and not `path` itself: a folder note's own path is its folder, and
-   * opening that note is the click that toggles the folder — revealing it here as
-   * well would fight the toggle inside one gesture.
+   * Opens every folder above `path`, so its row is on screen. Not `path` itself:
+   * a folder note's path is its folder, and opening that note already toggles it.
    */
   const reveal = useCallback(
     (path: string) => {
@@ -94,12 +85,8 @@ export function useFolderOpenState(vaultPath: string | null, seed: readonly stri
   )
 
   /**
-   * Every one of `paths` open, or every one shut — **and nothing else touched.**
-   * It replaced the whole set, which held while one section's folders were all
-   * there was in it; with the left pane's sections and the Actions groups in the
-   * same set, "expand all notes" shut the Actions section and its groups, and
-   * "expand all actions" shut Notes. `paths` is the section's own list, because
-   * opening them all means naming them.
+   * Opens or shuts every one of `paths` and touches nothing else. Replacing the whole
+   * set made Expand all in Notes shut the Actions groups, and the other way round.
    */
   const setAll = useCallback(
     (paths: string[], isOpen: boolean) => {

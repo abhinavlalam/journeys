@@ -17,8 +17,9 @@ import type { Entries } from './configEntries'
 import type { CollectedNote } from './useVaultTexts'
 import type { VaultFile } from './vaultModel'
 
-/** Two readings of the same lines: the days ahead as a list, and the month as
- *  the page every calendar draws. */
+/**
+ * Two ways to read the same lines: the days ahead as a list, and the month as a page.
+ */
 type View = 'agenda' | 'month'
 const VIEWS: readonly { key: View; label: string }[] = [
   { key: 'agenda', label: 'Agenda' },
@@ -26,13 +27,10 @@ const VIEWS: readonly { key: View; label: string }[] = [
 ]
 
 /**
- * The calendar: every `#event` line in the daily notes — the ones the sync wrote
- * from a feed and the ones typed by hand alike — read two ways. **Agenda** is the
- * days ahead, each with its events and, first, whatever has a reminder due.
- * **Month** is the traditional page, seven wide, any month. A row or a chip opens
- * the note the line is in, and a day opens the day's page: the calendar is a
- * reading of the journal, not a second place to keep things. `Sync` reads the
- * feeds in `calendarFeeds` and writes the coming days.
+ * The calendar: every `#event` line in the daily notes, synced or typed, read two
+ * ways. Agenda is the days ahead, with due reminders first. Month is the usual
+ * seven-wide page. A row or a chip opens the note the line is in, and a day opens
+ * its page. `Sync` reads the feeds in `calendarFeeds` and writes the coming days.
  */
 export function CalendarView({
   collected,
@@ -48,18 +46,18 @@ export function CalendarView({
 }: {
   /** Null while the vault is still being read. */
   collected: CollectedNote[] | null
-  /** Each property's type, which is where its value ends. */
+  /** Each property's type, to know where its value ends. */
   propertyTypes: Entries
   dailyFolder: string
   /** How many days the agenda shows, today first. */
   days: number
-  /** How many feeds are configured — none, and Sync has nothing to read. */
+  /** How many feeds are set up. With none, Sync has nothing to read. */
   feeds: number
   syncing: boolean
   loading: boolean
   onSync: () => void
   onOpen: (file: VaultFile) => void
-  /** Opens a day's page, making it if the day has none. */
+  /** Opens a day's page, making it if missing. */
   onOpenDay: (day: string) => void
 }) {
   const today = localDateStamp()
@@ -68,8 +66,8 @@ export function CalendarView({
   const [month, setMonth] = useState(monthOf(today))
   const grid = useMemo(() => monthGrid(month, firstWeekday()), [month])
 
-  // One read covers both views: back to the month page's first day, and repeats
-  // followed to the last day on either page.
+  // One read for both views: back to the month page's first day,
+  // and repeats followed to the last day of either.
   const shown = Array.from({ length: days }, (_, at) => daysAfter(today, at))
   const from = [grid[0], today].sort()[0]
   const to = [grid[grid.length - 1], shown[shown.length - 1]].sort()[1]
@@ -147,9 +145,10 @@ export function CalendarView({
 
 const rowKey = (one: CalendarEvent) => `${one.day} ${one.note.path} ${one.line}`
 
-/** One event, in the journal line's own order: the clock, the title, then what
- *  else the line says, quietly and cut to the room left — an `at::` holding a
- *  meeting link is longer than the row. */
+/**
+ * One event, in the line's own order: the clock, the title, then the
+ * rest, cut to fit (an `at::` meeting link is longer than the row).
+ */
 function EventRow({
   event,
   lead,
@@ -181,11 +180,9 @@ function EventRow({
 }
 
 /**
- * The month as a page: a row of weekday names over whole weeks of days, the
- * months either side stepped back, today's number in the mark. A day grows with
- * what it holds rather than clipping to a fixed row and hiding the rest behind a
- * count, because the page is read, not fitted. Pressing a day opens its page and
- * pressing an event opens the note it is written in.
+ * The month as a page: weekday names over whole weeks, arrows for the months either
+ * side, today's number in the mark. A day grows with its events rather than hiding them
+ * behind a count. Pressing a day opens its page; pressing an event opens its note.
  */
 function MonthPage({
   month,

@@ -1,30 +1,22 @@
-// **What in a note is code**, and so not prose: the one rule, for everything that
-// reads a note's text for meaning — links, tags, block properties. A `#include` in
-// a fence is not a tag, a `[[link]]` in a code sample is not a backlink, and `key:: value` in a snippet is not a property.
-//
-// Its own module because every reader needs it and none of them owns it: it sat
-// in `links.ts`, and the properties would have had to import the links to read a
-// note, which import the properties to skip a note's block.
+// What in a note is code, and so not prose: the one rule for everything that
+// reads a note for meaning (links, tags, block properties). A `#include` in a
+// fence is not a tag, and a `[[link]]` in a code sample is not a backlink.
+// Its own module, since every reader needs it and none owns it.
 
 function blank(run: string): string {
   return run.replace(/[^\n]/g, ' ')
 }
 
 /**
- * Replaces every code region with spaces, **keeping the string's length** so offsets
- * into it are still offsets into the original.
+ * Replaces every code region with spaces, keeping the length, so
+ * offsets still match the original.
  *
- * Without this, every markdown link in every code sample in the vault becomes a
- * backlink. **The one rule for what is code** — the tags and the properties read it
- * too, through `proseLines`, or a `#include` in a fence is a tag. Handles fences of
- * three or more backticks or tildes, **at any indent**, because one under a list
- * item sits as deep as the item's text; closed by a run of the same character at
- * least as long, so a fence can hold a shorter one; unclosed, to the end of the
- * note; and a CRLF line's `\r` is not part of what a fence line says.
+ * Fences of three or more backticks or tildes, at any indent (one under a list
+ * item sits as deep as its text). Closed by a run of the same character at least
+ * as long; unclosed runs to the end of the note. A CRLF line's `\r` is ignored.
  *
- * A four-space-indented code block is deliberately *not* masked: in these notes a
- * deeply nested list item is far more common than an indented code sample, and
- * masking those would silently drop real links.
+ * A four-space indented block is not code here: in these notes a deep
+ * list item is far more common, and masking it would drop real links.
  */
 /** How far a line is indented: its leading whitespace, in characters. */
 export const indentOf = (line: string) => line.length - line.trimStart().length
@@ -45,7 +37,7 @@ export function maskCode(text: string): string {
       continue
     }
     const open = bare.match(/^[ \t]*(`{3,}|~{3,})(.*)$/)
-    // An info string may not hold a backtick, so ``` `js` ``` is an inline span.
+    // An info string cannot hold a backtick, so ``` `js` ``` is an inline span.
     if (open && !(open[1][0] === '`' && open[2].includes('`'))) {
       fence = { char: open[1][0], len: open[1].length }
       out += blank(line) + nl
@@ -58,15 +50,12 @@ export function maskCode(text: string): string {
 }
 
 /**
- * Masks inline code spans. A run of N backticks is closed by the next run of
- * *exactly* N — and a run with no such closer is literal text, not an opener, so an
- * unpaired backtick cannot swallow the rest of the note. A blank line ends the
- * search: it ends the paragraph, so the backticks are literal.
+ * Masks inline code. A run of N backticks is closed by the next run
+ * of exactly N; a run with no closer is plain text, so a stray
+ * backtick cannot swallow the note. A blank line ends the search.
  *
- * From backtick to backtick, copying the text between in one piece, and the
- * paragraph's end found once per paragraph: every vault read runs this over every
- * note several times — links, tags, properties — and a copy of the rest of the note
- * per backtick made it the slowest part of reading one.
+ * Jumps backtick to backtick and finds each paragraph's end once,
+ * since every vault read runs this over every note several times.
  */
 function maskInlineCode(text: string): string {
   const para = /\n[ \t]*\r?\n/g
@@ -78,8 +67,8 @@ function maskInlineCode(text: string): string {
     let open = i
     while (text[open] === '`') open++
     const len = open - i
-    // The first blank line at or after `open`; one found for an earlier run still
-    // is, until the scan passes it.
+    // The first blank line at or after `open`. One found for an
+    // earlier run still holds until the scan passes it.
     if (open > limit) {
       para.lastIndex = open
       limit = para.exec(text)?.index ?? text.length
@@ -106,15 +95,9 @@ function maskInlineCode(text: string): string {
 }
 
 /**
- * A note's lines with everything that is **not prose** masked out: fenced blocks,
- * their delimiters and inline code become spaces.
- *
- * `maskCode`'s rule, the one the links read too. A vault holds shell and C in
- * fences — `#!/bin/sh`, `#include` — and a line someone pasted is not a tag they
- * keep. This had a rule of its own, which closed a fence on any
- * run of backticks, so a fence holding a shorter one leaked what followed. Line
- * numbers are kept, because `collectLines` reads the *unmasked* line back out by
- * index.
+ * A note's lines with code masked out: fences, their markers and
+ * inline code become spaces. `maskCode`'s rule. Line numbers are
+ * kept, since `collectLines` reads the unmasked line back by index.
  */
 export function proseLines(raw: string): string[] {
   return maskCode(raw).split(/\r?\n/)

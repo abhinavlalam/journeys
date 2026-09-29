@@ -1,15 +1,14 @@
-// AES-256-GCM + PBKDF2-SHA256 via crypto.subtle. Ciphertext at rest is what stops
-// Drive, and the `claude` CLI, reading a note — ignore-files are only advisory.
-// PBKDF2 isn't memory-hard like Argon2id, so passphrase strength carries the weight.
+// AES-256-GCM and PBKDF2-SHA256 via `crypto.subtle`. Ciphertext on disk is what keeps
+// Drive and the `claude` CLI from reading a note; ignore files are only advice. PBKDF2
+// is not memory-hard like Argon2id, so the passphrase's strength does the work.
 
 const MAGIC = 'JOURNEYS-ENC-V1'
 const KDF = 'pbkdf2-sha256'
 const ITERATIONS = 600_000
-// The file states its own iteration count in plain text and PBKDF2 runs on the main
-// thread, linear in that number: 600k is 43ms, 10M is 730ms, 600M is ~45s of frozen
-// window — paid on *selecting* the note, before a passphrase is even asked for. A
-// flipped digit in a Drive-synced file is enough to do it, so the header is capped
-// rather than trusted. Room for ~16x hardening before this needs revisiting.
+// The file states its iteration count, and PBKDF2 runs on the main thread in time
+// to that count: 600k is 43ms, 10M is 730ms, 600M about 45s of frozen window, paid
+// on selecting the note. One flipped digit in a synced file could do it, so the
+// count is capped, not trusted. Room for about 16x more before this needs a look.
 const MAX_ITERATIONS = 10_000_000
 const SALT_BYTES = 16
 const IV_BYTES = 12
@@ -28,9 +27,8 @@ function fromBase64(text: string): Uint8Array {
   return bytes
 }
 
-// Deriving a key is 600k PBKDF2 iterations — hundreds of milliseconds. Without a
-// cache that cost is paid on every save and every window focus. Cleared on lock,
-// so a derived key never outlives the passphrase it came from.
+// Deriving a key is 600k iterations, hundreds of milliseconds. Cached so saves and
+// focus do not pay it each time; cleared on lock, so no key outlives its passphrase.
 const keyCache = new Map<string, CryptoKey>()
 
 export function clearKeyCache() {
@@ -50,7 +48,7 @@ async function deriveKeyCached(
   return key
 }
 
-/** The salt from an encrypted file, so a re-save can reuse it and hit the cache. */
+/** The salt from a locked file, so a save can reuse it and hit the cache. */
 export function saltOf(raw: string): Uint8Array | null {
   const line = raw.split('\n')[2]
   if (!line) return null
@@ -79,17 +77,16 @@ async function deriveKey(passphrase: string, salt: Uint8Array, iterations: numbe
 }
 
 /**
- * Produces the on-disk form. Deliberately line-based and self-describing so the
- * file explains itself to anyone (or anything) that opens it, and so the KDF
- * parameters can change later without guesswork.
+ * The on-disk form. Line-based and self-describing, so the file
+ * explains itself and the KDF settings can change later.
  */
 export async function encryptNote(
   plaintext: string,
   passphrase: string,
   /**
-   * Reuse this file's existing salt so the derived key stays cached across saves.
-   * Safe because the IV is fresh every time: with AES-GCM it is IV reuse under the
-   * same key that is catastrophic, not salt reuse.
+   * Reuse the file's salt so the key stays cached across saves.
+   * Safe, since the IV is new each time: with AES-GCM it is IV
+   * reuse under one key that breaks it, not salt reuse.
    */
   reuseSalt?: Uint8Array | null
 ): Promise<string> {
@@ -120,10 +117,9 @@ export class WrongPassphraseError extends Error {
 }
 
 /**
- * Structural damage, found before any key is derived. Kept apart from
- * `WrongPassphraseError` because only one of the two is the user's to fix: a
- * half-synced or truncated file used to report a wrong passphrase, and no amount
- * of retyping could ever clear it.
+ * Damage found before any key is derived. Apart from `WrongPassphraseError`
+ * because only that one is the owner's to fix: a truncated file used to say
+ * wrong passphrase, and retyping never cleared it.
  */
 export class DamagedFileError extends Error {
   constructor(detail: string) {
@@ -131,8 +127,10 @@ export class DamagedFileError extends Error {
   }
 }
 
-/** Decodes one header field, treating anything unusable as damage rather than letting
- *  `atob`'s raw DOMException escape to the caller. */
+/**
+ * Decodes one header field. Anything unusable is damage;
+ * `atob`'s own error does not escape.
+ */
 function decodeField(line: string | undefined, what: string, minBytes: number): Uint8Array {
   let bytes: Uint8Array | null = null
   try {
@@ -170,8 +168,8 @@ export async function decryptNote(raw: string, passphrase: string): Promise<stri
     )
     return new TextDecoder().decode(plaintext)
   } catch {
-    // GCM authentication failure is indistinguishable from a wrong passphrase,
-    // which is exactly the property that makes it useful.
+    // A GCM check failure looks the same as a wrong passphrase,
+    // which is what makes it useful.
     throw new WrongPassphraseError()
   }
 }
@@ -180,15 +178,10 @@ export async function decryptNote(raw: string, passphrase: string): Promise<stri
 // What is unlocked, for as long as the window is open
 // ---------------------------------------------------------------------------
 //
-// **Never written down.** The passphrase lives here and nowhere else: not in
-// `localStorage`, not in the vault's config, not in a note. Closing the window is
-// what locks a file again, which is the only promise this can honestly make.
-//
-// Here rather than in `App` because the read and the write are `vault.ts`'s — a
-// locked file is read and written exactly like any other file, and everything
-// between the editor and the disk is left not knowing the difference. That is also
-// why this is module state and not a hook: a save queued from a keystroke has to
-// find the passphrase without a render.
+// Passphrases live here and nowhere else: not in `localStorage`, the vault's
+// config or a note. Closing the window locks every note. Module state, not a hook,
+// because `vault.ts` reads and writes locked notes, and a save queued from a key
+// press must find the passphrase without a render.
 
 const unlocked = new Map<string, string>()
 
@@ -201,7 +194,7 @@ export function passphraseFor(path: string): string | null {
   return unlocked.get(path) ?? null
 }
 
-/** A file renamed or moved keeps what it had, so a save after either still lands. */
+/** A renamed or moved file keeps its passphrase, so the next save still works. */
 export function followUnlocked(from: string, to: string) {
   const held = unlocked.get(from)
   if (held !== undefined) {
@@ -210,8 +203,10 @@ export function followUnlocked(from: string, to: string) {
   }
 }
 
-/** One note locks again, and the derived keys go with it: a key left cached is
- *  the passphrase by another name. The others re-derive on their next save. */
+/**
+ * One note locks again, and its derived keys go too: a cached key is the
+ * passphrase by another name. Other notes re-derive on their next save.
+ */
 export function lock(path: string) {
   unlocked.delete(path)
   clearKeyCache()
@@ -221,13 +216,13 @@ export function unlockedPaths(): string[] {
   return [...unlocked.keys()]
 }
 
-/** Switching vaults locks everything, and the derived keys go with it. */
+/** Switching vaults locks everything, and the derived keys go too. */
 export function lockAll() {
   unlocked.clear()
   clearKeyCache()
 }
 
-/** Thrown by a read of a locked file: the caller is being told to ask. */
+/** Thrown by a read of a locked file: the caller should ask for the passphrase. */
 export class LockedFileError extends Error {
   constructor(path: string) {
     super(`${path} is locked.`)

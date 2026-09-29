@@ -8,49 +8,46 @@ import { readConfigFile } from './vault'
 
 interface SettingsFileProps {
   vaultPath: string
-  /** What is in force, and the fallback when the file is somehow not there. */
+  /** What is in force, and the fallback when the file is missing. */
   settings: Settings
   onChange: (next: Settings) => void
 }
 
 /**
- * `.config/settings.json`, in the pane, editable — and **the one file with a
- * Save**.
+ * `.config/settings.json` in the pane, and the one file with a Save.
+ * Every other file saves as you type. This one reconfigures the app,
+ * and a half-typed value (`"proseSize": 1` on the way to `13`) should
+ * not repaint the window. Save, or ⌘S, parses before it writes.
  *
- * Every other file the app opens is written as you type, which is the whole
- * bargain of the thing: a note, and a JSON file of your own, are yours and are
- * kept. This one is different because saving it *reconfigures the app*, and a
- * half-typed reconfiguration is not one to apply — a `"proseSize": 1` on its way
- * to `13` should not repaint the window at 1px on the way past.
+ * The file is read from disk, not rebuilt from state; they
+ * differ only after a hand edit, which is when this is opened.
  *
- * So: an explicit Save, and it parses before it writes. ⌘S does the same thing.
- *
- * **The file is read from disk, not serialised from state.** The two are normally
- * the same, and when they are not it is because someone edited the file by hand —
- * which is exactly when you would open this.
- *
- * Saving goes through `parseSettings`, the same function that reads the file on
- * launch: every value it does not understand falls back to that setting's default
- * rather than to nothing. What comes back is then shown here, so the text on
- * screen is the text on disk — including the parts an edit lost.
+ * Saving goes through `parseSettings`, as launch does: a value it
+ * cannot read falls back to its default. The result is shown back,
+ * so the screen matches the disk, including anything an edit lost.
  */
 export function SettingsFile({ vaultPath, settings, onChange }: SettingsFileProps) {
-  /** The bytes on disk, as far as this knows: the read at first, then whatever a
-   *  save stored. `dirty` is measured against this. */
+  /**
+   * The bytes on disk as far as this knows: the first read, then
+   * each save. `dirty` is measured against this.
+   */
   const [stored, setStored] = useState<string | null>(null)
-  /** Why the file is there and could not be read — opened over the settings in
-   *  force instead, its Save wrote them over the file. */
+  /**
+   * Why a file that is there could not be read. Opened over the
+   * settings in force instead, its Save writes over the file.
+   */
   const [unreadable, setUnreadable] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
-  /** The host's key. A save that normalises has to put its own bytes in the
-   *  editor, and `stored` alone cannot say so when those bytes are what was there
-   *  before the edit. */
+  /**
+   * The host's key. A save that normalises must put its bytes in the editor,
+   * and `stored` cannot tell when they equal what was there before the edit.
+   */
   const [version, replaceDocument] = useReducer((n: number) => n + 1, 0)
 
-  // `settings` is deliberately not a dependency: a save changes it, and re-reading
-  // the file on that would race the write it just queued.
+  // `settings` is left out of the dependencies: a save changes
+  // it, and reading again would race the write.
   useEffect(() => {
     let live = true
     void readConfigFile(vaultPath, SETTINGS_FILE).then(
@@ -71,23 +68,21 @@ export function SettingsFile({ vaultPath, settings, onChange }: SettingsFileProp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vaultPath])
 
-  // Through a ref: the ⌘S binding is installed once, at mount, and would otherwise
-  // close over the draft as of that render.
+  // Through a ref: the ⌘S binding is installed once, at mount.
   const saveRef = useRef(() => {})
   saveRef.current = () => {
     try {
       JSON.parse(draft)
     } catch (err) {
-      // The parser's own message: it names the position, which is the only useful
-      // thing anyone can say about broken JSON.
+      // The parser's own message, which names the position.
       setMessage(String(err))
       setSaved(false)
       return
     }
     const next = parseSettings(draft)
     onChange(next)
-    // The canonical bytes, which are what the write puts on disk. Shown back, so a
-    // key the app does not keep is visibly not kept.
+    // The normalised bytes, as written to disk. Shown back, so a
+    // key the app does not keep visibly goes.
     const canonical = settingsJson(next)
     setStored(canonical)
     setDraft(canonical)
@@ -123,9 +118,7 @@ export function SettingsFile({ vaultPath, settings, onChange }: SettingsFileProp
           {message}
         </p>
       )}
-      {/* The same editor every `.json` file in the vault opens in — this one with
-          a key bound into it. What a JSON file looks like is `JsonEditor`'s to say,
-          and it said it twice while this mounted its own host. */}
+      {/* The same editor as every `.json` file, with ⌘S bound in. */}
       <JsonEditor
         key={version}
         name={SETTINGS_FILE}

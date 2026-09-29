@@ -18,49 +18,53 @@ import type { useVaultTexts } from './useVaultTexts'
 import type { Entries } from './configEntries'
 
 interface NotePaneProps {
-  /** The tab's id — what this pane's buffer is registered under. */
+  /** The tab's id, which this pane's buffer is registered under. */
   id: number
   file: VaultFile
-  /** Whether this tab is the one its group shows. An inactive pane keeps its
-   *  buffer and draws nothing. */
+  /**
+   * Whether this tab is the one its group shows. A hidden pane
+   * keeps its buffer and editor.
+   */
   active: boolean
   vaultPath: string
   refresh: (path: string) => Promise<VaultFolder | null>
   setError: (message: string | null) => void
   buffers: Pick<BufferSet, 'register' | 'unregister'>
-  /** The open note's text as the *editor* has it — see `App`. */
+  /** The open note's text as the editor has it; see `App`. */
   liveText: MutableRefObject<{ path: string; text: string } | null>
   settings: Settings
   settingsOpen: boolean
   notes: ComponentProps<typeof MarkdownEditor>['notes']
-  /** Each property's type, for where a block property's value ends. */
+  /** Each property's type, to know where a block property's value ends. */
   propertyTypes: Entries
   /** Each tag's structure, for the properties its line is offered. */
   tagStructures: Entries
   root: VaultFolder | null
   icons: Record<string, string>
   backlinks: ReturnType<typeof useVaultTexts>['backlinks']
-  /** Everything a tree needs but the folder it draws and which tree it is — for
-   *  the Inside section, which is the second tree drawing these. */
+  /**
+   * Everything a tree needs except its folder and which tree it
+   * is, for the Inside section.
+   */
   treeProps: Omit<ComponentProps<typeof FolderTree>, 'folder' | 'depth' | 'where'>
   onOpen: (file: VaultFile) => void
   onOpenLink: (target: string, wiki: boolean) => void
   onOpenTag: (tag: string) => void
   onRename: (file: VaultFile, name: string) => void
-  /** Locks an encrypted note again: its tab closes and its passphrase is forgotten. */
+  /** Locks a locked note again: its tab closes and its passphrase is forgotten. */
   onLock: (file: VaultFile) => void
-  /** A keystroke landed. `App` listens while a view derived from the corpus is on
-   *  screen in another pane, so it can re-take the live text — see `liveVersion`. */
+  /**
+   * A key was typed. `App` listens while a view built from the notes is
+   * on screen in another pane, to take the live text; see `liveVersion`.
+   */
   onTyped?: () => void
 }
 
 /**
- * One note tab: its header, its editor and the sections at the end of it — and
- * **its buffer**, which is why this is a component and not a branch of `App`'s
- * render. A buffer is a hook, a hook lives as long as the component that calls
- * it, and a tab's text should live exactly as long as the tab: so each note tab
- * mounts one of these, and an inactive one stays mounted and renders nothing.
- * `App` reaches the buffer through the registry it hands in.
+ * One note tab: its header, its editor, the sections at its end, and
+ * its buffer. The buffer is a hook, so it lives as long as this
+ * component, which lives as long as the tab. A hidden tab stays
+ * mounted. `App` reaches the buffer through the registry it passes in.
  */
 export function NotePane({
   id,
@@ -89,16 +93,16 @@ export function NotePane({
 }: NotePaneProps) {
   const buffer = useNoteBuffer({ vaultPath, refresh, setError })
 
-  // **Read the note before it is shown**, and only when the buffer is not already
-  // holding it: after a rename `followFile` has already re-pointed the buffer at
-  // the new path, and re-reading here would race the `path:` the rename writes.
+  // Read the note before it is shown, unless the buffer already
+  // holds it: after a rename `followFile` has moved the buffer,
+  // and reading again would race the `path::` the rename writes.
   useEffect(() => {
     if (buffer.note?.path !== file.path) void buffer.openNote(file)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file.path])
 
-  // Registered every render, so the operations `App` reaches are this render's
-  // closures — a stale `followFile` would move a note the buffer no longer holds.
+  // Registered every render, so `App` reaches this render's functions;
+  // a stale `followFile` would move a note the buffer no longer holds.
   useEffect(() => {
     buffers.register(id, {
       flushPendingSave: buffer.flushPendingSave,
@@ -109,7 +113,7 @@ export function NotePane({
       note: buffer.note,
     })
   })
-  // The last thing a closing tab does is write what it held.
+  // A closing tab writes what it held.
   const flush = useRef(buffer.flushPendingSave)
   flush.current = buffer.flushPendingSave
   useEffect(
@@ -120,8 +124,7 @@ export function NotePane({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [id]
   )
-  // Out of sight, the tab keeps its editor — its text and its undo — and writes
-  // what it held: a tab not shown is no reason for an edit to sit in a timer.
+  // Hidden, the tab keeps its editor (text and undo) and writes what it held.
   useEffect(() => {
     if (!active) void buffer.flushPendingSave()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,22 +132,20 @@ export function NotePane({
 
   const insideFolder = useMemo(() => folderWithNote(root, file.path), [root, file.path])
   const trail = useMemo(() => trailTo(root, file.path), [root, file.path])
-  /** The days either side of this one, for a note in the daily folder. */
+  /** The days either side, for a note in the daily folder. */
   const steps = useMemo(
     () => dailyNeighbours(notes ?? [], settings.dailyFolder, file.path),
     [notes, settings.dailyFolder, file.path]
   )
 
-  // Bound before the markup: a `const` narrows inside the handler under it, where
+  // Bound first: a `const` narrows inside the handler, where
   // `steps.previous &&` in the JSX narrows only what is drawn.
   const { previous: back, next: forward } = steps
 
   /**
-   * **The editor mounts once, over the bytes.** Until the buffer holds this file
-   * the pane is its header alone: an editor mounted over `''` and then re-keyed
-   * when the read landed was two CodeMirror instances for one open, and between
-   * the first's teardown and the second's effect there is no editor in the DOM at
-   * all — a gap a test fell through, and a flash on screen.
+   * The editor mounts once, over the file's text. Until the buffer holds
+   * it, the pane is only its header. Mounting over `''` and re-keying made
+   * two editors per open, with a moment between them where there was none.
    */
   const loaded = buffer.note?.path === file.path
 
@@ -159,9 +160,8 @@ export function NotePane({
       <ViewerHeader
         shown={active}
         name={file.name}
-        // A note is renamed by its title, and a nested note's title renames its
-        // folder — `App` picks which. Only a note: a JSON file has a name too, and
-        // nothing about it is a note's.
+        // A note is renamed by its title, and a nested note's title
+        // renames its folder (`App` decides which). Notes only.
         onRename={isNote(file.path) ? (typed) => onRename(file, typed) : undefined}
         status={
           buffer.saveStatus === 'saving' ? 'Saving…' : buffer.saveStatus === 'saved' ? 'Saved' : ''
@@ -173,11 +173,8 @@ export function NotePane({
           </button>
         )}
       </ViewerHeader>
-      {/* **The day before and the day after, at the top of a journal page.** The
-          end of a note says where it sits and what points at it; a daily note is
-          also a place in a *sequence*, and that belongs at the top where reading
-          starts. Only the days that exist, either side — see `dailyNeighbours` —
-          and nothing at all on a note that is not one of them. */}
+      {/* The day before and the day after, at the top of a daily
+          note, when those notes exist (`dailyNeighbours`). */}
       {(back || forward) && (
         <nav className="daily-steps" aria-label="The days either side">
           {back && (
@@ -253,18 +250,18 @@ export function NotePane({
           onOpenTag={onOpenTag}
         />
       )}
-      {/* Notes only. A link to a non-`.md` target resolves as external, so nothing
-          in the vault can point at a JSON file for this to list. */}
+      {/* Notes only. A link to a non-`.md` target is external,
+          so nothing links to a JSON file. */}
       {loaded && isNote(file.path) && (
         <NoteFooter
-          // Keyed on the note: a section's open state is an answer about *this*
-          // note, and `startOpen` is only an initial value.
+          // Keyed on the note, so each note starts with its own
+          // open state; `startOpen` is only the first value.
           key={file.path}
           insideCount={insideFolder ? childrenOf(insideFolder).length : 0}
           inside={
             insideFolder && (
-              // `depth={1}`: the section's heading is the parent row and its items
-              // are children, so they sit one step in.
+              // `depth={1}`: the heading is the parent row, so
+              // its items sit one step in.
               <FolderTree folder={insideFolder} depth={1} where="inside" {...treeProps} />
             )
           }

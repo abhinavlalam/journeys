@@ -1,25 +1,21 @@
-// Colour for a delimited file: one hue per column, down the whole file.
+// Colour for a delimited file: one colour per column, down the whole file.
 //
-// **The file stays a file.** A CSV opens as its own text, line for line, with the
-// commas where they were written — this is Rainbow CSV's idea, asked for by name,
-// and the reason it beats a table for a file you are *editing*: a table is a
-// reading of the data, and rewriting one back into rows is where a tool eats a
-// quote somebody needed. What colour buys is the thing a table was wanted for —
-// which field is which — without touching a byte.
+// The file stays text, commas where they were written, as in Rainbow CSV. A
+// table view would have to write rows back, which is where tools lose
+// quotes. Colour shows which field is which without touching a byte.
 //
-// **A scan, not a parser**, as `jsonPreview` is: a line is split on its separator
-// outside quotes, and each field between separators takes the colour of its index.
-// There is no CSV grammar worth the name (four dialects and a shrug), and nothing
-// here has to agree with a parser elsewhere, because nothing else reads it.
+// A scan, not a parser, as in `jsonPreview`: each line is split on its
+// separator outside quotes, and each field takes the colour of its index.
 
 import { Decoration, type DecorationSet } from '@codemirror/view'
 import type { EditorState, Range } from '@codemirror/state'
 import { decorated } from './EditorHost'
 
-/** How many colours there are before the cycle repeats. Six: enough for a table
- *  read across, and every one of them measured against both grounds — see the
- *  sheet. A seventh column starts again at the first, which is what Rainbow CSV
- *  does and is fine: the eye tells neighbours apart, not columns nine apart. */
+/**
+ * How many colours before they repeat. Six, each checked against
+ * both grounds in the sheet. A seventh column starts over; the
+ * eye compares neighbours, not columns six apart.
+ */
 const COLUMNS = 6
 
 const MARK = Array.from({ length: COLUMNS }, (_, column) =>
@@ -27,12 +23,9 @@ const MARK = Array.from({ length: COLUMNS }, (_, column) =>
 )
 
 /**
- * The separator a file uses, decided **once for the file** by its first line.
- *
- * A comma unless a tab or a semicolon appears more often — the three separators
- * `.csv` files are written with in practice. Per file and not per line, because a
- * line that happens to hold more tabs than commas is a line with tabs in it, not a
- * change of dialect halfway down a file.
+ * The file's separator, decided once from its first line: a
+ * comma, unless a tab or a semicolon appears more often. Per
+ * file, not per line, so one line with tabs does not change it.
  */
 export function separatorOf(firstLine: string): string {
   const count = (character: string) => firstLine.split(character).length - 1
@@ -45,13 +38,9 @@ export function separatorOf(firstLine: string): string {
 }
 
 /**
- * Where each field of a line begins and ends, given the separator.
- *
- * **A quote protects its separator**, because that is the one rule every dialect
- * agrees on: `"Smith, John"` is one field. A doubled `""` inside a quoted field is
- * an escaped quote and does not end it. An unclosed quote runs to the end of the
- * line — a file being typed is unbalanced most of the time, and a colour that
- * disappears while you type is worse than one that runs on.
+ * Where each field of a line begins and ends. Quotes protect separators (`"Smith,
+ * John"` is one field), and `""` inside quotes is an escaped quote. An unclosed
+ * quote runs to the line's end, since a file being typed is often unbalanced.
  */
 export function fieldsOf(line: string, separator: string): { from: number; to: number }[] {
   const fields: { from: number; to: number }[] = []
@@ -74,12 +63,9 @@ export function fieldsOf(line: string, separator: string): { from: number; to: n
 }
 
 /**
- * The marks for the visible span.
- *
- * The separator is read from the document's **first** line however far down the
- * viewport is, so a file scrolled to the middle is coloured the same as one at the
- * top. Empty fields carry no mark: a zero-width decoration is nothing to see, and
- * `Decoration.mark` refuses one anyway.
+ * The marks for the visible span. The separator comes from the first
+ * line wherever the view is, so the colours do not shift on scroll.
+ * Empty fields get no mark; `Decoration.mark` refuses zero width.
  */
 export function csvDecorations(state: EditorState, from: number, to: number): DecorationSet {
   const separator = separatorOf(state.doc.line(1).text)

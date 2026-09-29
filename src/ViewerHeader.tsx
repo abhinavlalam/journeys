@@ -1,24 +1,16 @@
-// The reading pane's header: what is open, whether it is written, and — for a note
-// — its name, which is a field.
-//
-// **Two panes drew this**, the note's and `.config/settings.json`'s, with the same
-// two boxes and the same classes — and the second grew a Save button, which is the
-// only difference and is a slot.
+// The reading pane's header: what is open, whether it is saved, and for
+// a note its name as a field. The note and `.config/settings.json`
+// share it; the settings file adds a Save button in a slot.
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { NameField } from './rows'
 
 /**
- * `status` is a word and not a state machine: "Saving…", "Saved", or nothing at
- * all once a save is old enough to stop mattering. The caller works out which,
- * because what counts as saved differs — a note is written as you type and the
- * settings file is written when you ask.
+ * `status` is a word: "Saving…", "Saved", or nothing once a save is old. The
+ * caller decides, since a note saves as you type and the settings file on request.
  *
- * **The name is the rename**, when the caller passes one. A note's title is the
- * one place its name is already written large; typing over it is the shortest
- * thing that could mean "call it something else", and it is the same act as the
- * tree's rename — the tree's own row and this share `NameField` and, through
- * `App`, the same handler.
+ * The name is the rename, when the caller passes one. The title field and
+ * the tree's row share `NameField` and, through `App`, the same handler.
  */
 export function ViewerHeader({
   name,
@@ -29,37 +21,30 @@ export function ViewerHeader({
 }: {
   name: string
   status?: string
-  /** Renames what is open. Absent for anything that is not a note — the settings
-   *  file, a JSON file — where the title is a label and nothing else. */
+  /**
+   * Renames what is open. Absent for anything that is not a
+   * note, where the title is only a label.
+   */
   onRename?: (name: string) => void
-  /** Anything that acts on the open file, at the right of the row. */
+  /** Controls for the open file, at the right of the row. */
   children?: ReactNode
-  /** On screen. A note's tab stays mounted out of sight, and its field with it. */
+  /** On screen. A note's tab stays mounted while hidden, and its field with it. */
   shown?: boolean
 }) {
-  /** What is typed, **and the name the field was opened for** — see `commit`. */
+  /** What is typed, and the name the field was opened for; see `commit`. */
   const [editing, setEditing] = useState<{ was: string; typed: string } | null>(null)
 
   /**
-   * **Commits on blur as well as on Enter**, the way the tree's rename does and
-   * unlike a create: this names something that already has a name, so leaving the
-   * field is finishing rather than abandoning. Escape abandons.
+   * Commits on Enter and on blur, as the tree's rename does: it
+   * names something that already has a name. Escape abandons.
    *
-   * **And it renames the note it was opened for, or nothing.** Reported from the
-   * running app: with the field open and typed into, ⌘⇧O opened the daily note —
-   * which took the keyboard, which blurred the field, which committed *the name
-   * meant for the old note* against the new one. The daily note was renamed and the
-   * note being renamed was untouched. So the name the field opened with is kept
-   * beside what is typed, and a commit whose note has changed underneath it is
-   * abandoned. The same shape as "read the note before switching what is open":
-   * anything that acts on the open file has to say which file it meant.
+   * It renames the note it was opened for, or nothing. With the field
+   * open, ⌘⇧O opened the daily note, the field blurred, and the daily
+   * note got the name meant for the other note. So the opening name
+   * is kept, and a commit whose note has changed is dropped.
    *
-   * **Out of sight, it renames nothing.** A note's tab now stays mounted hidden, so
-   * the same ⌘⇧O left this field behind and its blur renamed the right note — but
-   * one nobody had finished naming. A field whose pane goes is abandoned.
-   *
-   * Nothing typed, or nothing changed, is not a rename: the vault refuses one to
-   * the same name anyway, and asking it to is noise.
+   * Hidden, it renames nothing: a field whose pane goes is
+   * abandoned. An empty or unchanged name is not a rename.
    */
   const commit = () => {
     const open = editing
@@ -79,9 +64,8 @@ export function ViewerHeader({
         <NameField
           value={editing.typed}
           ariaLabel="Note name"
-          // The caret at the end, not the name selected: the title's box is the
-          // whole width of the header now, and a stray press followed by a
-          // keystroke would otherwise rename the note and every link into it.
+          // The caret at the end, not the name selected: the title spans the header,
+          // and a stray click and a key would rename the note and every link to it.
           selectOnFocus={false}
           onChange={(typed) => setEditing({ was: name, typed })}
           onSubmit={commit}
@@ -89,10 +73,9 @@ export function ViewerHeader({
           onCancel={() => setEditing(null)}
         />
       ) : (
-        // A `<button>` and not a click on the text: it is the thing that starts an
-        // edit, so it takes the keyboard and says so. `-webkit-app-region` on the
-        // header makes it a window-drag region, which the sheet opts this out of —
-        // without that, pressing the title moves the window instead.
+        // A `<button>`, since it starts an edit and takes the
+        // keyboard. The header is a window-drag region, and the sheet
+        // opts this out, or pressing the title moves the window.
         <button
           className="viewer-title"
           onClick={() => onRename && setEditing({ was: name, typed: name })}

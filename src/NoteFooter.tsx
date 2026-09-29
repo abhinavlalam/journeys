@@ -6,37 +6,29 @@ import { folderNoteRef, type VaultFile, type VaultFolder } from './vaultModel'
 
 interface NoteFooterProps {
   /**
-   * The tree of what is inside this note, when it is a nested one — drawn by the
-   * caller with `FolderTree`, the left pane's own component, so a subfolder in
-   * there expands and shows what is inside *it* too. Null for a plain note, which
-   * is what takes the section off the end of it.
+   * The tree of what is inside this note, when it is a nested one,
+   * drawn by the caller with `FolderTree` so its subfolders open
+   * too. Null for a plain note, which then has no Inside section.
    */
   inside: ReactNode
   /** Its direct children, for the count beside the heading. */
   insideCount: number
   backlinks: Backlink[]
   /**
-   * The folders this note is reached through, outermost first. Each is a note of
-   * its own — a folder *is* a note here — so each is a row that opens one.
+   * The folders this note is reached through, outermost first.
+   * Each is a note of its own, so each row opens one.
    */
   trail: VaultFolder[]
-  /** Its own icon, per path, so a row here wears what its row in the tree wears. */
+  /** Each path's icon, so a row here matches its row in the tree. */
   icons: Record<string, string>
   onOpen: (file: VaultFile) => void
 }
 
 /**
- * The end of a note: what is inside it, and what links to it.
- *
- * **The left pane's rows, at the end of the text.** A section is a `folder-header`
- * with a chevron, its items are `file-row`s inside a `folder-children`, and the
- * guide lines come off the same `--guide-x` — so a list here reads as the list of
- * the same notes in the tree, because it is drawn by the same rules. The heading
- * takes the app's label format, which is what a property's name and a timestamp
- * take.
- *
- * It is *appended* to the note rather than pinned under it: the editor grows with
- * its text (see `.code-editor` in the sheet) and these follow the last line.
+ * The end of a note: where it sits, what is inside it, and what links to
+ * it. The same rows and classes as the left pane (`folder-header`,
+ * `file-row`, `folder-children`, `--guide-x`). Added after the note's
+ * text, not pinned under the pane: the editor grows with its text.
  */
 export function NoteFooter({
   inside,
@@ -48,16 +40,9 @@ export function NoteFooter({
 }: NoteFooterProps) {
   return (
     <>
-      {/* **Where the note sits, before what it holds and what points at it.** The
-          three sections read outward. Each step is indented one further than the
-          one above it, so the section draws the descent rather than listing it —
-          and each row carries its own `--guide-x`, which is how the tree's trunk
-          and elbow find a row whose depth is its own.
-
-          The vault is **not** a step: it is where every note in the pane is, so a
-          row saying so is a row that says nothing. A note at the root has no path,
-          and the section says that in one row rather than naming the folder the
-          whole app is already showing. */}
+      {/* Where the note sits, first. Each step is one indent further than the one
+          above, and each row carries its own `--guide-x` so the guide finds it.
+          The vault itself is not a step. A note at the root says so in one row. */}
       <Section title="Path" count={trail.length} startOpen={trail.length > 0}>
         {trail.length === 0 ? (
           <li style={{ paddingLeft: stepIn(1) }}>
@@ -83,15 +68,11 @@ export function NoteFooter({
           {inside}
         </Section>
       )}
-      {/* **In every note**, with or without anything in it: a note with no
-          backlinks is a fact about the note, and a section that appears and
-          disappears is one you cannot learn the position of. Shut when it is
-          empty, so it costs one row. */}
+      {/* In every note, even with no backlinks, so the section is always
+          in the same place. Shut when empty, so it takes one row. */}
       <Section title="Backlinks" count={backlinks.length} startOpen={backlinks.length > 0}>
         {backlinks.length === 0 ? (
-          // A row, and not a line of text at that indent: a row puts its words
-          // where every other row's words are, past the chevron's column and the
-          // icon's. As text it sat at the indent itself, under the guide's elbow.
+          // A row, not a line of text, so its words line up with every other row's.
           <li style={{ paddingLeft: stepIn(1) }}>
             <NoteRow icon={<RowIcon />} name="Nothing links here yet." disabled />
           </li>
@@ -104,13 +85,11 @@ export function NoteFooter({
               count={count > 1 ? count : undefined}
               onOpen={onOpen}
             >
-              {/* **The lines open the note too.** They are most of what a
-                  backlink *is* on screen — the row above is a name and these are
-                  the sentence it was written in — and a click on them did nothing,
-                  which read as a backlink that needed two clicks. */}
+              {/* The lines open the note too. They are most of a
+                  backlink on screen, and clicking them did nothing. */}
               <ul className="backlink-lines" onClick={() => opensNote(() => onOpen(note))}>
-                {/* A quotation reads as the note reads, so a link in one is its
-                    name — `readable`, the same answer a tag's page gives. */}
+                {/* A quoted line reads as the note does, so a
+                    link shows its name (`readable`). */}
                 {mentions.map((line) => (
                   <li key={line}>{readable(line)}</li>
                 ))}
@@ -123,9 +102,10 @@ export function NoteFooter({
   )
 }
 
-/** A note in one of those sections: the tree's leaf row, indented one step per
- *  level, so the guide line finds it where it finds a note that deep in the tree.
- *  `--guide-x` is the folder's own indent, which is what the tree hands down. */
+/**
+ * A note in one of these sections: the tree's leaf row, one step in per
+ * level. `--guide-x` is the folder's own indent, as the tree passes down.
+ */
 function Row({
   file,
   icon,

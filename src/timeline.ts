@@ -1,9 +1,7 @@
-// The timeline: the daily notes as each day happened.
-//
-// A daily note is written by kind — a group is a line of tags alone (`#expense`,
-// `#diet`) with that kind's entries nested under it — and read here by clock: every
-// entry of the day, from every group, in the order it happened. Nothing here writes;
-// an entry carries the line it came from, which is what an edit writes back.
+// The timeline: the daily notes as each day happened. A day is written by kind, a
+// line of tags alone (`#expense`, `#diet`) heading a group with its entries nested
+// under it. Here it is read by clock: every entry of the day, from every group, in
+// order. An entry carries its line number, which an edit writes back to.
 
 import { leadingClock, minutesOf } from './clock'
 import { dayOf, isDailyNote } from './daily'
@@ -14,19 +12,21 @@ import type { VaultFile } from './vaultModel'
 
 export interface TimelineEntry {
   note: VaultFile
-  /** 0-based line in the note: the one an edit writes back. */
+  /** 0-based line in the note, which an edit writes back to. */
   at: number
-  /** The line as written, its indent off. */
+  /** The line as written, without its indent. */
   text: string
-  /** The line's leading clock: a line without one is not an entry. */
+  /** The line's leading clock. A line without one is not an entry. */
   clock: string
-  /** Minutes into the day it starts, and, for a block of time rather than a
-   *  moment, ends: past 24 hours for a block that crosses midnight. */
+  /**
+   * Minutes into the day it starts and, for a stretch of time,
+   * ends. Past 24 hours for one that crosses midnight.
+   */
   start: number
   end: number | null
-  /** The group it is written under: the innermost heading's first tag. */
+  /** Its group: the first tag of the nearest heading above it. */
   group: string | null
-  /** The lines nested under it, its own indent off. */
+  /** The lines nested under it, without its own indent. */
   below: string[]
 }
 
@@ -41,8 +41,10 @@ const DAY_MINUTES = 24 * 60
 /** A line of tags and nothing else heads a group. */
 const isGroupHead = (prose: string) => prose.trim() !== '' && prose.replace(TAG, '').trim() === ''
 
-/** A group of a day's note: its heading's first tag, the heading's line and indent,
- *  and the last line of its run. */
+/**
+ * A group in a day's note: its heading's first tag, the
+ * heading's line and indent, and the last line of its run.
+ */
 interface Group {
   name: string
   at: number
@@ -51,13 +53,10 @@ interface Group {
 }
 
 /**
- * A day's note read: its entries as written, and its groups.
- *
- * **An entry is a line with a clock** that is not a group's heading, and what is
- * nested under an entry is its detail, as a tag's page reads it. A line without a
- * clock is neither an entry nor a place for one — the timeline is what happened
- * when — so what is nested under it is read on its own. A heading's lines are its
- * group's however deep the headings nest; code is nobody's entry.
+ * A day's note read: its entries as written, and its groups. An entry is a line
+ * with a clock that is not a heading; what is nested under it is its detail. A
+ * line without a clock is not an entry, and what is under it is read on its own.
+ * A heading's lines belong to its group at any depth. Code is never an entry.
  */
 function readDay(note: VaultFile, raw: string): { entries: TimelineEntry[]; groups: Group[] } {
   const lines = raw.split(/\r?\n/)
@@ -106,22 +105,20 @@ function readDay(note: VaultFile, raw: string): { entries: TimelineEntry[]; grou
   return { entries, groups }
 }
 
-/** A day's entries in the order it happened, by when they start; a tie keeps the
- *  order written. */
+/** A day's entries by start time; a tie keeps the written order. */
 export function dayEntries(note: VaultFile, raw: string): TimelineEntry[] {
   return readDay(note, raw).entries.sort((a, b) => a.start - b.start)
 }
 
-/** The group an entry is filed under when none of its tags has one. */
+/** The group for an entry when none of its tags heads one. */
 const TIMELINE_GROUP = 'timeline'
 
 /**
- * A day's note with a new entry filed in it, as its owner writes a day: under the
- * group headed by one of its tags; else the group already holding an entry that
- * carries one (`#food` under `#diet`); else `#timeline`, made at the note's end when
- * it has none. It goes after the group's last line, indented as the group's own
- * lines are — or `indent` in from the heading, in a group with none — and nothing
- * else in the note moves.
+ * A day's note with a new entry filed in it: under the group headed by
+ * one of its tags; else the group already holding an entry with one
+ * (`#food` under `#diet`); else `#timeline`, added at the note's end if
+ * missing. It goes after the group's last line, indented like the group's
+ * lines (or `indent` in from the heading), and nothing else moves.
  */
 export function withNewEntry(note: VaultFile, raw: string, text: string, indent: string): string {
   const { entries, groups } = readDay(note, raw)
@@ -143,9 +140,9 @@ export function withNewEntry(note: VaultFile, raw: string, text: string, indent:
 }
 
 /**
- * The note with an entry's line reading `text` — its indent and line ending kept,
- * and nothing else in the note touched — or null when that line is no longer the
- * entry's: the note changed since it was read, and writing would land on another.
+ * The note with an entry's line changed to `text`, keeping its
+ * indent and line ending. Null when that line is no longer the
+ * entry, because the note changed since it was read.
  */
 export function withEditedEntry(raw: string, entry: TimelineEntry, text: string): string | null {
   const lines = raw.split('\n')
@@ -157,9 +154,8 @@ export function withEditedEntry(raw: string, entry: TimelineEntry, text: string)
 }
 
 /**
- * What an entry says past its clock. Its properties read as the note reads them —
- * names and quotes out — or, when they are drawn as fields beside it, are left out
- * of the sentence entirely.
+ * What an entry says after its clock. Properties read as the note shows them
+ * (names and quotes out), or are left out when drawn as fields beside it.
  */
 export function wordsOf(entry: TimelineEntry, typeOf: (name: string) => PropertyType, asFields: boolean): string {
   const line = entry.text.slice(entry.clock.length)
@@ -173,7 +169,7 @@ export function wordsOf(entry: TimelineEntry, typeOf: (name: string) => Property
   return (out + line.slice(at)).replace(/\s+/g, ' ').trim()
 }
 
-/** Every daily note with anything in it, oldest first: the log reads down to today. */
+/** Every daily note with anything in it, oldest first, down to today. */
 export function timelineDays(notes: readonly { note: VaultFile; text: string }[], folder: string): TimelineDay[] {
   return notes
     .filter(({ note }) => isDailyNote(note.path, folder))
@@ -183,9 +179,9 @@ export function timelineDays(notes: readonly { note: VaultFile; text: string }[]
 }
 
 /**
- * The fields a line shows as a table-view tag's entry: each property of those tags'
- * structures that the line gives a value, in the structure's order. `tables` is the
- * structure of every tag drawn as a table.
+ * The fields a line shows for a table-view tag: each property of
+ * those tags' structures the line has a value for, in the structure's
+ * order. `tables` is the structure of every tag drawn as a table.
  */
 export function fieldsOf(
   text: string,
@@ -204,8 +200,10 @@ export function fieldsOf(
   })
 }
 
-/** Each `number` field's total over a day's entries of a table-view tag — the day's
- *  sum, as a tag's table has one. */
+/**
+ * Each `number` field's total over a day's entries of a
+ * table-view tag, as a tag's table sums it.
+ */
 export function totalsOf(
   entries: readonly TimelineEntry[],
   tables: Readonly<Record<string, readonly string[]>>,

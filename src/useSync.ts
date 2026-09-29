@@ -1,5 +1,5 @@
-// The sync as the shell runs it: a round is flush, commit, pull, push — on a timer,
-// when the window gains or loses focus, and on request. Nothing here knows git; `sync.ts` is the seam.
+// The sync as the app runs it: a round is flush, commit, pull, push, on a
+// timer, on focus and blur, and on request. Git itself is behind `sync.ts`.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { agoWord, SECOND_MS } from './clock'
@@ -22,26 +22,31 @@ export interface Sync {
   /** Null until the vault has been looked at. */
   status: SyncStatus | null
   phase: SyncPhase
-  /** When the last round finished on this device, ms. */
+  /** When the last round on this device finished, in ms. */
   syncedAt: number | null
-  /** A round: flush, commit, pull, push. `byHand` is the Sync now button, the one
-   *  round that may carry a deletion of more than half the vault. */
+  /**
+   * A round: flush, commit, pull, push. `byHand` is Sync now,
+   * the one round that may delete more than half the vault.
+   */
   now: (byHand?: boolean) => Promise<void>
-  /** The repository's address (empty for none) and the identity the commits carry. */
+  /** The repository's address (empty for none) and the identity commits carry. */
   configure: (remote: string, name: string, email: string) => Promise<void>
   setToken: (token: string) => Promise<void>
   forgetToken: () => Promise<void>
 }
 
-/** A network that is not there is a state, not a failure: the round is retried at
- *  the next tick and nothing is said. Everything else is said once — **an untrusted
- *  certificate included**: a bare `SSL|TLS` here made a sync that could never
- *  succeed say only "offline". A connection that drops mid-round says `reset` or
- *  `broken pipe`; the second was said as an error, though the next round went through. */
+/**
+ * A missing network is a state, not a failure: retried next tick, and
+ * nothing said. Everything else is said once, an untrusted
+ * certificate included (a bare `SSL|TLS` here once made that say only
+ * "offline"). A dropped connection says `reset` or `broken pipe`.
+ */
 const OFFLINE = /resolve|connect|network|timed out|unreachable|offline|reset by peer|broken pipe/i
 
-/** Whether a failure is the network not being there — the vault's sync and the
- *  calendar's both stay quiet about that and try again. */
+/**
+ * Whether a failure is the network not being there. The vault's
+ * sync and the calendar's both stay quiet and retry.
+ */
 export const isOffline = (message: string) => OFFLINE.test(message)
 
 export function useSync({
@@ -54,12 +59,16 @@ export function useSync({
 }: {
   vaultPath: string | null
   everySeconds: number
-  /** Writes what the open notes hold, so a commit never captures a half-saved file. */
+  /** Writes what the open notes hold, so a commit never takes a half-saved file. */
   flush: () => Promise<void>
-  /** Given what a pull changed on disk; the caller re-reads the tree and its buffers. */
+  /**
+   * Given what a pull changed on disk; the caller re-reads the tree and its buffers.
+   */
   onPulled: (pulled: Pulled) => Promise<void>
-  /** A commit found changes — the app's own, or made outside it (a file deleted in
-   *  Finder took a focus to show); the caller walks the tree again. */
+  /**
+   * A commit found changes, the app's or someone else's (a file
+   * deleted in Finder); the caller reads the tree again.
+   */
   onCommitted: () => Promise<void>
   onError: (message: string) => void
 }): Sync {
@@ -70,10 +79,9 @@ export function useSync({
   /** Said once: the same failure every tick is one failure. */
   const said = useRef<string | null>(null)
 
-  // `sync_status` never fails on the Rust side — a folder that is not a repository
-  // is a default answer — so a status that cannot be had is the bridge itself
-  // missing (a test with no Tauri), and the sync has nothing to say rather than
-  // something to report.
+  // `sync_status` never fails in Rust (a folder that is not a
+  // repository gets a default), so a failed status means the
+  // bridge is missing, as in a test, and there is nothing to say.
   const look = useCallback(async () => (vaultPath ? syncStatus(vaultPath).catch(() => null) : null), [vaultPath])
 
   const refresh = useCallback(async () => {
@@ -128,23 +136,18 @@ export function useSync({
   }, [refresh])
 
   /**
-   * **The rounds read the latest `now` through a ref, so the timer is set once per
-   * vault and interval.** `now` closes over callbacks the caller makes afresh on
-   * every render, and as the timer's dependency it tore the minute down and started
-   * it again on each one. The timer is the autosave's idea one scale up; the window
-   * events are the device switch — focus is coming back from the other device, so
-   * its changes are pulled, and blur is leaving for it, so this one's are pushed.
-   * That second half matters because a window in the background is throttled by
-   * WebKit: measured in the running app, 47 minutes without a round.
+   * Rounds read the latest `now` through a ref, so the timer is set once
+   * per vault and interval; as a dependency it restarted on every
+   * render. Focus is coming back from another device, so its changes are
+   * pulled; blur is leaving, so this one's are pushed. WebKit throttles
+   * a background window: once 47 minutes passed without a round.
    */
   const latest = useRef(now)
   useEffect(() => {
     latest.current = now
   })
-  // **Opening the vault is coming back to it**, from the other device or a night
-  // away, so it runs a round of its own. It was left to the window's focus, which
-  // arrives before the vault has loaded as often as after: measured, one launch
-  // synced four seconds in and the next not at all.
+  // Opening the vault runs a round of its own. Left to focus, which can come before
+  // the vault loads, one launch synced after four seconds and the next not at all.
   useEffect(() => {
     if (vaultPath) void latest.current()
   }, [vaultPath])
@@ -156,8 +159,10 @@ export function useSync({
   useWindowEvent('focus', () => void now())
   useWindowEvent('blur', () => void now())
 
-  /** A setting written to the repository or the keychain: said if it fails, and
-   *  the status read back either way. */
+  /**
+   * A setting written to the repository or the keychain: said if
+   * it fails, and the status read back either way.
+   */
   async function attempt(work: () => Promise<void>) {
     try {
       await work()
@@ -176,10 +181,9 @@ export function useSync({
       attempt(async () => {
         if (vaultPath) await syncConfigure(vaultPath, remote.trim() || null, name, email)
       }),
-    // The remote is read fresh, not from `status`: Back up configures the address
-    // and stores the token in one press, and the state had not caught up with the
-    // address when the token asked for it — so the token was not stored, the round
-    // saw "no token", committed locally, and said Synced. Found on the first vault.
+    // The remote is read fresh, not from `status`: Back up saves the address
+    // and the token in one press, and the state had not caught up, so the
+    // token was not stored and the round said Synced with nothing pushed.
     setToken: (token) =>
       attempt(async () => {
         const remote = (await look())?.remote
@@ -194,8 +198,8 @@ export function useSync({
 }
 
 /**
- * The one sentence the sync has to say, wherever it is shown — the row under
- * Applications and the first line of Settings → Sync read the same words.
+ * The one sentence the sync says, shown in the Applications row
+ * and at the top of Settings → Sync.
  */
 export function syncWord(sync: Sync): string {
   const { status, phase } = sync

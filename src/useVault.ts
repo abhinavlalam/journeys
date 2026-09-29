@@ -7,20 +7,17 @@ import type { VaultFolder } from './vaultModel'
 const LAST_VAULT_KEY = 'journeys:vault'
 
 /**
- * The two things the vault has to be able to do to the open note, handed in by the
- * caller because `useNoteBuffer` needs the vault path and so is declared second.
+ * What the vault must be able to do to the open note, passed in because
+ * `useNoteBuffer` needs the vault path and is declared after this.
  */
 export interface VaultBufferOps {
-  /** Write any queued edit before an op moves the file it names. */
+  /** Write any queued edit before an operation moves its file. */
   flush: () => Promise<void>
   /** Empty the editor: the vault under it is being replaced. */
   close: () => void
 }
 
-/**
- * The chosen folder and the tree walked from it, plus the one door through which
- * anything is allowed to change what is on disk.
- */
+/** The chosen folder and its tree, and the one way anything changes what is on disk. */
 export function useVault(buffer: RefObject<VaultBufferOps>, setError: (m: string | null) => void) {
   const [vaultPath, setVaultPath] = useState<string | null>(null)
   const [root, setRoot] = useState<VaultFolder | null>(null)
@@ -49,8 +46,7 @@ export function useVault(buffer: RefObject<VaultBufferOps>, setError: (m: string
     if (typeof folder === 'string') await loadVault(folder)
   }
 
-  // Reopen the last folder on launch. An effect, so `buffer` is already filled in
-  // by the render that declared it.
+  // Reopen the last folder on launch. An effect, so `buffer` is set by then.
   useEffect(() => {
     const last = localStorage.getItem(LAST_VAULT_KEY)
     if (last) void loadVault(last)
@@ -58,19 +54,16 @@ export function useVault(buffer: RefObject<VaultBufferOps>, setError: (m: string
   }, [])
 
   /**
-   * Anything that puts a file on disk goes through here: it flushes the queued
-   * write first, re-reads the tree afterwards, and reports the error.
+   * Everything that writes to disk goes through here: it flushes the
+   * queued save, reads the tree again after, and reports errors.
    *
-   * The flush matters because the debounced write closes over the file's *old*
-   * `absolutePath` — a rename inside the debounce window would fire afterwards and
-   * write to a path that no longer exists, resurrecting a stale duplicate. Delete
-   * paths discard instead, because flushing there recreates what was just deleted.
+   * The flush matters because the queued save holds the file's old path; a
+   * rename during the wait would write to a path that no longer exists.
+   * Deletes drop the save instead, since flushing would bring the file back.
    *
-   * **`after` is handed the tree the op produced**, because the op's own answer is
-   * not it: `renameFolder` returns `{...folder, path, name}`, whose children still
-   * carry the paths they had before the move. Anything that walks *into* the result
-   * — rewriting a `path:` under it, following the links into it — has to read the
-   * folder out of this instead.
+   * `after` gets the tree the operation produced. `renameFolder` returns
+   * the folder with its new path but its children's old ones, so
+   * anything that walks into the result reads the folder from this tree.
    */
   async function mutate<T>(
     op: (vault: string) => Promise<T>,

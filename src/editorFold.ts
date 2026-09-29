@@ -1,10 +1,4 @@
 // What folds, and the arrow that folds it.
-//
-// Our own gutter rather than `foldGutter()` from `@codemirror/language`: that one
-// asks `foldable()`, which falls back to the syntax tree when no fold service
-// answers, and `lang-markdown` folds **any block except headings and lists** — so a
-// three-line paragraph offered to fold from its first line to its last. Asking
-// `indentRange` directly means an arrow appears only where something is nested.
 
 import type { EditorState } from '@codemirror/state'
 import { GutterMarker, gutter } from '@codemirror/view'
@@ -12,11 +6,9 @@ import { foldEffect, foldService, foldedRanges, unfoldEffect } from '@codemirror
 import { chevronMarkup } from './icons'
 
 /**
- * The range under `lineEnd` that is indented further than this line, or null.
- *
- * Indentation, because that is what nests here — a sub-bullet, a wrapped paragraph
- * under an item. A blank line does not close a block, or one gap inside a list
- * would split it in two.
+ * The range under `lineEnd` indented further than this line, or
+ * null. By indent, since that is what nests here. A blank line
+ * does not end a block, or one gap would split a list.
  */
 function isListItem(text: string): boolean {
   return /^\s*([-*+]|\d+[.)])\s/.test(text)
@@ -42,9 +34,9 @@ export function indentRange(
       end = next.to
       continue
     }
-    // And a list that *follows* a line belongs to it too, level or not — a note
-    // reads as "the line, then its bullets", which is the shape being collapsed.
-    // Only for a non-list line, or sibling bullets would swallow each other.
+    // A list right after a line belongs to it too, at any level:
+    // the line, then its bullets. Only for a line that is not a
+    // list item, or sibling bullets would swallow each other.
     if (!listLine && nextIndent === indent && isListItem(next.text)) {
       end = next.to
       continue
@@ -56,7 +48,7 @@ export function indentRange(
 
 export const indentFold = foldService.of(indentRange)
 
-/** The fold already sitting at this line's end, if there is one. */
+/** The fold already at this line's end, if any. */
 function foldAt(state: EditorState, at: number): { from: number; to: number } | null {
   let found: { from: number; to: number } | null = null
   foldedRanges(state).between(at, at, (from, to) => {
@@ -66,8 +58,8 @@ function foldAt(state: EditorState, at: number): { from: number; to: number } | 
 }
 
 class FoldMarker extends GutterMarker {
-  // A plain field, not a constructor parameter property: `erasableSyntaxOnly` is on
-  // in this project's tsconfig, and that syntax is not erasable.
+  // A plain field, not a constructor parameter property, which
+  // `erasableSyntaxOnly` forbids.
   folded: boolean
   constructor(folded: boolean) {
     super()
@@ -78,21 +70,16 @@ class FoldMarker extends GutterMarker {
   }
   toDOM() {
     const span = document.createElement('span')
-    // The tree's own arrow, not `›` and `⌄` from the reading face: the same glyph
-    // at the same weight, wherever the app offers to open or shut something.
+    // The tree's own arrow, so every open/close control looks the same.
     span.innerHTML = chevronMarkup(!this.folded)
     return span
   }
 }
 
 /**
- * The arrow one line of the gutter should show, or null for none.
- *
- * Takes the **start** of the block and finds its line itself, which is the whole of
- * a bug: once a range is folded, the block that begins at the fold reaches to the
- * end of everything it swallowed. Handing that `to` to `indentRange` asked "is
- * anything nested under the *last* line of this fold" — usually nothing — so the
- * arrow vanished on exactly the line that could unfold it.
+ * The arrow a gutter line shows, or null. Takes the block's start and
+ * finds its line: a folded block's `to` is the end of the fold, and
+ * asking about that line made the arrow vanish where it could unfold.
  */
 export function foldMarkerFor(state: EditorState, blockFrom: number): { folded: boolean } | null {
   const line = state.doc.lineAt(blockFrom)
@@ -101,14 +88,9 @@ export function foldMarkerFor(state: EditorState, blockFrom: number): { folded: 
 }
 
 /**
- * Our own fold gutter, rather than `foldGutter()` from `@codemirror/language`.
- *
- * That one asks `foldable()`, which falls back to the syntax tree when no fold
- * service answers — and `lang-markdown` folds **any block except headings and
- * lists**, so a multi-line paragraph offered to fold from its first line to its
- * last. That is the "collapses lines that are not indented" bug: the arrow was the
- * tree's, not ours. Asking `indentRange` directly means an arrow appears only where
- * something is actually nested.
+ * Our own fold gutter, not `foldGutter()`. That one falls back to the syntax tree,
+ * and `lang-markdown` folds any block but headings and lists, so a plain paragraph
+ * offered to fold. `indentRange` shows an arrow only where something is nested.
  */
 export const indentFoldGutter = gutter({
   class: 'cm-foldGutter',
@@ -119,8 +101,7 @@ export const indentFoldGutter = gutter({
   initialSpacer: () => new FoldMarker(false),
   domEventHandlers: {
     click(view, block) {
-      // The block's own line, for the reason `foldMarkerFor` explains: a folded
-      // block's `to` is the end of everything under it.
+      // The block's own line; see `foldMarkerFor`.
       const line = view.state.doc.lineAt(block.from)
       const range = indentRange(view.state, line.from, line.to)
       if (!range) return false

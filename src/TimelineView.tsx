@@ -9,7 +9,7 @@ import { fieldsOf, totalsOf, wordsOf, type TimelineDay, type TimelineEntry } fro
 import { ViewerHeader } from './ViewerHeader'
 import { linkLabelSpan, type VaultFile } from './vaultModel'
 
-/** Places a total is rounded to, as a tag's table rounds its sums. */
+/** Decimal places a total is rounded to, as a tag's table rounds its sums. */
 const TOTAL_DECIMALS = 2
 
 interface Opens {
@@ -18,8 +18,10 @@ interface Opens {
   onOpenTag: (tag: string) => void
 }
 
-/** What an entry's editor is typed with, as a note's is: the `[[` picker's notes,
- *  the property popup's structures and types, and the key that writes the time. */
+/**
+ * What an entry's editor types with, as a note's does: the `[[` popup's
+ * notes, the property popup's structures and types, and the time key.
+ */
 interface Typing {
   notes: VaultFile[]
   propertyTypes: Entries
@@ -28,14 +30,14 @@ interface Typing {
 }
 
 /**
- * The timeline: every daily note as the day happened, **oldest at the top and today
- * at the bottom**, the way a log reads — the page opens at its end. Each day is its
- * entries by clock, whichever group of the note each is written in; a moment is a
- * point on the day's rail and a block of time a bar, with how long it lasted. A tag
- * drawn as a table shows its entries' fields, and the day's totals close the day.
+ * The timeline: every daily note as the day happened, oldest at the top
+ * and today at the bottom. The page opens at its end. Each day is its
+ * entries by clock, whatever group they are written in. A moment is a
+ * dot on the rail; a stretch of time is a bar with its length. A tag
+ * drawn as a table shows its fields, and the day ends with its totals.
  *
- * **A press on an entry edits it**, its one line under the note's own editor; a
- * day's name opens its note; and a new entry is typed at the bottom of today.
+ * A press on an entry edits it, with the note's own editor on one line. A
+ * day's name opens its note. A new entry is typed at the bottom of today.
  */
 export function TimelineView({
   days,
@@ -52,24 +54,24 @@ export function TimelineView({
   tables: Record<string, string[]>
   typeOf: (name: string) => PropertyType
   typing: Typing
-  /** An entry's line was edited to read `text`. */
+  /** An entry's line was changed to `text`. */
   onEdit: (entry: TimelineEntry, text: string) => void
   /** A new entry was typed at the bottom of today. */
   onAdd: (text: string) => void
 } & Opens) {
   const today = localDateStamp()
-  /** The entry being edited, by its note and line: one at a time. */
+  /** The entry being edited, by its note and line. One at a time. */
   const [editing, setEditing] = useState<string | null>(null)
   const keyOf = (entry: TimelineEntry) => `${entry.note.path}\n${entry.at}`
   const end = useRef<HTMLLIElement>(null)
   const read = days !== null
-  // Today at the bottom, like a log: the page opens there, once there is a page.
+  // Today is at the bottom: the page opens there once it has content.
   useEffect(() => {
     end.current?.scrollIntoView?.({ block: 'end' })
   }, [read])
   const total = days?.reduce((sum, one) => sum + one.entries.length, 0) ?? 0
-  // **Today is one section, in its place**, for the line a new entry is typed on —
-  // with nothing written yet, and before the days ahead a calendar has written.
+  // Today is always one section, in date order, for the new-entry line, even
+  // with nothing written and before days a calendar sync has written ahead.
   const shown: { day: string; note: VaultFile | null; entries: TimelineEntry[] }[] =
     !days || days.some((one) => one.day === today)
       ? (days ?? [])
@@ -77,7 +79,7 @@ export function TimelineView({
   const editorFor = (entry: TimelineEntry) => {
     const done = (text: string) => {
       setEditing(null)
-      // Emptied is not deleted: what is nested under it would lose its line.
+      // Emptied is not deleted: the lines nested under it would lose their parent.
       if (text.trim() !== '' && text.trim() !== entry.text) onEdit(entry, text)
     }
     return <EntryEditor text={entry.text} typing={typing} onEnter={done} onLeave={done} onEscape={() => setEditing(null)} {...opens} />
@@ -125,8 +127,10 @@ export function TimelineView({
   )
 }
 
-/** One entry: its clock, its mark on the rail, what it says — or, while it is being
- *  edited, its `editor` — and its group. */
+/**
+ * One entry: its clock, its mark on the rail, what it says (or
+ * its `editor` while being edited), and its group.
+ */
 function Entry({
   entry,
   tables,
@@ -178,9 +182,9 @@ function Entry({
 }
 
 /**
- * A line under the note's own editor — its syntax, its popups, Tab — and ended
- * **once**, whichever of Enter, Escape and leaving it comes first: the press that
- * ends it can blur it too, and a second write would find its line already changed.
+ * One line in the note's own editor (its syntax, popups, Tab), ended once,
+ * by whichever of Enter, Escape or leaving comes first. The press that ends
+ * it can also blur it, and a second write would find its line changed.
  */
 function EntryEditor({
   text,
@@ -226,9 +230,8 @@ function EntryEditor({
 }
 
 /**
- * The line a new entry is typed on, at the bottom of today: Enter files it and
- * starts the next, Escape starts over, and leaving it keeps what is typed — a draft,
- * until it is filed.
+ * The line for a new entry at the bottom of today. Enter files it and starts
+ * the next; Escape clears it; leaving keeps the draft until it is filed.
  */
 function NewEntry({
   typing,
@@ -236,7 +239,7 @@ function NewEntry({
   rowRef,
   ...opens
 }: { typing: Typing; onAdd: (text: string) => void; rowRef: RefObject<HTMLLIElement | null> } & Opens) {
-  // A fresh line each round: the editor's text is read at mount only.
+  // A new line each time: the editor reads its text at mount only.
   const [round, setRound] = useState(0)
   const next = () => setRound((was) => was + 1)
   return (
@@ -258,7 +261,7 @@ function NewEntry({
   )
 }
 
-/** The day's totals for each table tag's `number` fields, closing the day. */
+/** The day's totals for each table tag's `number` fields, at the end of the day. */
 function Totals({
   entries,
   tables,
@@ -286,8 +289,10 @@ function Totals({
 
 const LIVE = new RegExp(String.raw`\[\[([^\]\n]+)\]\]|(^|\s)#(${TAG_NAME})`, 'g')
 
-/** Words with their links and tags live: a link opens its note, a tag its page —
- *  and neither opens the entry's note as well. */
+/**
+ * Words with working links and tags: a link opens its note, a
+ * tag its page, and neither also opens the entry's note.
+ */
 function Live({ text, onOpenLink, onOpenTag }: { text: string } & Opens) {
   const parts: ReactNode[] = []
   let at = 0

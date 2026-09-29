@@ -1,33 +1,23 @@
 import { useCallback, useRef, useState } from 'react'
 import type { ReactNode, RefObject } from 'react'
 
-/** Narrow enough to be a deliberate act, wide enough to still grab the handle. */
+/** Narrow enough to be on purpose, wide enough to still grab the handle. */
 const MIN_WIDTH = 44
 
 /**
- * Resizable columns for the tables a property and a tag draw.
+ * Resizable columns for the property and tag tables, which share one markup.
  *
- * **One hook, because it is one table in two places.** `LineTable` and
- * `PropertyView` already share the markup and the classes — "the same object", as
- * the sheet puts it — so a grip written into one of them would be the fourth copy
- * of a row this app has spent effort keeping to one.
+ * Auto until the first drag, then fixed. The first grab measures every column
+ * and fixes it at its width, so only the dragged one moves. Widths are per table
+ * on screen and not saved; a saved width would go stale as the notes change.
  *
- * **Auto until the first drag, then fixed.** The natural widths are what a table
- * should open at: a column's content is whatever the notes happen to say, and a
- * set of guessed widths would be wrong for every tag. The first grab therefore *measures* every column and freezes it at
- * what it already had — so the one being dragged is the only thing that moves, and
- * the table does not jump under the pointer as the browser re-flows the rest. That
- * is also why the widths are per mounted table and not saved: they belong to the
- * page in front of you, and a stored width would be a number to go stale against a
- * vault whose notes have changed underneath it.
- *
- * `table-layout: fixed` is what makes a width *hold*; under `auto` the browser
- * treats one as a suggestion and grows the column back to its content.
+ * `table-layout: fixed` makes a width hold; under `auto` the
+ * column grows back to its content.
  */
 export function useColumnWidths(table: RefObject<HTMLTableElement | null>): {
-  /** Null until the first drag: the table is sizing itself. */
+  /** Null until the first drag: the table sizes itself. */
   widths: Readonly<Record<string, number>> | null
-  /** The grip for a column, to render inside its `th`. */
+  /** The grip for a column, drawn inside its `th`. */
   gripFor: (key: string) => ReactNode
 } {
   const [widths, setWidths] = useState<Record<string, number> | null>(null)
@@ -35,9 +25,8 @@ export function useColumnWidths(table: RefObject<HTMLTableElement | null>): {
 
   const begin = useCallback(
     (key: string, startX: number) => {
-      // Every column pinned at the width it has right now, so dragging one does not
-      // re-flow its neighbours. Whatever has already been dragged wins over the
-      // measurement, since that is the number the user chose.
+      // Pin every column at its current width, so dragging one does not
+      // reflow the others. Widths already dragged win over the measurement.
       const measured: Record<string, number> = {}
       const heads = table.current?.querySelectorAll<HTMLTableCellElement>('th[data-col]')
       for (const head of heads ?? []) {
@@ -48,7 +37,7 @@ export function useColumnWidths(table: RefObject<HTMLTableElement | null>): {
       drag.current = { key, startX, from }
       setWidths(from)
 
-      // On the window, because a drag that outruns a 44px grip still has to finish.
+      // On the window, so a drag that leaves the 44px grip still finishes.
       const onMove = (event: PointerEvent) => {
         const active = drag.current
         if (!active) return
@@ -77,7 +66,7 @@ export function useColumnWidths(table: RefObject<HTMLTableElement | null>): {
       aria-orientation="vertical"
       onPointerDown={(event) => {
         if (event.button !== 0) return
-        // Or the press selects the header's text on the way past.
+        // Or the press selects the header's text.
         event.preventDefault()
         event.stopPropagation()
         begin(key, event.clientX)
