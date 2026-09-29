@@ -9,18 +9,13 @@ import type { CollectedNote } from './useVaultTexts'
 import type { VaultFile } from './vaultModel'
 
 /**
- * A tag's page: the properties its lines carry, and every line in the vault carrying
- * `#name`, under the note it is in.
+ * A tag's page: the properties its lines carry, and every line in the vault with
+ * `#name`, under its note. A tag has no file; its page is built from the notes.
  *
- * **A tag has no file, and its page is the question asked of the notes**. A
- * `.config/actions/tags/travel.md` would be an empty page named after a thing; the
- * thing is the eleven lines that say `#travel`.
- *
- * **Its structure is a list of properties**, one per row: `+` adds one, `×` takes
- * one off, and a row opens the property's own page, where its type is set. Its
- * lines are drawn **as a list or a table**, the tag's own choice from the header:
- * the list keeps the sentences, the table reads each line's values into columns and
- * sums the `number` ones.
+ * Its structure is a list of properties, one per row: `+` adds, `×`
+ * removes, and a row opens the property's page, where its type is set.
+ * Its lines are shown as a list or a table, chosen in the header. The
+ * table reads each line's values into columns and sums the `number` ones.
  */
 export function TagView({
   name,
@@ -58,9 +53,8 @@ export function TagView({
   const [adding, setAdding] = useState<string | null>(null)
 
   /**
-   * A name typed in the field — `with::` as `with`, the way a line writes it — added
-   * unless it is there already. **One that is not a name keeps the field and says
-   * so**: dropped as the field closed, it read as the `+` not working.
+   * A typed name (`with::` read as `with`), added unless already
+   * there. A name that is not valid keeps the field open and says why.
    */
   function add() {
     const typed = (adding ?? '').trim().replace(/:+$/, '')
@@ -73,7 +67,7 @@ export function TagView({
     if (typed && !taken) onProperties([...properties, typed])
   }
 
-  /** A line's values, by the structure's own spelling of each property. */
+  /** A line's values, keyed by the structure's spelling of each property. */
   function valuesOf(text: string): Record<string, string> {
     const found = new Map(
       blockProperties(text, typeOf)
@@ -85,8 +79,8 @@ export function TagView({
 
   return (
     <>
-      {/* `#travel` and not `travel`: the header names the syntax, as `icon::` does
-          on a property's page. */}
+      {/* `#travel`, not `travel`: the header shows the syntax,
+          as `icon::` does on a property page. */}
       <ViewerHeader name={`#${name}`} status={total > 0 ? countOf(total, 'line') : ''}>
         <span className="view-switch" role="group" aria-label="View">
           {LINE_VIEWS.map((one) => (
@@ -156,8 +150,8 @@ export function TagView({
             />
           </li>
         ) : (
-          // Each line as the note reads it: properties' names and quotes left out,
-          // links as their names. Also what a table with no lines says instead.
+          // Each line as the note shows it: property names and quotes out,
+          // links as their names. Also what a table with no lines shows.
           <GatheredNotes
             notes={collected}
             icons={icons}

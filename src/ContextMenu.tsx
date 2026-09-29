@@ -2,12 +2,14 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 
 export interface ContextMenuItem {
   label: string
-  /** Drawn before the label. A slot rather than widening `label` to a node, because
-      `label` is also this row's React key and a node cannot be one. */
+  /**
+   * Drawn before the label. A separate slot because `label` is
+   * also the row's React key.
+   */
   icon?: ReactNode
   onSelect: () => void
   danger?: boolean
-  /** Marked as the one in force. Only the grid draws this. */
+  /** Marked as the current one. Only the grid draws this. */
   selected?: boolean
 }
 
@@ -16,12 +18,9 @@ interface ContextMenuProps {
   y: number
   items: ContextMenuItem[]
   /**
-   * Icons, laid out as a grid above the rows, showing no labels.
-   *
-   * Sixty-three icons as sixty-three rows is a menu taller than the window, and
-   * every row would be a word doing an icon's job. In the grid the label is the
-   * tooltip and the accessible name instead. Still one popup rather than a second
-   * component, so the clamp, the Escape key and the click-away cannot drift.
+   * Icons in a grid above the rows, without labels. Sixty-three icons as rows
+   * would be taller than the window; in the grid the label is the tooltip and
+   * accessible name. Still one popup, sharing the clamp, Escape and click-away.
    */
   grid?: ContextMenuItem[]
   onClose: () => void
@@ -31,8 +30,8 @@ export function ContextMenu({ x, y, items, grid, onClose }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null)
   const [at, setAt] = useState({ top: y, left: x })
 
-  // Measured after mount and pulled back inside the window: right-clicking a note
-  // near the bottom of the sidebar put Delete off-screen.
+  // Measured after mount and moved inside the window: a
+  // right-click near the sidebar's bottom put Delete off-screen.
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return

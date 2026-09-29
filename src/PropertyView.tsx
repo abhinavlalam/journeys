@@ -7,19 +7,14 @@ import type { VaultFile } from './vaultModel'
 import { PROPERTY_TYPES, type PropertyType } from './properties'
 
 /**
- * A property: every value a note gives it, on its page or on a line, and what kind
- * of value it is — the type is set here, for the whole vault, except on the app's
- * own properties, whose meaning is the app's.
+ * A property's page: every value the notes give it, on a page or a line, and its
+ * type, set here for the whole vault. The app's own properties have fixed types.
  *
- * **A page, not a file.** Clicking `icon` used to open — or write — `.config/actions/properties/icon.md`, and three of
- * those sat in a vault at zero bytes: an empty page named after a thing is not the
- * thing. The thing is thirty-three notes saying `icon: calendar`, `icon: person`,
- * `icon: work`, which is a question asked of the notes and answered here.
+ * A page, not a file: a file named after a property is an empty page, not the property.
  *
- * Presentational and given no filesystem — the values arrive off the one vault
- * read, so this mounts under a test with no disk at all. The table is `LineTable`'s
- * own classes, because it is the same object: rows read out of notes, the note
- * leading, the note opening on a click, a `[[link]]` value a link.
+ * No filesystem: the values come from the one vault read, so a test
+ * needs no disk. The table uses `LineTable`'s classes: rows from notes,
+ * the note first, a click opens it, a `[[link]]` value is a link.
  */
 export function PropertyView({
   name,
@@ -37,7 +32,7 @@ export function PropertyView({
   icons: Record<string, string>
   loading: boolean
   type: PropertyType
-  /** `icon` or `path`: typed by the app, so the type is shown and not chosen. */
+  /** `icon` or `path`: typed by the app, so the type is shown, not chosen. */
   appOwned: boolean
   onType: (type: PropertyType) => void
   onOpen: (file: VaultFile) => void
@@ -47,15 +42,15 @@ export function PropertyView({
   const { widths, gripFor } = useColumnWidths(table)
   return (
     <>
-      {/* `icon::` and not `icon`: the header names the syntax, as `#travel` does. */}
+      {/* `icon::`, not `icon`: the header shows the syntax, as `#travel` does. */}
       <ViewerHeader
         name={`${name}::`}
         status={[values.length > 0 ? countOf(values.length, 'value') : '', appOwned ? 'the app’s own' : '']
           .filter(Boolean)
           .join(' · ')}
       >
-        {/* A menu, for a list that is a word each and grows. The app's own show
-            their type and cannot be changed. */}
+        {/* A menu of types. The app's own properties show their
+            type and cannot change it. */}
         <select
           className="settings-select header-select"
           aria-label="Type"

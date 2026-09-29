@@ -1,17 +1,14 @@
-// The bridge to a Terminal tab's shell: five app commands and two events, one
-// `invoke` each. Its own file for the reason `reveal.ts` is: nothing here touches
-// the vault, and a test that wants this seam mocks six lines instead of a PTY.
+// The bridge to a terminal tab's shell: five app commands and two events. Its
+// own file, like `reveal.ts`, so a test mocks a few lines instead of a PTY.
 
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
 /**
- * Start or **reattach to** a session. `id` is the pane mount's, for the events and
- * the commands after; `name` is the tmux session's, and is what makes it the same
- * session next launch.
- *
- * Answers whether the session will outlive the window — false when tmux is not
- * installed and the shell is the app's own child, as it used to be for all of them.
+ * Start or reattach to a session. `id` is the pane mount's, for events
+ * and later commands; `name` is the tmux session's, so it is the same
+ * session next launch. Returns whether the session outlives the window:
+ * false when tmux is missing and the shell is the app's own child.
  */
 export function spawnTerminal(
   id: string,
@@ -31,13 +28,15 @@ export function resizeTerminal(id: string, cols: number, rows: number): Promise<
   return invoke('resize_terminal', { id, cols, rows })
 }
 
-/** Detach: the tab goes, the session stays. See `kill_terminal`'s own comment. */
+/** Detach: the tab goes, the session stays. See `kill_terminal`. */
 export function killTerminal(id: string): Promise<void> {
   return invoke('kill_terminal', { id })
 }
 
-/** Ends the session on its vault's own server — each vault has one, named from
- *  its path, so the vault is half of which session this is. */
+/**
+ * Ends the session on its vault's own tmux server; each vault
+ * has one, named from its path.
+ */
 export function endTerminal(name: string, cwd: string): Promise<void> {
   return invoke('end_terminal', { name, cwd })
 }
@@ -46,19 +45,17 @@ export function onTerminalOutput(id: string, callback: (chunk: string) => void):
   return listen<string>(`terminal-output-${id}`, (event) => callback(event.payload))
 }
 
-/** Fires when the shell exits on its own — not when the tab closes it. */
+/** Fires when the shell exits on its own, not when the tab closes it. */
 export function onTerminalExit(id: string, callback: () => void): Promise<UnlistenFn> {
   return listen(`terminal-exit-${id}`, () => callback())
 }
 
 /**
- * The sixteen ANSI colours a shell and its TUIs paint with, per mode. **Not
- * tokens, and deliberately**: a TUI asks for *red* and *green* and means them — a
- * palette derived from one accent would draw a diff in two blues. The terminal's
- * own ground, text, cursor and selection *are* the scheme's tokens, read off the
- * page in `TerminalPane`, so the terminal sits in the app; only the hues a program
- * names are fixed. Every slot is distinct from the ground: `claude`'s menu marks its
- * row with an ANSI background, and a `black` equal to the ground made it vanish.
+ * The sixteen ANSI colours a shell and its programs use, per mode. Not
+ * tokens: a program asks for red and green and means them. The ground,
+ * text, cursor and selection are the scheme's tokens (`TerminalPane`).
+ * Every slot differs from the ground: `claude`'s menu marks its row
+ * with an ANSI background, and a black equal to the ground hid it.
  */
 export const ANSI = {
   dark: {

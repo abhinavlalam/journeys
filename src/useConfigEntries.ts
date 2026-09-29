@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { readEntries, withEntry, type Entries } from './configEntries'
 import { readConfigFile, writeConfigFile } from './vault'
 
-/** A file of entries in the vault's `.config` (see `configEntries.ts`), read on
- *  opening the vault and on every window focus, and written one entry at a time. */
+/**
+ * A file of entries in `.config` (see `configEntries.ts`), read on vault
+ * open and on every window focus, and written one entry at a time.
+ */
 export function useConfigEntries(vaultPath: string | null, file: string, onError: (message: string) => void) {
   const [entries, setEntries] = useState<Entries>({})
 

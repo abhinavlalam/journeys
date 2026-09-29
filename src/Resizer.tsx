@@ -5,18 +5,15 @@ interface ResizerProps {
   onWidth: (width: number) => void
   min: number
   max: number
-  /** Where a double-click puts it back. */
+  /** Where a double-click resets it. */
   reset: number
   label: string
 }
 
 /**
- * Drag handle between two panes.
- *
- * Uses pointer capture rather than window listeners: capture guarantees the
- * matching pointerup arrives even if the pointer leaves the 5px strip or the
- * window. The window-listener version could miss it and leave the handle stuck in
- * drag mode, so it then resized on hover with no button held.
+ * Drag handle between two panes. Pointer capture, not window listeners, so
+ * `pointerup` arrives even off the 5px strip or the window; with listeners
+ * it could be missed and the handle kept resizing with no button held.
  */
 export function Resizer({ width, onWidth, min, max, reset, label }: ResizerProps) {
   const start = useRef<{ x: number; width: number } | null>(null)

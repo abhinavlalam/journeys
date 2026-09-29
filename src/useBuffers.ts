@@ -2,8 +2,10 @@ import { useRef } from 'react'
 import type { VaultFile } from './vaultModel'
 import type { NoteMoves } from './links'
 
-/** What one open note's buffer can be asked to do from outside — the operations
- *  `useNoteBuffer` returns, less the render state. */
+/**
+ * What one open note's buffer can be asked to do from outside:
+ * `useNoteBuffer`'s operations, without the render state.
+ */
 interface NoteBufferOps {
   flushPendingSave: () => Promise<void>
   discardPendingSave: (pathOrPrefix: string) => void
@@ -15,20 +17,15 @@ interface NoteBufferOps {
 }
 
 /**
- * Every open note's buffer, addressed as one.
+ * Every open note's buffer, reached as one. Each note tab's `NotePane` owns
+ * its buffer, so the buffer lives as long as the tab. Every vault operation
+ * (move, rename, delete, a property written into an open note) must reach
+ * every buffer, and this is the one way: each pane registers under its tab's
+ * id, and the calls go to all of them. Each buffer ignores what is not about
+ * its note (`followFile` checks the path, `reread` checks `loadedPath`).
  *
- * There was one buffer, because there was one note open; with tabs there is one per
- * note tab, owned by the `NotePane` that draws it — a hook per mounted pane, which
- * is the only way a buffer's lifetime can be the tab's. Anything that acts on the
- * vault — a move, a rename, a delete, a property written into an open note — has to
- * reach every buffer, and this is the one door: each pane registers its operations
- * under its tab's id, and the aggregate calls all of them. Each buffer already
- * declines what is not about its own note (`followFile` compares the path,
- * `reread` checks `loadedPath`), so broadcasting is correct rather than merely
- * convenient.
- *
- * `onDeleted` is the tabs' half of a delete: the buffers drop their queued writes
- * and the workspace closes the tabs, and the two happen from one call.
+ * `onDeleted` is the tabs' part of a delete: buffers drop their
+ * queued writes and the workspace closes the tabs, in one call.
  */
 export function useBuffers({ onDeleted }: { onDeleted: (prefix: string) => void }) {
   const registry = useRef(new Map<number, NoteBufferOps>())
@@ -52,8 +49,10 @@ export function useBuffers({ onDeleted }: { onDeleted: (prefix: string) => void 
     reread: async (file: VaultFile | null, ours?: boolean) => {
       await Promise.all(all().map((buffer) => buffer.reread(file, ours)))
     },
-    /** Every buffer takes up its own note from disk — after a folder moved and the
-     *  app rewrote a `path:` into each note under it. */
+    /**
+     * Every buffer re-reads its note from disk, after a folder
+     * move rewrote `path::` in each note under it.
+     */
     rereadAll: async () => {
       await Promise.all(all().map((buffer) => buffer.reread(buffer.note)))
     },

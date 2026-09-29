@@ -2,16 +2,13 @@ import type { HTMLAttributes, ReactNode } from 'react'
 import { GroupRow, guideAt } from './rows'
 
 /**
- * One collapsible section of the left pane — Notes, Actions, Applications — as
- * the editors the owner named draw theirs: a heading row that opens and shuts,
- * **its controls on the heading and shown on hover**, and its rows one step in
- * under it. The heading is the tree's own `GroupRow`, so the chevron, the name and
- * the guide under it are the ones every other group has; the controls sit in the
- * row's `folder-actions`, the slot a folder's `+` already appears from on hover,
- * so the sheet's one reveal rule covers four buttons as it covered one.
+ * One folding section of the left pane (Notes, Actions, Applications): a
+ * heading row, its controls on the heading shown on hover, and its rows
+ * one step in. The heading is the tree's own `GroupRow`, and the controls
+ * sit in its `folder-actions`, so the sheet's one hover rule covers them.
  *
- * `children` are `li`s: the tree, the Actions groups and the Applications rows are
- * all rows in this section's list, which is what puts them on the tree's grid.
+ * `children` are `li`s, so the tree, the Actions groups and the
+ * Applications rows share one grid.
  */
 export function SidebarSection({
   name,
@@ -24,9 +21,9 @@ export function SidebarSection({
   name: string
   open: boolean
   onToggle: () => void
-  /** The section's own controls, revealed on hover: search, collapse, expand, `+`. */
+  /** The section's controls, shown on hover: search, collapse, expand, `+`. */
   actions?: ReactNode
-  /** On the list itself — the tree's root drop target, and its `drag-over` wash. */
+  /** On the list itself: the tree's root drop target and its `drag-over` wash. */
   list?: HTMLAttributes<HTMLUListElement>
   children?: ReactNode
 }) {
@@ -38,9 +35,8 @@ export function SidebarSection({
         onToggle={onToggle}
         actions={
           actions && (
-            // **A press opens a shut section first**: its controls open a field or
-            // rows inside it, and a shut section draws none — a search opened there
-            // was a search nobody could see.
+            // A press on a control opens a shut section first; a shut section
+            // draws nothing, so a search opened in one could not be seen.
             <span className="folder-actions" onClickCapture={() => !open && onToggle()}>
               {actions}
             </span>

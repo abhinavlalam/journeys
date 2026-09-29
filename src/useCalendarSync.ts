@@ -1,5 +1,5 @@
-// The calendar keeping itself current, so a meeting moved in Google is moved in
-// the day's note without anyone pressing a button.
+// The calendar keeping itself current, so a meeting moved in the
+// calendar moves in the day's note.
 
 import { useEffect, useRef, useState } from 'react'
 import { MINUTE_MS } from './clock'
@@ -7,11 +7,10 @@ import { isOffline } from './useSync'
 import { useWindowEvent } from './useWindowEvent'
 
 /**
- * Runs `sync` when the vault opens or a calendar is added, every `everyMinutes`,
- * and on coming back to the window when the last one is older than that — a window
- * in the background is throttled, and coming back is when the day is looked at.
- * The button is `now(true)`. Offline is a state and not a failure, unless the
- * button was pressed; anything else is said once.
+ * Runs `sync` when the vault opens or a calendar is added, every
+ * `everyMinutes`, and on returning to the window when the last run is older
+ * than that (a background window is throttled). The button is `now(true)`.
+ * Offline is quiet unless the button was pressed; anything else is said once.
  */
 export function useCalendarSync({
   vaultPath,
@@ -21,10 +20,10 @@ export function useCalendarSync({
   onError,
 }: {
   vaultPath: string | null
-  /** How many calendars there are; none, and there is nothing to read. */
+  /** How many calendars there are. With none, there is nothing to read. */
   feeds: number
   everyMinutes: number
-  /** Reads the feeds and writes what they say into the notes. */
+  /** Reads the feeds and writes them into the notes. */
   sync: () => Promise<void>
   onError: (message: string) => void
 }): { syncing: boolean; now: (byHand?: boolean) => Promise<void> } {
@@ -53,7 +52,7 @@ export function useCalendarSync({
     }
   }
 
-  // Read through a ref, for the reason `useWindowEvent` gives.
+  // Read through a ref; see `useWindowEvent`.
   const latest = useRef(now)
   useEffect(() => {
     latest.current = now

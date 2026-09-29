@@ -5,15 +5,13 @@ import { onAndroid } from './platform'
 import { syncClone, syncSetToken } from './sync'
 
 /**
- * The welcome screen's other door: a vault that already lives in a repository —
- * the phone's case, and a new Mac's. The address and the token, then a folder to
- * put it in; the repository's name becomes the folder, inside the one picked. The
- * token goes to the keychain first, keyed by the address, which is where the
- * clone and every round after it look for it.
+ * The welcome screen's other way in: a vault already in a repository, as on a
+ * phone or a new Mac. The address and the token, then a folder; the repository's
+ * name becomes a folder inside the one picked. The token goes to the keychain
+ * first, keyed by the address, where the clone and every round look for it.
  *
- * **On Android there is no folder to pick**: an app reaches its own storage and
- * little else, so the vault goes there, and this is the only door, open from the
- * start.
+ * On Android there is no folder to pick, so the vault goes into
+ * the app's storage and this is the only way in.
  */
 export function CloneVault({ onOpened, onError }: { onOpened: (path: string) => void; onError: (message: string) => void }) {
   const [asking, setAsking] = useState(onAndroid)

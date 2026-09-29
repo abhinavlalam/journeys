@@ -1,5 +1,5 @@
-// Writing the feeds' occurrences into the daily notes — the one place the calendar
-// touches the disk, through `vault.ts` like everything else.
+// Writing the feeds' events into the daily notes: the calendar's
+// one write, through `vault.ts`.
 
 import { EVENT, lineKey, readEvent, untouched, type EventFormat } from './calendar'
 import { collectTagLines } from './tags'
@@ -7,29 +7,25 @@ import { ensureDailyNote, fileExists, readVaultFile, vaultFileRef, writeVaultFil
 import type { VaultFile } from './vaultModel'
 
 export interface Synced {
-  /** Every note written, with the text it now holds. */
+  /** Every note written, with its new text. */
   changed: { file: VaultFile; text: string }[]
-  /** The days that did not exist before. */
+  /** The days that had no note before. */
   created: VaultFile[]
 }
 
 /**
  * Brings each day's note in line with what the feeds say for that day.
  *
- * **Added**: a line the note does not already carry — the same clock and title,
- * read the way the calendar reads them, so a line edited after the sync is still the
- * same event — goes on the end, since a journal page is the day as it was written
- * and the meetings follow it rather than being threaded into it. A day with nothing
- * to add is only read if its page is there: the sync makes a page for an event,
- * never for the absence of one.
+ * Added: a line the note does not have yet (same clock and title, read
+ * as the calendar reads them, so an edited line is still the same
+ * event) goes at the end. A day with nothing to add is only read if
+ * its note exists; the sync makes a note for an event, never for none.
  *
- * **Taken back**: a line the sync wrote whose event the feeds no longer have —
- * deleted, moved or renamed in the calendar — comes out, and only when all of it is
- * the calendar's: it names one of `sources`, it says nothing but its fields
- * (`untouched`), and nothing is nested under it. A line with a word added or a note
- * written beneath it is the owner's, and stays. `byDay` holds every day the feeds
- * were read for, with the days that have no events, or a deleted day's last event
- * would never be taken back.
+ * Taken back: a synced line whose event the feeds no longer have, only
+ * when it is wholly the calendar's: it names one of `sources`, holds
+ * nothing but its fields (`untouched`), and has nothing nested under
+ * it. `byDay` holds every day the feeds were read for, empty days
+ * included, or a day's last deleted event would never be taken back.
  */
 export async function syncEvents(
   vaultPath: string,

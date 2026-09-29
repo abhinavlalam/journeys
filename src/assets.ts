@@ -1,13 +1,11 @@
-// A file's own URL, for the pane to show it with.
+// A file's own URL, for the pane to show it.
 //
-// **Not part of `VaultFs`.** Nothing here reads the vault: `convertFileSrc` turns
-// an absolute path into the URL Tauri's asset protocol serves it at, and the
-// webview does the reading — which is the point for a 40 MB PDF, where the
-// alternative is the whole file through IPC and into a data URI. The same argument
-// `reveal.ts` makes for not being an eighth method on that interface.
+// Not a `VaultFs` call, since nothing here reads the vault: `convertFileSrc`
+// turns a path into the URL Tauri's asset protocol serves, and the webview
+// reads it. A 40 MB PDF would otherwise go through IPC into a data URI.
 //
-// The protocol is off by default: `tauri.conf.json` enables it and scopes it, and
-// without that every image is a broken one.
+// The protocol is off by default: `tauri.conf.json` turns it on
+// and scopes it, or every image is broken.
 
 import { convertFileSrc } from '@tauri-apps/api/core'
 
@@ -15,8 +13,8 @@ export function fileUrl(absolutePath: string): string {
   try {
     return convertFileSrc(absolutePath)
   } catch {
-    // Outside Tauri — a test, a browser — there is no asset protocol. `file://` is
-    // what a path means then, and it keeps this function total.
+    // Outside Tauri (a test, a browser) there is no asset
+    // protocol, so a path is a `file://` URL.
     return `file://${absolutePath.split('/').map(encodeURIComponent).join('/')}`
   }
 }

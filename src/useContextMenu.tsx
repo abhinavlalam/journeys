@@ -2,16 +2,10 @@ import { useState, type ReactNode } from 'react'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 
 /**
- * A right-click menu: the position state, the `preventDefault`, and the node.
- *
- * `[node, open]` rather than a component, because the caller renders the node
- * inside its own row — every row in the tree holds one, and each was otherwise a
- * hand-rolled `useState<{x,y}|null>` plus the same conditional block, which is
- * several places for the clamp, the Escape key and the click-away to drift apart.
- *
- * `items` is a function so it is evaluated when the menu opens rather than on
- * every render of a row that has no menu showing. `grid` is the same, and for the
- * same reason twice over: it is sixty-three icons, built per row in the tree.
+ * A right-click menu: the position, the `preventDefault`, and the
+ * node. `[node, open]` rather than a component, since each tree row
+ * draws the node inside itself. `items` and `grid` are functions,
+ * so they are built when the menu opens, not on every row's render.
  */
 export function useContextMenu(
   items: () => ContextMenuItem[],

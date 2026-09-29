@@ -1,12 +1,9 @@
 import { EditorHost } from './EditorHost'
 
 /**
- * A text file that is not markdown — a `.conf`, a `.yaml`, a `.txt` — in the
- * reading pane, as its own text and nothing more.
- *
- * `CsvEditor`'s twin, less the colour: **typing saves it**, and nothing reads it as
- * anything. These went to the markdown editor once, and every `# comment` in the
- * tmux config the app itself writes came out a heading with its `#` hidden.
+ * A text file that is not markdown (a `.conf`, a `.yaml`, a `.txt`) as
+ * plain text. Typing saves it. These once opened as markdown, and every
+ * `# comment` in the app's own tmux config became a hidden-`#` heading.
  */
 export function TextEditor({
   name,

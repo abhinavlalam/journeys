@@ -1,26 +1,26 @@
-// The daily notes, as a sequence.
-//
-// A journal is one note per day in one folder, named for the day — which is what
-// `ensureDailyNote` writes and ⌘⇧O opens. That makes the folder an ordered run, and
-// a note in it has a note before it and a note after it: this is the only module
-// that knows so.
+// The daily notes as a sequence. One note per day in one folder,
+// named for the day (what `ensureDailyNote` writes and ⌘⇧O opens), so
+// each has a note before and after it. Only this module knows that.
 
 import { baseName, isSamePath } from './vaultModel'
 import type { VaultFile } from './vaultModel'
 
-/** `YYYY-MM-DD` — the name `ensureDailyNote` gives a day, and the only shape read
- *  as one here. A note in the folder called anything else (`Daily.md`, the folder's
- *  own note) is a note that happens to live there. */
+/**
+ * `YYYY-MM-DD`: the name `ensureDailyNote` gives a day. A note in the folder
+ * named anything else (like the folder's own note) is just a note there.
+ */
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 
-/** The day a path names, or `''` for a path that names none. */
+/** The day a path names, or `''`. */
 export function dayOf(path: string): string {
   const name = baseName(path).replace(/\.md$/i, '')
   return DAY.test(name) ? name : ''
 }
 
-/** In the daily folder, and named for a day. The folder is compared case-blind,
- *  because it is a setting somebody typed. */
+/**
+ * In the daily folder and named for a day. The folder is
+ * compared ignoring case, since it is a typed setting.
+ */
 export function isDailyNote(path: string, folder: string): boolean {
   if (!folder) return false
   const at = path.lastIndexOf('/')
@@ -29,14 +29,9 @@ export function isDailyNote(path: string, folder: string): boolean {
 }
 
 /**
- * The daily notes either side of this one.
- *
- * **Neighbours among the days that exist**, not yesterday and tomorrow: a journal
- * has gaps — a weekend, a week away — and a step that lands on a day nobody wrote
- * would either create a note nobody asked for or go nowhere. Stepping through what
- * is there is what reading back through a journal means.
- *
- * Sorted by name, which for `YYYY-MM-DD` is chronological, so no date is parsed.
+ * The daily notes either side of this one, among the days that exist: a journal
+ * has gaps, and stepping onto a day nobody wrote would make an unwanted note or
+ * go nowhere. Sorted by name, which for `YYYY-MM-DD` is by date.
  */
 export function dailyNeighbours(
   notes: readonly VaultFile[],
