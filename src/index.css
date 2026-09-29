@@ -1576,6 +1576,8 @@ button.folder-toggle {
    a flex child defaults to its content's size and a pane holding a wide table would
    otherwise push its sibling off the window rather than scroll. */
 .workspace {
+  /* What the app says sits over the bottom of it (`.banner`). */
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
@@ -2571,10 +2573,6 @@ button.folder-toggle {
    one's way, for `SHOWN_MS` (`useLog`), and in the Log after. At the top it took a
    row from the pane and stayed until dismissed. Its own ground under the tint, so
    the text under it does not show through. */
-.workspace {
-  position: relative;
-}
-
 .banner {
   position: absolute;
   bottom: 0.75rem;
