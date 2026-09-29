@@ -2,7 +2,7 @@
 // when the window gains or loses focus, and on request. Nothing here knows git; `sync.ts` is the seam.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { agoWord } from './clock'
+import { agoWord, SECOND_MS } from './clock'
 import { useWindowEvent } from './useWindowEvent'
 import {
   syncCommit,
@@ -150,7 +150,7 @@ export function useSync({
   }, [vaultPath])
   useEffect(() => {
     if (!vaultPath) return
-    const timer = setInterval(() => void latest.current(), everySeconds * 1000)
+    const timer = setInterval(() => void latest.current(), everySeconds * SECOND_MS)
     return () => clearInterval(timer)
   }, [vaultPath, everySeconds])
   useWindowEvent('focus', () => void now())

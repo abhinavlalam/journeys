@@ -16,14 +16,11 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { GraphView, decluttered, shortName } from '../GraphView'
 
 /**
- * The note graph's **view**: the frame loop, the pane swap, and the click that
- * opens a note.
+ * The note graph's **view**: the glide, the pane swap, and the click that opens a
+ * note. The model and its layouts are `graph.test.ts`'s; what is here is where this
+ * view's bugs live:
  *
- * The model has its own file — `graph.test.ts` — and none of the forces are
- * re-tested here. What is here is everything the model deliberately refused to
- * own, because it is where this feature's bugs live:
- *
- * - a `requestAnimationFrame` loop that never stops, or that outlives the pane,
+ * - a glide that never ends, or outlives the pane,
  * - a click that opens a note by setting the active file instead of reading it,
  * - the open note's *unsaved* text being missing from the graph,
  * - and `NaN` from a box jsdom never laid out.
@@ -130,10 +127,7 @@ function graphOf(notes: Record<string, string>): NoteGraph {
   )
 }
 
-/**
- * A chain long enough that it cannot settle in one frame, so "the loop stops" is
- * a fact about annealing and not about there being nothing to do.
- */
+/** Five notes in a ring: a picture with somewhere to glide to. */
 const CHAIN = graphOf({
   'pingbird.md': 'See [Moonhatch](moonhatch.md)',
   'moonhatch.md': 'See [Quillfeather](quillfeather.md)',
@@ -380,24 +374,12 @@ describe('the graph’s long names', () => {
 })
 
 describe('the graph in a box with no size', () => {
-  it('writes finite coordinates from a 0x0 box, animating and settled', () => {
-    const frames = installFrames()
-    try {
-      stubReducedMotion(false)
-      render(<GraphView graph={CHAIN} loading={false} currentId={null} shows={ALL} onShows={() => {}} onSelect={() => {}} />)
-      // jsdom lays nothing out, so this *is* the 0x0 case, at frame zero...
-      expect(coordinates().every((value) => Number.isFinite(Number(value)))).toBe(true)
-      // ...and at every frame after it.
-      let stepped = 0
-      while (frames.pending > 0 && stepped < 3000) {
-        frames.step()
-        stepped += 1
-      }
-      expect(coordinates().every((value) => Number.isFinite(Number(value)))).toBe(true)
-      expect(document.querySelector('.graph-canvas')!.outerHTML).not.toMatch(/NaN/)
-    } finally {
-      frames.restore()
-    }
+  it('writes finite coordinates from a 0x0 box', () => {
+    stubReducedMotion(true)
+    // jsdom lays nothing out, so this *is* the 0x0 case.
+    render(<GraphView graph={CHAIN} loading={false} currentId={null} shows={ALL} onShows={() => {}} onSelect={() => {}} />)
+    expect(coordinates().every((value) => Number.isFinite(Number(value)))).toBe(true)
+    expect(document.querySelector('.graph-canvas')!.outerHTML).not.toMatch(/NaN/)
   })
 
   it('writes finite coordinates from a box that measures NaN', () => {
@@ -670,9 +652,8 @@ describe('the graph in the note pane', () => {
   beforeEach(() => {
     resetFakeVault()
     rememberVault('/v')
-    // No frame loop in these: the point of them is the wiring, and jsdom's real
-    // `requestAnimationFrame` would otherwise run a few hundred timed frames
-    // outside `act` in the middle of every one.
+    // No glide in these: the point of them is the wiring, and jsdom's real
+    // `requestAnimationFrame` would run its frames outside `act`.
     stubReducedMotion(true)
   })
 

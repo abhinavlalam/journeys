@@ -34,7 +34,7 @@ import {
 import { ACTIONS, comboFromEvent, findConflict, formatCombo, type ActionId } from './shortcuts'
 import { characterWidth, COLUMN_PADDING } from './settings'
 import { syncWord, type Sync } from './useSync'
-import { agoWord } from './clock'
+import { agoWord, SECOND_MS } from './clock'
 
 interface SettingsProps {
   settings: Settings
@@ -801,7 +801,7 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
                 <p className="settings-sync-word">
                   {syncWord(sync)}
                   {sync.status?.lastCommit && (
-                    <span className="row-count">last saved {agoWord(sync.status.lastCommit * 1000)}</span>
+                    <span className="row-count">last saved {agoWord(sync.status.lastCommit * SECOND_MS)}</span>
                   )}
                 </p>
                 <p className="settings-field-hint">

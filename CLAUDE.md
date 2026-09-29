@@ -38,7 +38,7 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 | `editorCommands.ts`, `editorComplete.ts`, `editorFold.ts`, `editorPreview.ts` | Keys that write syntax, the `[[`, `/` and property popups, folding, decorations. |
 | `FolderTree.tsx`, `rows.tsx`, `SidebarSection.tsx`, `useDrops.ts` | The left pane; `rows.tsx` is the one row shape everything lists with; `useDrops` is what is dropped onto the tree. |
 | `tags.ts`, `properties.ts`, `actionKinds.ts`, `TagView.tsx`, `PropertyView.tsx`, `LineTable.tsx` | Tags and their structures, properties and their types, the Actions pane's kinds, and their pages. |
-| `prose.ts` | The one rule for what in a note is code (`maskCode`, `proseLines`), for everything that reads a note for meaning. |
+| `prose.ts` | The one rule for what in a note is code (`maskCode`, `proseLines`), for everything that reads a note for meaning, and for a line's indent (`indentOf`). |
 | `configEntries.ts`, `useConfigEntries.ts` | A `.config` file of entries keyed by name (`properties.json`): merged on write, never written over when unreadable. |
 | `calendar.ts`, `ics.ts`, `calendarSync.ts`, `useCalendarSync.ts`, `CalendarView.tsx` | The calendar. |
 | `timeline.ts` / `TimelineView.tsx` | The daily notes as each day happened / its page. |

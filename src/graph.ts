@@ -110,12 +110,6 @@ export interface NoteText {
 // Building
 // ---------------------------------------------------------------------------
 
-/** What a node is *called*: the path's last segment, without the note's extension.
- *  It was `baseName` too, which is `vaultModel`'s word for the segment itself. */
-function displayName(path: string): string {
-  return noteName(baseName(path))
-}
-
 function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0
 }
@@ -174,7 +168,7 @@ function linksFrom(from: GraphNode, text: string, index: NoteIndex, options: Req
     const node: GraphNode = {
       id: pathKey(path),
       path,
-      name: resolved.kind === 'note' ? resolved.note.name : displayName(path),
+      name: resolved.kind === 'note' ? resolved.note.name : noteName(baseName(path)),
       exists: resolved.kind === 'note',
       kind: isDailyNote(path, options.dailyFolder) ? 'day' : 'note',
     }

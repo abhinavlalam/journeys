@@ -386,11 +386,8 @@ export function resizeSplit(ws: Workspace, splitId: number, ratio: number): Work
   return { ...ws, layout: resize(ws.layout) }
 }
 
-/**
- * Every tab that holds a file, re-pointed by `fn` — a moved note or PDF follows it,
- * and a null answer closes the tab. It was `mapNoteTabs`, from when a note was the
- * only tab with a file behind it.
- */
+/** Every tab that holds a file, re-pointed by `fn` — a moved note or PDF follows
+ *  it — and a null answer closes the tab. */
 function mapFileTabs(ws: Workspace, fn: (file: VaultFile) => VaultFile | null): Workspace {
   return settle({
     ...ws,

@@ -484,8 +484,8 @@ export function insertTimeKeymap(insertTime: () => string | null) {
       const want = cmKey(combo)
       if (!want || keyNameOf(event) !== want) return false
       const at = view.state.selection.main
-      // The space is part of the stamp. `STAMP` wants whitespace or the line end
-      // after the time, so a caret left tight against it turns `09:41` into
+      // The space is part of the stamp. `LEADING_CLOCK` wants whitespace or the line
+      // end after the time, so a caret left tight against it turns `09:41` into
       // `09:41w` on the next keystroke and the accent goes out.
       const stamp = `${localTimeStamp()} `
       // And the caret is placed rather than mapped: an insertion *at* the caret

@@ -111,11 +111,9 @@ export function useVaultTexts({
    *  business again — see `corpus`. */
   openPath: string | null
   /**
-   * A view derived from the corpus is open — the graph, or a tag's page.
-   *
-   * Either can be opened on a line typed seconds ago, which is on neither the disk
-   * nor the buffer; this is what re-takes `liveText` at that moment. It was
-   * `graphOpen`, when the graph was the only such view.
+   * A view derived from the corpus is open — the graph, a tag's or a property's
+   * page, the calendar, the timeline. Any can be opened on a line typed seconds ago,
+   * which is on neither the disk nor the buffer; this re-takes `liveText` then.
    */
   viewOpen: boolean
   /**
