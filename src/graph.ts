@@ -1,10 +1,10 @@
-// The note graph: a node per note, day or tag and an edge per pair that connect, by
-// kind (`buildNoteGraph`); its clusters; and its layouts — rings around one note, and
-// everything by cluster, simulated to rest before anything is drawn.
+// The note graph: a node per note, day or tag, and an edge per connected pair,
+// by kind (`buildNoteGraph`); its clusters; and its layouts, rings around one
+// note and everything by cluster, computed before anything is drawn.
 //
-// **Pure**: no filesystem, React or timers, and note text is its input. `links.ts`
-// reaches `vault.ts`, which imports the Tauri fs plugin at module scope, so a test of
-// this file still mocks that seam.
+// Pure: no filesystem, React or timers; note text is the input.
+// `links.ts` reaches `vault.ts`, which imports the Tauri fs
+// plugin, so a test of this file still mocks that.
 
 import { isDailyNote } from './daily'
 import { parseNoteLinks, pathKey, resolveTarget } from './links'
@@ -22,49 +22,36 @@ import type { VaultFile } from './vaultModel'
 export type NodeKind = 'note' | 'day' | 'tag'
 
 /**
- * **What a connection is**: a link written in the text, a link held in a property's
- * value (`merchant:: [[Harbour Bistro]]`), or a note carrying a tag. The graph shows
- * any of the three, as the owner chooses — the second were a third of a vault's
- * links and made its busiest hubs.
+ * What a connection is: a link in the text, a link in a property's value (`merchant::
+ * [[Harbour Bistro]]`), or a note carrying a tag. The graph shows any of the three.
  */
 export const EDGE_KINDS = ['text', 'property', 'tag'] as const
 export type EdgeKind = (typeof EDGE_KINDS)[number]
 
 /**
- * One note in the graph.
- *
- * Folder notes are nodes like any other: `Ideas/` *is* the note `Ideas/Ideas.md`
- * (CLAUDE.md), `collectNotes` already hands it over as one, and the two spellings
- * share an `id`, so a folder note cannot appear twice or split its edges in half.
+ * One note in the graph. A folder note is one node: `Ideas/` and
+ * `Ideas/Ideas.md` share an `id`, so it can't appear twice or split its edges.
  */
 export interface GraphNode {
-  /** The `pathKey` normal form — the key edges and lookups use. */
+  /** The `pathKey` form, which edges and lookups use. */
   id: string
   /** The vault's own spelling, `.md` included, for an existing note. */
   path: string
-  /** The basename without `.md` — what a label would show. */
+  /** The basename without `.md`, which a label shows. */
   name: string
   /**
-   * True when the note index knows this path — which includes a folder note whose
-   * `.md` is not written yet, because the tree opens it and a link resolves to it
-   * either way.
-   *
-   * False for a **link-only** node: the user chose "link it anyway, resolve later",
-   * so the link is real and the note is not there yet. Those are kept as nodes
-   * deliberately — they are what the vault is about to become, and dropping them
-   * would also drop the edge that is the user's whole intent. The renderer is
-   * expected to draw them differently (hollow, dashed) rather than identically.
+   * True when the note index knows this path, including a folder note not written
+   * yet, since a link resolves to it either way. False for a link to a note that
+   * doesn't exist yet. Those are kept, since the link is real, and drawn hollow.
    */
   exists: boolean
   kind: NodeKind
 }
 
 /**
- * Every link of one kind from one note to another, collapsed into one edge.
- *
- * Three links in A's text to B are **one** edge of weight 3, not three edges: the layout
- * treats an edge as a spring, and three springs between one pair would haul them
- * together three times as hard for no reason a reader could see.
+ * Every link of one kind from one note to another, as one edge. Three links
+ * from A to B are one edge of weight 3: the layout treats an edge as a
+ * spring, and three springs would pull them together three times as hard.
  */
 export interface GraphEdge {
   /** `GraphNode.id` of the note holding the links. */
@@ -77,21 +64,19 @@ export interface GraphEdge {
 }
 
 /**
- * A built graph, every field derived and **stable**: nodes by `id`, edges by `(from,
- * to, kind)`, with plain `<` rather than `localeCompare`, which shifts with the
- * host's collation. The same vault is the same graph down to its order — what the
- * view's shape key and every layout's determinism stand on. Both ends of every edge
- * are in `nodes`.
+ * A built graph, every field derived and stable: nodes by `id`, edges by
+ * `(from, to, kind)`, sorted with `<` rather than `localeCompare`, which
+ * varies with the host. The same vault gives the same graph, which the view's
+ * shape key and the layouts depend on. Both ends of every edge are in `nodes`.
  */
 export interface NoteGraph {
   nodes: GraphNode[]
   edges: GraphEdge[]
   byId: ReadonlyMap<string, GraphNode>
   /**
-   * Incident edge records per node — every id in `nodes` is present, orphans as 0.
-   * A mutual pair counts twice on each side, because it is two edges; `weight` is
-   * deliberately *not* summed in here, so this is "how many notes does this touch"
-   * and not "how many times was it mentioned".
+   * Edges touching each node; every id is present, with 0 for none.
+   * A mutual pair counts twice. `weight` isn't summed in, so this
+   * is how many notes it touches, not how often it is mentioned.
    */
   degree: ReadonlyMap<string, number>
   nodeCount: number
@@ -114,8 +99,10 @@ function compare(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0
 }
 
-/** What a graph is read with: each property's type, for where a value holding a
- *  link ends, and the daily folder, for which notes are days. */
+/**
+ * What a graph is read with: each property's type, for where a value
+ * holding a link ends, and the daily folder, for which notes are days.
+ */
 export interface GraphOptions {
   typeOf?: (name: string) => PropertyType
   dailyFolder?: string
@@ -142,8 +129,10 @@ function propertyValues(text: string, typeOf: (name: string) => PropertyType): [
   return spans
 }
 
-/** One note's outgoing edges, and the nodes they land on: its links, each by where
- *  it is written, and its tags. */
+/**
+ * One note's outgoing edges and the nodes they reach: its links,
+ * each by where it is written, and its tags.
+ */
 function linksFrom(from: GraphNode, text: string, index: NoteIndex, options: Required<GraphOptions>) {
   const targets = new Map<string, GraphNode>()
   const edges = new Map<string, GraphEdge>()
@@ -157,12 +146,10 @@ function linksFrom(from: GraphNode, text: string, index: NoteIndex, options: Req
   }
 
   for (const link of parseNoteLinks(text)) {
-    // The whole link, not `link.target`: a wikilink resolves by *name* across the
-    // vault and a markdown link resolves by path, and passing the bare string gets
-    // markdown semantics for both. That is what made a vault of `[[wikilinks]]`
-    // produce a graph of phantom nodes with every real note left an orphan.
+    // The whole link, not `link.target`: a wikilink resolves by name and a
+    // markdown link by path, and a bare string gets the markdown rule for both.
     const resolved = resolveTarget(link, from.path, index)
-    // An external destination is not a note, so it is not a node and not an edge.
+    // An external destination isn't a note, so it is neither a node nor an edge.
     if (resolved.kind === 'external') continue
     const path = resolved.kind === 'note' ? resolved.note.path : resolved.path
     const node: GraphNode = {
@@ -172,9 +159,8 @@ function linksFrom(from: GraphNode, text: string, index: NoteIndex, options: Req
       exists: resolved.kind === 'note',
       kind: isDailyNote(path, options.dailyFolder) ? 'day' : 'note',
     }
-    // A note does not link to itself here, matching the backlink index: the graph
-    // answers "what connects to what", and a loop connects nothing. Compared by
-    // `id` rather than `isSamePath`, which is what makes `from === to` impossible.
+    // No self-links, as in the backlinks. Compared by `id`, so
+    // `from === to` can't happen.
     if (node.id === from.id) continue
     count(node, held.some(([start, end]) => link.start >= start && link.start < end) ? 'property' : 'text')
   }
@@ -210,10 +196,8 @@ function assemble(nodeMap: Map<string, GraphNode>, found: GraphEdge[]): NoteGrap
 }
 
 /**
- * The whole graph, from every note and its text.
- *
- * O(total text + links) plus the sorts. Cheap enough to run on a vault read; the
- * expensive part is the reads themselves, which happen outside this module.
+ * The whole graph, from every note and its text. O(text + links) plus the
+ * sorts; the reads themselves are the expensive part and happen elsewhere.
  */
 export function buildNoteGraph(
   notes: Iterable<NoteText>,
@@ -227,22 +211,16 @@ export function buildNoteGraph(
 
   for (const { note, text } of notes) {
     const from = sourceNode(note, index, read.dailyFolder)
-    // Unconditional: a note read as a source is authoritative over the same node
-    // guessed earlier from a link that pointed at it.
+    // A note read as a source replaces the same node guessed earlier from a link to it.
     nodes.set(from.id, from)
     const found = linksFrom(from, text, index, read)
     for (const target of found.targets) if (!nodes.has(target.id)) nodes.set(target.id, target)
     edges.push(...found.edges)
   }
 
-  // **Folders left out of the picture, with the edges that touched them.** Measured
-  // on the vault this was built for: the two most linked notes were a currency code
-  // and a credit card, because every expense line links both, so the graph was a
-  // diagram of a schema and not of anything anyone thinks about. `graphHides` in
-  // settings names the folders; a note under one is dropped *after* the walk, so a
-  // link into it does not come back as a hollow "missing" node the way filtering
-  // the corpus would make it. An encrypted note goes the same way: the corpus has
-  // no text of one, but a link from another note would still draw it.
+  // Folders in `graphHides` are left out with their edges, for notes like a
+  // currency that every line links. They are dropped after the walk, so a link
+  // into one doesn't come back as a missing node. Locked notes go the same way.
   const left = (path: string) =>
     isEncrypted(path) || hidden.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))
   for (const [id, node] of nodes) if (node.kind !== 'tag' && left(node.path)) nodes.delete(id)
@@ -250,10 +228,9 @@ export function buildNoteGraph(
 }
 
 /**
- * The graph with only the connections chosen, and **the notes that are left with
- * none, apart**: not drawn, but counted, so a note is never silently missing. A tag
- * with no note is not a thing, and a note that exists only as a link's target
- * leaves with its link.
+ * The graph with only the chosen kinds of connection, and the notes left
+ * with none listed apart, so no note silently disappears. A tag with no
+ * notes goes, and so does a note that exists only as a link's target.
  */
 export function connectionsOf(
   graph: NoteGraph,
@@ -269,10 +246,10 @@ export function connectionsOf(
 const KIND_ORDER: Record<NodeKind, number> = { note: 0, day: 1, tag: 2 }
 
 /**
- * **The graph around one note**: the note, what it touches — links either way, its
- * tags — and what those touch, as three rings. Each on the second ring belongs to
- * the first on the first ring that reached it, so it can be laid beside it. A ring
- * runs by kind, then cluster, so a group's notes sit together on it.
+ * The graph around one note: the note, what it touches (links either way,
+ * and its tags), and what those touch, as three rings. Each second-ring
+ * node belongs to the first-ring node that reached it, so it can sit beside
+ * it. A ring is ordered by kind, then cluster, so a group sits together.
  */
 export function around(
   graph: NoteGraph,
@@ -321,18 +298,19 @@ export interface Placed {
 /** A point `r` out from the centre at `angle`. */
 export const polar = (r: number, angle: number): Placed => ({ x: r * Math.cos(angle), y: r * Math.sin(angle) })
 
-/** The least distance between two rings, and the arc a node takes on one — room
- *  for a node and the start of its name. */
+/**
+ * The least distance between rings, and the arc a node takes on
+ * one: room for a node and the start of its name.
+ */
 const RING_GAP = 150
 const NODE_ARC = 48
 
 /**
- * **Rings, laid out and not simulated**, so the picture is still and the same every
- * time. The first ring shares the circle out by what hangs off each of its nodes —
- * one with twelve on the second ring gets twelve shares of the angle, one with none
- * a single share — and the second ring's nodes sit in their parent's share, so a
- * note's own neighbours are beside it. Each ring is wide enough for its nodes. A
- * cluster's run of nodes on the first ring, with what hangs off them, is a sector.
+ * Rings, laid out rather than simulated, so the picture is the same every
+ * time. The first ring shares the circle by what hangs off each node:
+ * twelve children get twelve shares, none gets one. Second-ring nodes sit
+ * in their parent's share. Each ring is wide enough for its nodes. A
+ * cluster's run on the first ring, with its children, is a sector.
  */
 export function ringLayout(
   rings: readonly string[][],
@@ -367,21 +345,20 @@ export function ringLayout(
 }
 
 // ---------------------------------------------------------------------------
-// Layout: a hand-rolled force simulation
+// Layout: a hand-written force simulation
 // ---------------------------------------------------------------------------
 //
 // Repulsion between every pair, a spring along every edge, a pull to the centre,
-// damped velocities, one step at a time. `d3-force` would do it better, as a sixth
-// runtime dependency for ~120 lines: the trade was declined.
+// damped velocities, one step at a time. `d3-force` would do it better, but as a
+// sixth runtime dependency for about 120 lines.
 //
-// **Cost**: repulsion is O(n²) a step. Run to rest, 150 notes took 42 ms, 300 took
-// 100 ms and 700 took 0.5 s (2026-09-28), paid once per change to the graph's shape.
-// Past that a Barnes-Hut quadtree earns its place; below it, it is slower.
+// Cost: repulsion is O(n²) per step. Run to rest, 150 notes took 42 ms, 300 took
+// 100 ms and 700 took 0.5 s (2026-09-28), once per change to the graph's shape.
+// Beyond that a Barnes-Hut quadtree would pay off; below it, it is slower.
 //
-// **Determinism is a hard requirement**: the same vault is the same picture. Each
-// starting position is a seeded hash of the node's own id, never `Math.random()` —
-// per node, so a new note does not reshuffle the rest — and the loops walk
-// `graph.nodes` in id order, so even the summation order is fixed.
+// Deterministic: the same vault gives the same picture. Each starting position is a
+// seeded hash of the node's id, never `Math.random()`, per node so a new note doesn't
+// move the rest, and the loops walk `graph.nodes` in id order.
 
 /** What the simulation can be tuned by. Every field has a default in `DEFAULT_LAYOUT`. */
 interface LayoutOptions {
@@ -398,21 +375,17 @@ interface LayoutOptions {
   /** Integration step. */
   dt: number
   /**
-   * The floor on the distance used in a force. **This is the NaN guard.** Two nodes
-   * at the same point have no direction between them and `dx / 0` is `NaN`, which
-   * reaches every node through the pair loop in one frame and never leaves. Clamped
-   * again internally, so even `0` here is safe.
+   * The smallest distance used in a force, which guards against NaN: two
+   * nodes at the same point have no direction between them, and a NaN spreads
+   * to every node in one step. Clamped again inside, so even 0 is safe.
    */
   minDistance: number
   /** Speed clamp, so one crowded frame cannot fling a node to infinity. */
   maxVelocity: number
   /**
-   * Annealing. The speed clamp is `maxVelocity * cooling ** step`, so the graph is
-   * free early and fine-tunes late. Without it a long chain or a dense web never
-   * quite settles — it drifts under `tolerance`'s threshold and back out, measured
-   * — and a layout would run to its step limit every time. With it,
-   * `converged` is reached in a **bounded** number of steps for any graph, because
-   * the clamp itself eventually falls under `tolerance`. Set it to 1 to disable.
+   * Annealing: the speed limit is `maxVelocity * cooling ** step`, so
+   * nodes move freely early and settle late. Without it a dense graph
+   * drifts around `tolerance` and never converges. Set to 1 to disable.
    */
   cooling: number
   /** A `maxSpeed` at or under this counts as converged. */
@@ -454,7 +427,7 @@ export interface LayoutState {
   converged: boolean
 }
 
-/** FNV-1a over the note id. It only has to spread, not to resist anything. */
+/** FNV-1a over the id. It only has to spread values out. */
 function hashString(text: string): number {
   let hash = 2166136261
   for (let i = 0; i < text.length; i++) {
@@ -464,7 +437,7 @@ function hashString(text: string): number {
   return hash >>> 0
 }
 
-/** mulberry32, inline, because the alternative is a dependency for nine lines. */
+/** mulberry32, inline, rather than a dependency for nine lines. */
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0
   return () => {
@@ -477,9 +450,8 @@ function mulberry32(seed: number): () => number {
 }
 
 /**
- * Where a node starts: uniform in a disc whose radius grows with the square root of
- * the node count, so the starting density stays about the same however big the
- * vault gets.
+ * Where a node starts: evenly in a disc whose radius grows with the square root
+ * of the node count, so the starting density is about the same for any vault.
  */
 function seedPosition(id: string, count: number, options: LayoutOptions): { x: number; y: number } {
   const random = mulberry32(hashString(id) ^ (options.seed >>> 0))
@@ -492,7 +464,7 @@ function withDefaults(options?: Partial<LayoutOptions>): LayoutOptions {
   return options ? { ...DEFAULT_LAYOUT, ...options } : DEFAULT_LAYOUT
 }
 
-/** Frame zero. Same graph, same options, same positions, every time. */
+/** Step zero. Same graph and options, same positions. */
 export function initialLayout(graph: NoteGraph, options?: Partial<LayoutOptions>): LayoutState {
   const opts = withDefaults(options)
   return {
@@ -504,7 +476,7 @@ export function initialLayout(graph: NoteGraph, options?: Partial<LayoutOptions>
     })),
     step: 0,
     maxSpeed: 0,
-    // Nothing to move is already settled; anything else has to earn it.
+    // Nothing to move is already settled.
     converged: graph.nodes.length === 0,
   }
 }
@@ -519,12 +491,9 @@ function finite(node: LayoutNode): boolean {
 }
 
 /**
- * One step. Pure: the state handed in is not touched and a new one comes back, so
- * a test can drive it in a loop with no DOM and no timers.
- *
- * A node in the incoming state that is not in the graph is dropped, and a node in
- * the graph with no incoming position is seeded — so a state survives a note being
- * added or deleted between steps without the caller re-initialising.
+ * One step. Pure: the state passed in isn't changed, so a test can run it
+ * in a loop. A node not in the graph is dropped and a node with no
+ * position is seeded, so a state survives notes being added or removed.
  */
 export function stepLayout(
   graph: NoteGraph,
@@ -532,13 +501,13 @@ export function stepLayout(
   options?: Partial<LayoutOptions>
 ): LayoutState {
   const opts = withDefaults(options)
-  // Even a hostile `minDistance` of 0 cannot divide by zero past here.
+  // Even `minDistance: 0` can't divide by zero after this.
   const floor = Math.max(opts.minDistance, 1e-6)
   const count = graph.nodes.length
 
   const previous = new Map(state.nodes.map((node) => [node.id, node]))
-  // Scrubbed on the way *in*: one non-finite coordinate that arrived from anywhere
-  // would otherwise reach every other node through the pair loop in a single frame.
+  // Scrub incoming positions: one non-finite value would spread
+  // to every node in a step.
   const nodes: LayoutNode[] = graph.nodes.map((node) => {
     const was = previous.get(node.id)
     if (was && finite(was)) return { id: node.id, x: was.x, y: was.y, vx: was.vx, vy: was.vy }
@@ -554,14 +523,14 @@ export function stepLayout(
       let dy = nodes[j].y - nodes[i].y
       let d = Math.sqrt(dx * dx + dy * dy)
       if (d < floor) {
-        // Exactly coincident, or as good as: there is no direction to push along.
-        // Take one from the pair's ids, so the nudge is the same on every run.
+        // At the same point there is no direction to push along,
+        // so take one from the pair's ids, the same on every run.
         const angle = (hashString(`${nodes[i].id} ${nodes[j].id}`) % 62832) / 10000
         dx = Math.cos(angle) * floor
         dy = Math.sin(angle) * floor
         d = floor
       }
-      // `/ d` a third time turns (dx, dy) into a unit vector.
+      // Dividing by `d` a third time makes (dx, dy) a unit vector.
       const push = opts.repulsion / (d * d) / d
       fx[i] -= dx * push
       fy[i] -= dy * push
@@ -577,9 +546,8 @@ export function stepLayout(
     const dx = nodes[j].x - nodes[i].x
     const dy = nodes[j].y - nodes[i].y
     const d = Math.max(Math.sqrt(dx * dx + dy * dy), floor)
-    // `weight` deliberately does **not** stiffen the spring. Collapsing three links
-    // into one edge was the whole point; scaling stiffness by the count would put
-    // the three springs straight back. The renderer has the weight for stroke width.
+    // `weight` doesn't stiffen the spring, or the three links merged into one edge
+    // would pull three times as hard again. The view uses the weight for line width.
     const pull = (opts.spring * (d - opts.springLength)) / d
     fx[i] += dx * pull
     fy[i] += dy * pull
@@ -610,10 +578,10 @@ export function stepLayout(
   return { nodes, step: state.step + 1, maxSpeed, converged: maxSpeed <= opts.tolerance }
 }
 
-/** How many steps a layout may take to settle before it is drawn as it stands. */
+/** The most steps a layout may take before it is drawn as it stands. */
 const SETTLE_STEPS = 800
 
-/** The simulation from frame zero to rest, or to `maxSteps`, whichever comes first. */
+/** Runs the simulation from step zero until it settles or reaches `maxSteps`. */
 export function layout(graph: NoteGraph, options?: Partial<LayoutOptions>, maxSteps = SETTLE_STEPS): LayoutState {
   let state = initialLayout(graph, options)
   for (let i = 0; i < maxSteps && !state.converged; i++) state = stepLayout(graph, state, options)
@@ -621,10 +589,9 @@ export function layout(graph: NoteGraph, options?: Partial<LayoutOptions>, maxSt
 }
 
 /**
- * **No two nodes on top of each other**: each node has its `room`, and a pair nearer
- * than their two rooms is pushed apart along the line between them, rounds at a
- * time, in a fixed order — so a settled layout whose hubs were pulled into one knot
- * opens out, and does so the same way every time. A pair on one point parts along x.
+ * Pushes apart any two nodes closer than their two `room`s,
+ * along the line between them, in a fixed order and for a set
+ * number of rounds. Two nodes at one point part along x.
  */
 export function spread(
   points: ReadonlyMap<string, Placed>,
@@ -644,7 +611,8 @@ export function spread(
         const d = Math.hypot(dx, dy)
         const gap = room(ids[i]) + room(ids[j])
         if (d >= gap) continue
-        // The smaller gives way: a day pushed off a region moves, the region hardly.
+        // The smaller node moves more: a day pushed off a region
+        // moves, the region barely.
         const share = room(ids[j]) / gap
         const [ux, uy] = d > 0 ? [dx / d, dy / d] : [1, 0]
         a.x -= ux * (gap - d) * share
@@ -664,10 +632,10 @@ export function spread(
 // ---------------------------------------------------------------------------
 
 /**
- * Louvain's communities over `n` nodes and weighted pairs `[a, b, w]`: each node,
- * in index order, joins the neighbouring community that most raises modularity,
- * until none moves; then each community becomes one node and it runs again, until
- * nothing merges. The same pairs give the same communities every time.
+ * Louvain communities over `n` nodes and weighted pairs `[a, b, w]`.
+ * Each node, in order, joins the neighbouring community that raises
+ * modularity most, until nothing moves; then each community becomes
+ * one node and it repeats until nothing merges. Deterministic.
  */
 function communities(n: number, pairs: [number, number, number][]): number[] {
   let of = Array.from({ length: n }, (_, i) => i)
@@ -690,7 +658,7 @@ function communities(n: number, pairs: [number, number, number][]): number[] {
   }
 }
 
-/** Louvain's first phase: each node's community, numbered from 0 as first met. */
+/** Louvain's first phase: each node's community, numbered from 0 in the order met. */
 function localMoving(n: number, links: [number, number, number][]): number[] {
   const near = Array.from({ length: n }, () => new Map<number, number>())
   const degree = new Array<number>(n).fill(0)
@@ -727,14 +695,14 @@ function localMoving(n: number, links: [number, number, number][]): number[] {
   return of.map((c) => number.get(c)!)
 }
 
-/** The fewest notes a cluster is drawn for: a pair is a link, not a group. */
+/** The fewest notes drawn as a cluster: a pair is a link, not a group. */
 const CLUSTER_MIN = 3
 
 /**
- * **The groups the notes make**: communities over the links between notes alone,
- * largest first, each busiest first — its first names it. Days and tags take no
- * part — each touches every group, and let in, they made the whole vault one — and
- * neither does a note linked only through them.
+ * The groups the notes form: communities over note-to-note links only,
+ * largest first, members busiest first (the first names the group).
+ * Days and tags are left out, because each touches every group and
+ * would merge them all; so is a note linked only through them.
  */
 export function clustersOf(graph: NoteGraph): string[][] {
   const notes = graph.nodes.filter((node) => node.kind === 'note')
@@ -757,8 +725,10 @@ export function clustersOf(graph: NoteGraph): string[][] {
     .sort((a, b) => b.length - a.length || compare(a[0], b[0]))
 }
 
-/** A cluster where it is drawn around a note: the band across the rings its notes
- *  sit in, `from` and `to` angles between two radii. */
+/**
+ * A cluster as drawn around a note: the band across the rings
+ * its notes sit in, between two angles and two radii.
+ */
 export interface Sector {
   members: readonly string[]
   from: number
@@ -767,7 +737,7 @@ export interface Sector {
   outer: number
 }
 
-/** A cluster where it is drawn in everything: a disc round its members. */
+/** A cluster as drawn in Everything: a disc around its members. */
 export interface Region {
   members: readonly string[]
   x: number
@@ -775,22 +745,24 @@ export interface Region {
   r: number
 }
 
-/** The simulation's options for a picture with room in it: a longer rest length and
- *  a stronger push than the defaults. */
+/**
+ * Layout options for a roomier picture: a longer rest length and
+ * a stronger push than the defaults.
+ */
 const ROOMY = { repulsion: 12000, springLength: 90 }
-/** Half the least distance between two nodes: a disc and the start of a name. */
+/**
+ * Half the least distance between two nodes: room for a dot and the start of a name.
+ */
 const NODE_ROOM = 22
-/** Air inside a region's rim past its outermost member, where its name sits. */
+/** Space inside a region's rim beyond its outermost member, where its name sits. */
 export const REGION_PAD = 40
 
 const positionsOf = (state: LayoutState) => new Map(state.nodes.map((node) => [node.id, { x: node.x, y: node.y }]))
 
 /**
- * **Everything, by cluster.** Each cluster is laid out on its own, then stands as
- * one node, as wide as it is, in the layout of the rest — the days, the tags and
- * the notes in no cluster — so a day sits between the groups it touches and no
- * group is pulled into another through it. Nothing is left inside a region that
- * is not one of its members.
+ * Everything, by cluster. Each cluster is laid out on its own, then placed as one
+ * node, as wide as itself, among the days, tags and unclustered notes. So a day
+ * sits between the groups it touches, and no non-member lands inside a region.
  */
 export function everything(graph: NoteGraph, clusters: readonly string[][]): { at: Map<string, Placed>; regions: Region[] } {
   const home = new Map(clusters.flatMap((members, c) => members.map((id) => [id, `cluster:${c}`] as const)))
@@ -808,7 +780,7 @@ export function everything(graph: NoteGraph, clusters: readonly string[][]): { a
     }
     return { at, r: Math.max(...[...at.values()].map((p) => Math.hypot(p.x, p.y))) + REGION_PAD }
   })
-  // A region's room is its disc and a node's room more, so regions stand apart.
+  // A region's room is its radius plus a node's room, so regions stay apart.
   const rooms = new Map(shapes.map((shape, c) => [`cluster:${c}`, shape.r + NODE_ROOM]))
   const nodes = new Map(graph.nodes.filter((node) => !home.has(node.id)).map((node) => [node.id, node]))
   for (const id of rooms.keys()) nodes.set(id, { id, path: '', name: '', exists: true, kind: 'note' })
@@ -829,9 +801,10 @@ export function everything(graph: NoteGraph, clusters: readonly string[][]): { a
   return { at, regions }
 }
 
-/** The extents of some points, or null for none: what a fit frames. (`fitToBox`,
- *  which squeezed the picture into the pane every frame, is gone: a graph fitted for
- *  you is not one you can move around in.) */
+/**
+ * The extents of some points, or null for none: what a fit frames. (`fitToBox`,
+ * which squeezed the picture into the pane each frame, is gone for good.)
+ */
 export function boundsOf(
   points: Iterable<Placed>
 ): { minX: number; maxX: number; minY: number; maxY: number } | null {

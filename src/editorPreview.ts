@@ -1,9 +1,6 @@
-// Live Preview: what the document *looks* like, without changing what it says.
-//
-// Every rendered thing here is a decoration over the file's own bytes — a class on
-// a range, a marker hidden, a bullet drawn in place of `- `. Nothing rewrites the
-// text, and every piece of syntax keeps a caret position, which is the property the
-// whole editor exists for (`MarkdownEditor.tsx`).
+// Live Preview: how the note looks, without changing what it says. Everything here is
+// a decoration over the file's own text: a class on a range, or a marker hidden.
+// Nothing rewrites the text, and every piece of syntax keeps a caret position.
 
 import { Facet, type EditorState, type Range as CmRange } from '@codemirror/state'
 import { Decoration, WidgetType, type DecorationSet } from '@codemirror/view'
@@ -21,31 +18,25 @@ import { linkLabelSpan } from './vaultModel'
 const WIKILINK = /\[\[([^\]\n]+)\]\]/g
 /** `[label](target)`, for reading a target back off a clicked line. */
 const MDLINK = /\[[^\]\n]*\]\(([^)\n]+)\)/g
-/** A link written as itself: `<url>`, a bare URL, or a bare email. The same three
- *  GFM parses, so a click on one goes where the colour says it does. */
+/**
+ * A link written as itself: `<url>`, a bare URL, or a bare
+ * email, the same three GFM parses.
+ */
 const BARE = /<?((?:https?:\/\/|www\.|mailto:)[^\s<>()]+|[\w.+-]+@[\w-]+\.[\w.-]+)>?/g
 
 /**
- * Whether a click landed on a link's own glyphs.
- *
- * **The DOM does this hit test, not `posAtCoords`.** A click in the empty space
- * past the end of a line has no position of its own, so `posAtCoords` hands back
- * the nearest one — the end of the line — which is *inside* the link whenever the
- * link is the last thing on that line. Clicking out there to put the caret at the
- * end of the text followed the link instead. Asking the event where it landed
- * answers that, and answers for a link broken across a wrap as well, which a
- * comparison against one rectangle would not.
- *
- * `cm-md-link` is the class the two decorations below put on both kinds, which is
- * why this is here and not in the editor component.
+ * Whether a click landed on a link's own text. Asks the DOM, not
+ * `posAtCoords`: a click past the end of a line maps to the line's end,
+ * which is inside a link that ends the line, so clicking there to place
+ * the caret followed the link. The DOM also handles a link that wraps.
  */
 export function isLinkClick(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest('.cm-md-link') !== null
 }
 
 /**
- * The link target under `pos`, or null. Read off the line's text rather than the
- * syntax tree: the wikilink half is not a node, so one scan answers for both kinds.
+ * The link target at `pos`, or null. Read from the line's text,
+ * not the syntax tree, since a wikilink isn't a node.
  */
 export function linkTargetAt(state: EditorState, pos: number): { target: string; wiki: boolean } | null {
   const line = state.doc.lineAt(pos)
@@ -58,7 +49,7 @@ export function linkTargetAt(state: EditorState, pos: number): { target: string;
     for (const hit of line.text.matchAll(pattern)) {
       const at = hit.index ?? 0
       if (offset >= at && offset <= at + hit[0].length) {
-        // `[[Target|Alias]]` — the target is the left of the pipe.
+        // `[[Target|Alias]]`: the target is left of the pipe.
         return { target: hit[1].split('|')[0].trim(), wiki }
       }
     }
@@ -66,12 +57,12 @@ export function linkTargetAt(state: EditorState, pos: number): { target: string;
   return null
 }
 
-/** Whether a press landed on a tag. `isLinkClick`'s shape. */
+/** Whether a press landed on a tag. */
 export function isTagClick(target: EventTarget | null): boolean {
   return target instanceof Element && !!target.closest('.cm-md-tag')
 }
 
-/** The tag at `pos`, read off the line's own text — `linkTargetAt`'s shape. */
+/** The tag at `pos`, read from the line's text. */
 export function tagNameAt(state: EditorState, pos: number): string | null {
   const line = state.doc.lineAt(pos)
   return tagAt(line.text, pos - line.from)
@@ -92,17 +83,12 @@ const MARKERS = new Set(['EmphasisMark', 'CodeMark', 'StrikethroughMark', 'Heade
 const BLOCK: Record<string, string> = { Blockquote: 'cm-md-quote' }
 
 /**
- * A task line: the list marker, then `[c]`, then a space or the line's end.
+ * A task line: a list marker, then `[c]`, then a space or the end of the line.
  *
- * **Obsidian's rule and not GFM's.** GFM parses exactly `[ ]` and `[x]` and gives
- * them a `TaskMarker` node; a vault written in Obsidian is full of `[-]`, `[>]` and
- * `[/]` besides, which that grammar reads as ordinary text. So this is a scan of the
- * line, the same answer `[[wikilinks]]` get and for the same reason: the parser does
- * not have them. **Any single character is a state**, and one the app draws no glyph
- * for is drawn as itself rather than guessed at or dropped.
- *
- * The trailing `(?=\s|$)` is what keeps two other things from being tasks:
- * `- [[Note]]` opens a wikilink, and `- [x](url)` is a markdown link labelled `x`.
+ * Obsidian's rule, not GFM's: GFM only knows `[ ]` and `[x]`, and
+ * Obsidian vaults also use `[-]`, `[>]` and `[/]`. So any single
+ * character is a state, and one with no glyph is shown as itself. The
+ * `(?=\s|$)` keeps `- [[Note]]` and `- [x](url)` from being tasks.
  */
 const TASK_LINE = /^(\s*(?:[-*+]|\d+[.)])\s+)\[(.)\](?=\s|$)/
 
@@ -113,12 +99,8 @@ function taskState(mark: string): 'open' | 'done' | 'other' {
 }
 
 /**
- * The task on the line `pos` is in, or null — read off the line's own text, the
- * shape `linkTargetAt` already has.
- *
- * `from` is the `[`, so the state character is the one byte at `from + 1`. That is
- * the whole of what a press rewrites: **one character**, which is what keeps this
- * honest to "the document is the file's own text".
+ * The task on the line at `pos`, or null, read from the line's text.
+ * `from` is the `[`; a press rewrites only the character after it.
  */
 export function taskAt(
   state: EditorState,
@@ -142,20 +124,12 @@ export function toggledTask(mark: string): string {
   return mark === ' ' ? 'x' : ' '
 }
 
-/** Whether a press landed on a checkbox. `isLinkClick`'s shape. */
+/** Whether a press landed on a checkbox. */
 export function isTaskClick(target: EventTarget | null): boolean {
   return target instanceof Element && !!target.closest('.cm-md-task')
 }
 
-/**
- * The checkbox drawn in place of `- [ ] `.
- *
- * **One marker per item**: it replaces the bullet rather than sitting beside it,
- * because a checkbox already says the line is a list item and two markers is the
- * same doubling `numberMark` avoids. On an *ordered* item the number is content and
- * stays, so there the box has no grid width of its own and the checkbox follows the
- * number as a word would.
- */
+/** The checkbox drawn in place of a task's `[ ]`. */
 class CheckboxWidget extends WidgetType {
   mark: string
   constructor(mark: string) {
@@ -179,19 +153,15 @@ class CheckboxWidget extends WidgetType {
     return other.mark === this.mark
   }
 
-  /** The editor's own `mousedown` handles the press, as it does for a link, so the
-   *  event has to reach it rather than being swallowed here. */
+  /** The editor's own `mousedown` handles the press, so the event must reach it. */
   ignoreEvent() {
     return false
   }
 }
 
 /**
- * `---` on its own line, drawn as the line it stands for.
- *
- * An inline widget at full width rather than a block one: a block widget would
- * replace the line, and the three characters have to stay in a line the caret can
- * reach — which is the same bargain every marker in this editor makes.
+ * `---` on its own line, drawn as a rule. An inline widget at full width, not
+ * a block widget, so the three characters stay in a line the caret can reach.
  */
 class RuleWidget extends WidgetType {
   private readonly className: string
@@ -212,27 +182,23 @@ class RuleWidget extends WidgetType {
 const ruleDeco = Decoration.replace({ widget: new RuleWidget('cm-md-rule') })
 
 /**
- * A YAML block's `---`, which is a **fence** and not a divider. It drew as the
- * accent rule like any other row of dashes, so `icon: calendar` sat between the two
- * heaviest strokes on the page — rendered at a real vault's settings, the property
- * block was the first and loudest thing under every title. A fence bounds a block
- * of data; a hairline says so without competing with the prose it introduces.
+ * A YAML block's `---` is a fence, not a divider, so it is drawn
+ * as a hairline rather than the accent rule.
  */
 const fenceDeco = Decoration.replace({ widget: new RuleWidget('cm-md-fence') })
 
 const HEADING = /^ATXHeading([1-6])$/
 
-/** The characters a divider takes, which is CommonMark's own count for a thematic
- *  break. A setext underline has no minimum, which is why this is needed. */
+/**
+ * The fewest dashes that make a divider: CommonMark's count for a
+ * thematic break. A setext underline has no minimum, so this is needed.
+ */
 const MIN_RULE = 3
 
 /**
  * True when the line holds nothing but the run at `[from, to)`.
- *
- * A row of dashes is a divider only when it is the whole line: `--- see below` is a
- * sentence that opens with dashes and `- ---` is a list item. CommonMark already
- * agrees for a `HorizontalRule`, but the setext case has to be asked directly, and
- * saying it once here is what keeps the two answers the same.
+ * A row of dashes is a divider only when it is the whole line:
+ * `--- see below` is a sentence and `- ---` is a list item.
  */
 function fillsItsLine(state: EditorState, from: number, to: number): boolean {
   const line = state.doc.lineAt(from)
@@ -241,45 +207,34 @@ function fillsItsLine(state: EditorState, from: number, to: number): boolean {
 }
 
 /**
- * Space above a heading — on the **line**, not on the heading.
- *
- * A heading's class is a mark over its text, and margin on an inline box does
- * nothing. In a source editor every line is one line box, so without this a heading
- * sits exactly one leading below the paragraph it interrupts, which is what made a
- * page of notes read as a wall.
+ * Space above a heading, on the line: a margin on the heading's
+ * inline mark does nothing.
  */
 const headingLine = Decoration.line({ class: 'cm-md-heading-line' })
 
 
 /**
- * Each property's type, for the renderer: where a block property's value ends, and
- * whether it is one of its type. A *getter*, because the extension list is built
- * once and the vault's `properties.json` arrives later and changes; with none (a
- * test's bare state) every property is text.
+ * Each property's type, for where a block property's value ends and
+ * whether it is valid. A getter, because the extension list is built once
+ * and `properties.json` arrives later. With none, every property is text.
  */
 export const propertyTypes = Facet.define<() => Entries, () => Entries>({
   combine: (values) => values[0] ?? (() => ({})),
 })
 
-/** A block property whose value is not of its type: its name, in the alert colour. */
+/** A block property whose value isn't of its type: its name, in the alert colour. */
 const invalidProperty = Decoration.mark({ class: 'cm-md-property-invalid' })
 
-/** Gone from the layout entirely — not `visibility`, which would leave its width. */
+/** Removed from the layout entirely; `visibility` would leave its width. */
 const hidden = Decoration.replace({})
 
 /**
- * One step of a line's indentation, marked so the tree can be drawn down its left.
+ * One step of a line's indent, marked so the tree guides can be
+ * drawn down the left. The mark is on the spaces themselves, so
+ * it lines up in a proportional font without measuring anything.
  *
- * **On the spaces themselves**, which is the whole trick: the prose font is
- * proportional, so an indent step has no width this code could compute — but a mark
- * over the spaces starts exactly where they do, whatever the font does. The
- * alternative was measuring a space and drawing a background at multiples of it,
- * which is a measurement to keep in step with a font the user can change.
- *
- * Four of them, because a step is one of four things: a trunk carrying on down, a
- * trunk ending at this line, and each of those with the **elbow** that turns into
- * the text. The first drawing had only the trunk, so a lone indented line under its
- * parent was a bare vertical stroke beside it, connected to nothing.
+ * Four kinds: a trunk continuing, a trunk ending, and each with
+ * the elbow that turns into the text.
  */
 const GUIDE = {
   through: Decoration.mark({ class: 'cm-md-guide' }),
@@ -289,11 +244,8 @@ const GUIDE = {
 }
 
 /**
- * The indent of the next line with anything on it, or -1 past the end.
- *
- * Blank lines are looked through, for the reason `indentRange` looks through them:
- * one gap inside a list does not end the list, and a trunk that stopped at it
- * would say otherwise.
+ * The indent of the next line with anything on it, or -1 past the
+ * end. Blank lines are skipped: a gap in a list doesn't end it.
  */
 function indentBelow(state: EditorState, line: number): number {
   for (let n = line + 1; n <= state.doc.lines; n++) {
@@ -304,25 +256,12 @@ function indentBelow(state: EditorState, line: number): number {
 }
 const markerMark = Decoration.mark({ class: 'cm-md-marker' })
 
-/** A checked task's words. One decoration, because every done item takes it. */
+/** A done task's words. */
 const taskDone = Decoration.mark({ class: 'cm-md-task-done' })
 
 /**
- * A line whose wrapped rows hang under its text, told **how far** as a length.
- *
- * It was a number of *steps*, and only list lines were given one — so an indented
- * line of prose wrapped back to the margin: reported as the second and third rows
- * of a wrapped line starting at the edge of the reading pane while the first row
- * sat correctly indented. A journal's detail lines are indented prose, not list
- * items, so nothing was hanging them.
- *
- * A **length** rather than a count, because the two cases measure differently: a
- * list's depth is `(level + 1)` of the indent *step* — markdown's nesting, which is
- * not the number of spaces on the line — while an indented prose line hangs by
- * exactly the spaces it carries, `n * --space-w`. One decoration, one rule, both
- * expressed as the distance the text is in.
- *
- * Cached per value: the same three or four distances come up on every line.
+ * A line whose wrapped rows hang under its text, by a length: the width of its
+ * leading spaces. Cached per value, since the same few come up on every line.
  */
 const hangingLine = (hang: string) =>
   (HANGING[hang] ??= Decoration.line({
@@ -332,24 +271,21 @@ const hangingLine = (hang: string) =>
 
 const HANGING: Record<string, Decoration> = {}
 
-/** The hang an indented prose line asks for: the width of its own leading spaces. */
+/** The hang for an indented line: the width of its leading spaces. */
 const spaceHang = (spaces: number) => `calc(${spaces} * var(--space-w))`
 
-/** A property's name, in the colour the timestamp carries. */
+/** A property's name, in the timestamp's colour. */
 const propertyKey = Decoration.mark({ class: 'cm-md-property' })
 
 /**
- * True when the selection reaches into `[from, to]`, boundaries included.
- *
- * Inclusive on purpose: a caret sitting immediately before the `**` of a bold run
- * is a caret about to edit it, and a run whose markers appear only once the caret
- * is *past* them is a run you cannot get into.
+ * True when the selection reaches `[from, to]`, ends included,
+ * so a caret just before a `**` shows the marker.
  */
 function touched(state: EditorState, from: number, to: number): boolean {
   return state.selection.ranges.some((range) => range.from <= to && range.to >= from)
 }
 
-/** Whether `pos` is inside code — a fence, an indented block, or a backtick span. */
+/** Whether `pos` is in code: a fence, an indented block, or a backtick span. */
 function inCode(state: EditorState, pos: number): boolean {
   for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, 1); node; node = node.parent) {
     if (node.name === 'FencedCode' || node.name === 'CodeBlock' || node.name === 'InlineCode') return true
@@ -357,22 +293,17 @@ function inCode(state: EditorState, pos: number): boolean {
   return false
 }
 
-/** How far into a note the property block is looked for. It opens the note, so the
- *  search stops well past any real block rather than scanning a long note on every
- *  redraw. */
+/**
+ * How far into a note to look for the property block. It is at
+ * the top, so the search stops well past any real block.
+ */
 const PROPERTIES_REACH = 2000
 
 /**
- * The decorations for one span of the document: a class over each node that
- * renders, and its syntax markers either hidden or dimmed.
- *
- * **Pure, and takes the span explicitly.** The view plugin below passes its
- * viewport; a test passes the whole document. That is deliberate — jsdom has no
- * layout, so a `ViewPlugin`'s viewport there is fiction, and a decoration test that
- * went through a mounted view would be testing the shim.
- *
- * One span rather than a list of them: `Tree.iterate` over overlapping spans would
- * enter the same node twice and emit the same `Decoration.replace` twice.
+ * The decorations for one span of the document. Pure, and takes the span
+ * explicitly: the view plugin passes its viewport, and a test passes the
+ * whole document, since jsdom has no real viewport. One span, because
+ * iterating overlapping spans would decorate a node twice.
  */
 export function livePreviewDecorations(
   state: EditorState,
@@ -381,23 +312,17 @@ export function livePreviewDecorations(
 ): DecorationSet {
   const found: CmRange<Decoration>[] = []
 
-  // The page properties at the top of the note, when the span reaches them, in
-  // either form — `splitPageProperties` is the one answer to where they end. Marked
-  // whole and set in mono, they read as metadata: markdown alone reads a YAML
-  // block's `---` as a rule and the line under it as a setext heading, which is
-  // prose between dashes nobody could identify as properties. The end is kept as
-  // the bound for a YAML block's own `---`, which draws as a fence — the
-  // `HorizontalRule` and `SetextHeading2` cases further down.
+  // The page properties at the top of the note, in either form, marked
+  // as a block in mono so they read as metadata. Their end also bounds
+  // a YAML block's own `---`, which is drawn as a fence below.
   let propertiesEnd = 0
   if (from === 0) {
     const { prefix } = splitPageProperties(state.doc.sliceString(0, Math.min(to, PROPERTIES_REACH)))
     if (prefix) {
       propertiesEnd = prefix.length
       found.push(Decoration.mark({ class: 'cm-md-frontmatter' }).range(0, prefix.trimEnd().length))
-      // Each property's *name*, in the accent a timestamp gets — so a property
-      // reads as a label with its value beside it rather than as one dim run. The
-      // block's own mark already carries the mono face and the size; the name adds
-      // the colour and the weight, which is the whole of what makes it a label.
+      // Each property's name in the accent colour, so it reads
+      // as a label beside its value.
       for (let at = 0; at < propertiesEnd; ) {
         const line = state.doc.lineAt(at)
         const key = PROPERTY_KEY.exec(line.text)
@@ -407,9 +332,8 @@ export function livePreviewDecorations(
     }
   }
 
-  // The leading clock on each line in the span. Not a node either — it is ordinary
-  // text — and anchored per line rather than scanned over the whole span, which is
-  // what keeps a time inside a sentence from being marked.
+  // The clock at the start of each line. Matched per line, so a
+  // time inside a sentence isn't marked.
   const firstLine = state.doc.lineAt(from).number
   const lastLine = state.doc.lineAt(to).number
   const step = getIndentUnit(state)
@@ -423,11 +347,10 @@ export function livePreviewDecorations(
     }
 
     const editing = touched(state, line.from, line.to)
-    // **A block property's name is syntax**: `amount:: 480` reads `480`, and a
-    // quoted value reads without its quotes — the bargain `**bold**` makes, per line,
-    // back as markers with the caret on it. **A value not of its type keeps its
-    // name, marked**, caret or not: a value that is not read must not vanish from
-    // the line as though it were. Not in the page's own block, nor in code.
+    // A block property's name is syntax: `amount:: 480` reads `480`, and a
+    // quoted value reads without its quotes. The name comes back when the caret
+    // is on the line. A value that isn't of its type keeps its name, in the
+    // alert colour, so it doesn't look read. Not in the page block or in code.
     if (line.from >= propertiesEnd) {
       const types = state.facet(propertyTypes)()
       for (const one of blockProperties(line.text, (name) => typeOf(types, name))) {
@@ -442,13 +365,9 @@ export function livePreviewDecorations(
         if (one.to > one.valueTo) found.push(syntax.range(line.from + one.valueTo, line.from + one.to))
       }
     }
-    // The tree down the left of an indented line: a trunk for each step it is in,
-    // and an elbow on the innermost one, which is the step this line hangs off.
-    //
-    // Whole steps only — a line indented by three spaces where the step is four is
-    // not at a level, and half a guide would say it was — and a trunk carries on
-    // below only if the next line is still inside it, so the last line of a block
-    // ends every trunk it closes.
+    // The tree down the left of an indented line: a trunk for each
+    // step, and an elbow on the innermost. Whole steps only, and a
+    // trunk continues only if the next line is still inside it.
     const indent = line.text.search(/\S/)
     const levels = Math.floor(Math.max(indent, 0) / step)
     const below = levels > 0 ? indentBelow(state, n) : 0
@@ -466,42 +385,26 @@ export function livePreviewDecorations(
     }
   }
 
-  // Wikilinks first. They are not a node — CommonMark reads `[[x]]` as text — so a
-  // scan of the span is the whole of it.
-  //
-  // **A link reads as its name.** `[[Note|the alias]]` shows *the alias*, and
-  // `[[Note]]` shows `Note`: the brackets and everything left of the pipe are
-  // syntax, hidden while the caret is elsewhere and back the moment it lands, which
-  // is the bargain every other mark in this file makes. It is also how a link gets
-  // a name at all — the alias is Obsidian's spelling and this reads it.
+  // Wikilinks. CommonMark reads `[[x]]` as text, so they are found by
+  // scanning. A link shows its name: `[[Note|alias]]` shows the alias and
+  // `[[Note]]` shows `Note`; the rest is hidden until the caret is on it.
   const text = state.doc.sliceString(from, to)
   for (const hit of text.matchAll(WIKILINK)) {
     const at = from + (hit.index ?? 0)
     const end = at + hit[0].length
     found.push(Decoration.mark({ class: 'cm-md-link' }).range(at, end))
     if (touched(state, at, end)) continue
-    // **And a path is not a name.** With no alias this hid the brackets and left the
-    // whole target showing, so `[[Entities/Locations/Mira Vance - Harbour View
-    // Residences]]` put forty-five underlined characters of folders inside a sentence —
-    // longer than most lines in the journal it was written in. The folders are how
-    // the app finds the note, not what the note is called: `noteName` already says
-    // so, and `knownPath` already refuses to show a nested note's doubled form for
-    // the same reason. An alias still wins, a `|!2` asks for the last two names
-    // back, and the whole target is there the moment the caret lands.
+    // A path is not a name: with no alias, only the last segment shows (`noteName`).
+    // `|!2` shows the last two, and the whole target shows with the caret on it.
     const shown = linkLabelSpan(hit[1])
-    // Everything either side of the shown span, the brackets included.
+    // Everything either side of the shown part, brackets included.
     found.push(hidden.range(at, at + 2 + shown.from))
     found.push(hidden.range(at + 2 + shown.to, end))
   }
 
   /**
-   * **`#tag` is marked, and always**: the mark is what makes the span pressable,
-   * and a tag goes somewhere. Nothing hides, because `#` *is* the tag: unlike a
-   * link's brackets, the mark is the first character of the word and removing it would
-   * leave a different word behind.
-   *
-   * Not a node in any grammar the editor has, so it is a scan of the span — the
-   * answer the wikilinks above get, for the same reason.
+   * `#tag` is always marked, so it can be pressed, and nothing is hidden:
+   * the `#` is part of the tag. Found by scanning, like wikilinks.
    */
   for (const hit of text.matchAll(TAG)) {
     const at = from + (hit.index ?? 0) + hit[1].length
@@ -512,15 +415,9 @@ export function livePreviewDecorations(
     from,
     to,
     enter: (node) => {
-      // `---`, drawn as a line when the caret is elsewhere and shown as the three
-      // characters when it is on them.
-      //
-      // **Including the property block's own pair.** Those were skipped once, on the
-      // reasoning that a note should not open with a line where its first delimiter
-      // should be; drawn, the properties sit between two lines and read as the panel
-      // they are. The parser sees the two differently — the opening `---` is this
-      // node and the closing one is a setext heading's underline, handled below —
-      // which is why rendering them took two branches and not one flag.
+      // `---` is drawn as a rule when the caret is elsewhere, and shown as
+      // text when it is on it. The page block's own pair is drawn too; the
+      // parser sees the closing one as a setext underline, handled below.
       if (node.name === 'HorizontalRule') {
         if (!fillsItsLine(state, node.from, node.to)) return
         found.push(
@@ -531,24 +428,14 @@ export function livePreviewDecorations(
         return
       }
 
-      // `---` typed straight under a line of text is a **setext heading** in
-      // CommonMark: the line above becomes an H2 and the dashes are its underline,
-      // so the `HorizontalRule` case above never sees them. Measured before this,
-      // the note showed *neither* — no line and no heading — because nothing here
-      // claimed either node, which is what "typing --- does nothing" was. A line
-      // that is nothing but dashes is a divider in the note being written, so it
-      // draws as one and the text above stays the paragraph it looks like.
-      //
-      // `___` needs none of this: underscores cannot underline a setext heading, so
-      // a line of them is a `HorizontalRule` wherever it sits.
+      // `---` right under a line of text is a setext heading in CommonMark, so the
+      // case above never sees it. Draw it as a divider and leave the text above as
+      // it is. `___` can't underline a heading, so it is always a `HorizontalRule`.
       if (node.name === 'SetextHeading2') {
         const mark = node.node.getChild('HeaderMark')
         if (!mark || !fillsItsLine(state, mark.from, mark.to)) return
-        // **Three at least.** A setext underline is *one or more* dashes in
-        // CommonMark, so without this a lone `-` under a line of text drew a rule
-        // — and a lone `-` is how a list item starts. A thematic break needs three
-        // of them, which is the rule a writer is using when they type a row of
-        // dashes, so it is the rule here.
+        // At least three dashes: a setext underline can be one,
+        // and a lone `-` starts a list item.
         if (mark.to - mark.from < MIN_RULE) return
         found.push(
           touched(state, mark.from, mark.to)
@@ -559,28 +446,25 @@ export function livePreviewDecorations(
       }
 
       /**
-       * Every kind of link, and each one **reads as its name**.
+       * Every kind of link shows its name:
        *
-       * - `[the label](url)` — a `Link` with a `URL` child. The label is the name;
-       *   the brackets, the parentheses and the URL are syntax.
-       * - `<url>` — an `Autolink`. The angle brackets are syntax.
-       * - a bare `https://…`, and a bare email — GFM parses either as a top-level
-       *   `URL` node, and nothing marked it before: a line of pasted links was
-       *   plain text you could not click.
+       * - `[label](url)`: a `Link` with a `URL` child. The label
+       *   shows; the rest is syntax.
+       * - `<url>`: an `Autolink`. The angle brackets are syntax.
+       * - A bare URL or email: GFM parses it as a top-level `URL` node.
        *
-       * The `URL` child of a `Link` or an `Autolink` is skipped here, because its
-       * parent has already dressed it — `iterate` visits both.
+       * A `URL` inside a `Link` or `Autolink` is skipped here,
+       * because its parent has already handled it.
        */
       if (node.name === 'Link' || node.name === 'Autolink') {
         // CommonMark also reads the inner `[x]` of a `[[wikilink]]` as a
-        // shortcut-reference `Link`; marking that put two overlapping marks on
-        // every wikilink, so a `URL` child is what makes this a link of its own.
+        // `Link`; requiring a `URL` child keeps it from being marked twice.
         if (node.name === 'Link' && !node.node.getChild('URL')) return
         found.push(Decoration.mark({ class: 'cm-md-link' }).range(node.from, node.to))
         if (touched(state, node.from, node.to)) return
         for (let child = node.node.firstChild; child; child = child.nextSibling) {
-          // The label is what is left: a `LinkMark` is a bracket and the `URL` is
-          // where it goes. An `Autolink` has no label, so its URL stays.
+          // The label is what is left after the brackets and the
+          // `URL`. An `Autolink` has no label, so its URL stays.
           const syntax = child.name === 'LinkMark' || (child.name === 'URL' && node.name === 'Link')
           if (syntax) found.push(hidden.range(child.from, child.to))
         }
@@ -597,15 +481,14 @@ export function livePreviewDecorations(
       const heading = HEADING.exec(node.name)
       const rendered = heading ? `cm-md-h${heading[1]}` : (INLINE[node.name] ?? BLOCK[node.name])
       if (!rendered) return
-      // The first line of the heading, which is the only line it has: the space
-      // goes on the line box, and a mark cannot carry it.
+      // The heading's line gets the space; a mark can't carry it.
       if (heading) found.push(headingLine.range(state.doc.lineAt(node.from).from))
       found.push(Decoration.mark({ class: rendered }).range(node.from, node.to))
       const reveal = touched(state, node.from, node.to)
       for (let child = node.node.firstChild; child; child = child.nextSibling) {
         if (!MARKERS.has(child.name)) continue
-        // `# ` — the space belongs to the marker. Hiding the hashes alone left
-        // every heading indented by one space, which is worse than showing them.
+        // `# ` with its space: hiding only the hashes left every
+        // heading indented by a space.
         let end = child.to
         while (end < node.to && state.doc.sliceString(end, end + 1) === ' ') end++
         found.push(reveal ? markerMark.range(child.from, end) : hidden.range(child.from, end))
@@ -629,16 +512,14 @@ export function livePreviewDecorations(
     if (taskState(task[2]) === 'done' && boxTo < line.to) found.push(taskDone.range(boxTo, line.to))
   }
 
-  // Sorted here rather than built in order: a nested run (`**_x_**`) is entered
-  // outermost-first, so its marks and its child's do not come out in position order.
+  // Sorted here: a nested run like `**_x_**` is entered
+  // outermost first, so its marks don't come out in order.
   return Decoration.set(found, true)
 }
 
 /**
- * The decorations, redrawn when `decorated` says so — which includes **the
- * selection**, the half that is easy to leave out and is the whole feature here:
- * without it the markers never come back and the note is
- * unreadable-but-rendered, the exact complaint Crepe drew.
+ * The decorations, redrawn when `decorated` says so, including on
+ * selection changes, so markers come back when the caret moves onto them.
  */
 export const livePreview = decorated(livePreviewDecorations)
 

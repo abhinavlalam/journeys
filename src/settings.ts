@@ -1,14 +1,8 @@
 /**
- * The options panel's model: what a setting can be, how it survives a restart,
- * and how it reaches the page.
- *
- * The defaults are the app as it already renders, read out of `index.css`'s
- * `:root` — so opening the panel and changing nothing must be a no-op. If a
- * default here and the stylesheet ever disagree, the stylesheet is right and this
- * is the copy that has drifted.
- *
- * No React. The panel component and the wiring live above this; everything here is
- * a pure function or a single documented DOM write.
+ * The settings: what each can be, how it is stored, and how it reaches
+ * the page. The defaults match `index.css`'s `:root`, so changing
+ * nothing in the panel changes nothing on screen; if they ever disagree,
+ * the stylesheet is right. No React: pure functions and one DOM write.
  */
 import { DAILY_FOLDER, readConfigFile, safeNewName, writeConfigFile } from './vault'
 import { SETTINGS_FILE } from './vaultModel'
@@ -20,42 +14,33 @@ export type Mode = 'dark' | 'light' | 'system'
 export type Scheme = 'slate' | 'graphite' | 'moss' | 'ember' | 'ink' | 'midnight'
 export type FaceCategory = 'sans' | 'serif' | 'mono'
 
-/** The shape of a row in `FACES`. Only used to constrain the literal below, which
- *  is where the ids come from — so a face cannot be added without one. */
+/**
+ * A row in `FACES`. Only used to type the list below, which is where the ids come from.
+ */
 interface FaceShape {
   id: string
-  /** As it reads in the menu. */
+  /** As shown in the menu. */
   name: string
   category: FaceCategory
-  /** The face named first, then the sheet's token for its category, then the
-   *  generic. All three parts earn their place: the token carries the rest of the
-   *  system faces, and the generic is the floor — a stack that ends on a *named*
-   *  face lands on Times when that face is missing, which is the one outcome
-   *  nobody chose. */
+  /**
+   * The face first, then the sheet's token for its category, then the generic family.
+   * A stack ending on a named face falls back to Times when that face is missing.
+   */
   stack: string
 }
 
 /**
- * The faces on offer, in menu order, grouped by `category` in the panel.
+ * The faces on offer, in menu order, grouped by `category`. Every one is installed with
+ * macOS (checked in `/System/Library/Fonts` and the other font folders); nothing is
+ * downloaded. Check for the file before adding one: a missing face is a silent no-op.
  *
- * **Every one of these is installed with macOS**, checked against
- * `/System/Library/Fonts`, its `Supplemental`, `/Library/Fonts` and
- * `~/Library/Fonts`. Nothing is fetched — a webfont would add a network
- * dependency and a Tauri CSP host, for a font. Do not add a face without looking
- * for its file: an unavailable name is a silent no-op, and the user cannot tell
- * "this face looks like the last one" from "this face is not here".
- *
- * Two entries lead with a `ui-*` keyword rather than the face's own name, and
- * that is deliberate. `ui-serif` and `ui-monospace` are how macOS's own New York
- * and SF Mono are reached: `SFNSMono.ttf`'s family name is dot-prefixed, so it is
- * hidden from font matching and `'SF Mono'` alone finds nothing unless the
- * separate download has been installed. The quoted names stay as the second stop
- * for exactly that case.
+ * Two entries start with `ui-serif` and `ui-monospace`, which is how New York and
+ * SF Mono are reached: SF Mono's family name is hidden from font matching unless
+ * it was installed separately. The quoted names are the fallback for that case.
  */
 export const FACES = [
-  // The system face is what `--font-sans` already names first (`-apple-system`),
-  // so naming it again here would be a second copy of the same decision — and
-  // this way the default and `:root`'s `--font-prose` are the same value.
+  // The system face is what `--font-sans` already names first, so
+  // the default and `:root`'s `--font-prose` are the same value.
   { id: 'system', name: 'System', category: 'sans', stack: 'var(--font-sans), sans-serif' },
   {
     id: 'helvetica-neue',
@@ -131,39 +116,45 @@ export const FACES = [
   },
 ] as const satisfies readonly FaceShape[]
 
-/** Derived, not restated: a face in the list is an id, and an id not in the list
- *  is a type error at every call site. */
+/** An id not in `FACES` is a type error at every call site. */
 export type FaceId = (typeof FACES)[number]['id']
 
 export interface Settings {
   mode: Mode
   scheme: Scheme
-  /** A face in `FACES`, not a category. Kept under the old key so a stored
-   *  `'sans'` is still there to migrate — see `pickFace`. */
+  /**
+   * A face in `FACES`, not a category. Kept under the old key so
+   * a stored `'sans'` can still be migrated (see `pickFace`).
+   */
   fontFamily: FaceId
   /** px. */
   proseSize: number
-  /** Unitless — the note's line height, and a tree row's height with it. */
+  /** Unitless: the note's line height, and a tree row's height with it. */
   lineHeight: number
-  /** The weight the note's own text is set in. A face at 400 in one family reads
-   *  heavier than another's, and this is the dial for that. */
+  /**
+   * The weight the note's text is set in. Faces differ in how
+   * heavy their regular looks, and this adjusts for it.
+   */
   proseWeight: number
-  /** How heavy the app's own glyphs are drawn, as a share of a glyph's size. A
-   *  `stroke-width` is in viewBox units, so the sheet turns this into one per grid
-   *  — see `svg[data-grid]` — and every icon in the app moves together. */
+  /**
+   * How heavy the app's glyphs are drawn, as a share of a glyph's size. The
+   * sheet turns it into a stroke width per grid (see `svg[data-grid]`).
+   */
   iconWeight: number
-  /** px — space *between* lines of a note, and between rows of the tree. */
+  /** px: space between a note's lines. */
   lineGap: number
-  /** The same space between the panes' **rows** — the tree, the Actions section
-   *  and the two sections at the end of a note. Its own number because a note's
-   *  lines and a list of rows are read differently: air between paragraphs is not
-   *  the same amount of air as a list of names wants. Inherits `lineGap` when a
-   *  vault's settings were written before it existed. */
+  /**
+   * px: space between the panes' rows. Separate from `lineGap`,
+   * because a list of names wants less air than paragraphs. Falls
+   * back to `lineGap` for settings written before it existed.
+   */
   rowGap: number
-  /** px — the note column's outer width, padding included. */
+  /** px: the note column's outer width, padding included. */
   readingWidth: number
-  /** Whether setting a folder's icon writes it into the notes inside it that have
-   *  none of their own. Display is always own-only: see `resolveNoteIcon`. */
+  /**
+   * Whether setting a folder's icon also writes it into the notes inside that
+   * have none. A note always shows its own icon (see `resolveNoteIcon`).
+   */
   inheritIcons: boolean
   /** Spaces per indent level: what Tab inserts, and what Enter steps back by. */
   indentWidth: number
@@ -172,31 +163,28 @@ export interface Settings {
   shortcuts: Record<ActionId, string>
   /**
    * Folders the graph leaves out, as vault-relative paths (`Entities/Currencies`).
-   *
-   * Measured on the vault this was added for: the two most linked notes were a
-   * currency code and a credit card, because every expense line links both. Those
-   * are columns, not knowledge, and a graph of them is a diagram of a schema. No
-   * control in the panel: a list of folders is a thing to type into `settings.json`,
-   * which has the Save for exactly this.
+   * Useful for notes every line links, like a currency, which crowd the graph. Set
+   * in `settings.json`; there is no control in the panel.
    */
   graphHides: string[]
-  /** Which connections the graph draws — the checkboxes along its top: links in the
-   *  text, links held in properties, tags. */
+  /**
+   * Which connections the graph draws, from the checkboxes along
+   * its top: links in the text, links in properties, tags.
+   */
   graphShows: { text: boolean; property: boolean; tag: boolean }
   /**
-   * Calendars the calendar's Sync reads: each a private iCal address — Google's
-   * *Secret address in iCal format* — and **the name the owner gives it**, which is
-   * what `source::` says on every line it writes. Google's own name for a primary
-   * calendar is "Calendar", which says nothing; an empty name falls back to it.
+   * The calendars Sync reads: each a private iCal address (Google's secret
+   * address in iCal format) and a name, which is what `source::` says on
+   * every line it writes. An empty name falls back to the feed's own.
    */
   calendarFeeds: CalendarFeed[]
   /** How many days ahead the calendar shows and Sync writes, today included. */
   calendarDays: number
   /** How often, in minutes, the calendar reads its feeds on its own. */
   calendarMinutes: number
-  /** How often the vault's sync runs a round — commit what changed, pull, push. */
+  /** How often the vault's sync runs: commit, pull, push. */
   syncSeconds: number
-  /** How long, in minutes, an unlocked note may go unused before it locks again. */
+  /** Minutes an unlocked note may go unused before it locks again. */
   lockMinutes: number
 }
 
@@ -209,10 +197,11 @@ export const MODES: readonly Mode[] = ['dark', 'light', 'system']
 export const SCHEMES: readonly Scheme[] = ['slate', 'graphite', 'moss', 'ember', 'ink', 'midnight']
 export const FACE_IDS: readonly FaceId[] = FACES.map((face) => face.id)
 
-/** `--font-prose`'s value for a face. `FACES` is an ordered list because the menu
- *  needs the order, so the lookup is built once here rather than searched per
- *  call. An id off the list cannot reach this — `parseSettings` refuses it — but
- *  the default is the answer if one ever does. */
+/**
+ * `--font-prose`'s value for a face. The lookup is built once. An
+ * id not in the list can't get here, since `parseSettings`
+ * refuses it, but the default is the answer if one does.
+ */
 const STACKS = new Map<string, string>(FACES.map((face) => [face.id, face.stack]))
 
 export function faceStack(id: FaceId): string {
@@ -220,40 +209,27 @@ export function faceStack(id: FaceId): string {
 }
 
 /**
- * The note column's inset, **both sides**, in px.
- *
- * `--reading-width` is the column's outer box, so the text measure is that less
- * this — which is why the number lives here and not in the sheet: `applySettings`
- * writes it out as `--column-pad` (a side) and `SettingsPanel` takes it off the
- * width for the character readout. It was `2.5rem` in four rules and `80` in one
- * function, with nothing holding them together.
+ * The note column's inset, both sides together, in px. Kept here, not in
+ * the sheet, because `applySettings` writes it as `--column-pad` (one side)
+ * and `SettingsPanel` takes it off the width for its character count.
  */
 export const COLUMN_PADDING = 80
 
 /**
- * Slider ends, and each one is a judgement rather than a limit of the CSS:
+ * The sliders' ends. They are also the limits for stored values,
+ * so a hand-edited `proseSize: 900` becomes 24.
  *
- * - `proseSize` 12–24 px. `--fs-chrome` is 13 px and does not move, so under 12 the
- *   sidebar would shout over the note; the heading scale is in `em` off this, so at
- *   24 an h1 is 37 px, which is as much as `readingWidth`'s top end can hold.
- * - `lineHeight` 1.2–2.2. Under 1.2 descenders touch the line below at these sizes.
- * - `proseWeight` 300–600. Three hundred is the lightest weight the stacks carry
- *   at a reading size, and past 600 the body would be as heavy as a heading.
- * - `iconWeight` 0.06–0.13. A share of a glyph's own size: 0.088 is about 1.14px
- *   at a 13px reading size, under 0.06 a hairline disappears against the ground,
- *   and past 0.13 the dots in the graph and the gear run together.
- * - `lineGap` 0–12 px. Space between the note's lines rather than inside them, so
- *   it reads as a paragraph gap. Zero is the tightest it can be.
- * - `rowGap` 0–12 px. The same for the panes' rows, and its own number: one
- *   slider moved both for a while, on the reasoning that a row is one line of the
- *   note tall, but the amount of air a paragraph wants is not the amount a list of
- *   names wants. Past ~12 a list of rows stops reading as a list.
- * - `readingWidth` 480–1200 px. The column's own padding is 2 × 2.5rem, so 480
- *   leaves a 400 px measure — about 50 characters, the point below which prose
- *   starts breaking mid-phrase.
- *
- * These are the clamps for storage too, not only for the slider: a hand-edited
- * `proseSize: 900` has to come back as 24, not render.
+ * - `proseSize` 12–24 px: below 12 the sidebar (13 px) would outweigh
+ *   the note; at 24 a heading is as big as the widest column allows.
+ * - `lineHeight` 1.2–2.2: below 1.2 descenders touch the next line.
+ * - `proseWeight` 300–600: 300 is the lightest the stacks have
+ *   at reading size; past 600 text is as heavy as a heading.
+ * - `iconWeight` 0.06–0.13: below 0.06 a line disappears; past
+ *   0.13 the graph's dots and the gear run together.
+ * - `lineGap` and `rowGap` 0–12 px: past about 12 a list of rows
+ *   stops reading as a list.
+ * - `readingWidth` 480–1200 px: 480 leaves a 400 px measure,
+ *   about 50 characters, below which prose breaks mid-phrase.
  */
 export const BOUNDS = {
   proseSize: { min: 12, max: 24, step: 0.5 },
@@ -274,38 +250,25 @@ export const DEFAULT_SETTINGS: Settings = {
   mode: 'dark',
   scheme: 'slate',
   fontFamily: 'system',
-  // 0.90625rem at the browser's 16px root — nothing in the sheet sets a root
-  // font-size, so this is the same pixel value, expressed in the unit the slider
-  // works in.
+  // 0.90625rem at the browser's 16 px root, in the slider's unit.
   proseSize: 14.5,
-  // `:root`'s `--line-height-prose`, which `.markdown-editor .cm-content` takes.
-  // 1.85, and it sets the rhythm of *both* panes: a tree row is one line of the
-  // note tall, so this slider moves the two together. See `.sidebar` in the sheet.
+  // `:root`'s `--line-height-prose`. It sets the rhythm of both
+  // panes: a tree row is one note line tall.
   lineHeight: 1.85,
-  // Zero, both: the leading is already generous, and these are for anyone who
-  // reads better with air between lines than inside them.
-  // 400: what a face means by "regular", and what the sheet assumed before this
-  // was a setting.
+  // Zero for both gaps: the leading is already generous. 400 is
+  // a face's regular weight.
   proseWeight: 400,
-  // 0.088: the weight the hand-drawn set converged on, measured at 1.14px on a
-  // 13px reading size.
+  // 0.088: about 1.14 px at a 13 px reading size.
   iconWeight: 0.088,
   lineGap: 0,
   rowGap: 0,
-  // 640, not 720: less 2 × 2.5rem of padding, that is a 560px measure — about 77
-  // characters at the default size, where 720 gave 88. Past roughly 80 the eye
-  // starts losing the line it is on, which reads as crowded however much leading
-  // the lines have.
+  // 640, not 720: after the padding that is about 77 characters
+  // at the default size. Past about 80 the eye loses its line.
   readingWidth: 640,
-  // Four. Two is the convention a markdown list *may* nest on, and at this font it
-  // steps about 7px — half of what the tree steps, so a nested list read as barely
-  // indented beside it. Four lands near the tree's 16px and is the other, older
-  // convention. A note already indented by two keeps its two spaces; put the slider
-  // back to see them as levels again.
+  // Four spaces per level: two looks barely indented in a proportional face.
   indentWidth: 4,
   inheritIcons: true,
-  // `vault.ts`'s constant rather than a second `'Daily'`, so the default here and
-  // `ensureDailyNote`'s fallback cannot drift apart.
+  // `vault.ts`'s constant, so this default and `ensureDailyNote`'s can't drift apart.
   dailyFolder: DAILY_FOLDER,
   shortcuts: defaultShortcuts(),
   graphHides: [],
@@ -332,9 +295,10 @@ function clamp(value: number, bounds: { min: number; max: number }): number {
   return Math.min(bounds.max, Math.max(bounds.min, value))
 }
 
-/** A stored number, clamped. A string, a `null`, a `NaN` or an `Infinity` is not a
- *  number and takes the default — `Number("large")` is `NaN`, so coercing first
- *  would turn a bad value into a rendered one. */
+/**
+ * A stored number, clamped. A string, `null`, `NaN` or `Infinity` takes the
+ * default: `Number("large")` is `NaN`, so coercing first would render a bad value.
+ */
 function pickNumber(
   value: unknown,
   bounds: { min: number; max: number },
@@ -349,9 +313,8 @@ function pickShortcuts(value: unknown): Record<ActionId, string> {
   const taken = new Set<string>()
   for (const action of ACTIONS) {
     const combo = normalizeCombo(stored[action.id])
-    // Registry order decides, so a stored map holding one combo twice loses the
-    // later action to its default rather than both to nothing. Swapping the two
-    // defaults is legal and survives: neither is taken when it is read.
+    // Registry order decides: if one combo is stored twice, the later
+    // action gets its default. Swapping two defaults is allowed.
     const chosen = combo && !taken.has(combo) ? combo : action.defaultCombo
     out[action.id] = chosen
     taken.add(chosen)
@@ -360,14 +323,9 @@ function pickShortcuts(value: unknown): Record<ActionId, string> {
 }
 
 /**
- * The three categories `fontFamily` held before the faces were named, each onto
- * the face it actually rendered as: `--font-sans` resolved to the system face,
- * and the other two tokens lead with New York and SF Mono. Without this, `pick`
- * sends all three to the default — which is a silent reset for anyone who chose
- * serif, and indistinguishable from the app forgetting.
- *
- * A `Map`, not an object literal: `LEGACY['constructor']` on an object is a
- * function rather than `undefined`, and a stored value is whatever is on disk.
+ * The three categories `fontFamily` held before faces had names, mapped to the face
+ * each rendered as. Without this, anyone who chose serif would be silently reset. A
+ * `Map`, because `LEGACY['constructor']` on an object literal is a function.
  */
 const LEGACY_FACES = new Map<string, FaceId>([
   ['sans', 'system'],
@@ -381,9 +339,9 @@ function pickFace(value: unknown): FaceId {
 }
 
 /**
- * Per field, never whole-object: one unreadable value must not reset the other
- * seven. Anything absent, of the wrong type, out of range or from an older shape
- * falls back on its own.
+ * Per field, never the whole object: one bad value doesn't reset
+ * the rest. Anything missing, of the wrong type, out of range or
+ * from an older shape falls back on its own.
  */
 export function parseSettings(raw: unknown): Settings {
   let stored: Partial<Record<keyof Settings, unknown>> = {}
@@ -395,7 +353,7 @@ export function parseSettings(raw: unknown): Settings {
         stored = parsed as Partial<Record<keyof Settings, unknown>>
       }
     } catch {
-      // Malformed JSON is a missing setting, not an error to raise into a render.
+      // Malformed JSON is a missing setting, not an error to throw into a render.
     }
   }
 
@@ -410,11 +368,8 @@ export function parseSettings(raw: unknown): Settings {
     proseWeight: pickNumber(stored.proseWeight, BOUNDS.proseWeight, DEFAULT_SETTINGS.proseWeight),
     iconWeight: pickNumber(stored.iconWeight, BOUNDS.iconWeight, DEFAULT_SETTINGS.iconWeight),
     lineGap: pickNumber(stored.lineGap, BOUNDS.lineGap, DEFAULT_SETTINGS.lineGap),
-    // **Inherits `lineGap`.** A vault written before the two were separate has one
-    // number, and it was applied to both — so it answers for the row gap as well,
-    // and that vault looks exactly as it did. The inheritance is the *fallback*,
-    // not an alternative source: `rowGap: "roomy"` falls back to the line gap for
-    // the same reason a bad `proseSize` falls back to the default.
+    // Falls back to `lineGap`: a vault written before the two were
+    // separate used one number for both, and still looks the same.
     rowGap: pickNumber(
       stored.rowGap,
       BOUNDS.rowGap,
@@ -444,8 +399,10 @@ export function parseSettings(raw: unknown): Settings {
   }
 }
 
-/** A feed is `{ name, url }`; a bare string is an address with no name, which is
- *  how the first version wrote them. Anything without an address is not one. */
+/**
+ * A feed is `{ name, url }`; a bare string is an address with no name, as
+ * the first version wrote them. Anything without an address is skipped.
+ */
 function pickFeeds(value: unknown): CalendarFeed[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((one): CalendarFeed[] => {
@@ -456,15 +413,17 @@ function pickFeeds(value: unknown): CalendarFeed[] {
   })
 }
 
-/** The strings in a hand-written array, trimmed, blanks dropped; anything that is
- *  not an array of strings is none. */
+/**
+ * The strings in a hand-written array, trimmed, blanks dropped.
+ * Anything else is an empty list.
+ */
 function pickStrings(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((one): one is string => typeof one === 'string' && one.trim() !== '').map((one) => one.trim())
     : []
 }
 
-/** Each checkbox on its own: a kind the file does not say, or says oddly, is on. */
+/** Each checkbox on its own: a kind the file doesn't mention, or gets wrong, is on. */
 function pickShows(value: unknown): Settings['graphShows'] {
   const given = value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
   const pick = (kind: keyof Settings['graphShows']) => (typeof given[kind] === 'boolean' ? (given[kind] as boolean) : true)
@@ -476,30 +435,28 @@ export function loadSettings(): Settings {
   try {
     raw = globalThis.localStorage?.getItem(SETTINGS_KEY) ?? null
   } catch {
-    // Storage can be absent or refuse to answer; the defaults are still a whole
-    // working app.
+    // Storage may be missing or refuse to answer; the defaults
+    // still make a working app.
   }
   return parseSettings(raw)
 }
 
 
 /**
- * This vault's settings, or null when it has none yet — the caller writes them in
- * that case, which is how `.config` comes to exist.
- *
- * Null and "a file full of nonsense" are deliberately different answers: nonsense
- * parses to the defaults through `parseSettings`, and the file is left exactly as
- * it was found. Overwriting a file we could not read is how someone loses a config
- * they were part way through editing by hand.
+ * This vault's settings, or null when it has none yet, in which case the caller
+ * writes them. A file of nonsense is different: it parses to the defaults and
+ * is left exactly as it was, so a half-edited file is never overwritten.
  */
 export async function loadVaultSettings(vaultPath: string): Promise<Settings | null> {
   const text = await readConfigFile(vaultPath, SETTINGS_FILE)
   return text === null ? null : parseSettings(text)
 }
 
-/** The bytes `.config/settings.json` holds. Pretty-printed and newline-terminated:
- *  this is a file someone may open — and now one the app itself shows in a pane, so
- *  one function writes it and that pane cannot drift from the file. */
+/**
+ * The text of `.config/settings.json`: pretty-printed and ending
+ * in a newline, since people open it. One function writes it, so
+ * the pane that shows it can't drift from the file.
+ */
 export function settingsJson(settings: Settings): string {
   return `${JSON.stringify(settings, null, 2)}\n`
 }
@@ -509,11 +466,10 @@ export function saveVaultSettings(vaultPath: string, settings: Settings): Promis
 }
 
 /**
- * Settings less what is **the vault's own**: its calendars, and the folders its
- * graph hides. What is left is the person's, and that much is carried into a vault
- * with no settings yet and kept for the window before one opens. A calendar's
- * address is a secret whose events are written into notes: carried, it reached
- * another vault's remote and was synced into that vault's days.
+ * Settings without what belongs to the vault: its calendars and the folders
+ * its graph hides. The rest is the person's, carried into a vault with no
+ * settings yet and kept for the window before one opens. A calendar address
+ * is a secret; carried, it once reached another vault's remote.
  */
 export function portable(settings: Settings): Settings {
   return { ...settings, calendarFeeds: [], graphHides: [] }
@@ -523,7 +479,7 @@ export function saveSettings(settings: Settings): void {
   try {
     globalThis.localStorage?.setItem(SETTINGS_KEY, JSON.stringify(portable(settings)))
   } catch {
-    // A settings change is not worth failing a render over.
+    // A settings change isn't worth failing a render over.
   }
 }
 
@@ -534,18 +490,13 @@ export function saveSettings(settings: Settings): void {
 type FolderCheck = { ok: true; value: string } | { ok: false; reason: string }
 
 /**
- * The typed folder, cleaned, or why it cannot be used.
+ * The typed folder, cleaned, or why it can't be used. Uses
+ * `safeNewName`, the app's one rule for names on disk, which also
+ * refuses a leading dot (the folder would never appear in the tree).
  *
- * Straight through `vault.ts`'s `safeNewName`, which is the app's one rule for a
- * name that goes to disk — including the refusal of a leading dot, since `walk`
- * skips dot-prefixed entries and the folder would exist but never appear. Calling
- * it rather than restating it is the point: a second copy is how the two come to
- * disagree.
- *
- * `value` can differ from the input (`safeName` folds `/ \ : * ? " < > |` to `-`),
- * so show it — "will be saved as …" — rather than assuming it round-trips. One
- * segment only: `ensureDailyNote` calls `mkdir` without `recursive`, so a nested
- * path would not be created even if the characters survived.
+ * `value` can differ from the input, since `/ \ : * ? " < > |`
+ * become `-`, so show it rather than assume it round-trips. One
+ * segment only: `ensureDailyNote` doesn't create nested folders.
  */
 export function validateDailyFolder(value: unknown): FolderCheck {
   if (typeof value !== 'string') return { ok: false, reason: 'Name required.' }
@@ -563,31 +514,31 @@ export function validateDailyFolder(value: unknown): FolderCheck {
 const DARK_QUERY = '(prefers-color-scheme: dark)'
 
 function darkMedia(): MediaQueryList | null {
-  // jsdom has no `matchMedia`, and neither does a plain Node import of this file.
+  // jsdom has no `matchMedia`, and nor does a plain Node import of this file.
   return typeof globalThis.matchMedia === 'function' ? globalThis.matchMedia(DARK_QUERY) : null
 }
 
-/** Defaults to dark when the OS cannot be asked: the shipped app is dark, and a
- *  missing `matchMedia` should not turn it white. */
+/**
+ * Dark when the OS can't be asked: the app is dark, and a
+ * missing `matchMedia` shouldn't turn it white.
+ */
 export function prefersDarkScheme(): boolean {
   return darkMedia()?.matches ?? true
 }
 
-/** Never the literal `'system'` — `data-theme` names a palette, and there is no
- *  palette called system. */
+/**
+ * Never the literal `'system'`: `data-theme` names a palette,
+ * and there is no palette called system.
+ */
 export function resolveMode(mode: Mode): 'dark' | 'light' {
   if (mode === 'system') return prefersDarkScheme() ? 'dark' : 'light'
   return mode
 }
 
 /**
- * Settings onto the document, once.
- *
- * Colour goes on as attributes because the palettes are CSS's business; type goes
- * on as **inline** custom properties because it is not. An inline property on the
- * root element outranks both `:root` and any `[data-scheme]` block, so a scheme
- * that ships its own type sizes still loses to what the user set — which is the
- * whole reason these five are written here instead of in a stylesheet.
+ * Writes the settings onto the document. Colours go on as attributes; type
+ * goes on as inline custom properties, which outrank `:root` and any
+ * `[data-scheme]` block, so a scheme can't override the user's sizes.
  */
 export function applySettings(settings: Settings, root?: HTMLElement): void {
   const el = root ?? globalThis.document?.documentElement
@@ -601,65 +552,44 @@ export function applySettings(settings: Settings, root?: HTMLElement): void {
   el.style.setProperty('--line-gap', `${settings.lineGap}px`)
   el.style.setProperty('--row-gap', `${settings.rowGap}px`)
   el.style.setProperty('--reading-width', `${settings.readingWidth}px`)
-  // The column's inset, a side: half of what the panel's character readout takes
-  // off the width. The sheet used to name `2.5rem` in four places and the readout
-  // named 80 in one, and nothing held the two together.
+  // The column's inset on one side: half of what the panel's
+  // character count takes off the width.
   el.style.setProperty('--column-pad', `${COLUMN_PADDING / 2}px`)
   el.style.setProperty('--font-prose', faceStack(settings.fontFamily))
-  // One space's width, for how far an indented line's wrapped rows hang.
+  // A space's width, for how far an indented line's wrapped rows hang.
   el.style.setProperty('--space-w', `${spaceWidth(settings)}px`)
 }
 
 /**
- * One space wide, in pixels, for the reading face at the reading size.
- *
- * **A measurement, and the one place in the app that needs one.** The indent in a
- * note is made of space *characters*, and the prose face is proportional, so a
- * step has no width CSS can name — the guide lines dodge this by marking the
- * spaces themselves (see `editorPreview`), but a list marker at the first level has
- * no spaces to sit on and has to be given a width.
- *
- * Measured here rather than anywhere else because this function already runs on
- * every change to the face and the size, which are the only two things the answer
- * depends on. Nothing has to remember to re-measure.
- *
- * Falls back to a reasonable half-em where there is no document to measure in
- * (tests, and any non-browser caller).
+ * The width of one space, in px, in the reading face at the reading
+ * size. A note's indent is space characters in a proportional face, so
+ * it has no width CSS can name; wrapped rows of an indented line hang by
+ * this. Measured here because this runs whenever the face or size
+ * changes. Falls back to half an em when there is no document (tests).
  */
 function spaceWidth(settings: Settings): number {
-  // Fifty of them, so the answer is not one rounding of one glyph.
+  // Fifty spaces, so the answer isn't one glyph's rounding.
   return faceWidth(settings, ' '.repeat(50)) ?? settings.proseSize * 0.5
 }
 
 /**
- * The average character, in pixels, for the reading face at the reading size —
- * which is what a **measure** is counted in.
- *
- * The settings panel had this as `EM_PER_CHARACTER = 0.516`, a constant taken from
- * one face and applied to all eighteen. At Helvetica Neue 13.5 it reported about
- * 100 characters where a measured line holds 105, and the error moves with the
- * face. The app already measures the face here for the indent step, on every change
- * to the only two things either answer depends on, so the constant had no reason to
- * exist.
- *
- * The sample is lowercase prose plus a space, weighted the way English is rather
- * than as an even run of the alphabet — `e` and `a` are not `m` and `w`.
+ * The average character width, in px, for the reading face and
+ * size: what the panel's character count uses. The sample is
+ * lowercase prose weighted like English, not an even alphabet.
  */
 const SAMPLE = 'the quick brown fox jumps over a lazy dog and then writes it all down '
 
-/**
- * The fallback is the constant this replaced — `0.516em`, taken from two pinned
- * pairings in the sheet — because it is a good estimate and the wrong thing to do
- * with no document is not to invent a rounder one.
- */
+/** The fallback, 0.516 em, is a good estimate taken from two face and size pairs. */
 const EM_PER_CHARACTER = 0.516
 
 export function characterWidth(settings: Settings): number {
   return faceWidth(settings, SAMPLE.repeat(3)) ?? settings.proseSize * EM_PER_CHARACTER
 }
 
-/** The average advance of `sample` in the reading face, or null with no document
- *  to measure in (tests, and any non-browser caller). */
+/**
+ * The average advance of `sample` in the reading face, or null
+ * with no document (tests).
+ */
 function faceWidth(settings: Settings, sample: string): number | null {
   const doc = globalThis.document
   if (!doc?.body) return null
@@ -679,14 +609,10 @@ function faceWidth(settings: Settings, sample: string): number | null {
 }
 
 /**
- * Settings onto the document, and kept there while the OS theme changes.
- *
- * Returns the teardown, so the caller is one effect:
- *
- *     useEffect(() => applySettingsLive(settings), [settings])
- *
- * The listener exists only for `mode: 'system'`; resolving at load alone is what
- * leaves the app light at dusk until it is restarted.
+ * Writes the settings onto the document, and keeps them applied
+ * while the OS theme changes. Returns the teardown, so the caller is
+ * one effect: `useEffect(() => applySettingsLive(settings),
+ * [settings])`. The listener only exists for `mode: 'system'`.
  */
 export function applySettingsLive(settings: Settings, root?: HTMLElement): () => void {
   applySettings(settings, root)
