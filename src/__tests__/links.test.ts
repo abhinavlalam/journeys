@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { VaultFile, VaultFolder } from '../vaultModel'
 
-// No mock of anything: `links.ts` imports no filesystem, directly or through
-// `vault.ts`, so there is no seam left to stand in for. That is what the pure
-// helpers moving to `vaultModel.ts` and `frontmatter.ts` bought.
+// No mocks: `links.ts` imports no filesystem, directly or through `vault.ts`.
 import {
   parseNoteLinks,
   isExternalTarget,
@@ -103,8 +101,8 @@ describe('parseNoteLinks', () => {
 
   it('keeps balanced parentheses inside a bare target', () => {
     expect(targets('[a](Notes/Plan(draft).md)')).toEqual(['Notes/Plan(draft).md'])
-    // A *space* in a bare target is not a link at all in markdown — which is why
-    // `linkToNote` percent-encodes the space and the parentheses both.
+    // A space in a bare target is not a link in markdown, which
+    // is why `linkToNote` percent-encodes spaces and parentheses.
     expect(targets('[a](Notes/Plan (draft).md)')).toEqual([])
   })
 
@@ -145,8 +143,8 @@ describe('parseNoteLinks', () => {
     expect(one('[[Roadmap#Q3|Q3 only]]')).toEqual(['Roadmap#Q3', 'Q3 only'])
     // Only the *first* `|` splits, so an alias may hold one.
     expect(one('[[Roadmap|a|b]]')).toEqual(['Roadmap', 'a|b'])
-    // A wikilink has no escape syntax, so the label is verbatim where a markdown
-    // label would resolve `\[`.
+    // A wikilink has no escapes, so the label is kept as is,
+    // where a markdown label would resolve `\[`.
     expect(one('[[a\\-b]]')).toEqual(['a\\-b', 'a\\-b'])
   })
 
@@ -173,44 +171,39 @@ describe('parseNoteLinks', () => {
 
   it('will not let an unclosed wikilink run away', () => {
     expect(targets('[[Roadmap')).toEqual([])
-    // A newline ends the attempt, so a stray `[[` cannot reach a `]]` further down
-    // the note and invent a link out of the prose in between.
+    // A newline ends the attempt, so a stray `[[` cannot pair with a `]]` further down.
     expect(targets('[[Roadmap\nand Diet]]')).toEqual([])
     expect(targets('[[Roadmap\nand [[Diet]]')).toEqual(['Diet'])
-    // A bracket inside ends it too, which is what leaves the *inner* link found.
+    // A bracket inside ends it too, which leaves the inner link found.
     expect(targets('[[a[[b]]')).toEqual(['b'])
     expect(targets('[[a]b]]')).toEqual([])
-    // A markdown link wins the position it starts at, so a `[[…]]` inside a label
-    // is label text and not a second link.
+    // A markdown link wins where it starts, so a `[[…]]` inside
+    // its label is label text.
     expect(targets('[see [[x]]](Real.md)')).toEqual(['Real.md'])
   })
 
   it('skips a wikilink inside code or frontmatter, exactly as it skips a markdown link', () => {
     expect(targets('```\n[[Fake]]\n```\n[[Real]]')).toEqual(['Real'])
-    // With nothing real after it, so the assertion cannot be met by finding the
-    // wrong link and calling it the right one.
+    // With nothing real after it, so finding the wrong link cannot pass.
     expect(targets('```\n[[Fake]]\n```')).toEqual([])
     expect(targets('~~~md\n![[Fake]]\n~~~\n[[Real]]')).toEqual(['Real'])
     expect(targets('`[[Fake]]` but [[Real]]')).toEqual(['Real'])
     expect(targets('``a `[[Fake]]` b`` [[Real]]')).toEqual(['Real'])
     expect(targets('---\nlink: "[[Fake]]"\n---\n[[Real]]')).toEqual(['Real'])
-    // The `[[` is live text and only its `]]` is inside the code span, so the scan
-    // has to run over the *masked* text — where that `]]` is spaces — rather than
-    // over the note, where it would close a link nobody wrote.
+    // The `[[` is live text and only its `]]` is inside the code span, so
+    // the scan must run over the masked text, where that `]]` is spaces.
     expect(targets('[[Fake`]]` x')).toEqual([])
     // An escaped `\[` is not the start of a wikilink, and what is left is not one.
     expect(targets('\\[[Fake]]')).toEqual([])
   })
 
-  // Same argument as the markdown run below: a failed `[[` attempt restarts one
-  // character along, so the scan must die on the first bracket or newline it meets
-  // and be capped in any case. Uncapped, these are quadratic.
+  // As with the markdown run below: a failed `[[` restarts one
+  // character along, so the scan must stop at the first bracket
+  // or newline and be capped. Uncapped, these are quadratic.
   /**
-   * **The runner's own limit has to be looser than this test's.** Vitest kills a
-   * test at 5s by default, and this one allows itself 15 — so on a loaded machine
-   * it died at five and reported a timeout, which says nothing about the thing it
-   * guards. Measured: 0.3s normally, 10.4s at load 20. The budget below is what
-   * judges the parser; this number only has to stay out of its way.
+   * The runner's limit must be looser than this test's own budget. Vitest's
+   * default 5s killed it under load and reported a timeout; it takes 0.3s
+   * normally and 10.4s at load 20. The budget below judges the parser.
    */
   it('finishes on pathological wikilink runs', { timeout: 60000 }, () => {
     const started = Date.now()
@@ -218,44 +211,35 @@ describe('parseNoteLinks', () => {
     expect(targets(`${'[['.repeat(100000)}Real]]`)).toEqual(['Real'])
     expect(targets('[[a|'.repeat(50000))).toEqual([])
     expect(targets('[[|]]'.repeat(20000))).toEqual([])
-    // The worst shape there is: a `[[` every 1,000 bracket-free characters, so
-    // every attempt runs the cap out before it fails.
+    // The worst shape: a `[[` every 1,000 bracket-free
+    // characters, so every attempt runs to the cap.
     expect(targets(`[[${'a'.repeat(1000)}`.repeat(200))).toEqual([])
-    // 15s, not 4s. The quadratic forms these guard against take 35 seconds against
-    // 0.3 — measured both ways — so the margin is three orders of magnitude and a
-    // generous bound still catches them. A 4s budget did not: it is wall-clock, and
-    // it loses to contention when vitest runs every file in parallel, so the test
-    // failed on a full run and passed alone. A flaky guard is worse than a loose one.
+    // 15s, not 4s: the quadratic forms take 35s against 0.3s, so a
+    // loose bound still catches them. At 4s the wall-clock budget
+    // lost to parallel test runs and failed only on a full run.
     expect(Date.now() - started).toBeLessThan(15000)
   })
 
-  // The run lengths are what make this a test: a failed label scan restarts one
-  // character along, so without the `MAX_LABEL` bound 200,000 unclosed brackets
-  // take 35 seconds rather than 0.3 — measured, both ways.
-  // The runner's 5s default would kill this before its own 15s budget could judge
-  // it — see the wikilink case above.
+  // The run lengths make this a test: without the `MAX_LABEL` cap,
+  // 200,000 unclosed brackets take 35s rather than 0.3s. The runner's
+  // 5s default would kill it first; see the wikilink case above.
   it('finishes on pathological bracket runs', { timeout: 60000 }, () => {
     const started = Date.now()
     expect(targets('['.repeat(200000))).toEqual([])
     expect(targets('[a]('.repeat(20000))).toEqual([])
-    // An empty label is a legal link, so this one resolves — the point is that it
-    // does so without walking every prefix of the run.
+    // An empty label is a legal link, so this resolves; the
+    // point is that it does so without walking every prefix.
     expect(targets(`${'['.repeat(200000)}](Real.md)`)).toEqual(['Real.md'])
     expect(targets(`[a](${'('.repeat(20000)}`)).toEqual([])
     expect(targets('`'.repeat(20000))).toEqual([])
-    // 15s, not 4s. The quadratic forms these guard against take 35 seconds against
-    // 0.3 — measured both ways — so the margin is three orders of magnitude and a
-    // generous bound still catches them. A 4s budget did not: it is wall-clock, and
-    // it loses to contention when vitest runs every file in parallel, so the test
-    // failed on a full run and passed alone. A flaky guard is worse than a loose one.
+    // 15s, not 4s, for the same reason as above.
     expect(Date.now() - started).toBeLessThan(15000)
   })
 })
 
 /**
- * **One rule for what is code**, for links and tags alike (`maskCode`). There were
- * two, and they disagreed about a fence under a list item and a fence inside a
- * longer one.
+ * One rule for what is code, for links and tags alike (`maskCode`). Two rules
+ * had disagreed about a fence under a list item and a fence inside a longer one.
  */
 describe('code, as links and tags both read it', () => {
   const note = [
@@ -373,17 +357,11 @@ describe('collectNotes', () => {
 
 describe('resolveTarget', () => {
   /**
-   * **A path link's head is a name too**, and this is the bug that made it matter.
-   *
-   * Reported from the running app: `Areas/Northwind/Query Layer.md` existed, a
-   * daily note said `[[Query Layer/DML Files]]`, and following it created
-   * `Query Layer/DML Files.md` **at the vault root** — a second folder with the
-   * same name as a note, sitting beside `Areas`. The by-name lookup is guarded on
-   * the target *not* containing a slash, so one slash sent the whole thing to the
-   * root-relative reading and nothing looked for the note it plainly names.
-   *
-   * A note's children live in a folder beside it, so the head resolves by name and
-   * the rest hangs off its `knownPath`.
+   * A path link's head is a name too. `Areas/Northwind/Query Layer.md`
+   * existed, a daily note said `[[Query Layer/DML Files]]`, and following
+   * it made `Query Layer/DML Files.md` at the vault root. A slash skipped
+   * the by-name lookup. A note's children are in a folder beside it, so
+   * the head resolves by name and the rest hangs off its `knownPath`.
    */
   const wiki = (target: string, from = 'Index.md') =>
     resolveTarget({ label: target, target, start: 0, end: 0, wiki: true }, from, index)
@@ -393,15 +371,19 @@ describe('resolveTarget', () => {
     expect(found).toEqual({ kind: 'new', path: 'Areas/Health/Diet/Notes.md' })
   })
 
-  /** The literal readings still decide what *resolves*, so nothing that works today
-   *  changes meaning — only where an unresolved one is created. */
+  /**
+   * The literal readings still decide what resolves, so nothing that
+   * works changes meaning; only where an unresolved link is created.
+   */
   it('leaves a link that already resolves exactly where it resolved', () => {
     expect(resolvedPath('Notes/Roadmap.md')).toBe('Notes/Roadmap.md')
     expect(resolvedPath('Notes/Q3 plan.md')).toBe('Notes/Q3 plan.md')
   })
 
-  /** A head that names nothing is still a path from the root, and a markdown link
-   *  is a path always: `[label](Diet/Notes.md)` means what it says. */
+  /**
+   * A head that names nothing is a path from the root, and a markdown
+   * link is always a path: `[label](Diet/Notes.md)` means what it says.
+   */
   it('keeps the root-relative reading when the head names no note', () => {
     expect(wiki('Nowhere/At All')).toEqual({ kind: 'new', path: 'Nowhere/At All.md' })
     expect(resolvedPath('Diet/Notes')).toBe('new:Diet/Notes.md')
@@ -480,8 +462,10 @@ describe('resolveTarget', () => {
     })
   })
 
-  /** The target rides along, because a link the editor draws as a link has to go
-   *  somewhere when it is clicked: `App` hands this to the OS. */
+  /**
+   * The target comes along, since a link drawn as a link must go
+   * somewhere when clicked: `App` hands it to the OS.
+   */
   it('carries what was written on an external target', () => {
     expect(resolveTarget('https://pingbird.example/a', 'Index.md', index)).toEqual({
       kind: 'external',
@@ -505,9 +489,9 @@ describe('resolveTarget', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// Wikilinks resolve by **name**, which is the half a markdown path does not do.
-// Parsed rather than hand-built, so these cover the two halves together.
+// // --------------------------------------------------------------------------- //
+// Wikilinks resolve by name, which a markdown path does not. // Parsed rather than
+// hand-built, so these cover both halves. //
 // ---------------------------------------------------------------------------
 
 const wikiResolve = (text: string, from = 'Index.md', into = index) =>
@@ -523,8 +507,8 @@ describe('resolveTarget, for a wikilink', () => {
     expect(wikiPath('[[Diet]]')).toBe('Areas/Health/Diet.md')
     // From a note nowhere near it, which is where a path lookup gives up.
     expect(wikiPath('[[Roadmap]]', 'Areas/Health/Diet.md')).toBe('Notes/Roadmap.md')
-    // A markdown link is deliberately **not** given that search: `[x](Roadmap)` is
-    // a relative URL, and hunting the vault for it is the ambiguity this refuses.
+    // A markdown link does not get that search: `[x](Roadmap)` is a
+    // relative URL, and searching the vault for it would be ambiguous.
     expect(resolvedPath('Roadmap')).toBe('new:Roadmap.md')
     expect(resolvedPath('Roadmap', 'Areas/Health/Diet.md')).toBe('new:Roadmap.md')
   })
@@ -551,8 +535,8 @@ describe('resolveTarget, for a wikilink', () => {
     expect(wikiPath('[[Notes/Roadmap]]')).toBe('Notes/Roadmap.md')
     expect(wikiPath('[[/Notes/Roadmap.md]]')).toBe('Notes/Roadmap.md')
     expect(wikiPath('[[../Health/Diet]]', 'Areas/Health/Health.md')).toBe('Areas/Health/Diet.md')
-    // Path rule, not name rule: the folder named is honoured rather than searched
-    // past, so this dangles instead of finding `Notes/Roadmap.md`.
+    // The path rule, not the name rule: the named folder is honoured,
+    // so this dangles rather than finding `Notes/Roadmap.md`.
     expect(wikiPath('[[Archive/Roadmap]]')).toBe('new:Archive/Roadmap.md')
   })
 
@@ -617,10 +601,9 @@ describe('resolveTarget, for a wikilink', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// The check whose absence let the bug ship: a vault linked *only* by wikilinks
-// must produce the graph a person would draw by hand. Before wikilinks were
-// parsed this graph had **zero** edges, which is why it looked random on screen.
+// // --------------------------------------------------------------------------- // A
+// vault linked only by wikilinks must give the graph a person would draw. // Before
+// wikilinks were parsed it had no edges at all. //
 // ---------------------------------------------------------------------------
 
 describe('the graph a wikilink-only vault makes', () => {
@@ -666,7 +649,7 @@ describe('buildBacklinkIndex', () => {
       ['Areas/Health/Health.md', 1],
       ['Index.md', 2],
     ])
-    // Two links, one line — and one row to read, which is what `mentions` is for.
+    // Two links, one line, and one row to read, which is what `mentions` is for.
     expect(into[1].mentions).toEqual([
       'See [Roadmap](Notes/Roadmap.md) and [again](notes/roadmap).',
     ])
@@ -723,7 +706,7 @@ describe('buildBacklinkIndex, for wikilinks', () => {
       ['Ideas/Ideas.md', 1],
       ['Index.md', 2],
     ])
-    // A bare name from a note two folders away, which is the case that was invisible.
+    // A bare name from a note two folders away, the case that went unseen.
     expect(backlinksTo(backlinks, 'Areas/Health/Diet.md').map((b) => b.note.path)).toEqual([
       'Areas/Health/Health.md',
     ])
@@ -734,8 +717,8 @@ describe('buildBacklinkIndex, for wikilinks', () => {
     expect(backlinksTo(backlinks, 'Later.md').map((b) => b.note.path)).toEqual(['Ideas/Ideas.md'])
   })
 
-  // Each `\r` a line ending carries is a character before the link: counted as
-  // nothing, thirty lines down the mention was read off a later line.
+  // Each `\r` of a line ending is a character before the link:
+  // uncounted, thirty lines down the mention was read off a later line.
   it('quotes the line a link is on in a note with CRLF endings', () => {
     const lines = [...Array.from({ length: 30 }, (_, n) => `line ${n}`), 'the plan [[Roadmap]]', 'after']
     const crlf = buildBacklinkIndex([{ note: note('Index.md'), text: lines.join('\r\n') }], index)
@@ -744,10 +727,9 @@ describe('buildBacklinkIndex, for wikilinks', () => {
 })
 
 describe('matchNotes', () => {
-  // Chosen so every rung is load-bearing: the exact match is *nested* (so dropping
-  // the exact tier would let the root-level prefix match outrank it), and the
-  // shorter of the two word-start names sorts later alphabetically (so dropping the
-  // shorter-name tie-break would reorder them).
+  // Every tier matters here: the exact match is nested (without the exact tier a
+  // root prefix match would outrank it), and the shorter of the two word-start
+  // names sorts later (without the shorter-name tie-break they would swap).
   const pick = [
     note('Alpine Road Trip.md'),
     note('Areas/Road.md'),
@@ -794,12 +776,9 @@ describe('matchNotes', () => {
 })
 
 /**
- * What is inside a nested note: the children the tree draws under its row, which
- * is what the section at the end of that note lists.
- *
- * A nested note *is* a folder plus a same-named note, so this is a question about
- * the folder — and the folder's own note is not one of its children, because
- * `walk` lifts that note off the file list and onto the folder.
+ * What is inside a nested note: the children the tree draws under
+ * its row, which the note's Inside section lists. The folder's
+ * own note is not one of them; `walk` moves it onto the folder.
  */
 describe('folderWithNote', () => {
   const paths = (path: string) => {
@@ -808,8 +787,8 @@ describe('folderWithNote', () => {
   }
 
   it('answers with a folder’s children, subfolders first, by their own notes', () => {
-    // `Areas/` holds one folder and no files, and it is named by its folder note —
-    // which is the path a row in the tree would open.
+    // `Areas/` holds one folder and no files, named by its
+    // folder note, the path its tree row opens.
     expect(paths('Areas/Areas.md')).toEqual(['Areas/Health/Health.md'])
     expect(paths('Areas/Health/Health.md')).toEqual([
       'Areas/Health/Diet.md',
@@ -822,8 +801,8 @@ describe('folderWithNote', () => {
     expect(paths('Notes/Roadmap.md')).toEqual([])
   })
 
-  // A folder note nobody has typed in yet has no file on disk, but the row is
-  // there and so are its children: `folderNoteRef`'s path is what the tree opens.
+  // A folder note never typed in has no file, but the row and its
+  // children are there: `folderNoteRef`'s path is what the tree opens.
   it('answers for a folder whose own note is not written yet', () => {
     expect(paths('Notes/Notes.md')).toEqual(['Notes/Q3 plan.md', 'Notes/Roadmap.md'])
   })
@@ -840,24 +819,21 @@ describe('folderWithNote', () => {
     expect(folderWithNote(null, 'Index.md')).toBeNull()
   })
 
-  // The folder itself, so the section can draw it with `FolderTree` and let a
-  // subfolder in there expand.
+  // The folder itself, so the section can draw it with
+  // `FolderTree` and open subfolders.
   it('answers with the folder, not a list', () => {
     expect(folderWithNote(root, 'Areas/Areas.md')?.path).toBe('Areas')
   })
 })
 
 /**
- * **Following a note that has moved.**
- *
- * Renaming a note has to take its backlinks with it, or every link into it becomes
- * a link to a note waiting to be created. What is pinned here is that the *form* of
- * each link survives — a bare name stays a bare name, a path stays a path, and the
- * alias, the label and the anchor are the user's — and that a link is rewritten
- * because it **resolves** to the moved note, never because its text looks like it.
+ * Following a note that moved. A rename takes its backlinks along, or
+ * every link to it points at a note to be created. Each link keeps its
+ * form (bare name, path, alias, label, anchor), and is rewritten because
+ * it resolves to the moved note, never because its text looks like it.
  */
 describe('retargetLinks', () => {
-  /** `Notes/Roadmap.md` renamed to `Notes/Plan.md`, which is the ordinary case. */
+  /** `Notes/Roadmap.md` renamed to `Notes/Plan.md`, the ordinary case. */
   const renamed = note('Notes/Plan.md')
   const moves = new Map([[pathKey('Notes/Roadmap.md'), renamed]])
   const follow = (text: string, from = 'Index.md') => retargetLinks(text, from, moves, index)
@@ -870,13 +846,13 @@ describe('retargetLinks', () => {
     expect(follow('See [[Notes/Roadmap]].')).toBe('See [[Notes/Plan]].')
   })
 
-  /** The alias is what the link is *called*; renaming the note does not rename it. */
+  /** The alias is what the link is called; renaming the note does not change it. */
   it('keeps the alias', () => {
     expect(follow('See [[Roadmap|the plan]].')).toBe('See [[Plan|the plan]].')
     expect(follow('See [[Notes/Roadmap|the plan]].')).toBe('See [[Notes/Plan|the plan]].')
   })
 
-  /** The anchor names a heading *inside* the note, which is not what moved. */
+  /** The anchor names a heading inside the note, which did not move. */
   it('keeps an anchor', () => {
     expect(follow('See [[Roadmap#Q3]].')).toBe('See [[Plan#Q3]].')
     expect(follow('See [[Roadmap#Q3|later]].')).toBe('See [[Plan#Q3|later]].')
@@ -886,15 +862,17 @@ describe('retargetLinks', () => {
     expect(follow('![[Roadmap]]')).toBe('![[Plan]]')
   })
 
-  /** A markdown destination is a path to a file, and `.md` stays if it was there. */
+  /** A markdown destination is a path to a file; `.md` stays if it was there. */
   it('rewrites a markdown destination, keeping the label and the extension', () => {
     expect(follow('See [the plan](Notes/Roadmap.md).')).toBe('See [the plan](Notes/Plan.md).')
     expect(follow('See [the plan](Notes/Roadmap).')).toBe('See [the plan](Notes/Plan).')
     expect(follow('See [x](/Notes/Roadmap.md).')).toBe('See [x](/Notes/Plan.md).')
   })
 
-  /** The destination, not the label — which is the same word here, and the reason
-   *  the replacement is anchored to where the target sits in the link. */
+  /**
+   * The destination, not the label (the same word here), so the
+   * replacement is tied to where the target sits.
+   */
   it('leaves a label that reads like the destination alone', () => {
     expect(follow('See [Roadmap](Notes/Roadmap.md).')).toBe('See [Roadmap](Notes/Plan.md).')
   })
@@ -909,10 +887,9 @@ describe('retargetLinks', () => {
   })
 
   /**
-   * **It resolves, it does not match text.** `Sleep` is two notes in this vault —
-   * `Sleep.md` at the root and `Areas/Health/Sleep.md` — and a bare `[[Sleep]]`
-   * means whichever is nearer the note holding it. So a rename of one must not
-   * touch a link that meant the other.
+   * It resolves, not matches text. `Sleep` is two notes here, `Sleep.md`
+   * at the root and `Areas/Health/Sleep.md`, and `[[Sleep]]` means the
+   * nearer one. Renaming one must not touch links meant for the other.
    */
   it('rewrites only the link that resolved to the note that moved', () => {
     const moved = new Map([[pathKey('Areas/Health/Sleep.md'), note('Areas/Health/Rest.md')]])
@@ -948,8 +925,10 @@ describe('retargetLinks', () => {
     )
   })
 
-  /** A folder rename moves every note under it, so a link to any of them follows —
-   *  which is the reason this takes a map and not one pair. */
+  /**
+   * A folder rename moves every note under it, so links to any
+   * of them follow. That is why this takes a map, not one pair.
+   */
   it('follows every note of a renamed folder at once', () => {
     const group = new Map([
       [pathKey('Areas/Health/Health.md'), note('Areas/Wellbeing/Wellbeing.md')],

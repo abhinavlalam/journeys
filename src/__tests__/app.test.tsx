@@ -13,18 +13,13 @@ import { stepIn } from '../rows'
 import { readProperty } from '../properties'
 
 /**
- * The shell end to end: pick a folder, see its notes, open one, edit it, save.
+ * The shell end to end: pick a folder, see its notes, open one, edit it,
+ * save. Over `fakeVault`, so the real `vault.ts` is underneath, and
+ * every assertion is about the bytes on the fake disk. Each bug here was
+ * a write landing in the wrong file, which only the whole App can show.
  *
- * These run over `fakeVault`, so the **real** `vault.ts` is underneath — real walk,
- * real rename guards, real case-insensitivity — and every assertion is about the
- * bytes on the fake disk. That is the level the bugs live at: each one below is a
- * write landing in the wrong file, and nothing narrower than the whole App can see
- * a write path go wrong, because the path is spread across the buffer, the debounce
- * and the tree.
- *
- * The editor is stubbed as a textarea: CodeMirror needs a layout jsdom does not
- * have, and what the real editor does on *mount* is a separate bug class with its
- * own file, `openNote.test.tsx`, which mounts it for real.
+ * The editor is a textarea stub, since CodeMirror needs layout. What
+ * the real editor does on mount is tested in `openNote.test.tsx`.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -37,11 +32,8 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 }))
 
 /**
- * Autosave's debounce, plus a margin — a **lower** bound, and the reason it is
- * still a number here when the suite's `waitFor` budget is one global setting: the
- * two tests below sleep this long and then assert that nothing was written. Waiting
- * *longer* than the debounce is the whole assertion, so it cannot be delegated to a
- * ceiling that exists to be generous.
+ * Autosave's debounce plus a margin: a lower bound. Two tests sleep this long and then
+ * assert nothing was written, so it cannot be the suite's generous `waitFor` budget.
  */
 const SAVED = 1200
 
@@ -63,9 +55,9 @@ async function openApp() {
 
 const editor = () => screen.getByTestId('editor') as HTMLTextAreaElement
 
-/** Scoped to the tree: the open note's name is also the viewer's own heading. */
+/** Scoped to the tree: the open note's name is also the viewer's heading. */
 const row = (name: string) => within(document.querySelector('.file-list')!).getByText(name)
-/** Scoped to the header: every folder row carries an add button too. */
+/** Scoped to the header: every folder row has an add button too. */
 const sidebarButton = (label: string) =>
   within(document.querySelector('.sidebar')!).getByLabelText(label)
 
@@ -87,7 +79,7 @@ describe('the shell', () => {
   it('reopens the last folder and lists its notes as a tree', async () => {
     await openApp()
     expect(row('inbox')).toBeTruthy()
-    // A nested folder note renders as the folder's own row, not as a child of it.
+    // A nested folder note shows as the folder's own row, not as its child.
     expect(row('Ideas')).toBeTruthy()
     expect(screen.queryByText('pingbird')).toBeNull()
 
@@ -96,13 +88,8 @@ describe('the shell', () => {
   })
 
   /**
-   * The whole file, frontmatter included.
-   *
-   * It used to be split off and held aside, because Crepe would have mangled a block
-   * it could not render. The editor is a text editor now, and this app's premise is
-   * that the document *is* the file's own text — so hiding the top of it was the one
-   * place that premise did not hold. It also made a property the app itself writes
-   * invisible in the app: a note's `icon:` was there and could not be seen.
+   * The whole file, properties included. The document is the file's own
+   * text, so nothing is hidden, including the `icon::` the app writes.
    */
   it('opens the whole note into the editor, frontmatter and all', async () => {
     await openApp()
@@ -131,29 +118,27 @@ describe('the shell', () => {
   })
 
   /**
-   * The editor is keyed on the note's path, so it remounts the moment the open note
-   * changes — and the read has to happen *before* that switch, or it remounts
-   * holding the previous note's text, which autosave then writes into the new file.
-   * This corrupted a file.
+   * The editor is keyed on the note's path, so it remounts when the open note changes.
+   * The read must happen before the switch, or it remounts with the previous note's
+   * text and autosave writes that into the new file. This once corrupted a file.
    */
   it('never writes one note’s text into another when the selection moves', async () => {
     await openApp()
     await openTheNote('roadmap')
     type('# Roadmap\n\nedited in flight\n')
 
-    // Switched inside the debounce window, so the queued write is still pending.
+    // Switched inside the debounce, so the queued write is still pending.
     await openTheNote('inbox')
 
     await waitFor(() => expect(disk.read('/v/roadmap.md')).toContain('edited in flight'))
-    // The flush landed in roadmap, and inbox is untouched — both halves matter.
+    // The flush landed in roadmap and inbox is untouched; both halves matter.
     expect(disk.read('/v/inbox.md')).toBe('# Inbox\n\nThings not yet filed anywhere.\n')
     expect(editor().value).toContain('# Inbox')
   })
 
   /**
-   * A folder note is created lazily: browsing would otherwise litter the folder
-   * with blank files, and Milkdown can emit a normalised-but-empty document on
-   * mount, so "empty" cannot be the trigger to write.
+   * A folder note is written on the first key, not on browse, or
+   * browsing would leave blank files behind.
    */
   it('writes nothing for a folder with no note until something is typed in it', async () => {
     disk.mkdir('/v/Empty')
@@ -168,13 +153,13 @@ describe('the shell', () => {
 
     type('now it exists\n')
     await waitFor(() => expect(disk.read('/v/Empty/Empty.md')).toBe('now it exists\n'))
-    // The tree's shape changed, so the row is a note-bearing folder now.
+    // The tree changed, so the row is now a folder with a note.
     await waitFor(() => expect(disk.paths()).toContain('/v/Empty/Empty.md'))
   })
 
   /**
-   * A queued edit is *discarded* on a delete, never flushed — `mutate` flushes, and
-   * writing a pending edit would recreate the note just after deleting it.
+   * A queued edit is dropped on a delete, never flushed:
+   * `mutate` flushes, and writing it would bring the note back.
    */
   it('deletes the open note and does not resurrect it from the pending save', async () => {
     await openApp()
@@ -187,14 +172,13 @@ describe('the shell', () => {
     await waitFor(() => expect(disk.has('/v/roadmap.md')).toBe(false))
     await new Promise((resolve) => setTimeout(resolve, SAVED))
     expect(disk.has('/v/roadmap.md')).toBe(false)
-    // Nothing is open, so there is no buffer left holding the deleted text.
+    // Nothing is open, so no buffer holds the deleted text.
     expect(screen.queryByTestId('editor')).toBeNull()
   })
 
   /**
-   * Deleting a folder used to leave the editor mounted under the surviving note's
-   * name while still holding the **deleted** note's text — and the next keystroke
-   * autosaved that text into the surviving file.
+   * Deleting a folder once left the editor under the surviving note's name holding
+   * the deleted note's text, and the next key saved it into the surviving file.
    */
   it('closes a note inside a deleted folder rather than saving it into a survivor', async () => {
     await openApp()
@@ -222,9 +206,9 @@ describe('the shell', () => {
   })
 
   /**
-   * A rename moves the file, so the buffer has to follow it: everything that asks
-   * "does the editor hold this note" reads that path, and a stale one means the
-   * next write goes to a file that no longer exists.
+   * A rename moves the file, so the buffer follows: everything
+   * that asks which note the editor holds reads that path, and a
+   * stale one sends the next write to a missing file.
    */
   it('keeps the open note open across a rename, and writes to the new path', async () => {
     await openApp()
@@ -268,9 +252,8 @@ describe('the shell', () => {
   })
 
   /**
-   * A note whose bytes cannot be read must **not** become an empty editable
-   * document: the real text is still on disk and one keystroke would autosave the
-   * blank one over it.
+   * A note that cannot be read must not become an empty editable document:
+   * the real text is still on disk, and one key would save the blank over it.
    */
   it('mounts no editor over a note it could not read', async () => {
     disk.corrupt('/v/roadmap.md')
@@ -283,9 +266,8 @@ describe('the shell', () => {
   })
 
   /**
-   * There is no filesystem watcher — the disk is re-read on window focus. Without
-   * it the buffer keeps a stale copy and the next autosave overwrites whatever is
-   * now on disk.
+   * There is no file watcher; the disk is re-read on window focus. Otherwise the
+   * buffer keeps a stale copy and the next save overwrites what is now on disk.
    */
   it('picks up an edit made outside the app when the window regains focus', async () => {
     await openApp()
@@ -296,19 +278,15 @@ describe('the shell', () => {
     fireEvent.focus(window)
 
     await waitFor(() => expect(editor().value).toContain('written by something else'))
-    // The tree is re-read too, or a note created outside stays invisible for as
-    // long as the window keeps focus.
+    // The tree is re-read too, or a note made outside stays
+    // hidden while the window keeps focus.
     await waitFor(() => expect(row('appeared')).toBeTruthy())
   })
 
   /**
-   * ⌘⇧O — today's page.
-   *
-   * `today` is the app's own `localDateStamp`, which has its own test in a fixed
-   * zone; asserting it here would only pin the clock twice. What these pin is the
-   * wiring: the listener is registered once and the vault path it needs arrives on
-   * a *later* render, so a closure-captured path leaves the shortcut doing nothing
-   * at all — silently, which is how this went unnoticed twice in v1.
+   * ⌘⇧O, today's page. `localDateStamp` has its own test; this checks the
+   * wiring: the listener is registered once and the vault path arrives on
+   * a later render, so a captured path left the shortcut doing nothing.
    */
   const today = () => localDateStamp()
 
@@ -321,7 +299,7 @@ describe('the shell', () => {
     await waitFor(() => expect(disk.has(`/v/Daily/${today()}.md`)).toBe(true))
     // `Daily/` holds dated notes; it is a container, not a note with children.
     expect(disk.has('/v/Daily/Daily.md')).toBe(false)
-    // Opened, and through the tree's own path — so the row is there and selected.
+    // Opened through the tree's own path, so the row is there and selected.
     await waitFor(() => expect(row(today())).toBeTruthy())
     expect(row(today()).closest('button')?.className).toContain('selected')
     expect(editor().value).toBe('')
@@ -337,28 +315,22 @@ describe('the shell', () => {
     fireEvent.keyDown(window, { key: 'O', metaKey: true, shiftKey: true })
 
     await waitFor(() => expect(editor().value).toBe('written earlier today\n'))
-    // Neither file gets the other's text: the flush landed in roadmap, and today's
-    // page is exactly what was on disk.
+    // Neither file gets the other's text: the flush landed in
+    // roadmap, and today's page is exactly what was on disk.
     expect(disk.read(`/v/Daily/${today()}.md`)).toBe('written earlier today\n')
     await waitFor(() => expect(disk.read('/v/roadmap.md')).toContain('mid-sentence'))
   })
 })
 
 /**
- * A folder's icon, written into the notes inside it.
- *
- * Reported from the running app: `icon: calendar` sat in the top folder's note and
- * in no other, while every note under it drew the icon anyway — inheritance was
- * resolved while the tree drew itself. What the app shows now is what the note
- * says, which means the write has to reach every note it claims.
+ * A folder's icon, written into the notes inside it. Once the icon sat only
+ * in the top folder's note while every note under it drew it anyway. Now
+ * the app shows what each note says, so the write must reach every note.
  */
 describe('an icon set on a folder', () => {
   /**
-   * The picker on the row's own glyph. Clicking the name opens the note instead.
-   *
-   * `getByLabelText` for the icons and `getByText` for the rows: the icons are a
-   * grid of unlabelled buttons — sixty-three of them as rows would be a menu taller
-   * than the window — and their name is the tooltip.
+   * The picker on the row's glyph; clicking the name opens the note. `getByLabelText`
+   * for the icons, since they are unlabelled grid buttons whose name is the tooltip.
    */
   function pickIcon(rowLabel: string, choice: string) {
     fireEvent.click(screen.getByLabelText(rowLabel))
@@ -373,7 +345,7 @@ describe('an icon set on a folder', () => {
     await waitFor(() => expect(readProperty(disk.read('/v/Ideas/Ideas.md') ?? '', 'icon')).toBe('target'))
     const inside = disk.read('/v/Ideas/pingbird.md')!
     expect(readProperty(inside ?? '', 'icon')).toBe('target')
-    // Into the block it already had, not in front of it, and its own key survives.
+    // Into the block it already had, not before it, and its own key survives.
     expect(inside).toContain('status: draft')
     expect(inside.match(/^---/gm)!.length).toBe(2)
     // Outside the folder, untouched.
@@ -388,10 +360,10 @@ describe('an icon set on a folder', () => {
 
     pickIcon('Icon for Ideas', 'Goal')
     await waitFor(() => expect(readProperty(disk.read('/v/Ideas/Ideas.md') ?? '', 'icon')).toBe('target'))
-    // Somebody chose this one, so the folder does not overwrite it.
+    // Someone chose this one, so the folder does not overwrite it.
     expect(readProperty(disk.read('/v/Ideas/pingbird.md') ?? '', 'icon')).toBe('star')
 
-    // And removing the folder's icon leaves that choice alone too.
+    // Removing the folder's icon leaves that choice alone too.
     pickIcon('Icon for Ideas', 'Remove icon')
     await waitFor(() => expect(disk.read('/v/Ideas/Ideas.md')).not.toContain('icon:'))
     expect(readProperty(disk.read('/v/Ideas/pingbird.md') ?? '', 'icon')).toBe('star')
@@ -399,16 +371,14 @@ describe('an icon set on a folder', () => {
 })
 
 /**
- * What links here, at the end of the note.
- *
- * The index was written and tested long before anything rendered it, so what these
- * cover is the wiring: that a full read happens for a note that is merely *open*
- * — the graph pane used to be the only thing that paid for one — and that the
- * section goes away for a note nothing points at.
+ * What links here, at the end of the note. This covers the wiring: an open
+ * note gets a full read, and the section shows for a note nothing points at.
  */
 describe('the backlinks at the end of a note', () => {
-  /** By its own heading: a nested note has an *Inside* section in the same footer,
-   *  wearing the same class. */
+  /**
+   * By its own heading: a nested note has an Inside section in
+   * the same footer with the same class.
+   */
   const section = (title: string) =>
     [...document.querySelectorAll<HTMLElement>('.viewer:not([hidden]) .note-section')].find((el) =>
       el.querySelector('.folder-header')?.textContent?.includes(title)
@@ -424,10 +394,8 @@ describe('the backlinks at the end of a note', () => {
     await waitFor(() => expect(backlinks()).toBeTruthy())
     const shown = within(backlinks()!)
     expect(shown.getByText('plans')).toBeTruthy()
-    // Two links on one line: one line to read, and the count says there are two.
-    // **A quotation reads as the note reads**: the first link is its name and the
-    // second its alias, because a line quoted here showing `[[…]]` is showing bytes
-    // where the editor shows a sentence. This asserted the bytes.
+    // Two links on one line: one line to read, and the count says two. A quoted line
+    // reads as the note does: the first link as its name, the second as its alias.
     expect(shown.getByText('see roadmap, and again')).toBeTruthy()
     expect(shown.getByText('2')).toBeTruthy()
     expect(shown.queryByText('stray')).toBeNull()
@@ -437,17 +405,15 @@ describe('the backlinks at the end of a note', () => {
   })
 
   /**
-   * **A path is not a name here either, and `|!n` asks for the pages above it.**
-   * A quoted line showing `[[Ideas/kites]]` puts the folders that find the note
-   * into a sentence at the end of every note it points at. It reads as `kites`;
-   * `|!2` is how a link whose name is a fragment asks for the page it is under.
+   * A path is not a name here either: a quoted `[[Ideas/kites]]`
+   * reads as `kites`, and `|!2` asks for the page above.
    */
   it('shows a path link in a quoted line as its name, and |!n as the last n', async () => {
     disk.write('/v/Ideas/kites.md', '# Kites\n')
     disk.write('/v/plans.md', '# Plans\n\nsee [[Ideas/kites]] and [[Ideas/kites|!2]]\n')
     await openApp()
 
-    // Through the Inside section, which is how a nested note is reached.
+    // Through the Inside section, the way to a nested note.
     fireEvent.click(row('Ideas'))
     await waitFor(() => expect(section('Inside')).toBeTruthy())
     fireEvent.click(within(section('Inside')!).getByText('kites'))
@@ -458,15 +424,14 @@ describe('the backlinks at the end of a note', () => {
   })
 
   /**
-   * **There for every note**, with or without anything in it: a note nothing
-   * points at is a fact about the note, and a section that comes and goes is one
-   * whose position cannot be learned. Shut when empty, so it costs one row.
+   * There for every note, even with nothing in it, so its place
+   * is always the same. Shut when empty, so it takes one row.
    */
   it('is there and empty for a note nothing points at', async () => {
     disk.write('/v/plans.md', '# Plans\n\nsee [[roadmap]]\n')
     await openApp()
-    // Through a note that *has* one first, so what is below is a read that ran and
-    // found nothing rather than a read that never happened.
+    // Through a note that has one first, so the result below is
+    // a read that found nothing, not one that never ran.
     await openTheNote('roadmap')
     await waitFor(() => expect(within(backlinks()!).getByText('plans')).toBeTruthy())
 
@@ -474,7 +439,7 @@ describe('the backlinks at the end of a note', () => {
     await waitFor(() => expect(within(backlinks()!).queryByText('plans')).toBeNull())
     const shown = within(backlinks()!)
     expect(shown.getByText('0')).toBeTruthy()
-    // Shut, so the empty line is not under every note in the vault forever.
+    // Shut, so the empty line is not under every note forever.
     expect(shown.queryByText('Nothing links here yet.')).toBeNull()
     fireEvent.click(shown.getByText('Backlinks'))
     expect(shown.getByText('Nothing links here yet.')).toBeTruthy()
@@ -482,11 +447,8 @@ describe('the backlinks at the end of a note', () => {
 })
 
 /**
- * **What is inside a nested note**, in the same footer, above the backlinks.
- *
- * A nested note is a folder plus a same-named note (CLAUDE.md), so "inside" is the
- * children the tree draws under its row — which is what someone reading the note
- * wants a list of, and what the tree shows only while it is expanded.
+ * What is inside a nested note, in the same footer above the
+ * backlinks: the children the tree draws under its row.
  */
 describe('the inside of a nested note', () => {
   const section = (title: string) =>
@@ -511,11 +473,8 @@ describe('the inside of a nested note', () => {
   })
 
   /**
-   * **The left pane's tree, at the end of the note.** The section draws its folder
-   * with `FolderTree` — the same component, the same props — so a nested note in
-   * there has its own chevron and shows what is inside *it*. The alternative was a
-   * flat list of the first level, which is what this had and what the report was
-   * about.
+   * The left pane's tree at the end of the note: drawn with `FolderTree`,
+   * so a nested note there has its own chevron and contents.
    */
   it('expands a nested note inside it, and the level under that', async () => {
     disk.write('/v/Ideas/Deep/Deep.md', '# Deep\n')
@@ -536,8 +495,10 @@ describe('the inside of a nested note', () => {
     expect(inside().getByText('leaf')).toBeTruthy()
   })
 
-  /** The three read outward: where the note sits, what it holds, what points at
-   *  it. Only the middle one comes and goes. */
+  /**
+   * The three read outward: where the note sits, what it holds,
+   * what points at it. Only the middle one comes and goes.
+   */
   it('sits between the path and the backlinks, and is absent for a plain note', async () => {
     await openApp()
     fireEvent.click(row('Ideas'))
@@ -555,18 +516,14 @@ describe('the inside of a nested note', () => {
 })
 
 /**
- * **Where a note is reached from**, at the end of it beside what it holds and what
- * points at it. The tree answers this only while the branch is expanded, and the
- * title says the name and not the way in.
- *
- * Every step but the first is a **note**, because a folder is one here — so the
- * path is a row you can follow rather than a line of text.
+ * Where a note is reached from, at its end. Each step but the first
+ * is a note, since a folder is one, so each is a row to follow.
  */
 describe('the path at the end of a note', () => {
   const path = () =>
     [...document.querySelectorAll<HTMLElement>('.viewer:not([hidden]) .note-section')]
       .find((el) => el.querySelector('.folder-header')?.textContent?.includes('Path'))!
-  /** The steps, and how far each is indented — the descent is the point. */
+  /** The steps, and how far each is indented. */
   const steps = () =>
     [...path().querySelectorAll('.file-list li')].map((li) => [
       li.querySelector('.row-name')?.textContent,
@@ -584,13 +541,14 @@ describe('the path at the end of a note', () => {
     await waitFor(() => expect(row('Q3')).toBeTruthy())
     await openTheNote('Q3')
 
-    // **The vault is not a step**: it is where every note in the pane is, so a row
-    // saying so says nothing. Each folder sits one indent past the one above it.
+    // The vault is not a step. Each folder sits one indent past the one above.
     await waitFor(() => expect(steps()).toEqual([['Areas', stepIn(0)], ['Plans', stepIn(1)]]))
   })
 
-  /** **A nested note's trail stops at its parent.** `Areas/Plans/Plans.md` is known
-   *  as `Areas/Plans`, so the folder the note *is* is not a step on the way to it. */
+  /**
+   * A nested note's trail stops at its parent: `Areas/Plans/Plans.md`
+   * is known as `Areas/Plans`, so the folder it is is not a step.
+   */
   it('stops at the parent for a nested note', async () => {
     disk.write('/v/Areas/Plans/Plans.md', '# Plans\n')
     await openApp()
@@ -601,17 +559,13 @@ describe('the path at the end of a note', () => {
     await waitFor(() => expect(steps()).toEqual([['Areas', stepIn(0)]]))
   })
 
-  /**
-   * A note at the root has no path, so the section is there and shut — one row of
-   * cost, the bargain Backlinks makes when nothing links here. The vault itself is
-   * not a step: it is where every note in the pane is.
-   */
+  /** A note at the root has no path, so the section is there and shut: one row. */
   it('is shut, with nothing in it, for a note at the top of the vault', async () => {
     await openApp()
     await openTheNote('roadmap')
     await waitFor(() => expect(path()).toBeTruthy())
     expect(steps()).toEqual([])
-    // Opened by hand it says so rather than showing an empty list.
+    // Opened by hand, it says so instead of showing an empty list.
     fireEvent.click(within(path()).getByText('Path'))
     await waitFor(() => expect(steps()).toEqual([['At the top of the vault.', '']]))
   })
@@ -635,11 +589,9 @@ describe('the path at the end of a note', () => {
 })
 
 /**
- * **Every note takes a note inside it**, and one with no folder yet gets one — but
- * only if a name is actually committed. Converting on the click left an empty
- * nested note behind every `+` somebody thought better of: a folder holding
- * nothing but its own note, drawn with an arrow and an accent as though it were
- * full.
+ * Every note can take a note inside it, and one without a folder
+ * gets one, but only when a name is committed. Converting on the
+ * click left an empty nested note behind every cancelled `+`.
  */
 describe('a note inside a note', () => {
   it('asks for a name and touches nothing yet', async () => {
@@ -653,10 +605,8 @@ describe('a note inside a note', () => {
   })
 
   /**
-   * **Pressing the same `+` again leaves the field where it is.** It used to throw
-   * away what had been typed and open an empty one: the press blurred the open
-   * field, which for a create abandons, and the handler then made a fresh one.
-   * Reported from the running app as "it closes the input bar and opens it again".
+   * Pressing the same `+` again keeps the field. It used to blur
+   * the field (which abandons a create) and open an empty one.
    */
   it('keeps the open field, and what is typed in it, when the + is pressed again', async () => {
     await openApp()
@@ -664,7 +614,7 @@ describe('a note inside a note', () => {
     const field = await waitFor(() => screen.getByPlaceholderText('Note title…'))
     fireEvent.change(field, { target: { value: 'wayf' } })
 
-    // The press the button declines to let the field lose the keyboard over.
+    // The button keeps the field from losing the keyboard.
     fireEvent.mouseDown(screen.getByLabelText('New note in roadmap'))
     fireEvent.click(screen.getByLabelText('New note in roadmap'))
 
@@ -686,18 +636,10 @@ describe('a note inside a note', () => {
   })
 
   /**
-   * **A queued save follows the file it was queued for.**
-   *
-   * Found in a review, then reproduced: type into a note, press `+` to give it a
-   * child, and `convertToNested` moves the file while a save is still queued for
-   * the old path. The buffer moved its `note` and its `loadedPath` and left the
-   * queued write pointing where the note used to be. Measured before the fix —
-   * `roadmap/roadmap.md` holding the text from *before* the typing, and a stray
-   * `roadmap.md` at the root holding the typing itself. Two notes of one name, with
-   * the edit in the wrong one.
-   *
-   * The test must not wait for the debounce, because waiting is what hides it: the
-   * existing create tests all let the save land first.
+   * A queued save follows the file it was queued for. Typing into a note and pressing
+   * `+` moved the file while a save was queued for the old path: `roadmap/roadmap.md`
+   * held the text before the typing and a stray `roadmap.md` at the root held the
+   * typing. The test must not wait for the debounce, since waiting hides it.
    */
   it('keeps a still-queued edit with the note when it becomes nested', async () => {
     await openApp()
@@ -712,7 +654,7 @@ describe('a note inside a note', () => {
 
     await waitFor(() => expect(disk.has('/v/roadmap/q3.md')).toBe(true))
     await waitFor(() => expect(disk.read('/v/roadmap/roadmap.md')).toContain('mid-thought'))
-    // And nothing left behind where the note used to be.
+    // And nothing left where the note used to be.
     expect(disk.has('/v/roadmap.md')).toBe(false)
   })
 
@@ -740,12 +682,11 @@ describe('a note inside a note', () => {
     fireEvent.keyDown(field, { key: 'Enter' })
 
     await waitFor(() => expect(disk.has('/v/roadmap/Q3.md')).toBe(true))
-    // `roadmap.md` moved into the folder. The move itself rewrites nothing — the
-    // body arrives untouched — and then `path:` is written, which is the one thing
-    // that does edit the note and the reason this is not a byte-for-byte compare.
+    // `roadmap.md` moved into the folder. The move leaves the body untouched;
+    // then `path` is written, which is why this is not a byte-for-byte compare.
     expect(disk.read('/v/roadmap/roadmap.md')).toContain('# Roadmap\n\nThe plan, such as it is.\n')
-    // `path: roadmap`, not `roadmap/roadmap`: the note is the row the tree draws,
-    // and `roadmap/roadmap` names a page nothing in the app shows.
+    // `path` is `roadmap`, not `roadmap/roadmap`: the note is
+    // known by the row the tree draws.
     expect(readProperty(disk.read('/v/roadmap/roadmap.md') ?? '', 'path')).toBe('roadmap')
     expect(disk.has('/v/roadmap.md')).toBe(false)
     // It has something in it now, so it has an arrow.
@@ -753,7 +694,7 @@ describe('a note inside a note', () => {
   })
 
   it('gives a note with nothing in it no arrow at all', async () => {
-    // `Ideas/` holds `pingbird`, so it has one; a folder note on its own does not.
+    // `Ideas/` holds `pingbird`, so it has one; a folder note alone does not.
     disk.write('/v/Empty/Empty.md', '# Empty\n')
     await openApp()
 
@@ -764,12 +705,9 @@ describe('a note inside a note', () => {
 })
 
 /**
- * `path:` — where a note sits, written into the note.
- *
- * The property exists so the file says where it belongs when it is read anywhere
- * else, which means the app has to keep it true: a `path:` naming a place the note
- * is not would be worse than no property. So every operation that moves a note
- * writes it, and a folder writes every note under it.
+ * `path`: where a note sits, written into the note, so the file says where
+ * it belongs anywhere it is read. A wrong `path` is worse than none, so
+ * every move writes it, and a folder move writes every note under it.
  */
 describe('the path property', () => {
   const pathIn = (file: string) => readProperty(disk.read(file) ?? '', 'path')
@@ -805,18 +743,18 @@ describe('the path property', () => {
 
     // The note that became a folder, and the note that went into it.
     await waitFor(() => expect(pathIn('/v/roadmap/Q3.md')).toBe('roadmap/Q3'))
-    // The folder note is known by its folder, which is what the tree calls it.
+    // The folder note is known by its folder, as the tree names it.
     expect(pathIn('/v/roadmap/roadmap.md')).toBe('roadmap')
   })
 
   /**
-   * **There and unreadable is not "not written yet".** A note in a moved folder
-   * that refuses to be read — a Drive placeholder while offline — was written over
-   * with its `path:` block and nothing else.
+   * There but unreadable is not "not written yet". A note in a
+   * moved folder that could not be read (a Drive placeholder
+   * offline) was written over with only its `path` block.
    */
   it('leaves a moved note it cannot read as it was, names it, and moves the rest', async () => {
     const before = disk.read('/v/Ideas/pingbird.md')
-    // Where the move puts the note is a path the fake then refuses to read.
+    // The move puts the note at a path the fake then refuses to read.
     disk.corrupt('/v/Plans/pingbird.md')
     await openApp()
     fireEvent.doubleClick(row('Ideas'))
@@ -842,13 +780,9 @@ describe('a property written into a note that cannot be read', () => {
 })
 
 /**
- * **A name being typed belongs to the tree it was asked in.** Two panes draw one
- * tree — the left pane's and the *Inside* section at the end of a nested note — and
- * both drew the create field from the same target: two inputs, the second taking
- * the keyboard on mount, and the first cancelling because a create abandons on
- * blur. So pressing `+` on a folder whose own note was open opened a field and
- * threw it away in the same breath. Found while testing something else, from the
- * blur's `relatedTarget`: another `rename-input`.
+ * A name being typed belongs to the tree it was asked in. Two panes draw one
+ * tree (the left pane and a nested note's Inside section), and both drew the
+ * create field; the second took the keyboard and the first cancelled on blur.
  */
 describe('the create field, with a nested note open', () => {
   it('opens once, in the tree the + was pressed in', async () => {
@@ -866,7 +800,7 @@ describe('the create field, with a nested note open', () => {
 
     const fields = () => document.querySelectorAll('input.rename-input')
     await waitFor(() => expect(fields()).toHaveLength(1))
-    // And it stays: nothing else has taken the keyboard from it.
+    // And it stays: nothing else took the keyboard.
     await new Promise((resolve) => setTimeout(resolve, 60))
     expect(fields()).toHaveLength(1)
     expect(fields()[0].closest('.sidebar')).toBeTruthy()

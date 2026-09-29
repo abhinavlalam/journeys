@@ -5,29 +5,22 @@ import { cleanup, fireEvent, render } from '@testing-library/react'
 /**
  * The markdown editor: CodeMirror over the file's own bytes.
  *
- * Two levels, deliberately split.
+ * Commands and Live Preview decorations are tested as pure functions
+ * over an `EditorState`. jsdom lays nothing out, so a mounted
+ * editor's viewport is made up there; `livePreviewDecorations` takes
+ * its span as an argument so a test can hand it the whole document.
  *
- * The commands and the Live Preview decorations are tested as **pure functions over
- * an `EditorState`**. jsdom implements no layout, so a mounted CodeMirror's viewport
- * there is fiction — `visibleRanges` is measured off element rects that do not
- * exist — and a decoration test that went through a view would be asserting the
- * shim. `livePreviewDecorations` takes its span as an argument for exactly this
- * reason: a test hands it the whole document.
+ * A mount is for the wiring: the editor comes up, its change handler does
+ * not fire on open, and it fires with the whole document when it does.
  *
- * What genuinely needs a mount is the wiring: that the editor comes up, that its
- * change handler does *not* fire on open, and that it fires synchronously with the
- * whole document when it does.
- *
- * **What is not tested here, and cannot be:** anything geometric. Where the caret
- * lands, whether a hidden marker actually takes no width, how a 1.55em heading
- * reflows a wrapped line — all of that needs a real webview.
+ * Nothing geometric is tested here (caret position, a hidden
+ * marker's width, wrapping); that needs a real webview.
  */
 
 /**
- * **Before the imports**: `navigator.platform` is `''` in jsdom, and
- * `@codemirror/view` reads it at module load to decide whether `Mod-` is ⌘ or Ctrl.
- * Left alone, the keymap under test would be the Windows one, and a ⌘B case would
- * assert a chord this macOS app never sends. (`matchMedia` is `setup.ts`'s.)
+ * Before the imports: `navigator.platform` is `''` in jsdom, and `@codemirror/view`
+ * reads it at load to decide whether `Mod-` is ⌘ or Ctrl. Otherwise the keymap
+ * under test would be the Windows one. (`matchMedia` is in `setup.ts`.)
  */
 vi.hoisted(() => {
   Object.defineProperty(globalThis.navigator, 'platform', {
@@ -64,9 +57,11 @@ import { vaultFile as note } from './fakeVault'
 
 afterEach(cleanup)
 
-/** A state with the markdown parser in it, and a selection to run a command over.
-    `EditorState.create` parses a document this size to completion, so
-    `syntaxTree` is the whole tree and not the first screen of one. */
+/**
+ * A state with the markdown parser and a selection to run a
+ * command over. `EditorState.create` parses a document this size
+ * fully, so `syntaxTree` is the whole tree.
+ */
 function stateOf(doc: string, anchor: number, head = anchor, indentWidth = 2) {
   return EditorState.create({
     doc,
@@ -75,8 +70,7 @@ function stateOf(doc: string, anchor: number, head = anchor, indentWidth = 2) {
   })
 }
 
-/** The inline style a decoration carries — the marker's box and a line's hang are
- *  per item, so the value is the assertion. */
+/** The inline style a decoration carries; the value is the assertion. */
 function styleAt(state: EditorState, at: number): string {
   const iter = livePreviewDecorations(state, 0, state.doc.length).iter()
   while (iter.value) {
@@ -91,9 +85,10 @@ function styleAt(state: EditorState, at: number): string {
   return ''
 }
 
-/** Runs a command over a state and returns the document and selection it produced.
-    The command's own `dispatch` is handed a `Transaction`, so its resulting state
-    is read straight off it — no view, and nothing to lay out. */
+/**
+ * Runs a command over a state and returns the document and selection
+ * it produced, read off the `Transaction` passed to `dispatch`.
+ */
 function run(command: Command, state: EditorState) {
   let next = state
   const handled = command({
@@ -119,14 +114,14 @@ describe('a formatting command', () => {
   })
 
   it('unwraps when the markers sit outside the selection', () => {
-    // Exactly where ⌘B leaves the caret, so ⌘B twice is a no-op.
+    // Where ⌘B leaves the caret, so ⌘B twice undoes itself.
     const result = run(toggleMarker('**'), stateOf('the **plan** here', 6, 10))
     expect(result.doc).toBe('the plan here')
     expect([result.from, result.to]).toEqual([4, 8])
   })
 
   it('unwraps when the markers sit inside the selection', () => {
-    // What dragging across `**plan**` by hand gives you.
+    // What selecting `**plan**` by hand gives.
     const result = run(toggleMarker('**'), stateOf('the **plan** here', 4, 12))
     expect(result.doc).toBe('the plan here')
     expect([result.from, result.to]).toEqual([4, 8])
@@ -144,7 +139,7 @@ describe('a formatting command', () => {
   })
 
   it('does not mistake a one-marker neighbour for a wrapped selection', () => {
-    // `_plan_` with ⌘B: `_` is not `**`, so this wraps rather than stripping.
+    // `_plan_` with ⌘B: `_` is not `**`, so this wraps.
     expect(run(toggleMarker('**'), stateOf('the _plan_ here', 5, 9)).doc).toBe(
       'the _**plan**_ here'
     )
@@ -156,18 +151,10 @@ describe('a formatting command', () => {
 // ---------------------------------------------------------------------------
 
 /**
- * Every decoration in the set as `class@from-to`.
- *
- * A hidden marker is a `Decoration.replace({})`, whose spec carries no class — the
- * absence is the discriminator. A replacing decoration that carries a *widget* is
- * named by the class that widget draws, less this editor's prefix: `bullet`,
- * `rule`. Ranges and classes only: nothing here is geometry.
- *
- * Sorted outermost-first at each position rather than left in `RangeSet` order,
- * which puts a replacing decoration ahead of a mark starting at the same offset.
- * That ordering is CodeMirror's business, not this editor's, and a test that
- * asserted it would break on a library detail while saying nothing about the
- * feature.
+ * Every decoration in the set as `class@from-to`. A hidden marker is a
+ * `Decoration.replace({})` with no class; a replacing decoration with a widget is
+ * named by its widget's class minus the prefix (`task`, `rule`). Sorted outermost
+ * first at each position, since `RangeSet` order is CodeMirror's detail.
  */
 function label(deco: Decoration): string {
   if (deco.spec.class) return deco.spec.class as string
@@ -194,7 +181,7 @@ const all = (state: EditorState) => spans(livePreviewDecorations(state, 0, state
 
 describe('Live Preview', () => {
   it('renders a bold run and hides its asterisks when the caret is elsewhere', () => {
-    // `the **plan** here`, caret at 0 — outside the run.
+    // `the **plan** here`, caret at 0, outside the run.
     expect(all(stateOf('the **plan** here', 0))).toEqual([
       'cm-md-strong@4-12',
       'hidden@4-6',
@@ -203,7 +190,7 @@ describe('Live Preview', () => {
   })
 
   it('brings the asterisks back, dimmed, when the caret is inside the run', () => {
-    // Caret between `pl` and `an`: the syntax must be there to be edited.
+    // Caret between `pl` and `an`: the syntax must show to be edited.
     expect(all(stateOf('the **plan** here', 8))).toEqual([
       'cm-md-strong@4-12',
       'cm-md-marker@4-6',
@@ -212,8 +199,8 @@ describe('Live Preview', () => {
   })
 
   it('counts the run’s own edges as inside, so the markers can be reached', () => {
-    // Caret immediately before the opening `**`. A run whose syntax appears only
-    // once the caret is past it is a run you cannot get into.
+    // Caret right before the opening `**`. If the syntax only showed
+    // once the caret was past it, the run could not be entered.
     expect(all(stateOf('the **plan** here', 4))).toContain('cm-md-marker@4-6')
   })
 
@@ -230,13 +217,11 @@ describe('Live Preview', () => {
   })
 
   /**
-   * The third decoration is on the *line*, not the heading: it is what puts space
-   * above one. A heading's own class is a mark over its text, and margin on an
-   * inline box does nothing — so without a line decoration a heading sits exactly
-   * one leading below the paragraph it interrupts.
+   * The third decoration is on the line, not the heading: it puts
+   * space above. A margin on the heading's inline mark does nothing.
    */
   it('hides a heading’s hash *and* the space after it', () => {
-    // `# Head` — hiding `#` alone left every heading indented by one space.
+    // `# Head`: hiding `#` alone left every heading indented by a space.
     expect(all(stateOf('# Head\n\nbody', 9))).toEqual([
       'cm-md-h1@0-6',
       'hidden@0-2',
@@ -253,7 +238,7 @@ describe('Live Preview', () => {
   })
 
   it('puts the space on the heading’s own line, wherever it is', () => {
-    // Line three, so the decoration is at its start and not the document's.
+    // Line three, so the decoration is at its start, not the document's.
     expect(all(stateOf('body\n\n## Later\n', 0))).toEqual([
       'cm-md-h2@6-14',
       'hidden@6-9',
@@ -276,12 +261,9 @@ describe('Live Preview', () => {
   })
 
   /**
-   * Reveal is **per node**, not per line, and the nested case is where that shows.
-   * A caret at the very start of `**_both_**` is inside the bold run and *not*
-   * inside the italic one, so the asterisks come back while the underscores stay
-   * hidden — the underscores appear as the caret moves into the italic. The
-   * alternative, revealing every marker on the line, turns editing one word of a
-   * dense line into a line that jumps.
+   * Reveal is per node, not per line. A caret at the start of `**_both_**` is
+   * inside the bold run but not the italic, so the asterisks show and the
+   * underscores stay hidden. Revealing a whole line would make dense lines jump.
    */
   it('nests, and reveals only the run the caret is actually in', () => {
     expect(all(stateOf('**_both_**', 0))).toEqual([
@@ -292,7 +274,7 @@ describe('Live Preview', () => {
       'hidden@7-8',
       'cm-md-marker@8-10',
     ])
-    // Caret at 4, inside `both`: both pairs are reachable.
+    // Caret at 4, inside `both`: both pairs show.
     expect(all(stateOf('**_both_**', 4))).toEqual([
       'cm-md-strong@0-10',
       'cm-md-marker@0-2',
@@ -307,17 +289,6 @@ describe('Live Preview', () => {
     expect(all(stateOf('plain words, nothing to render\n', 0))).toEqual([])
   })
 
-  /**
-   * A list marker is the one piece of syntax that is *replaced* rather than hidden.
-   * Hiding `- ` outright costs the item its bullet **and** its indent, so it reads
-   * as a bare paragraph — which is what shipped first, and what the user saw.
-   */
-  /**
-   * A bullet is *always* a bullet — unlike `**` or `_`, which reveal when the caret
-   * is inside them. A list marker is not edited in place; you delete the item or
-   * outdent it. Revealing it meant typing `- ` showed a hyphen for as long as the
-   * caret stayed on that line, which is every moment you are writing the item.
-   */
   /** A list marker is shown as typed, at the margin or indented. */
   it('leaves a list marker as typed', () => {
     expect(all(stateOf('- see [[Pingbird]]\n', 0))).toEqual(['cm-md-link@6-18', 'hidden@6-8', 'hidden@16-18'])
@@ -325,10 +296,8 @@ describe('Live Preview', () => {
   })
 
   /**
-   * **A `#tag` is marked, and always**: the mark is what makes the span pressable,
-   * and a tag goes somewhere.
-   * Nothing hides, because `#` *is* the tag — unlike a link's brackets, removing it
-   * would leave a different word on the line.
+   * A `#tag` is always marked: the mark makes it pressable.
+   * Nothing hides, because `#` is part of the tag.
    */
   it('marks a tag, with the caret in the line or out of it', () => {
     expect(all(stateOf('see #travel now\n', 0))).toEqual(['cm-md-tag@4-11'])
@@ -336,8 +305,10 @@ describe('Live Preview', () => {
     expect(all(stateOf('see #travel now\n', 6))).toEqual(['cm-md-tag@4-11'])
   })
 
-  /** The guards, at the decoration level: a heading is not a tag, and neither is
-   *  an anchor. `tags.test.ts` has the rest. */
+  /**
+   * The guards at the decoration level: a heading is not a tag,
+   * nor is an anchor. `tags.test.ts` has the rest.
+   */
   it('does not mark a heading or an anchor as a tag', () => {
     const tagged = (doc: string) => all(stateOf(doc, 0)).filter((one) => one.startsWith('cm-md-tag@'))
     expect(tagged('## Section\n')).toEqual([])
@@ -346,10 +317,9 @@ describe('Live Preview', () => {
   })
 
   /**
-   * **A task is Obsidian's parse, not GFM's.** GFM knows `[ ]` and `[x]` and gives
-   * them a node; a vault written in Obsidian is full of `[-]`, `[>]` and `[/]`,
-   * which that grammar reads as ordinary text. So the line is scanned, any single
-   * character is a state, and one the app draws no glyph for is drawn as itself.
+   * A task is read as Obsidian reads it, not GFM: any single
+   * character between the brackets is a state (`[-]`, `[>]`,
+   * `[/]`), and one the app has no glyph for is drawn as itself.
    */
   it('draws a checkbox for the box, leaves the marker, and dims a done item', () => {
     expect(all(stateOf('- [ ] milk\n', 0))).toEqual(['task@2-6'])
@@ -359,8 +329,9 @@ describe('Live Preview', () => {
     expect(all(stateOf('1. [ ] first\n', 0))).toEqual(['task@3-7'])
   })
 
-  /** The box stays drawn with the caret in the line, so it can be pressed while the
-   *  line is being written. */
+  /**
+   * The box stays drawn with the caret in the line, so it can be pressed while writing.
+   */
   it('keeps the box drawn with the caret in the line', () => {
     expect(all(stateOf('- [ ] milk\n', 8))).toEqual(['task@2-6'])
     expect(all(stateOf('- [ ] milk\n', 3))).toEqual(['task@2-6'])
@@ -372,16 +343,20 @@ describe('Live Preview', () => {
     expect(tasks('```\n- [ ] milk\n```\n')).toEqual([])
   })
 
-  /** The lookahead for a space is what keeps these two from being tasks: one opens
-   *  a wikilink, the other is a markdown link whose label is `x`. */
+  /**
+   * The space after the bracket keeps these from being tasks: one
+   * opens a wikilink, the other is a markdown link labelled `x`.
+   */
   it('is not a task when the brackets are a link', () => {
     const tasks = (doc: string) => all(stateOf(doc, 0)).filter((one) => one.startsWith('task@'))
     expect(tasks('- [[Note]]\n')).toEqual([])
     expect(tasks('- [x](url)\n')).toEqual([])
   })
 
-  /** A press writes **one character**, the state between the brackets, and clears
-   *  any state that is not open rather than cycling through them. */
+  /**
+   * A press writes one character, the state between the
+   * brackets, and clears any other state rather than cycling.
+   */
   it('reads the state off the line and toggles it', () => {
     const at = (doc: string) => taskAt(stateOf(doc, 0), 0)
     expect(at('- [ ] milk\n')).toEqual({ from: 2, mark: ' ' })
@@ -394,40 +369,19 @@ describe('Live Preview', () => {
   })
 
   /**
-   * **An item's level is the tree's answer, not a count of its spaces.**
-   *
-   * Markdown nests by content column — a child's marker sits two or three
-   * characters past its parent's — and the grid steps by the indent setting, which
-   * in the vault this was found in is six spaces. Counting spaces into steps
-   * therefore drew a child at its parent's level (`floor(2 / 6) + 1`), and its text
-   * landed 1.33 steps in. Measured in Chrome at those settings, before and after:
-   * 1.00, 1.33, 1.67 steps against 1.00, 2.00, 3.00.
-   *
-   * The box makes up the difference, so the text lands on the step whatever the
-   * document indents by.
-   */
-  /**
-   * **Every indented line hangs, not only a list item.** Reported three times, and
-   * the first two readings of it were wrong: it is about a line's *wrapped rows*,
-   * not about separate lines. An indented line put its first row correctly in and
-   * its second and third rows back at the edge of the reading pane, because the
-   * hang was pushed only from the syntax walk's `ListItem` branch — and a journal's
-   * detail lines are indented **prose**, which that branch never sees.
-   *
-   * Measured in Chrome at a 520px column, a six-space prose line long enough to
-   * wrap: rows at 40.00 and 40.00 before, 40.00 and 62.08 after, where 62.08 is
-   * 40 + 6 spaces. The wrapped row lands under the text.
+   * Every indented line hangs, not only a list item: a line's
+   * wrapped rows start under its text. The hang was once only on
+   * list items, and indented prose wrapped back to the edge.
    */
   it('hangs an indented prose line by the width of its own spaces', () => {
     const doc = '10:00 the entry\n      the detail under it\n'
     const at = doc.indexOf('      the detail')
     expect(styleAt(stateOf(doc, 0), at)).toBe('--hang: calc(6 * var(--space-w))')
-    // The head of the block is not indented, so it has no hang at all.
+    // The block's first line is not indented, so it has no hang.
     expect(styleAt(stateOf(doc, 0), 0)).toBe('')
   })
 
-  /** A blank line and an unindented line are left alone: there is nothing to hang
-   *  under, and a decoration per line is not free. */
+  /** A blank or unindented line gets no hang. */
   it('gives no hang to a line with no indent', () => {
     expect(styleAt(stateOf('plain line here\n', 0), 0)).toBe('')
     expect(styleAt(stateOf('\n\n', 0), 0)).toBe('')
@@ -439,12 +393,9 @@ describe('Live Preview', () => {
   })
 
   /**
-   * **A link reads as its name.**
-   *
-   * CommonMark reads `[[x]]` as plain text, so there is no node and no markers to
-   * reveal — the scan does both. The brackets go while the caret is elsewhere and
-   * are back the moment it lands, which is the bargain every other mark here makes,
-   * and an alias is how a link gets a name: `[[Areas/Pingbird|Bird]]` shows `Bird`.
+   * A link reads as its name. CommonMark reads `[[x]]` as plain text, so the scan
+   * finds it. The brackets hide while the caret is elsewhere and come back when
+   * it arrives. An alias gives the name: `[[Areas/Pingbird|Bird]]` shows `Bird`.
    */
   it('shows a wikilink’s name and hides its syntax', () => {
     // `[[` and `]]` hidden; `Pingbird` is the name.
@@ -453,23 +404,19 @@ describe('Live Preview', () => {
       'hidden@4-6',
       'hidden@14-16',
     ])
-    // With an alias, everything left of the pipe goes with the brackets.
+    // With an alias, everything left of the pipe hides with the brackets.
     expect(all(stateOf('see [[Areas/Pingbird|Bird]]\n', 0))).toEqual([
       'cm-md-link@4-27',
       'hidden@4-21',
       'hidden@25-27',
     ])
-    // The caret on it shows what it is made of, so it can be edited.
+    // The caret on it shows the syntax, so it can be edited.
     expect(all(stateOf('see [[Areas/Pingbird|Bird]]\n', 10))).toEqual(['cm-md-link@4-27'])
   })
 
   /**
-   * **A name is sometimes a fragment**, and `|!n` asks for the pages above it.
-   *
-   * `[[Entities/Cafes/Bean Street/Lakeside Arrival]]` reads as `Lakeside Arrival`, which does
-   * not say whose; here the folder above it is a *page* and not a directory, so
-   * what `!2` adds is the one page this one is under. The marker sits in the alias
-   * slot and hides with the brackets, exactly as an alias does.
+   * `|!n` shows the last n names of the path, when the last name alone does not
+   * say whose. The marker sits in the alias slot and hides with the brackets.
    */
   it('shows the last n names of a wikilink written |!n', () => {
     // `!2` hides `[[a/b/` at the front and `|!2]]` at the back: `c/d` shows.
@@ -478,19 +425,19 @@ describe('Live Preview', () => {
       'hidden@4-10',
       'hidden@13-18',
     ])
-    // `!` with no number shows every name, which is the pre-alias reading, asked for.
+    // `!` with no number shows every name.
     expect(all(stateOf('see [[a/b/c/d|!]]\n', 0))).toEqual([
       'cm-md-link@4-17',
       'hidden@4-6',
       'hidden@13-17',
     ])
-    // A count past what the path holds clamps to the path rather than failing.
+    // A count past the path's length clamps to the path.
     expect(all(stateOf('see [[a/b|!9]]\n', 0))).toEqual([
       'cm-md-link@4-14',
       'hidden@4-6',
       'hidden@9-14',
     ])
-    // The caret on it brings the marker back, like every other piece of syntax.
+    // The caret on it brings the marker back, like other syntax.
     expect(all(stateOf('see [[a/b/c/d|!2]]\n', 10))).toEqual(['cm-md-link@4-18'])
   })
 
@@ -507,13 +454,12 @@ describe('Live Preview', () => {
   })
 
   /**
-   * **A bare URL is a link.** GFM parses one as a top-level `URL` node — an email
-   * address too — and nothing marked it, so a pasted line of links was plain text
-   * you could not click. Reported from the running app, in a journal full of them.
+   * A bare URL is a link. GFM parses one (an email too) as a `URL`
+   * node, and nothing marked it, so pasted links could not be clicked.
    */
   it('marks a bare URL, an autolink and an email', () => {
     expect(all(stateOf('see https://example.invalid/a here\n', 0))).toEqual(['cm-md-link@4-29'])
-    // `<url>`: the angle brackets are syntax, the URL is the name.
+    // `<url>`: the angle brackets are syntax; the URL is the name.
     expect(all(stateOf('see <https://example.invalid/a> here\n', 0))).toEqual([
       'cm-md-link@4-31',
       'hidden@4-5',
@@ -522,8 +468,7 @@ describe('Live Preview', () => {
     expect(all(stateOf('mail name@example.invalid now\n', 0))).toEqual(['cm-md-link@5-25'])
   })
 
-  /** Beyond the four inline nodes this change set out to render — tested here
-      rather than left to ship unverified. */
+  /** More inline nodes, tested here too. */
   it('renders a blockquote and hides its `>` when the caret is out of it', () => {
     expect(all(stateOf('> quoted\n\nbody', 12))).toEqual(['cm-md-quote@0-8', 'hidden@0-2'])
     expect(all(stateOf('> quoted\n\nbody', 3))).toEqual(['cm-md-quote@0-8', 'cm-md-marker@0-2'])
@@ -543,8 +488,10 @@ describe('Live Preview', () => {
 // The mount, and the one thing it must never do
 // ---------------------------------------------------------------------------
 
-/** The live view behind a rendered `MarkdownEditor`. `findFromDOM` is CodeMirror's
-    own way in, so the test reaches the editor the way the app's DOM does. */
+/**
+ * The live view behind a rendered `MarkdownEditor`, found with
+ * CodeMirror's `findFromDOM`.
+ */
 function viewOf(container: HTMLElement): EditorView {
   const view = EditorView.findFromDOM(container.querySelector('.cm-editor') as HTMLElement)
   expect(view).toBeTruthy()
@@ -552,30 +499,15 @@ function viewOf(container: HTMLElement): EditorView {
 }
 
 /**
- * **Tab nests a list item by markdown's rule, not by the indent setting.**
- *
- * Reported from the running app: "pressing enter from a bullet line moves the
- * cursor at a random indent level". The vault's `indentWidth` is 6, and the
- * general Tab inserts one indent width — so a child's marker landed six spaces
- * past a parent whose content column was two. CommonMark allows at most three:
- * past that the line is an indented code block *inside* the item, so it lost its
- * bullet, and Enter from it continued no list and copied the whitespace instead.
- *
- * A child goes at the previous item's content column, which is the one depth that
- * stays a list — and is the same answer at every indent width.
- */
-/**
- * **Enter keeps the indent of the line you are on**, which markdown's own Enter
- * does not: it answers for the block the line is *in*.
- *
- * Reported from the running app, and read out of the note's bytes: line 17 six
- * spaces, line 18 three. An ordered list ran above, so the parser had that line
- * inside item `7.`, whose content column is three — so an indent the user typed
- * as six came back as three, and the caret landed at a level nobody chose.
+ * Enter keeps the indent of the line you are on. Markdown's own Enter
+ * follows the block the line is in: after an ordered list, a line typed
+ * with six spaces was continued with three, the list item's content column.
  */
 describe('Enter on an indented line', () => {
-  /** The note that reported this, in the shape that produced it: a list, a lazy
-   *  continuation of its last item, and an indented line under that. */
+  /**
+   * The note that showed this: a list, a lazy continuation of
+   * its last item, and an indented line under that.
+   */
   const note = '7. https://example.invalid/profile\n12:30 to 14:00 Working on it\n      Identifying a list'
 
   it('keeps the line’s own spaces, not the enclosing item’s column', () => {
@@ -617,7 +549,7 @@ describe('Enter on an indented line', () => {
       view.dispatch({ selection: { anchor: doc.length } })
       fireEvent.keyDown(view.contentDOM, { key: 'Enter' })
       const text = view.state.doc.toString()
-      // The caret is where the next word goes: the end.
+      // The caret is at the end, where the next word goes.
       expect(view.state.selection.main.head).toBe(text.length)
       return text
     }
@@ -653,12 +585,9 @@ describe('Enter on an indented line', () => {
 
 describe('the mounted editor', () => {
   /**
-   * **The caret starts under the properties, and is visible.**
-   *
-   * At offset 0 it sits between the opening `---` and the first key, so the first
-   * thing typed in a note that carries properties edits one of them. And a caret
-   * placed in an unfocused editor is not drawn at all — CodeMirror only draws it
-   * for the focused one — so placing it and taking the keyboard are one answer.
+   * The caret starts under the properties, and is drawn. At offset 0
+   * the first key typed edits a property. CodeMirror draws the caret
+   * only in a focused editor, so placing it and focusing go together.
    */
   it('starts the caret on the line under a note’s properties', () => {
     const doc = '---\nicon: compass\ndate: 2026-09-12\n---\n\n# Reading\n'
@@ -670,8 +599,10 @@ describe('the mounted editor', () => {
     expect(view.hasFocus).toBe(true)
   })
 
-  /** Tab through the keymap: a line moves one indent width, with the lines nested
-   *  under it, and a list line is a line like any other. */
+  /**
+   * Tab through the keymap: a line moves one indent width with
+   * the lines nested under it; a list line is like any other.
+   */
   describe('Tab over a block', () => {
     const tabbed = (doc: string, at: number, head = at, shift = false) => {
       const { container } = render(
@@ -683,8 +614,10 @@ describe('the mounted editor', () => {
       return view.state.doc.toString()
     }
 
-    /** A journal entry: a clock line with its detail indented under it. The whole
-     *  block moves by one indent width, and the nesting inside it survives. */
+    /**
+     * A journal entry: a clock line with its detail indented under it.
+     * The block moves by one indent width, and its nesting is kept.
+     */
     it('moves a prose block and the run nested under it', () => {
       const doc = '10:00 Making the updates\n      more detail\n      and more\n'
       expect(tabbed(doc, 8)).toBe(
@@ -692,12 +625,12 @@ describe('the mounted editor', () => {
       )
     })
 
-    /** A line with nothing under it is an ordinary line and the general Tab's. */
+    /** A line with nothing under it gets the plain Tab. */
     it('leaves a line with no run to the general Tab', () => {
       expect(tabbed('alpha\nbeta\n', 2)).toBe('  alpha\nbeta\n')
     })
 
-    /** A selection is `indentMore`'s, which already moves every line it is given. */
+    /** A selection goes to `indentMore`, which moves every line in it. */
     it('indents every line of a selection', () => {
       const doc = 'alpha\nbeta\ngamma\n'
       expect(tabbed(doc, 0, doc.indexOf('gamma') + 5)).toBe('  alpha\n  beta\n  gamma\n')
@@ -727,7 +660,7 @@ describe('the mounted editor', () => {
       expect(view.state.doc.toString()).toBe('- one\n     - two\n     - ')
     })
 
-    /** Shift-Tab is the same question backwards, and clamps at the margin. */
+    /** Shift-Tab is the reverse, and stops at the margin. */
     it('outdents a prose block without pushing its run past the margin', () => {
       const doc = '  10:00 Making the updates\n    more detail\n'
       expect(tabbed(doc, 10, 10, true)).toBe('10:00 Making the updates\n  more detail\n')
@@ -735,11 +668,9 @@ describe('the mounted editor', () => {
   })
 
   /**
-   * **A press checks the box, and `mousedown` is the whole of why.** The same trap
-   * following a link fell into, and closer to the surface here: the toggle changes
-   * the document, the decoration is rebuilt, and the element that was pressed is
-   * gone before the button comes back up — so no `click` is ever generated. The
-   * release below lands on a different node, which is the point.
+   * A press checks the box, on `mousedown`: the toggle rebuilds the
+   * decoration and the pressed element is gone before the release, so no
+   * `click` fires. The release below lands on a different node on purpose.
    */
   it('checks and unchecks a task on the press', () => {
     const typed: string[] = []
@@ -757,16 +688,11 @@ describe('the mounted editor', () => {
 
     fireEvent.mouseDown(box(), { button: 0, detail: 1 })
     expect(view.state.doc.toString()).toBe('- [ ] milk\n')
-    // The note is saved by the same handler every keystroke goes through.
+    // The note is saved by the same handler as every key.
     expect(typed.at(-1)).toBe('- [ ] milk\n')
   })
 
-  /**
-   * Enter continues a task list, and that comes free: `markdownKeymap` is spread
-   * into the one array that is the whole precedence here, and GFM's own
-   * continuation writes a fresh **unchecked** box under a checked one. Pinned
-   * because `addKeymap: false` means this binding is ours to keep.
-   */
+  /** Enter on a task line starts an unchecked box under it (`continueIndent`). */
   it('continues a task list on Enter, unchecked', () => {
     const doc = '- [x] milk\n'
     const { container } = render(<MarkdownEditor initialMarkdown={doc} onChange={() => {}} />)
@@ -776,8 +702,9 @@ describe('the mounted editor', () => {
     expect(view.state.doc.toString()).toBe('- [x] milk\n- [ ] \n')
   })
 
-  /** A state the app draws no glyph for is still a task, and a press **clears** it
-   *  rather than cycling: "check, then uncheck" is the whole of the gesture. */
+  /**
+   * A state with no glyph is still a task, and a press clears it rather than cycling.
+   */
   it('clears an Obsidian state that is not a tick', () => {
     const { container } = render(
       <MarkdownEditor initialMarkdown={'- [>] forwarded\n'} onChange={() => {}} />
@@ -790,8 +717,10 @@ describe('the mounted editor', () => {
     expect(view.state.doc.toString()).toBe('- [ ] forwarded\n')
   })
 
-  /** Only a plain left press: the right button is the menu's and a modifier is the
-   *  platform's, exactly as for a link. */
+  /**
+   * Only a plain left press: the right button is the menu's and
+   * modifiers are the platform's, as for a link.
+   */
   it('leaves a task alone on the other buttons and the modifiers', () => {
     const { container } = render(
       <MarkdownEditor initialMarkdown={'- [ ] milk\n'} onChange={() => {}} />
@@ -804,11 +733,9 @@ describe('the mounted editor', () => {
   })
 
   /**
-   * Reported from the running app: a double click on a row renamed for a moment
-   * and then gave up. The click under it opened the note, the note arrived a read
-   * later, and this editor's mount took the keyboard off the rename field — which
-   * commits on blur. So the file arriving does not take a keyboard someone else is
-   * typing with.
+   * A double click on a row opens the note and starts a rename. The note arrives a
+   * read later, and the editor's mount took the keyboard, which ended the rename
+   * on blur. So the arriving file does not take the keyboard from another field.
    */
   it('leaves the keyboard where it is when a field has it', () => {
     const field = document.createElement('input')
@@ -822,27 +749,26 @@ describe('the mounted editor', () => {
   })
 
   /**
-   * Reported from the running app: a new action file is created as `# owner` and
-   * nothing else, and opening it showed the `#` — because the caret was on that
-   * line and this editor reveals the syntax the caret is in.
+   * A note that is only `# title` opened with the `#` showing, because the
+   * caret was on that line and the editor shows the syntax under the caret.
    */
   it('starts the caret under the title as well', () => {
     expect(caretOnOpen('# Reading\n\nthe plan\n')).toBe(10)
-    // With a blank line after the block the caret lands *on* it, and the title
-    // below keeps its `#` hidden, which is the same outcome by a shorter route.
+    // With a blank line after the block the caret lands on it,
+    // and the title below keeps its `#` hidden.
     expect(caretOnOpen('---\nicon: x\n---\n\n# Reading\nbody\n')).toBe(16)
     // No blank line, so the title is the first thing past the block and is skipped.
     expect(caretOnOpen('---\nicon: x\n---\n# Reading\nbody\n')).toBe(26)
     // The same, for page properties written as `key:: value`.
     expect(caretOnOpen('icon:: x\n\n# Reading\nbody\n')).toBe(9)
     expect(caretOnOpen('icon:: x\n# Reading\nbody\n')).toBe(19)
-    // A title and nothing else: the end of the note, which is where typing goes.
+    // A title and nothing else: the end of the note, where typing goes.
     expect(caretOnOpen('# owner\n')).toBe(8)
     expect(caretOnOpen('# owner')).toBe(7)
   })
 
   it('leaves a heading further down alone, since that is a section', () => {
-    // The caret belongs at the top of the body; a heading below is not a title.
+    // The caret belongs at the top of the body; a heading further down is not a title.
     expect(caretOnOpen('some text\n\n# Later\n')).toBe(0)
   })
 
@@ -853,8 +779,8 @@ describe('the mounted editor', () => {
     expect(viewOf(container).state.selection.main.head).toBe(0)
   })
 
-  // Nothing is typed by placing a caret: the note on disk is untouched, which is
-  // what `openNote.test.tsx` proves against the bytes.
+  // Placing a caret types nothing: the note on disk is untouched
+  // (`openNote.test.tsx` checks the bytes).
   it('does not fire its change handler for placing the caret', () => {
     const onChange = vi.fn()
     render(<MarkdownEditor initialMarkdown={'---\nicon: x\n---\n\nbody\n'} onChange={onChange} />)
@@ -872,11 +798,9 @@ describe('the mounted editor', () => {
   })
 
   /**
-   * Opening a note must not write to it — the unit half of what
-   * `openNote.test.tsx` proves against the disk. A *stronger* guarantee than a
-   * guard: there is nothing here to normalise the document on mount, and
-   * CodeMirror's update listener does not run for the state the view was created
-   * with. So the assertion is simply that nothing was called.
+   * Opening a note must not write to it. Nothing here changes
+   * the document on mount, and CodeMirror's update listener does
+   * not run for the first state, so nothing should be called.
    */
   it('does not fire its change handler on mount', () => {
     const changed = vi.fn()
@@ -891,17 +815,16 @@ describe('the mounted editor', () => {
 
     view.dispatch({ changes: { from: 3, insert: ' two' } })
 
-    // Synchronous: no timer is advanced and no `waitFor` is needed. Crepe's
-    // 200ms debounce loses the last keystrokes when the pane unmounts inside the
-    // window; there is no window here to lose them in.
+    // Synchronous: no timer is advanced and no `waitFor` is
+    // needed, so no keys are lost when the pane unmounts.
     expect(changed).toHaveBeenCalledTimes(1)
     expect(changed).toHaveBeenLastCalledWith('one two')
   })
 
   /**
-   * **A file's line endings are its own.** CodeMirror splits on `\r\n`, `\r` and
-   * `\n` alike and joins with `\n`, so the first keystroke in a note written on
-   * Windows, or a CSV an export left behind, rewrote every line ending in it.
+   * A file keeps its line endings. CodeMirror splits on `\r\n`,
+   * `\r` and `\n` and joins with `\n`, so the first key in a
+   * Windows note or an exported CSV rewrote every line ending.
    */
   it('keeps CRLF line endings through an edit and a new line', () => {
     const changed = vi.fn()
@@ -926,7 +849,7 @@ describe('the mounted editor', () => {
   })
 
   // The caret is worked out in the file's characters, where `\r\n` is two; in the
-  // document a line break is one, so each break above it pushed it one further in.
+  // document a break is one, so each break above pushed the caret one further.
   it('opens a CRLF note below its properties, where an LF one opens', () => {
     const { container } = render(
       <MarkdownEditor initialMarkdown={'---\r\nicon: x\r\n---\r\n\r\nbody\r\n'} onChange={() => {}} />
@@ -951,11 +874,11 @@ describe('the mounted editor', () => {
     fireEvent.keyDown(view.contentDOM, { key: 'T', metaKey: true, shiftKey: true })
 
     const text = view.state.doc.toString()
-    // The trailing space is part of it: without one, the first character typed
-    // after the stamp stops it being a stamp.
+    // The trailing space is part of it: without it, the next
+    // character typed stops it being a stamp.
     expect(text).toMatch(/^\d{2}:\d{2} $/)
-    // Past all of it. The caret used to be mapped to the front of the insertion,
-    // so the next keystroke landed in front of the time.
+    // Past all of it. The caret used to be mapped to the front
+    // of the insert, so the next key landed before the time.
     expect(view.state.selection.main.head).toBe(text.length)
   })
 
@@ -986,14 +909,9 @@ describe('the mounted editor', () => {
   })
 
   /**
-   * The feature, end to end, asserted on the rendered text rather than on a
-   * decoration range — which is what makes it worth having beside the pure cases:
-   * it covers the `ViewPlugin` and its recompute-on-selection, the two pieces the
-   * pure function cannot reach.
-   *
-   * `textContent` and not a measurement: a replaced range is simply absent from the
-   * DOM, so this is document state. Whether it takes no *width* is geometry, and
-   * jsdom cannot say.
+   * The feature end to end, asserted on the rendered text rather than decoration
+   * ranges, so it covers the `ViewPlugin` and its redraw on selection.
+   * `textContent`, not a measurement: a replaced range is absent from the DOM.
    */
   it('hides the syntax in the DOM, and brings it back where the caret goes', () => {
     const { container } = render(
@@ -1002,39 +920,36 @@ describe('the mounted editor', () => {
     const view = viewOf(container)
     const shown = () => container.querySelector('.cm-content')!.textContent
 
-    // The caret opens on the line *under* the title, so the heading is rendered —
-    // its `# ` hidden — and so is the bold run further down.
+    // The caret opens on the line under the title, so the heading
+    // is rendered with its `# ` hidden, and so is the bold run.
     expect(shown()).toBe('Headthe plan here')
 
-    // Into the heading: its `# ` is there to be edited, and comes back.
+    // Into the heading: its `# ` comes back to be edited.
     view.dispatch({ selection: { anchor: 1 } })
     expect(shown()).toBe('# Headthe plan here')
 
-    // Into the bold run. The heading closes up behind the caret and the asterisks
-    // appear: syntax you can put a caret in, which is the whole point of the
-    // editor being the file's own text.
+    // Into the bold run: the heading's `# ` hides again and the asterisks appear.
     view.dispatch({ selection: { anchor: 14 } })
     expect(shown()).toBe('Headthe **plan** here')
 
-    // Rendered, not just revealed: the run carries its class and the markers carry
-    // theirs, so the asterisks are dimmed rather than bold.
+    // Rendered, not just revealed: the run and its markers carry
+    // their classes, so the asterisks are dimmed, not bold.
     const strong = container.querySelector('.cm-md-strong')!
     expect(strong.textContent).toBe('**plan**')
     expect(strong.querySelectorAll('.cm-md-marker').length).toBe(2)
   })
 
   /**
-   * Added because a mutation survived: dropping `docChanged` from the plugin's
-   * update condition left every other test green. Typing moves the caret, so the
-   * selection check covers it — but an edit landing *after* the caret does not move
-   * it, and the note then renders as it was before the edit.
+   * Removing `docChanged` from the plugin's redraw condition
+   * left every other test green. An edit after the caret does
+   * not move it, and the note then rendered as before the edit.
    */
   it('renders syntax that arrived from an edit which did not move the caret', () => {
     const { container } = render(<MarkdownEditor initialMarkdown="x" onChange={() => {}} />)
     const view = viewOf(container)
     const shown = () => container.querySelector('.cm-content')!.textContent
 
-    // The caret is at 0 and stays there: the insert is entirely after it.
+    // The caret is at 0 and stays there: the insert is after it.
     view.dispatch({ changes: { from: 1, insert: '\n\n**bold**' } })
 
     expect(view.state.selection.main.head).toBe(0)
@@ -1048,8 +963,8 @@ describe('the mounted editor', () => {
     const view = viewOf(container)
     view.dispatch({ selection: { anchor: 4, head: 8 } })
     fireEvent.keyDown(view.contentDOM, { key: 'i', metaKey: true })
-    // A single `*`: one asterisk is italic, two are bold, so ⌘I and the `*` key
-    // now write the same marker.
+    // A single `*`: one asterisk is italic, two bold, so ⌘I and
+    // the `*` key write the same marker.
     expect(view.state.doc.toString()).toBe('the *plan* here')
 
     view.dispatch({ selection: { anchor: 5, head: 9 } })
@@ -1065,8 +980,10 @@ describe('the mounted editor', () => {
 const NOTES = [note('Roadmap.md'), note('Notes/Reading list.md'), note('Areas/Health.md')]
 
 describe('Backspace between the brackets', () => {
-  /** The second `[` writes `[]]` in one keystroke; one Backspace takes it back.
-   *  Without this the `[[` went and the `]]` stayed in the sentence. */
+  /**
+   * The second `[` writes `[]]` in one key; one Backspace takes
+   * it back. Without this the `]]` stayed in the sentence.
+   */
   it('takes all four, and leaves the rest of the line', () => {
     const out = run(deleteWikiLinkPair, stateOf('see [[]] here', 6))
     expect(out.handled).toBe(true)
@@ -1075,24 +992,24 @@ describe('Backspace between the brackets', () => {
   })
 
   it('declines with a word between them, or a selection, or one bracket', () => {
-    // `[[note|]]` — an ordinary Backspace on the `e`.
+    // `[[note|]]`: an ordinary Backspace on the `e`.
     expect(run(deleteWikiLinkPair, stateOf('see [[note]] here', 10)).handled).toBe(false)
-    // Something selected is a delete of that.
+    // With a selection, Backspace deletes it.
     expect(run(deleteWikiLinkPair, stateOf('see [[]] here', 6, 7)).handled).toBe(false)
-    // A single pair is punctuation the app never wrote.
+    // A single pair is punctuation the app did not write.
     expect(run(deleteWikiLinkPair, stateOf('see [] here', 5)).handled).toBe(false)
-    // And the head of a line has nothing behind it.
+    // And the start of a line has nothing behind it.
     expect(run(deleteWikiLinkPair, stateOf('[[]]', 0)).handled).toBe(false)
   })
 })
 
 describe('`[` over a selection', () => {
   it('wraps once and keeps the selection, so a second press can see it', () => {
-    // `plan` in `the plan here`. One bracket is not a wikilink — Obsidian takes two.
+    // `plan` in `the plan here`. One bracket is not a wikilink; it takes two.
     const out = run(wrapInWikiLink, stateOf('the plan here', 4, 8))
     expect(out.handled).toBe(true)
     expect(out.doc).toBe('the [plan] here')
-    // Still over the word, which is what lets the next press complete the pair.
+    // Still over the word, so the next press can make the link.
     expect([out.from, out.to]).toEqual([5, 9])
   })
 
@@ -1105,16 +1022,16 @@ describe('`[` over a selection', () => {
   })
 
   it('declines on the first `[`, so a plain bracket still types', () => {
-    // A bracket is ordinary punctuation until it is doubled.
+    // A single bracket is plain punctuation.
     expect(run(wrapInWikiLink, stateOf('the plan here', 4)).handled).toBe(false)
   })
 
   it('closes the pair on the second `[`, caret between the four', () => {
-    // `see [` with the caret at the end: the keystroke that makes it `[[`.
+    // `see [` with the caret at the end: the next key makes it `[[`.
     const out = run(wrapInWikiLink, stateOf('see [', 5))
     expect(out.handled).toBe(true)
     expect(out.doc).toBe('see [[]]')
-    // Between them, which is what the `[[` source reads — the picker opens here.
+    // Between them, where the `[[` source reads and the popup opens.
     expect([out.from, out.to]).toEqual([6, 6])
   })
 })
@@ -1136,15 +1053,15 @@ describe('the `[[` picker', () => {
   }
 
   it('offers every note on a bare `[[`, and filters as the name is typed', () => {
-    // Tree order on an empty query, which is `matchNotes`' documented answer —
-    // the vault's own order, not alphabetical.
+    // Tree order on an empty query, as `matchNotes` gives it:
+    // the vault's order, not alphabetical.
     expect(complete('see [[', 6)?.options.map((o) => o.label)).toEqual([
       'Roadmap',
       'Reading list',
       'Health',
     ])
-    // `road` is not a note's name, so the last row offers making one — see the
-    // `new page` case below.
+    // `road` is not a note's name, so the last row offers making
+    // one (see the `new page` case below).
     expect(complete('see [[road', 10)?.options.map((o) => o.label)).toEqual(['Roadmap', 'road'])
   })
 
@@ -1156,17 +1073,13 @@ describe('the `[[` picker', () => {
   })
 
   it('shows the path beside the name, since two notes can share one', () => {
-    // The path a link would name: no `.md`, because a link never carries one.
+    // The path a link would name: no `.md`, since a link never carries one.
     expect(complete('see [[read', 10)?.options[0].detail).toBe('Notes/Reading list')
   })
 
   /**
-   * **A nested note is offered by the path the tree calls it.**
-   *
-   * Its file is `Areas/Northwind/Northwind.md`, and there is no row anywhere in
-   * the app for `Northwind/Northwind` — so offering that as where the page lives
-   * asks the reader about a file the app keeps out of sight. Reported from the
-   * running app.
+   * A nested note is offered by the path the tree shows. Its file is
+   * `Areas/Northwind/Northwind.md`, and no row anywhere shows `Northwind/Northwind`.
    */
   it('offers a nested note as the tree names it, not by its inner file', () => {
     const nested = [note('Areas/Northwind/Northwind.md'), note('Areas/Northwind/Plan.md')]
@@ -1182,8 +1095,8 @@ describe('the `[[` picker', () => {
   })
 
   it('reaches over a `]]` that is already there', () => {
-    // What typing `[[` leaves behind. Without this the completion writes
-    // `[[Roadmap]]]]`, because it replaced `[[road` and left the pair standing.
+    // What typing `[[` leaves behind. Without this the
+    // completion writes `[[Roadmap]]]]`.
     const result = complete('see [[road]]', 10)!
     expect([result.from, result.to]).toEqual([4, 12])
     expect(complete('see [[road', 10)!.to).toBe(10)
@@ -1194,13 +1107,13 @@ describe('the `[[` picker', () => {
     expect(result.options.map((o) => o.label)).toEqual(['Landmark Plaza'])
     const [option] = result.options
     expect(option.detail).toBe('new page')
-    // A plain wikilink. Following it is what creates the note.
+    // A plain wikilink. Following it creates the note.
     expect(option.apply).toBe('[[Landmark Plaza]]')
   })
 
   it('does not offer it for a note that is already there', () => {
     expect(complete('see [[Roadmap', 13)?.options.map((o) => o.label)).toEqual(['Roadmap'])
-    // By path, too — the spelling a name with a `/` in it is asking for.
+    // By path too, the form a name with a `/` asks for.
     expect(complete('see [[Notes/Reading list', 24)?.options.map((o) => o.label)).toEqual([
       'Reading list',
     ])
@@ -1240,10 +1153,8 @@ describe('the `/` menu', () => {
   })
 
   /**
-   * **It opens wherever a `/` opens a word**, which is the rule `--` uses. The old
-   * guard was "first thing on the line", which kept `http://` out by keeping the
-   * menu out of a sentence altogether — so there was no way to insert anything
-   * inline.
+   * It opens where a `/` starts a word, like the `#` of a tag. The old
+   * rule (first thing on the line) kept it out of sentences altogether.
    */
   it('opens after a space and not inside a URL or a path', () => {
     expect(slash('see http://x', 12)).toBeNull()
@@ -1252,15 +1163,18 @@ describe('the `/` menu', () => {
     expect(slash('a note and /', 12)).not.toBeNull()
   })
 
-  /** A block command mid-sentence is punctuation, not a block: `# ` halfway through
-   *  a line is a hash. So the blocks are offered where a block can begin, and the
-   *  inline ones everywhere. */
+  /**
+   * A block command mid-sentence is punctuation: `# ` halfway through a line is
+   * a hash. Blocks are offered where a block can begin; inline items everywhere.
+   */
   it('offers only the inline options in the middle of a line', () => {
     expect(slash('a note and /', 12)?.options.map((o) => o.label)).toEqual(['Today', 'Now'])
   })
 
-  /** The link carries the folder, so following it makes the note where the daily
-   *  notes are rather than at the root — and it still reads as the date. */
+  /**
+   * The link carries the folder, so following it makes the note
+   * in the daily folder, and it still reads as the date.
+   */
   it('inserts a link to today’s page, in the daily folder', () => {
     const today = slash('/tod', 4)!.options[0]
     const stamp = localDateStamp()
@@ -1271,8 +1185,10 @@ describe('the `/` menu', () => {
     expect(slash('/tod', 4, '')!.options[0].apply).toBe(`[[${stamp}]]`)
   })
 
-  /** The same string ⌘⇧T writes, trailing space and all: without it `LEADING_CLOCK`
-   *  does not match and the next keystroke turns `09:41` into `09:41w`. */
+  /**
+   * The same text ⌘⇧T writes, trailing space and all: without it
+   * the next key turns `09:41` into `09:41w`.
+   */
   it('inserts the time, with the space that keeps it a clock', () => {
     const now = slash('/now', 4)!.options[0]
     expect(now.label).toBe('Now')
@@ -1294,7 +1210,7 @@ describe('the link under a click', () => {
   })
 
   it('reads a markdown link, and says it is not a wikilink', () => {
-    // The two resolve differently — by path, not by name — so the kind matters.
+    // The two resolve differently (by path, not by name), so the kind matters.
     expect(at('see [Roadmap](Notes/Roadmap.md) now', 8)).toEqual({
       target: 'Notes/Roadmap.md',
       wiki: false,
@@ -1327,9 +1243,8 @@ describe('what folds', () => {
   })
 
   /**
-   * The bug this replaced `foldGutter()` for. `lang-markdown` offers to fold any
-   * block except headings and lists, so three lines of one paragraph folded from
-   * the first to the last — collapsing lines that are not indented at all.
+   * Why `foldGutter()` was replaced: `lang-markdown` folds any block but headings
+   * and lists, so a three-line paragraph folded from first line to last.
    */
   it('offers nothing on a line whose neighbours are level with it', () => {
     expect(fold('one\ntwo\nthree\n', 1)).toBeNull()
@@ -1338,7 +1253,7 @@ describe('what folds', () => {
 
   it('stops at the first line back at its own indentation', () => {
     const doc = '- outer\n  - inner\n- next\n  - other\n'
-    // Ends at the close of `  - inner`, not at the second nested item further down.
+    // Ends at the close of ` - inner`, not at the second nested item below.
     expect(fold(doc, 1)).toEqual({ from: 7, to: 17 })
   })
 
@@ -1348,9 +1263,8 @@ describe('what folds', () => {
   })
 
   /**
-   * The shape a daily note actually has: a stamped line, then its bullets, with the
-   * bullets **not** indented in the file. They read as belonging to the line above,
-   * so that line is what collapses them — which is the model the user described.
+   * A daily note's shape: a stamped line, then its bullets, not indented
+   * in the file. They belong to the line above, so that line folds them.
    */
   it('folds the list that follows a line, indented or not', () => {
     const doc = '12:08 - reading\n- one\n- two\n12:20 - next\n'
@@ -1360,8 +1274,8 @@ describe('what folds', () => {
   })
 
   it('does not let one bullet swallow its siblings', () => {
-    // A list line only takes what is indented *under* it, or every item in a flat
-    // list would offer to fold the rest of the list.
+    // A list line only folds what is indented under it, or every
+    // item in a flat list would fold the rest.
     expect(fold('- a\n- b\n- c\n', 1)).toBeNull()
     expect(fold('- a\n- b\n- c\n', 2)).toBeNull()
   })
@@ -1371,14 +1285,9 @@ describe('what folds', () => {
   })
 
   /**
-   * The arrow has to survive the fold.
-   *
-   * Reported from the running app: collapsing a section took its arrow away, so
-   * there was nothing left to click. The gutter asks per *block*, and once a range
-   * is folded the block that begins at the fold reaches to the end of everything it
-   * swallowed — so the question being asked was "is anything nested under the last
-   * line of this fold", which is usually no. `foldMarkerFor` takes the block's
-   * start and finds the line itself.
+   * The arrow survives the fold. Once folded, the block starting at the fold reached
+   * the end of everything inside it, so asking about its last line found nothing nested
+   * and the arrow vanished. `foldMarkerFor` takes the block's start and finds the line.
    */
   it('keeps the arrow, turned, once the block is folded', () => {
     const doc = '- outer\n  - inner\n  - also\n- next\n'
@@ -1390,22 +1299,20 @@ describe('what folds', () => {
     const folded = state.update({
       effects: foldEffect.of(indentRange(state, line.from, line.to)!),
     }).state
-    // The line still offers an arrow, and it now points the other way.
+    // The line still has an arrow, now pointing the other way.
     expect(foldMarkerFor(folded, line.from)).toEqual({ folded: true })
-    // Asking with the folded block's own `to` is what used to answer nothing.
+    // Asking with the folded block's own `to` used to answer nothing.
     expect(foldMarkerFor(folded, state.doc.line(3).to)).toBeNull()
   })
 })
 
 /**
- * A rule down each step of an indent, marked on the spaces themselves.
- *
- * The prose font is proportional, so an indent step has no width this code could
- * compute — a mark over the spaces starts exactly where they do whatever the font
- * is doing, and the stylesheet rules its left edge.
+ * A guide down each step of an indent, marked on the spaces. The prose
+ * face is proportional, so a step has no width to compute; a mark over
+ * the spaces starts where they do, and the sheet draws its left edge.
  */
 describe('the indent guides', () => {
-  /** The step is the whole subject here, so it is stated rather than defaulted. */
+  /** The step is the subject here, so it is stated. */
   const guides = (doc: string, step = 4) => {
     const state = EditorState.create({
       doc,
@@ -1417,13 +1324,12 @@ describe('the indent guides', () => {
   }
 
   it('marks one step per level, with the elbow on the innermost', () => {
-    // One indented line under its parent: a trunk half a line long and the elbow
-    // that turns into it. As a plain vertical rule this was a stroke beside the
-    // text connected to nothing, which is what it looked like.
+    // One indented line under its parent: a trunk half a line
+    // long and the elbow into it.
     expect(guides('- outer\n    - inner\n')).toEqual([
       'cm-md-guide cm-md-guide-end cm-md-elbow@8-12',
     ])
-    // Two steps in: the outer trunk also ends here, because nothing below is in it.
+    // Two steps in: the outer trunk also ends here, since nothing below is in it.
     expect(guides('- outer\n        - deep\n')).toEqual([
       'cm-md-guide cm-md-guide-end@8-12',
       'cm-md-guide cm-md-guide-end cm-md-elbow@12-16',
@@ -1440,14 +1346,12 @@ describe('the indent guides', () => {
   })
 
   it('looks through a blank line, as folding does', () => {
-    // One gap inside a list does not end the list, and a trunk that stopped at it
-    // would say otherwise.
+    // One blank line inside a list does not end it, so the trunk does not stop there.
     expect(guides('- outer\n    - one\n\n    - two\n')[0]).toBe('cm-md-guide cm-md-elbow@8-12')
   })
 
   it('marks whole steps only', () => {
-    // Three spaces at a step of four is not a level, and half a rule would say it
-    // was. Two steps of two, on the other hand, is exactly two levels.
+    // Three spaces at a step of four is not a level. Two steps of two is two levels.
     expect(guides('- outer\n   - odd\n')).toEqual([])
     expect(guides('- outer\n    - inner\n', 2)).toEqual([
       'cm-md-guide cm-md-guide-end@8-10',
@@ -1470,7 +1374,7 @@ describe('a character over a selection', () => {
     expect(first.doc).toBe('the *plan* here')
     expect([first.from, first.to]).toEqual([5, 9])
 
-    // The second press, over the selection the first one left.
+    // The second press, over the selection the first left.
     const second = run(wrapWith('*'), stateOf('the *plan* here', 5, 9))
     expect(second.doc).toBe('the **plan** here')
   })
@@ -1485,18 +1389,16 @@ describe('a character over a selection', () => {
     expect(run(wrapWith('`'), stateOf('the plan here', 4)).handled).toBe(false)
   })
 
-  /** Removing is the toggle, as in Obsidian — there is no separate clear command. */
+  /** Removing is the toggle, as in Obsidian; there is no separate clear. */
   it('is undone by the same toggle the shortcut uses', () => {
     expect(run(toggleMarker('**'), stateOf('the **plan** here', 6, 10)).doc).toBe('the plan here')
   })
 })
 
 /**
- * `---` is a line, and it is still three characters.
- *
- * The trap is the frontmatter block: it *opens* with `---`, which the parser reads
- * as a horizontal rule, so drawing every rule would replace the first line of every
- * note that carries a property with a hairline.
+ * `---` is a line and still three characters. The trap is the property
+ * block: it opens with `---`, which the parser reads as a rule, so drawing
+ * every rule would replace the first line of every note with properties.
  */
 describe('a horizontal rule', () => {
   it('draws a line when the caret is elsewhere', () => {
@@ -1514,13 +1416,9 @@ describe('a horizontal rule', () => {
   })
 
   /**
-   * The case that drew **nothing at all**, and the one a note is most likely to
-   * have: `---` on the line under a paragraph is a *setext heading* in CommonMark —
-   * the paragraph becomes an H2 and the dashes are its underline — so it is no
-   * `HorizontalRule` node, and nothing claimed either half. No line, no heading,
-   * three literal dashes sitting in the note.
-   *
-   * `___` never had this problem: underscores cannot underline a heading.
+   * `---` under a paragraph is a setext heading underline in
+   * CommonMark (the paragraph becomes an H2), not a `HorizontalRule`,
+   * so nothing drew it. `___` cannot underline a heading.
    */
   it('draws a line for dashes typed straight under a line of text', () => {
     expect(all(stateOf('Some text\n---\nafter', 0))).toEqual(['rule@10-13'])
@@ -1528,23 +1426,20 @@ describe('a horizontal rule', () => {
   })
 
   /**
-   * Reported from the running app: a single `-` drew a line. CommonMark's setext
-   * underline is *one or more* dashes, so the branch that draws `---` under a
-   * paragraph drew that too — and a lone `-` is how a list item starts, which made
-   * the editor unusable for a list under a line of text.
+   * A single `-` drew a line: a setext underline is one or more dashes.
+   * A lone `-` starts a list item, so lists under a line of text broke.
    */
   it('needs three dashes, not one', () => {
     expect(all(stateOf('Some text\n-\nafter', 0))).toEqual([])
     expect(all(stateOf('Some text\n--\nafter', 0))).toEqual([])
     expect(all(stateOf('Some text\n---\nafter', 0))).toEqual(['rule@10-13'])
-    // And four is still a divider, as it is for a break with a blank line above.
+    // Four is still a divider, as with a blank line above.
     expect(all(stateOf('Some text\n----\nafter', 0))).toEqual(['rule@10-14'])
   })
 
   /**
-   * The other half of the same report: with a rule drawn for a lone `-`, typing
-   * `- ` to start a list put a full-width widget on the line and the caret went to
-   * the row below it. A list marker has to survive being typed.
+   * With a rule drawn for a lone `-`, typing `- ` put a full-width widget on the
+   * line and the caret dropped below it. A list marker must survive being typed.
    */
   it('leaves a dash that is starting a list alone', () => {
     expect(all(stateOf('Some text\n- \nafter', 12))).toEqual([])
@@ -1554,25 +1449,20 @@ describe('a horizontal rule', () => {
 
   it('needs the line to hold nothing but the break', () => {
     expect(all(stateOf('Some text\n--- see below\nafter', 0))).toEqual([])
-    // Spaced apart is still a break, and still the whole line: CommonMark allows
-    // spaces between the characters, so `- - -` is one.
+    // Spaced apart is still a break: CommonMark allows spaces
+    // between the characters, so `- - -` is one.
     expect(all(stateOf('above\n\n- - -\n\nbelow', 0))).toEqual(['rule@7-12'])
   })
 
   /**
-   * The block's own pair draws too, so a note opens with its properties held
-   * between two lines. They were left as characters once, on the reasoning that a
-   * note should not open with a line where its first delimiter belongs.
-   *
-   * The two are not the same node: the opening `---` is a `HorizontalRule`, and the
-   * closing one is the underline of a *setext heading* whose text is the last
-   * property line. Both have to be claimed or the block draws one line and not the
-   * other, which is the state this test caught.
+   * The property block's own pair draws too. The opening `---`
+   * is a `HorizontalRule` and the closing one is a setext
+   * underline under the last property, so both must be claimed.
    */
-  /** **As fences, not as dividers.** They drew as the accent rule like any other
-   *  row of dashes, so `icon: calendar` sat between the two heaviest strokes on the
-   *  page. A fence bounds a block of data; it is a hairline, and only inside the
-   *  block — a `---` in the prose below is still the rule. */
+  /**
+   * As fences, not dividers: a hairline, and only for the block's
+   * own pair. A `---` in the prose below is still the rule.
+   */
   it('draws the frontmatter block’s own delimiters as fences', () => {
     const state = stateOf('---\nicon: calendar\n---\n\n# Reading\n\n---\n', 30)
     expect(all(state).filter((span) => /^(rule|fence)/.test(span))).toEqual([
@@ -1592,14 +1482,13 @@ describe('a horizontal rule', () => {
 })
 
 /**
- * A property's *name*, marked so the stylesheet can give it the colour the
- * timestamp carries. The block around it is one dim mono run; without this a
- * property is that run and nothing in it reads as a label.
+ * A property's name, marked so the sheet can give it the clock's
+ * colour. Without the mark, nothing in the dim block reads as a label.
  */
 /**
- * **A block property's name hides while the line is being read**: `amount:: 480`
- * reads `480`, and with the caret on the line the name is back, as a marker. Not
- * inside code, and not in the page's own block, whose names are marked instead.
+ * A block property's name hides while the line is read: `amount:: 480` shows
+ * `480`; with the caret on the line the name comes back as a marker. Not in
+ * code, and not in the page's own block, whose names are marked instead.
  */
 describe('a block property', () => {
   const doc = 'icon:: book\n\n08:10 lunch amount:: 480 at:: [[Harbour Bistro]]\n`x:: 1`\n'
@@ -1663,23 +1552,21 @@ describe('a property in the block at the top', () => {
     ])
   })
 
-  // The `key:: value` form, which is what the app writes: marked whole the same
-  // way, and each name the same way.
+  // The `key:: value` form, which the app writes, is marked the same way.
   it('marks a block written as key:: value, and each name in it', () => {
     const doc = 'icon:: compass\npath:: Areas/Plans\n\nbody\n'
     expect(all(stateOf(doc, 36))).toContain('cm-md-frontmatter@0-33')
     expect(properties(doc, 36)).toEqual(['cm-md-property@0-4', 'cm-md-property@15-19'])
   })
 
-  // The same rule `properties.ts` reads by: an indented key belongs to the key
-  // above it, and this app does not know what that means.
+  // As in `properties.ts`: an indented key belongs to the key above it.
   it('leaves an indented key alone', () => {
     expect(properties('---\nmeta:\n  nested: yes\n---\n\nbody\n', 30)).toEqual([
       'cm-md-property@4-8',
     ])
   })
 
-  // The delimiters are not properties, and neither is prose below the block.
+  // The fences are not properties, and neither is prose below the block.
   it('marks nothing outside the block', () => {
     expect(properties('# Title\n\nnot: a property\n', 0)).toEqual([])
   })
@@ -1692,14 +1579,13 @@ describe('the clock a journal line opens with', () => {
   })
 
   /**
-   * A range reads as one stamp, because it is one time: `12:00 to 12:30` is when a
-   * thing happens, and marking only the first half would leave the second looking
-   * like prose that happens to have a colon in it.
+   * A range reads as one stamp: `12:00 to 12:30` is one time,
+   * and marking half would leave the rest looking like prose.
    */
   it('marks a range as one stamp', () => {
     expect(all(stateOf('12:00 to 12:30 standup\n', 0))).toEqual(['cm-md-stamp@0-14'])
     expect(all(stateOf('9:05 - 9:20 walk\n', 0))).toEqual(['cm-md-stamp@0-11'])
-    // An en dash, which is what a writer gets from autocorrect.
+    // An en dash, which autocorrect gives.
     expect(all(stateOf('12:00 – 12:30 lunch\n', 0))).toEqual(['cm-md-stamp@0-13'])
   })
 
@@ -1708,9 +1594,10 @@ describe('the clock a journal line opens with', () => {
     expect(all(stateOf('the train at 12:08 was late\n', 0))).toEqual([])
   })
 
-  /** And nothing else on the line: a clock's line took half a line of air above
-   *  it for a build, and a line taller than its neighbours read as the time being
-   *  larger. A journal line is a line. */
+  /**
+   * And nothing else on the line: extra space above a clock's
+   * line made the time look larger.
+   */
   it('marks the stamp on every line, and only the stamp', () => {
     expect(all(stateOf('12:08 one\n13:00 two\n', 0))).toEqual([
       'cm-md-stamp@0-5',
@@ -1723,8 +1610,8 @@ describe('the clock a journal line opens with', () => {
   })
 
   /**
-   * A bullet before it means no stamp: the pattern is anchored to the line's start,
-   * so `- 12:08 note` is a list item that happens to open with a time.
+   * A bullet before it means no stamp: `- 12:08 note` is a list
+   * item that opens with a time.
    */
   it('does not mark a stamp that a bullet comes before', () => {
     expect(all(stateOf('- 12:08 note\n', 0))).toEqual([])
@@ -1733,15 +1620,10 @@ describe('the clock a journal line opens with', () => {
 
 describe('a click on a link', () => {
   /**
-   * The bug: a note whose **last word is a link**, clicked in the empty space to
-   * the right of it to put the caret at the end of the text, opened the link
-   * instead. `posAtCoords` has no position out there and returns the nearest one,
-   * which is the end of the line — inside the link.
-   *
-   * The geometric half of this cannot be tested here (jsdom lays nothing out, so
-   * there is no "past the end of the line" to click). What can: the question the
-   * handler now asks first, which is what the click *landed on* rather than what
-   * position it is nearest to.
+   * A note whose last word is a link, clicked in the space to its right to
+   * put the caret at the end, opened the link: `posAtCoords` returns the
+   * nearest position, inside the link. jsdom has no layout, so this tests
+   * the check the handler now makes first: what the click landed on.
    */
   it('is a link click only when it lands on the link', () => {
     const line = document.createElement('div')
@@ -1751,7 +1633,7 @@ describe('a click on a link', () => {
     const link = line.querySelector('.cm-md-link')!
 
     expect(isLinkClick(link)).toBe(true)
-    // The line itself is what a click past the end of the text hits.
+    // A click past the end of the text lands on the line itself.
     expect(isLinkClick(line)).toBe(false)
     expect(isLinkClick(null)).toBe(false)
   })
@@ -1765,10 +1647,9 @@ describe('a click on a link', () => {
 })
 
 /**
- * **The properties a tag takes, offered on its line**: all of them as `#expense ` is
- * typed, then narrowed as a name is — CodeMirror filters what is offered by what
- * was typed from `from` — and each written `name:: ` by Tab. Enter over one is a
- * new line: a line that ends at its tag is an ordinary line.
+ * A tag's properties, offered on its line: all of them once
+ * `#expense ` is typed, then narrowed as a name is typed, each
+ * written `name:: ` by Tab. Enter over one makes a new line.
  */
 describe('the properties a tag’s line is offered', () => {
   const TAGS = { expense: { properties: ['currency', 'amount', 'merchant'] } }
@@ -1806,14 +1687,14 @@ describe('the properties a tag’s line is offered', () => {
     expect(offered('08:40 #expense merchant:: [[Harbour Bi')).toBeNull()
     expect(offered('08:40 lunch with Mira ')).toBeNull()
     expect(offered('08:40 #travel ')).toBeNull()
-    // With nothing typed, only right after the tag: not after every space.
+    // With nothing typed, only right after the tag, not after every space.
     expect(offered('08:40 #expense lunch ')).toBeNull()
   })
 
   /**
-   * Through the real keymap: the popup opened on a mounted editor, then the key. A
-   * popup refuses any key for its first 75ms (`interactionDelay`), so the clock is
-   * moved past it: pressed sooner, Enter makes a new line whatever the keymap says.
+   * Through the real keymap: the popup opened on a mounted editor, then the
+   * key. A popup ignores keys for its first 75ms (`interactionDelay`), so
+   * the clock is moved past it; sooner, Enter makes a new line regardless.
    */
   async function popupOver(doc: string) {
     const { container } = render(
@@ -1850,9 +1731,8 @@ describe('the properties a tag’s line is offered', () => {
 })
 
 /**
- * **An editor over one line** — a timeline entry's — through the real keymap: Enter,
- * Escape and leaving it are each handed to the caller, unless a popup is open, whose
- * own Enter comes first; and it has no gutters.
+ * A one-line editor (a timeline entry) through the real keymap: Enter, Escape and
+ * leaving go to the caller unless a popup is open, whose Enter comes first. No gutters.
  */
 describe('an editor over one line', () => {
   afterEach(() => vi.restoreAllMocks())
@@ -1905,20 +1785,10 @@ describe('an editor over one line', () => {
 })
 
 /**
- * **Following a link takes one press, and the press is the point.**
- *
- * It was bound to `click`, and a click needs the press and the release on the *same
- * element*. Pressing a link puts the caret in it, live preview reveals the syntax
- * it had been hiding, and the span that was pressed is replaced before the button
- * comes back up — so the browser generates no click at all. Read out of the running
- * app's own event log, after three fixes aimed at everything except this:
- *
- *     mousedown span.cm-md-link < div.cm-line < div.cm-content
- *     mouseup   span.cm-md-link < div.cm-line < div.cm-content
- *     (no click)
- *
- * Which is why this drives the events and not the handler: a test that called the
- * handler directly passed throughout.
+ * Following a link takes one press. With `click`, pressing a link moved
+ * the caret in, the syntax showed, and the pressed span was replaced
+ * before the release, so no click fired. So this drives the events, not
+ * the handler; a test calling the handler directly passed all along.
  */
 describe('following a link in the note', () => {
   const mounted = (doc: string) => {
@@ -1938,8 +1808,7 @@ describe('following a link in the note', () => {
     const link = container.querySelector('.cm-md-link') as HTMLElement
     expect(link).toBeTruthy()
 
-    // The sequence the log recorded: a press and a release, and no click, because
-    // by then the element that was pressed no longer exists.
+    // A press and a release and no click, since the pressed element is gone by then.
     fireEvent.mouseDown(link, { button: 0, detail: 1 })
     fireEvent.mouseUp(link, { button: 0, detail: 1 })
 
@@ -1955,8 +1824,10 @@ describe('following a link in the note', () => {
     expect(opened).toEqual([{ target: 'Notes/Roadmap.md', wiki: false }])
   })
 
-  /** A press that is not a plain left press is not "follow this link": the right
-   *  button is the menu's, and a modifier is the platform's. */
+  /**
+   * Only a plain left press follows a link: the right button is
+   * the menu's, and modifiers are the platform's.
+   */
   it('leaves the other buttons and the modifiers alone', () => {
     const { opened, container } = mounted('See [[Roadmap]] today.\n')
     const link = container.querySelector('.cm-md-link') as HTMLElement
@@ -1966,7 +1837,7 @@ describe('following a link in the note', () => {
     expect(opened).toEqual([])
   })
 
-  /** Pressing the text of a note is still placing a caret, not following a link. */
+  /** Pressing a note's text places a caret; it does not follow a link. */
   it('does nothing when the press is not on a link', () => {
     const { opened, container } = mounted('Just a sentence with no link in it.\n')
     fireEvent.mouseDown(container.querySelector('.cm-line') as HTMLElement, {
