@@ -8,13 +8,10 @@ import { SETTINGS_FILE } from '../vaultModel'
 import { localDateStamp } from '../clock'
 
 /**
- * **A vault carries its own settings**, in `.config/settings.json` at its root.
- *
- * The folder is created the first time the app opens a vault, and read every time
- * after — so the theme, the typography, the shortcuts and the daily-notes folder
- * travel with the folder of notes rather than living in this machine's browser
- * storage. `localStorage` keeps the last applied set for the window before a vault
- * is open, which is why both are checked below.
+ * A vault carries its own settings in `.config/settings.json`. Made the first
+ * time the app opens a vault and read every time after, so the theme, type,
+ * shortcuts and daily folder travel with the notes. `localStorage` keeps the
+ * last applied set for the window before a vault opens, so both are checked.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -24,7 +21,7 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({ open: picked, confirm: vi.fn(async
 const fetched = vi.hoisted(() => vi.fn(async (_url: string) => ''))
 vi.mock('../calendarFeed', () => ({ fetchFeed: (url: string) => fetched(url) }))
 
-/** Built from the two names the app uses, so a rename of either is caught here. */
+/** Built from the two names the app uses, so renaming either is caught. */
 const CONFIG = `/v/${CONFIG_DIR}/${SETTINGS_FILE}`
 const OTHER = `/w/${CONFIG_DIR}/${SETTINGS_FILE}`
 
@@ -42,15 +39,14 @@ describe('a vault with no config', () => {
     expect(disk.has(CONFIG)).toBe(false)
     await openApp()
     await waitFor(() => expect(disk.has(CONFIG)).toBe(true))
-    // Readable as settings, and pretty-printed with a trailing newline: a person
-    // may open this file.
+    // Readable, pretty-printed with a trailing newline: a person may open it.
     const written = disk.read(CONFIG)!
     expect(written.endsWith('}\n')).toBe(true)
     expect(written).toContain('\n  "mode"')
     expect(parseSettings(written)).toEqual(DEFAULT_SETTINGS)
   })
 
-  // The dot is what keeps it out of the app that wrote it.
+  // The dot keeps it out of the tree.
   it('does not show the folder in the tree', async () => {
     await openApp()
     await waitFor(() => expect(disk.has(CONFIG)).toBe(true))
@@ -66,19 +62,21 @@ describe('a vault that has one', () => {
     disk.write(CONFIG, JSON.stringify({ ...DEFAULT_SETTINGS, proseSize: 21, scheme: 'moss' }))
     await openApp()
 
-    // `--fs-prose` is what `applySettings` writes, so this is the setting reaching
-    // the page and not just the state.
+    // `--fs-prose` is what `applySettings` writes: the setting
+    // reaching the page, not just the state.
     await waitFor(() =>
       expect(document.documentElement.style.getPropertyValue('--fs-prose')).toBe('21px')
     )
     fireEvent.click(screen.getByLabelText('Settings'))
     expect(screen.getByRole('button', { name: 'Moss' }).getAttribute('aria-pressed')).toBe('true')
-    // And the next launch's first paint, before any vault is open, matches it.
+    // And the next launch's first paint, before any vault opens, matches it.
     expect(parseSettings(localStorage.getItem('journeys:settings')).proseSize).toBe(21)
   })
 
-  /** Nonsense reads as the defaults — but the bytes are left alone, because a file
-   *  someone is part way through editing by hand must not be overwritten. */
+  /**
+   * Nonsense reads as the defaults, but the bytes are left
+   * alone: a file being edited by hand must not be overwritten.
+   */
   it('falls back to the defaults without touching a file it cannot read', async () => {
     disk.write(CONFIG, '{ this is not json')
     await openApp()
@@ -92,10 +90,10 @@ describe('a vault that has one', () => {
 })
 
 /**
- * **A vault's calendars and hidden folders are its own.** The settings in force
- * were carried into a vault with no file of its own, secret calendar addresses
- * and all, to be committed to that vault's remote; and until a second vault's
- * file was read, the first one's calendar was synced into its daily notes.
+ * A vault's calendars and hidden folders are its own. The settings in
+ * force were once carried into a vault without its own file, secret
+ * calendar addresses and all, to be committed to its remote; and before a
+ * second vault's file was read, the first vault's calendar synced into it.
  */
 describe('a second vault', () => {
   const FEED = 'https://calendar.example/ical/abc/basic.ics'
@@ -131,7 +129,7 @@ describe('a second vault', () => {
     expect(written.proseSize).toBe(21)
     expect(written.calendarFeeds).toEqual([])
     expect(written.graphHides).toEqual([])
-    // Nor is a calendar's secret address kept outside the vault it belongs to.
+    // Nor is a calendar's secret address kept outside its vault.
     expect(localStorage.getItem('journeys:settings')).not.toContain(FEED)
   })
 
@@ -141,7 +139,7 @@ describe('a second vault', () => {
     await waitFor(() => expect(disk.read(`/v/Daily/${localDateStamp()}.md`)).toContain('Standup'))
     fetched.mockClear()
     await switchTo('/w')
-    // Long enough for a sync to fetch and write, which in the fake disk is a few ticks.
+    // Long enough for a sync to fetch and write, a few ticks on the fake disk.
     await new Promise((resolve) => setTimeout(resolve, 500))
     expect(fetched).not.toHaveBeenCalled()
     expect(disk.has(`/w/Daily/${localDateStamp()}.md`)).toBe(false)
@@ -149,10 +147,9 @@ describe('a second vault', () => {
 })
 
 /**
- * **A config file that is there and cannot be read is not absent.** Read as absent,
- * `settings.json` was written over with the settings in force, and the structures
- * file — which the calendar asks for `#event` before it syncs — with that one
- * declaration and none of the vault's others.
+ * A config file that is there but cannot be read is not absent. Read
+ * as absent, `settings.json` was written over with the settings in
+ * force, and the structures file with only `#event`'s entry.
  */
 describe('a config file that cannot be read', () => {
   const TAGS = `/v/${CONFIG_DIR}/tags.json`

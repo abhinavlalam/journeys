@@ -8,11 +8,9 @@ import { SETTINGS_FILE } from '../vaultModel'
 import { CONFIG_DIR } from '../vault'
 
 /**
- * `.config/settings.json`, edited in the pane.
- *
- * The pane shows the **file**, and saving goes through the same `parseSettings`
- * that reads it on launch — so what a hand edit cannot express is what the app
- * will not keep, and the pane says so by showing back what it wrote.
+ * `.config/settings.json` edited in the pane. The pane shows the
+ * file, and saving goes through the same `parseSettings` as launch,
+ * so what the app will not keep is shown back as it was written.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -22,8 +20,10 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   confirm: vi.fn(async () => true),
 }))
 
-/** The mounted view for a pane, and the way a test types into it: a transaction,
- *  which is what a keystroke becomes anyway. */
+/**
+ * The mounted view for a pane, and how a test types into it: a
+ * transaction, which is what a key becomes.
+ */
 function editor(label: string): EditorView {
   const content = screen.getByLabelText(label)
   const view = EditorView.findFromDOM(content.closest('.cm-editor') as HTMLElement)
@@ -31,9 +31,10 @@ function editor(label: string): EditorView {
   return view!
 }
 
-/** A transaction is what a keystroke becomes anyway — but it is dispatched from
- *  outside React, so the state it sets through the change listener has to be
- *  flushed before the next click can see it. */
+/**
+ * A transaction dispatched from outside React, so the state it
+ * sets must be flushed before the next click can see it.
+ */
 function type(label: string, text: string) {
   const view = editor(label)
   act(() => {
@@ -54,11 +55,7 @@ beforeEach(() => {
 
 const LABEL = `${SETTINGS_FILE} source`
 const field = () => screen.getByLabelText(LABEL)
-/**
- * Through Actions → Config, which is where `.config`'s own files are listed. The
- * footer had a `{}` button of its own; two ways at one file is one too many, and
- * the pane it opens is the same either way.
- */
+/** Through Actions → Config, where `.config`'s files are listed. */
 const clickRow = async () => {
   // Groups are shut on arrival, as the tree's folders are.
   fireEvent.click(screen.getByLabelText('Expand all actions'))
@@ -101,8 +98,8 @@ describe('the pane', () => {
     await openFile()
     expect(screen.queryByTestId('editor')).toBeNull()
 
-    // Back to Notes for the tree: opening the file leaves the pane on Actions,
-    // which is the section its row is in.
+    // Back to Notes for the tree: opening the file leaves the
+    // pane on Actions, where its row is.
     fireEvent.click(await waitFor(() => screen.getByText('roadmap')))
     await waitFor(() => expect(screen.getByTestId('editor')).toBeTruthy())
     expect(screen.queryByLabelText(`${SETTINGS_FILE} source`)).toBeNull()
@@ -119,8 +116,8 @@ describe('saving', () => {
     type(LABEL, JSON.stringify(edited, null, 2))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    // On the page, through `applySettings` — the setting reaching the window and
-    // not merely the state.
+    // On the page through `applySettings`: the setting reaching
+    // the window, not just the state.
     await waitFor(() =>
       expect(document.documentElement.style.getPropertyValue('--fs-prose')).toBe('19px')
     )
@@ -129,8 +126,7 @@ describe('saving', () => {
     expect(parseSettings(disk.read(CONFIG)!).scheme).toBe('moss')
   })
 
-  /** A key the app does not keep is visibly not kept: the pane shows back what it
-   *  wrote, which is the canonical file. */
+  /** A key the app does not keep visibly goes: the pane shows back what it wrote. */
   it('shows back what it kept', async () => {
     await openApp()
     await openFile()
@@ -150,17 +146,15 @@ describe('saving', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(screen.getByRole('alert').textContent).toMatch(/JSON/i)
-    // Still the user's text, so the edit is not lost with the error.
+    // Still the typed text, so the edit is not lost with the error.
     expect(shown(LABEL)).toBe('{ "proseSize": 19,,, }')
     await new Promise((resolve) => setTimeout(resolve, 600))
     expect(disk.read(CONFIG)).toBe(before)
   })
 
   /**
-   * The binding is `Mod-s`, which CodeMirror resolves per platform: ⌘ on macOS,
-   * where the app runs, and **Ctrl** here, because jsdom's userAgent is not a Mac.
-   * So this sends `ctrlKey` — the same binding, named the way this environment
-   * names it. Probed: a `metaKey` keydown fires nothing at all in jsdom.
+   * The binding is `Mod-s`, which CodeMirror reads per platform: ⌘ on macOS, Ctrl here
+   * because jsdom's userAgent is not a Mac. A `metaKey` keydown does nothing in jsdom.
    */
   it('saves on the save chord as well', async () => {
     await openApp()

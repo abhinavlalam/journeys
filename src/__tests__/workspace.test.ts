@@ -40,8 +40,10 @@ describe('tabs in one group', () => {
     expect(tabLabel(activeTab(ws)!)).toBe('b')
   })
 
-  /** **A note is open in one place at a time.** The same path, whatever its case,
-   *  is the same tab — as `pathKey` says for links. */
+  /**
+   * A note is open in one place. The same path in any case is
+   * the same tab, as `pathKey` says for links.
+   */
   it('goes to a tab that is already open rather than opening a second', () => {
     let ws = openTab(openTab(emptyWorkspace(), note('a.md')), note('b.md'))
     ws = openTab(ws, note('A.md'))
@@ -92,25 +94,25 @@ describe('a terminal', () => {
   })
 
   /**
-   * **The name is derived, and that is the whole of why a session survives a
-   * restart.** It was `crypto.randomUUID()`, so a relaunch asked tmux for a session
-   * nothing had heard of and got a fresh one — reported as everything starting from
-   * scratch. The first terminal of a run is always `journeys-1`, so a relaunch
-   * attaches to what the server is still holding, with nothing persisted to do it.
+   * The name is derived, which is why a session survives a restart. A random
+   * name got a fresh session on every relaunch. The first terminal of a run is
+   * always `journeys-1`, so a relaunch attaches to what the server still holds.
    */
   it('names the first session the same on every launch', () => {
     expect(terminalName(emptyWorkspace())).toBe('journeys-1')
     const first = openTerminal(emptyWorkspace())
     // A second launch, a fresh workspace: the same name, so the same session.
     expect(terminalName(emptyWorkspace())).toBe('journeys-1')
-    // Within a run it steps past what is open rather than colliding.
+    // Within a run it steps past what is open.
     expect(terminalName(first)).toBe('journeys-2')
     const two = openTab(first, { kind: 'terminal', session: terminalName(first) })
     expect(terminalName(two)).toBe('journeys-3')
   })
 
-  /** A closed tab frees its name, because the tab is what held it: the session is
-   *  detached rather than ended, so the next Terminal reattaches to it. */
+  /**
+   * A closed tab frees its name: the session is detached, not
+   * ended, so the next terminal reattaches to it.
+   */
   it('reuses a name a closed tab gave up', () => {
     const one = openTerminal(emptyWorkspace())
     const two = openTab(one, { kind: 'terminal', session: terminalName(one) })
@@ -129,7 +131,7 @@ describe('splitting', () => {
     // The next thing opened lands in the new group.
     ws = openTab(ws, note('b.md'))
     expect(labels(ws)).toEqual([['a'], ['b']])
-    // And a note open in the first group is focused there, not opened again.
+    // A note open in the first group is focused there, not opened again.
     ws = openTab(ws, note('a.md'))
     expect(labels(ws)).toEqual([['a'], ['b']])
     expect(ws.focused).toBe(1)

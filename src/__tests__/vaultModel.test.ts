@@ -3,16 +3,13 @@ import { folderNoteRef, isSamePath, knownPath, linkLabelSpan } from '../vaultMod
 import type { VaultFolder } from '../vaultModel'
 
 /**
- * The operations on names and shapes, tested without a disk anywhere in sight —
- * which is the whole reason they live in `vaultModel.ts` and not in `vault.ts`.
- * These were in `vault.test.ts`, behind a mock of `@tauri-apps/plugin-fs` that
- * nothing here ever called.
+ * Name and shape rules, tested with no disk, which is why they
+ * live in `vaultModel.ts` and not `vault.ts`.
  */
 
 /**
- * The volume is case-insensitive but case-preserving, so two differently-cased
- * paths are one file. Comparing with `===` is what made a case-only rename trip an
- * "already exists" guard against itself.
+ * The volume is case-insensitive but case-preserving, so two differently cased paths
+ * are one file. `===` made a case-only rename trip its own "already exists" guard.
  */
 describe('whether two paths are one file', () => {
   it('answers on the lowercased path', () => {
@@ -37,9 +34,8 @@ const folder = (path: string, withNote: boolean): VaultFolder => {
 }
 
 /**
- * A folder note is created lazily, so this has to answer for a folder that does
- * not have one yet — the tree compares the selected path against it, and a folder
- * without a note on disk could otherwise never show as selected.
+ * A folder note is created lazily, so this must answer for a folder
+ * without one yet; otherwise such a folder could never show as selected.
  */
 describe('a folder’s own note', () => {
   it('is the note on disk when there is one', () => {
@@ -55,12 +51,9 @@ describe('a folder’s own note', () => {
 })
 
 /**
- * The path a note is known by.
- *
- * A nested note is a folder plus a same-named note inside it, so
- * `Areas/Northwind` and `Areas/Northwind/Northwind.md` are one note under two
- * spellings — and only the first has a row anywhere in the app. Reported from the
- * running app: the `path:` property and the `[[` picker both showed the second.
+ * The path a note is known by. A nested note is a folder plus a same-named note inside
+ * it, so `Areas/Northwind` and `Areas/Northwind/Northwind.md` are one note, and only
+ * the first has a row. The `path` property and the `[[` popup both showed the second.
  */
 describe('the path a note is known by', () => {
   it('is the folder, for a folder’s own note', () => {
@@ -79,8 +72,10 @@ describe('the path a note is known by', () => {
     expect(knownPath('Ideas/ideas.md')).toBe('Ideas')
   })
 
-  /** A note named after its *grandparent* is not its folder's note: only the
-   *  folder it actually sits in counts. */
+  /**
+   * A note named after its grandparent is not its folder's note:
+   * only the folder it is in counts.
+   */
   it('does not fold a name that matches a folder further up', () => {
     expect(knownPath('Ideas/Plans/Ideas.md')).toBe('Ideas/Plans/Ideas')
   })
@@ -92,12 +87,10 @@ describe('the path a note is known by', () => {
 })
 
 /**
- * What a wikilink shows. One function because three renderers had answered it three
- * ways — the editor the name alone, a gathered page and its table the whole
- * target — so one link read two different ways in one app.
+ * What a wikilink shows. One function, because three renderers once gave three answers.
  */
 describe('linkLabelSpan', () => {
-  /** What the span picks out, which is what every caller but the editor wants. */
+  /** What the span picks out, which every caller but the editor wants. */
   const shown = (inner: string) => {
     const span = linkLabelSpan(inner)
     return inner.slice(span.from, span.to)
@@ -110,7 +103,7 @@ describe('linkLabelSpan', () => {
 
   it('shows an alias verbatim, because an alias is how a link gets a name', () => {
     expect(shown('Areas/Pingbird|the bird one')).toBe('the bird one')
-    // A leading space is the writer's, and stays: the editor hides up to the pipe.
+    // A leading space is the writer's and stays: the editor hides up to the pipe.
     expect(shown('Areas/Pingbird| Bird')).toBe(' Bird')
   })
 
@@ -132,8 +125,8 @@ describe('linkLabelSpan', () => {
   })
 
   /**
-   * The marker is a *depth*, not an alias, and only an exact `!n` is one — so a
-   * note aliased `!important` keeps its alias and is not read as a count.
+   * The marker is a depth, not an alias, and only an exact `!n`
+   * counts, so an alias like `!important` stays an alias.
    */
   it('reads anything else after the pipe as the alias it is', () => {
     expect(shown('Areas/Pingbird|!important')).toBe('!important')

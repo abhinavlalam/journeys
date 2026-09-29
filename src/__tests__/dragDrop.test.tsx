@@ -5,16 +5,10 @@ import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFake
 import { readProperty } from '../properties'
 
 /**
- * Dragging a note or a folder to a new home.
- *
- * **Reported from the running app: a note dragged out of a folder could not be
- * dropped at the top of the vault.** Every folder row was a drop target and the
- * root was not one, so there was nowhere for it to land — and nothing here drove a
- * drag, which is why it went unseen.
- *
- * The drop is dispatched directly with a crafted `dataTransfer`: jsdom has no drag
- * of its own, and what these are about is the handler and the move it performs,
- * not the browser's gesture.
+ * Dragging a note or a folder to a new place. A note dragged out of a folder
+ * could not be dropped at the top of the vault: every folder row was a drop
+ * target and the root was not. The drop is dispatched directly with a made-up
+ * `dataTransfer`, since jsdom has no drag; these test the handler and the move.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -27,8 +21,10 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 const FILE_MIME = 'application/x-journeys-file'
 const FOLDER_MIME = 'application/x-journeys-folder'
 
-/** What a row puts on the drag: the payload, and — for a folder — its path as a
- *  MIME suffix, because `dragover` may read the type list and nothing else. */
+/**
+ * What a row puts on the drag: the payload and, for a folder, its path
+ * as a MIME suffix, since `dragover` can read only the type list.
+ */
 const carrying = (mime: string, payload: unknown, marker?: string) => ({
   types: marker ? [mime, `${mime}+${marker}`] : [mime],
   getData: (asked: string) => (asked === mime ? JSON.stringify(payload) : ''),
@@ -61,7 +57,7 @@ describe('dropping on the root', () => {
 
     await waitFor(() => expect(disk.has('/v/pingbird.md')).toBe(true))
     expect(disk.has('/v/Ideas/pingbird.md')).toBe(false)
-    // The bytes are the note's own; the move rewrites only its `path:`.
+    // The note's bytes are its own; the move rewrites only its `path`.
     expect(disk.read('/v/pingbird.md')).toContain('# Pingbird')
   })
 
@@ -76,15 +72,10 @@ describe('dropping on the root', () => {
 
     await waitFor(() => expect(disk.has('/v/Northwind/Northwind.md')).toBe(true))
     /**
-     * Everything inside came along, **and says where it now is**: a folder that
-     * moves rewrites the `path:` of every note under it.
-     *
-     * This asserted `'# Plan\n'` — the child untouched — which was the bug and not
-     * the design. `renameFolder` and `moveFolder` hand back `{...folder, path}`,
-     * whose children still carry the paths they had before the move, so
-     * `writePathProperty` was handed a note that was no longer there and wrote
-     * nothing. `mutate` passes the walked tree now, and `relocateFolder` reads the
-     * folder out of that.
+     * Everything inside came along and says where it is: a folder move rewrites
+     * the `path` of every note under it. `renameFolder` and `moveFolder` return
+     * the folder with its children's old paths, so `mutate` passes the walked
+     * tree and `relocateFolder` reads the folder from that.
      */
     expect(disk.read('/v/Northwind/plan.md')).toBe('path:: Northwind/plan\n\n# Plan\n')
     expect(disk.has('/v/Areas/Northwind')).toBe(false)
@@ -100,12 +91,8 @@ describe('dropping on the root', () => {
 })
 
 /**
- * **A note dropped on a plain note goes inside it, and the plain note becomes a
- * nested one.** It took files from outside first and refused the vault's own notes,
- * on the grounds that a note dragged onto a note had no meaning yet. Asked for as
- * "I want to be able to move notes under any other note; a note should just
- * automatically convert." The conversion and the move are one mutation, so the tree
- * is never drawn with the target converted and the note still outside it.
+ * A note dropped on a plain note goes inside it, and the plain note becomes nested.
+ * The conversion and the move are one change, so the tree is never drawn half done.
  */
 describe('dropping on a plain note', () => {
   const noteRow = (name: string) => within(tree()).getByText(name).closest('button') as HTMLElement
@@ -120,8 +107,8 @@ describe('dropping on a plain note', () => {
     expect(disk.has('/v/roadmap/roadmap.md')).toBe(true)
     expect(disk.has('/v/roadmap.md')).toBe(false)
     expect(disk.has('/v/inbox.md')).toBe(false)
-    // Both know where they are: the target through `convertNote`, the dragged note
-    // through the same relocate every other move uses.
+    // Both know where they are: the target through `convertNote`,
+    // the dragged note through the usual relocate.
     expect(readProperty(disk.read('/v/roadmap/roadmap.md') ?? '', 'path')).toBe('roadmap')
     expect(readProperty(disk.read('/v/roadmap/inbox.md') ?? '', 'path')).toBe('roadmap/inbox')
   })
@@ -136,9 +123,11 @@ describe('dropping on a plain note', () => {
     expect(disk.has('/v/Ideas/Ideas.md')).toBe(false)
   })
 
-  /** A note cannot be dropped on itself. Refused at `dragover`, so the row does not
-   *  light up for a drop it would not take — the path rides on the drag as a type
-   *  suffix, since the payload is unreadable until the drop. */
+  /**
+   * A note cannot be dropped on itself. Refused at `dragover`,
+   * so the row does not light up; the path rides as a type
+   * suffix since the payload is unreadable until the drop.
+   */
   it('refuses the note the drag started on', async () => {
     await openApp()
     const row = noteRow('roadmap')
@@ -161,8 +150,7 @@ describe('dropping on a folder', () => {
     expect(disk.has('/v/roadmap.md')).toBe(false)
   })
 
-  /** A folder cannot be dropped into itself or its own subtree: the move would be
-   *  a folder trying to contain itself, and the vault refuses it anyway. */
+  /** A folder cannot be dropped into itself or its subtree. */
   it('refuses its own subtree', async () => {
     disk.write('/v/Areas/Health/Health.md', '# Health\n')
     await openApp()

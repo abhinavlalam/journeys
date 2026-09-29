@@ -4,18 +4,11 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
- * **One row, three places.** The tree, the Actions section and the two sections at
- * the end of a note all draw `rows.tsx`'s row — and the thing that keeps their
- * columns on one x is that they draw the *same boxes in the same order*, not that
- * three sets of numbers happen to agree.
- *
- * jsdom lays nothing out, so this asserts the shape and not the geometry. The
- * geometry was measured in Chrome, at prose 13 / leading 1.5 / gap 5, and every one
- * of the three came out identical: a row's chevron 19.5 wide, its icon at +19.5 and
- * its name at +43.8 from the pane, a child one 16px step further in at +35.5 and
- * +59.8, and every name at weight 400. A section's *heading* is the exception by
- * design: no icon, one step up and 600, because it is a heading rather
- * than a row.
+ * One row, three places: the tree, the Actions section and the note's end
+ * sections all draw `rows.tsx`'s row, with the same boxes in the same
+ * order, so their columns line up. jsdom lays nothing out, so this checks
+ * the shape; the geometry was measured in Chrome and matched in all three.
+ * A section's heading differs on purpose: no icon, one step up, and bold.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -36,8 +29,7 @@ beforeEach(() => {
 })
 
 
-/** The boxes a row is made of, in order: what the sheet dresses and what puts every
- *  name on one column. */
+/** The boxes a row is made of, in order. */
 function shapeOf(row: Element): string[] {
   return [...row.querySelectorAll('*')]
     .map((el) => el.className)
@@ -46,19 +38,22 @@ function shapeOf(row: Element): string[] {
     .filter((name) => name.startsWith('folder-') || name.startsWith('row-'))
 }
 
-/** The row a name is in, within `root` — `roadmap` is a row in the tree *and* a
- *  backlink at the end of a note, so the scope is the question. */
+/**
+ * The row a name is in, within `root`: `roadmap` is a row in the
+ * tree and a backlink at the end of a note.
+ */
 const rowNamed = (name: string, root: ParentNode = document) => {
   const found = [...root.querySelectorAll('.row-name')].find((el) => el.textContent === name)
   return found?.closest('.folder-header, button.file-row') as HTMLElement
 }
 
-/** Clicking a row means clicking what a pointer would hit: the name, inside the
- *  button. The `.folder-header` around it is a `<div>` and answers to nothing. */
+/**
+ * Click what a pointer would hit: the name inside the button.
+ * The `.folder-header` around it is a `<div>`.
+ */
 const clickRow = (row: HTMLElement) => fireEvent.click(row.querySelector('.row-name')!)
 
-/** Where a row's indent is written, and what it is: a group's on its header, a
- *  leaf's on its `li`. */
+/** Where a row's indent is written: a group's on its header, a leaf's on its `li`. */
 const indentOf = (row: HTMLElement) => ({
   li: (row.closest('li') as HTMLElement).style.paddingLeft,
   row: row.style.paddingLeft,
@@ -74,10 +69,10 @@ describe('a row', () => {
     const treeLeaf = shapeOf(rowNamed('northwind'))
     const treeIndents = [indentOf(rowNamed('Areas')), indentOf(rowNamed('northwind'))]
 
-    // A note's own sections, which draw the tree's rows in the reading pane.
+    // A note's own sections, drawing tree rows in the reading pane.
     clickRow(rowNamed('Areas'))
-    // The *reading pane*, not the first section: `Inside` and `Backlinks` are two
-    // `.note-section`s and a backlink is in the second.
+    // The reading pane, not the first section: Inside and Backlinks
+    // are two `.note-section`s and the backlink is in the second.
     const sections = await waitFor(() => {
       const found = document.querySelector('.viewer:not([hidden])')
       expect(found!.querySelector('.viewer:not([hidden]) .note-section')).toBeTruthy()
@@ -94,22 +89,21 @@ describe('a row', () => {
     const actionsRow = shapeOf(rowNamed('summarise'))
     const actionsIndents = [indentOf(rowNamed('Skills')), indentOf(rowNamed('summarise'))]
 
-    // A leaf is a leaf, in all three panes.
+    // A leaf is a leaf in all three panes.
     expect(actionsRow).toEqual(treeLeaf)
     expect(footerRow).toEqual(treeLeaf)
-    // The chevron's column is reserved on every one of them, which is what keeps a
+    // The chevron's column is reserved on every one, keeping a
     // leaf's icon under a folder's.
     for (const shape of [treeFolder, treeLeaf, actionsGroup, actionsRow, footerRow]) {
       expect(shape[0]).toBe('folder-chevron')
     }
-    // And a group row is a folder row: the same boxes, plus its own `+`.
+    // And a group row is a folder row: the same boxes plus its `+`.
     expect(actionsGroup.filter((name) => name !== 'folder-actions')).toEqual(
       treeFolder.filter((name) => name !== 'folder-actions')
     )
 
-    // **The same indent, on the same box**: a group's on its header, never on the
-    // `li` that holds its list — there, every row in the list counted it again, and
-    // measured in Chrome the Actions rows sat a step deeper than the tree's.
+    // The same indent on the same box: a group's on its header, never on
+    // the `li` holding its list, where every row inside counted it again.
     expect(actionsIndents).toEqual(treeIndents)
     expect(treeIndents[0].li).toBe('')
   })

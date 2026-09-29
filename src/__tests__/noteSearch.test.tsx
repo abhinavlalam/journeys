@@ -4,11 +4,9 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
- * Searching from the left pane.
- *
- * The matching itself is `search.test.ts` — pure, and tested there. What is here is
- * the wiring: where the button sits, that the field replaces the tree only once
- * something is typed, and that a result opens the note it names.
+ * Searching from the left pane. Matching is tested in `search.test.ts`;
+ * this is the wiring: where the button is, that the field replaces the
+ * tree only once something is typed, and that a result opens its note.
  */
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
@@ -19,13 +17,9 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 }))
 
 /**
- * The results list, once it is there.
- *
- * **`waitFor` retries only when its callback throws.** This was
- * `waitFor(() => document.querySelector('.sidebar-search-hits')!)` — a callback
- * that cannot fail, so it never retried: it resolved on the first tick with `null`
- * and the `within(null)` after it threw. That is the flake this file produced under
- * load, and no timeout could have fixed it, because none was ever being waited out.
+ * The results list, once it is there. `waitFor` retries only when its
+ * callback throws; a callback returning `querySelector(...)!` never failed,
+ * so it resolved with `null` at once and the next line threw under load.
  */
 function hitList(): HTMLElement {
   const found = document.querySelector('.sidebar-search-hits')
@@ -41,12 +35,11 @@ beforeEach(() => {
 
 
 const field = () => screen.getByLabelText('Search notes') as HTMLInputElement
-/** A row of the tree — the section's own list stays while a query replaces its rows. */
+/** A tree row: the section's own list stays while a query replaces its rows. */
 const tree = () => document.querySelector('.pane-section li.note-row')
 
 describe('the search button', () => {
-  // The row of controls under the vault's name: one set for both sections, and
-  // search is first because it only changes what you are looking at.
+  // The controls under the vault's name: one set for both sections, search first.
   it('is first in the row of controls, left of the collapse pair', async () => {
     await openApp()
     const controls = document.querySelector('.pane-section .folder-header .folder-actions')!
@@ -60,7 +53,7 @@ describe('the search button', () => {
     expect(screen.queryByLabelText('Search notes')).toBeNull()
     fireEvent.click(screen.getByLabelText('Search in notes'))
     expect(field()).toBeTruthy()
-    // Open and empty is the state you type the first letter into: the vault stays.
+    // Open and empty: the vault stays until the first letter.
     expect(tree()).toBeTruthy()
   })
 })
@@ -74,7 +67,7 @@ describe('a query', () => {
     const hits = await waitFor(() => hitList())
     expect(within(hits as HTMLElement).getByText('pingbird')).toBeTruthy()
     expect(within(hits as HTMLElement).getByText('What the messenger app got right.')).toBeTruthy()
-    // The results are in the tree's place while there is something to show.
+    // The results take the tree's place while there is something to show.
     expect(tree()).toBeNull()
   })
 
@@ -99,8 +92,7 @@ describe('a query', () => {
     expect(tree()).toBeNull()
   })
 
-  /** A stale query behind a shut field is a tree that is missing notes for a
-   *  reason nobody can see. */
+  /** A stale query behind a shut field would hide notes for no visible reason. */
   it('is cleared when Escape closes the field', async () => {
     await openApp()
     fireEvent.click(screen.getByLabelText('Search in notes'))
@@ -109,13 +101,14 @@ describe('a query', () => {
     fireEvent.keyDown(field(), { key: 'Escape' })
     expect(screen.queryByLabelText('Search notes')).toBeNull()
     expect(tree()).toBeTruthy()
-    // And re-opening starts empty.
+    // And reopening starts empty.
     fireEvent.click(screen.getByLabelText('Search in notes'))
     expect(field().value).toBe('')
   })
 
-  /** Leaving the field is the other way out, and it means the same thing: a box
-   *  nobody is typing in should not be holding the tree off the screen. */
+  /**
+   * Leaving the field also closes it: an idle box should not hold the tree off screen.
+   */
   it('closes when the field loses the keyboard', async () => {
     await openApp()
     fireEvent.click(screen.getByLabelText('Search in notes'))
@@ -128,11 +121,9 @@ describe('a query', () => {
   })
 
   /**
-   * **A click on a result must not race the close.**
-   *
-   * The field closes on blur, and a click in the list would blur it first — the row
-   * unmounting before the click landed, so the note never opened. The list refuses
-   * the focus change instead, which is what keeps the click on the row.
+   * A click on a result must not race the close. The field closes on
+   * blur, and a click in the list blurred it first, so the row unmounted
+   * before the click landed. The list refuses the focus change instead.
    */
   it('keeps the keyboard in the field when a result is clicked', async () => {
     disk.write('/v/roadmap.md', '# Roadmap\n\nmessenger work\n')
@@ -142,7 +133,7 @@ describe('a query', () => {
     const hits = await waitFor(() => hitList())
 
     const down = fireEvent.mouseDown(hits)
-    // `fireEvent` answers false when a handler called `preventDefault`.
+    // `fireEvent` returns false when a handler called `preventDefault`.
     expect(down).toBe(false)
 
     fireEvent.click(within(hits as HTMLElement).getByText('roadmap'))
@@ -152,10 +143,8 @@ describe('a query', () => {
 })
 
 /**
- * **One field at a time.** Search and `+` open the same box in the same place, so
- * two of them at once is two answers to what the keyboard is for — and clicking one
- * after the other used to give exactly that: the search bar with a name field
- * stacked underneath it.
+ * One field at a time: search and `+` open the same box in the
+ * same place, and clicking one then the other once stacked both.
  */
 describe('the two fields', () => {
   const nameField = () => screen.queryByPlaceholderText('Note title…')
