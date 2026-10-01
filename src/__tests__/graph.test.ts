@@ -646,6 +646,27 @@ describe('the kinds of connection', () => {
     expect(graph.byId.get('tag:expense')).toMatchObject({ name: '#expense', kind: 'tag' })
   })
 
+  /** A link in the page properties is a property's link, in either form. */
+  it('counts a link in the page properties as a property link', () => {
+    const files = ['A.md', 'B.md', 'C.md', 'D.md'].map((path) => note(path))
+    const page = buildNoteGraph(
+      [
+        { note: files[0], text: 'owner:: [[B]]\n\nsee [[C]]\n' },
+        { note: files[3], text: '---\nowner: "[[B]]"\n---\nbody\n' },
+        { note: files[1], text: '' },
+        { note: files[2], text: '' },
+      ],
+      buildNoteIndex(files),
+      [],
+      { typeOf: () => 'text' }
+    )
+    expect(page.edges.map((edge) => `${edge.from} -> ${edge.to} ${edge.kind}`).sort()).toEqual([
+      'a -> b property',
+      'a -> c text',
+      'd -> b property',
+    ])
+  })
+
   it('shows only the connections chosen, and counts the notes left with none', () => {
     const textOnly = connectionsOf(graph, { ...all, property: false, tag: false })
     expect(textOnly.graph.nodes.map((node) => node.id)).toEqual(['daily/2026-09-21', 'mira vance'])

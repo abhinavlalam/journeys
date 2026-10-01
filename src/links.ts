@@ -6,7 +6,6 @@
 // decides when to read the vault, and a test of this file mocks nothing.
 
 import { maskCode } from './prose'
-import { splitPageProperties } from './properties'
 import {
   folderNoteRef,
   folderOf,
@@ -36,7 +35,7 @@ interface NoteLink {
    * verbatim so it can be found and rewritten; `resolveTarget` decodes it.
    */
   target: string
-  /** Offset of `target` in the note, frontmatter included: where a rename rewrites it. */
+  /** Offset of `target` in the note: where a rename rewrites it. */
   targetAt: number
   /**
    * True for `[[a]]`, false for `[a](b)`. It tells `resolveTarget`
@@ -45,8 +44,8 @@ interface NoteLink {
    */
   wiki: boolean
   /**
-   * Offset of the `[`, frontmatter included. An embed's `!` sits at `start
-   * - 1`, outside the span, so replacing `[start, end)` keeps it an embed.
+   * Offset of the `[`. An embed's `!` sits at `start - 1`, outside
+   * the span, so replacing `[start, end)` keeps it an embed.
    */
   start: number
   /** Offset one past the closing `)` or `]]`. */
@@ -176,15 +175,15 @@ function readWikiLink(
 /**
  * Every inline link in a note that could point at another note.
  *
- * Skipped: images (`![alt](x.png)`), links in code or frontmatter, an escaped
- * `\[`, and external destinations (any scheme, `//host`, or empty). Wikilinks
- * count in every form, `![[a]]` embeds included, since an embed is a reference to
- * the note; `![[picture.png]]` drops out as external. `[[]]` is not a link.
- * Reference links (`[label][ref]`) aren't parsed: nothing writes them.
+ * Skipped: images (`![alt](x.png)`), links in code, an escaped `\[`, and external
+ * destinations (any scheme, `//host`, or empty). Wikilinks count in every form,
+ * `![[a]]` embeds included, since an embed is a reference to the note;
+ * `![[picture.png]]` drops out as external. `[[]]` is not a link. A link in the page
+ * properties counts as one anywhere else does. Reference links (`[label][ref]`)
+ * aren't parsed: nothing writes them.
  */
 export function parseNoteLinks(text: string): NoteLink[] {
-  const { prefix, body } = splitPageProperties(text)
-  const masked = maskCode(body)
+  const masked = maskCode(text)
   const links: NoteLink[] = []
 
   for (let i = 0; i < masked.length; i++) {
@@ -194,17 +193,17 @@ export function parseNoteLinks(text: string): NoteLink[] {
     // and before the markdown attempt, so `[[a]]` isn't read as a label.
     const wiki = readWikiLink(masked, i)
     if (wiki) {
-      const target = body.slice(i + 2, wiki.bar === -1 ? wiki.to : wiki.bar)
+      const target = text.slice(i + 2, wiki.bar === -1 ? wiki.to : wiki.bar)
       // No `isExternalTarget` check: a wikilink can't point outside
       // the vault, and `Q3: plan` would read as a URL scheme.
       if (target.trim()) {
         links.push({
-          label: body.slice(wiki.bar === -1 ? i + 2 : wiki.bar + 1, wiki.to),
+          label: text.slice(wiki.bar === -1 ? i + 2 : wiki.bar + 1, wiki.to),
           target,
-          targetAt: prefix.length + i + 2,
+          targetAt: i + 2,
           wiki: true,
-          start: prefix.length + i,
-          end: prefix.length + wiki.end,
+          start: i,
+          end: wiki.end,
         })
       }
       i = wiki.end - 1
@@ -217,15 +216,15 @@ export function parseNoteLinks(text: string): NoteLink[] {
     if (close === -1 || masked[close + 1] !== '(') continue
     const read = readTarget(masked, close + 1)
     if (!read) continue
-    const target = body.slice(read.from, read.to)
+    const target = text.slice(read.from, read.to)
     if (!isExternalTarget(target)) {
       links.push({
-        label: body.slice(i + 1, close).replace(ESCAPED_PUNCT, '$1'),
+        label: text.slice(i + 1, close).replace(ESCAPED_PUNCT, '$1'),
         target,
-        targetAt: prefix.length + read.from,
+        targetAt: read.from,
         wiki: false,
-        start: prefix.length + i,
-        end: prefix.length + read.end,
+        start: i,
+        end: read.end,
       })
     }
     i = read.end - 1

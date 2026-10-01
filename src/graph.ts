@@ -9,7 +9,7 @@
 import { isDailyNote } from './daily'
 import { parseNoteLinks, pathKey, resolveTarget } from './links'
 import type { NoteIndex } from './links'
-import { blockProperties, type PropertyType } from './properties'
+import { blockProperties, splitPageProperties, type PropertyType } from './properties'
 import { tagNames } from './tags'
 import { baseName, isEncrypted, noteName } from './vaultModel'
 import type { VaultFile } from './vaultModel'
@@ -116,9 +116,12 @@ function sourceNode(note: VaultFile, index: NoteIndex, dailyFolder: string): Gra
   return { id: pathKey(file.path), path: file.path, name: file.name, exists: !!known, kind }
 }
 
-/** Where a note's block properties hold their values, as offsets into its text. */
+/**
+ * Where a note's properties hold their values, as offsets into its text: the page
+ * block whole (`key:: value` or YAML), then each block property's value on a line.
+ */
 function propertyValues(text: string, typeOf: (name: string) => PropertyType): [number, number][] {
-  const spans: [number, number][] = []
+  const spans: [number, number][] = [[0, splitPageProperties(text).prefix.length]]
   let at = 0
   for (const line of text.split('\n')) {
     for (const one of blockProperties(line, typeOf)) {

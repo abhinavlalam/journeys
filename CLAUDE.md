@@ -468,7 +468,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   member lands inside a region. A day or a tag is drawn small, named after the
   notes, and its lines are `QUIET`.
 - **Three kinds of connection**, each a checkbox (`settings.graphShows`): a link in
-  the text, a link in a property's value (dashed), a tag (a node of its own). Nodes
+  the text, a link in a property's value (dashed; the page block's count too, in
+  either form), a tag (a node of its own). A page property's link is a backlink and
+  follows a rename like any other: `parseNoteLinks` reads the whole note. Nodes
   are notes, days and tags. `connectionsOf` filters, and a note left with none is
   counted and listed, not drawn.
 - `GraphView` owns a view transform; the layout stays in world space. The wheel

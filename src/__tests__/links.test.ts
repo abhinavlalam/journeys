@@ -73,8 +73,10 @@ describe('parseNoteLinks', () => {
     expect(targets('[a `b` c](Real.md)')).toEqual(['Real.md'])
   })
 
-  it('skips frontmatter', () => {
-    expect(targets('---\nlink: "[a](Fake.md)"\n---\n[b](Real.md)')).toEqual(['Real.md'])
+  /** A page property's link is a link, in either form, as a property's on a line is. */
+  it('reads a link in the page properties', () => {
+    expect(targets('---\nlink: "[a](Top.md)"\n---\n[b](Real.md)')).toEqual(['Top.md', 'Real.md'])
+    expect(targets('project:: [[Igneous]]\n\n[[Real]]')).toEqual(['Igneous', 'Real'])
   })
 
   it('reports offsets into the string it was given, frontmatter included', () => {
@@ -182,14 +184,14 @@ describe('parseNoteLinks', () => {
     expect(targets('[see [[x]]](Real.md)')).toEqual(['Real.md'])
   })
 
-  it('skips a wikilink inside code or frontmatter, exactly as it skips a markdown link', () => {
+  it('skips a wikilink inside code, exactly as it skips a markdown link', () => {
     expect(targets('```\n[[Fake]]\n```\n[[Real]]')).toEqual(['Real'])
     // With nothing real after it, so finding the wrong link cannot pass.
     expect(targets('```\n[[Fake]]\n```')).toEqual([])
     expect(targets('~~~md\n![[Fake]]\n~~~\n[[Real]]')).toEqual(['Real'])
     expect(targets('`[[Fake]]` but [[Real]]')).toEqual(['Real'])
     expect(targets('``a `[[Fake]]` b`` [[Real]]')).toEqual(['Real'])
-    expect(targets('---\nlink: "[[Fake]]"\n---\n[[Real]]')).toEqual(['Real'])
+    expect(targets('---\nlink: "`[[Fake]]`"\n---\n[[Real]]')).toEqual(['Real'])
     // The `[[` is live text and only its `]]` is inside the code span, so
     // the scan must run over the masked text, where that `]]` is spaces.
     expect(targets('[[Fake`]]` x')).toEqual([])
@@ -712,6 +714,14 @@ describe('buildBacklinkIndex, for wikilinks', () => {
     ])
   })
 
+  /** A page property's link is a backlink too, quoted by its line. */
+  it('counts a link in the page properties', () => {
+    const fromPage = buildBacklinkIndex([{ note: note('Plans.md'), text: 'project:: [[Roadmap]]\n\nbody' }], index)
+    expect(backlinksTo(fromPage, 'Notes/Roadmap.md').map((b) => [b.note.path, b.mentions])).toEqual([
+      ['Plans.md', ['project:: [[Roadmap]]']],
+    ])
+  })
+
   it('leaves a note out of its own backlinks, and holds a dangling name', () => {
     expect(backlinksTo(backlinks, 'Areas/Health/Health.md')).toEqual([])
     expect(backlinksTo(backlinks, 'Later.md').map((b) => b.note.path)).toEqual(['Ideas/Ideas.md'])
@@ -860,6 +870,11 @@ describe('retargetLinks', () => {
 
   it('follows an embed, which is a stronger reference than a link', () => {
     expect(follow('![[Roadmap]]')).toBe('![[Plan]]')
+  })
+
+  /** A page property's link follows the note too. */
+  it('rewrites a link in the page properties', () => {
+    expect(follow('project:: [[Roadmap]]\n\nbody')).toBe('project:: [[Plan]]\n\nbody')
   })
 
   /** A markdown destination is a path to a file; `.md` stays if it was there. */

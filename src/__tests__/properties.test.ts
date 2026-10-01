@@ -90,10 +90,7 @@ describe('withProperty', () => {
   })
 })
 
-/**
- * The block split from the body, by the same rule `readProperty` uses.
- * `parseNoteLinks` calls it: a `path` full of slashes is a property, not links.
- */
+/** The block split from the body, by the same rule `readProperty` uses. */
 describe('splitting page properties off the body', () => {
   it('holds a leading block in the prefix, verbatim', () => {
     const { prefix, body } = splitPageProperties('---\nstatus: draft\n---\n\n# Title\n')
