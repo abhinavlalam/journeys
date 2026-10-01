@@ -180,17 +180,17 @@ export function useVaultTexts({
   const noteIndex = useMemo(() => buildNoteIndex(notes), [notes])
 
   /**
-   * `icon::`, read from each note. Kept in the note, not in app
-   * storage, so it travels with the vault and shows in any
-   * editor. Derived from `texts`, so it costs no extra read.
-   */
-  /**
    * The notes among the texts, which every cross-note answer is built from.
    * The texts include every text file, for search; a `.conf` or `.yaml`
    * isn't a note, and treating it as one turned its `#comment` into a tag.
    */
   const noteTexts = useMemo(() => texts?.filter(({ note }) => isNote(note.path)) ?? null, [texts])
 
+  /**
+   * `icon::`, read from each note. Kept in the note, not in app
+   * storage, so it travels with the vault and shows in any
+   * editor. Derived from `texts`, so it costs no extra read.
+   */
   const icons = useMemo(() => {
     const found: Record<string, string> = {}
     for (const { note, text } of noteTexts ?? []) {

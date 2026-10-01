@@ -25,7 +25,7 @@ describe('parseNoteLinks', () => {
   it('finds a link, its label, its raw target, and where it sits', () => {
     const text = 'See [Roadmap](Notes/Roadmap.md) today.'
     expect(parseNoteLinks(text)).toEqual([
-      { label: 'Roadmap', target: 'Notes/Roadmap.md', wiki: false, start: 4, end: 31 },
+      { label: 'Roadmap', target: 'Notes/Roadmap.md', targetAt: 14, wiki: false, start: 4, end: 31 },
     ])
     expect(text.slice(4, 31)).toBe('[Roadmap](Notes/Roadmap.md)')
   })
@@ -124,7 +124,7 @@ describe('parseNoteLinks', () => {
   it('finds a wikilink, its label, its target, and where it sits', () => {
     const text = 'See [[Notes/Roadmap]] today.'
     expect(parseNoteLinks(text)).toEqual([
-      { label: 'Notes/Roadmap', target: 'Notes/Roadmap', wiki: true, start: 4, end: 21 },
+      { label: 'Notes/Roadmap', target: 'Notes/Roadmap', targetAt: 6, wiki: true, start: 4, end: 21 },
     ])
     expect(text.slice(4, 21)).toBe('[[Notes/Roadmap]]')
     // Offsets index the string as given, frontmatter included, as for a markdown link.
@@ -150,7 +150,7 @@ describe('parseNoteLinks', () => {
 
   it('counts an Obsidian embed as a link, where a markdown image is skipped', () => {
     expect(parseNoteLinks('![[Roadmap]]')).toEqual([
-      { label: 'Roadmap', target: 'Roadmap', wiki: true, start: 1, end: 12 },
+      { label: 'Roadmap', target: 'Roadmap', targetAt: 3, wiki: true, start: 1, end: 12 },
     ])
     expect(targets('![alt](Diagram.png)')).toEqual([])
     // The `!` is outside the reported span, so a rewrite of it stays an embed.
@@ -364,7 +364,7 @@ describe('resolveTarget', () => {
    * the head resolves by name and the rest hangs off its `knownPath`.
    */
   const wiki = (target: string, from = 'Index.md') =>
-    resolveTarget({ label: target, target, start: 0, end: 0, wiki: true }, from, index)
+    resolveTarget({ label: target, target, targetAt: 0, start: 0, end: 0, wiki: true }, from, index)
 
   it('creates a child under the note the head names, not at the root', () => {
     const found = wiki('Diet/Notes')
@@ -875,6 +875,11 @@ describe('retargetLinks', () => {
    */
   it('leaves a label that reads like the destination alone', () => {
     expect(follow('See [Roadmap](Notes/Roadmap.md).')).toBe('See [Roadmap](Notes/Plan.md).')
+  })
+
+  /** And a title that repeats it: the destination was found by searching the link's text. */
+  it('leaves a title that reads like the destination alone', () => {
+    expect(follow('See [x](Notes/Roadmap.md "Notes/Roadmap.md").')).toBe('See [x](Notes/Plan.md "Notes/Roadmap.md").')
   })
 
   it('encodes a space when the destination it replaces was encoded', () => {

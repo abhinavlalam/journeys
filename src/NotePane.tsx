@@ -119,14 +119,15 @@ export function NotePane({
   useEffect(
     () => () => {
       buffers.unregister(id)
-      void flush.current()
+      // A save that fails has said so.
+      flush.current().catch(() => {})
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [id]
   )
   // Hidden, the tab keeps its editor (text and undo) and writes what it held.
   useEffect(() => {
-    if (!active) void buffer.flushPendingSave()
+    if (!active) buffer.flushPendingSave().catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active])
 

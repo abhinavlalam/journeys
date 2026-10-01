@@ -223,6 +223,18 @@ describe('the calendar', () => {
     expect(disk.has(`/v/Daily/${daysAfter(today, 2)}.md`)).toBe(false)
   })
 
+  /** A Wi-Fi sign-in page answers any address with a page, not a calendar.
+   *  Read as an empty calendar, it took every synced line back out. */
+  it('leaves the synced lines alone when the feed answers with something else', async () => {
+    await openCalendar()
+    fireEvent.click(viewer().getByText('Sync'))
+    await waitFor(() => expect(disk.read(`/v/Daily/${tomorrow}.md`)).toContain('Offsite'))
+    feed.text = '<html><body>Sign in to the Wi-Fi</body></html>'
+    fireEvent.click(viewer().getByText('Sync'))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/did not answer with a calendar/))
+    expect(disk.read(`/v/Daily/${tomorrow}.md`)).toContain('Offsite')
+  })
+
   it('has nothing to sync without a feed', async () => {
     disk.write('/v/.config/settings.json', JSON.stringify(DEFAULT_SETTINGS))
     await openCalendar()

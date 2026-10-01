@@ -13,6 +13,7 @@ import { APP_PROPERTIES, readProperty, withProperty } from './properties'
 import { pathKey, retargetLinks } from './links'
 import type { NoteIndex, NoteMoves } from './links'
 import {
+  extensionOf,
   folderNotePath,
   folderOf,
   isEncrypted,
@@ -268,7 +269,7 @@ export async function writeVaultFile(file: VaultFile, raw: string): Promise<void
  */
 export async function keepOther(file: VaultFile): Promise<VaultFile> {
   const root = file.absolutePath.slice(0, file.absolutePath.length - file.path.length - 1)
-  const ext = /\.enc\.md$/i.exec(file.path)?.[0] ?? /\.[^./]+$/.exec(file.path)?.[0] ?? ''
+  const ext = extensionOf(file.path)
   const stem = file.path.slice(0, file.path.length - ext.length)
   let other = vaultFileRef(root, `${stem} (other)${ext}`)
   for (let n = 2; await vaultFs.exists(other.absolutePath); n++) other = vaultFileRef(root, `${stem} (other ${n})${ext}`)
@@ -605,7 +606,7 @@ export async function createLockedNote(
 ): Promise<VaultFile> {
   const base = safeNewName(noteName(name))
   // A name is one note, locked or not.
-  for (const taken of [`${base}.enc`, `${base}.md`]) {
+  for (const taken of [`${base}.enc`, `${base}.enc.md`, `${base}.md`]) {
     if (await vaultFs.exists(`${vaultPath}/${taken}`)) throw new Error(`"${taken}" already exists.`)
   }
   const file = { path: `${base}.enc`, absolutePath: `${vaultPath}/${base}.enc`, name: base }
@@ -742,8 +743,9 @@ export async function renameFile(file: VaultFile, newName: string): Promise<Vaul
   // so a `/`, `..` or leading dot would send the note somewhere unintended.
   const trimmed = renamedTo(file.name, newName)
   if (trimmed === null) return file
-  // Keep the file's own extension: renaming `data.json` once produced `data.md`.
-  const extension = /\.[A-Za-z0-9]+$/.exec(file.path)?.[0] ?? '.md'
+  // Keep the file's whole extension: renaming `data.json` once produced `data.md`,
+  // and a locked `x.enc.md` kept only `.md`, a plain note holding ciphertext.
+  const extension = extensionOf(file.path)
   const fileName = trimmed.toLowerCase().endsWith(extension.toLowerCase())
     ? trimmed
     : `${trimmed}${extension}`

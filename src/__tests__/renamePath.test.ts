@@ -108,6 +108,21 @@ describe('renaming a note that is nothing unusual', () => {
     expect([...disk.keys()]).toEqual(['/v/Notes/report.md'])
   })
 
+  /** A locked note stays locked under its new name, in both spellings. Keeping only
+   *  `.md` of `.enc.md` made it a plain note holding ciphertext, which a move then
+   *  wrote a `path::` into. */
+  it('keeps a locked note’s whole extension', async () => {
+    disk.set('/v/Notes/Accounts.enc.md', 'sealed')
+    disk.set('/v/Notes/Keys.enc', 'sealed')
+    expect((await renameFile(note('Notes/Accounts.enc.md'), 'Banks')).path).toBe('Notes/Banks.enc.md')
+    expect((await renameFile(note('Notes/Keys.enc'), 'Codes')).path).toBe('Notes/Codes.enc')
+  })
+
+  it('adds no extension to a file that has none', async () => {
+    disk.set('/v/Notes/LICENSE', 'text')
+    expect((await renameFile(note('Notes/LICENSE'), 'COPYING')).path).toBe('Notes/COPYING')
+  })
+
   // The volumes are case-insensitive, so the containment check answers on
   // the parent, not on a path equality that reads two names as one file.
   it('still allows a case-only rename', async () => {

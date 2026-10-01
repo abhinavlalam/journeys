@@ -87,7 +87,8 @@ export function useLocks({
    * is written first, sealed, while there is still a key to seal it with.
    */
   async function lockNotes(paths: readonly string[]) {
-    await flush()
+    // Not while typing could not be saved: locking closes its tab. The save said why.
+    if (!(await flush().then(() => true, () => false))) return
     onLocked(paths)
     paths.forEach(lock)
   }

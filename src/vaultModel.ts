@@ -89,6 +89,11 @@ export function baseName(path: string): string {
   return path.slice(path.lastIndexOf('/') + 1)
 }
 
+/** A file's extension, or `''`. A v1 locked note's is the whole `.enc.md`. */
+export function extensionOf(path: string): string {
+  return /\.enc\.md$/i.exec(path)?.[0] ?? /\.[^./]+$/.exec(path)?.[0] ?? ''
+}
+
 /**
  * A folder's own note from its path alone: `Areas/Plans` is `Areas/Plans/Plans.md`.
  * `folderNoteRef` is the same rule for a folder in the tree.

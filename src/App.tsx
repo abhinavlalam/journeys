@@ -547,7 +547,11 @@ export default function App() {
     )
     const sources = new Set<string>()
     for (const { name, url } of settings.calendarFeeds) {
-      const feed = parseIcs(await fetchFeed(url))
+      const body = await fetchFeed(url)
+      // A Wi-Fi sign-in page answers any address. Read as a calendar with no
+      // events, it would take every synced line for these days back out.
+      if (!/^BEGIN:VCALENDAR/m.test(body)) throw new Error(`${name || url} did not answer with a calendar.`)
+      const feed = parseIcs(body)
       // Never an empty name: a line typed by hand with no
       // `source::` belongs to no feed.
       for (const one of [name, feed.name]) if (one) sources.add(one)
@@ -592,7 +596,7 @@ export default function App() {
   async function openLinkTarget(target: string, wiki: boolean) {
     const from = focusedNote?.path ?? ''
     const resolved = resolveTarget(
-      wiki ? { label: target, target, start: 0, end: 0, wiki: true } : target,
+      wiki ? { label: target, target, targetAt: 0, start: 0, end: 0, wiki: true } : target,
       from,
       noteIndex
     )
@@ -686,10 +690,6 @@ export default function App() {
   }
 
   /**
-   * Just the icon, for today's note: a `path::` at the top of a
-   * page made for you every day would be noise.
-   */
-  /**
    * Rewrites a timeline entry's line in place. Through `mutate`, so
    * pending typing is saved first and open buffers are read again.
    */
@@ -734,7 +734,7 @@ export default function App() {
     const inherited = await folderIcon(vault.vaultPath, file.path)
     if (!inherited) return
     // A note that already has an icon keeps it.
-    if (readProperty(await readVaultFile(file).catch(() => ''), APP_PROPERTIES.icon)) return
+    if (readProperty(await readVaultFile(file), APP_PROPERTIES.icon)) return
     await writeNoteProperty(file, APP_PROPERTIES.icon, inherited)
     // Redraw the tree now rather than on the next vault read.
     patch(new Set([file.path]), (raw) => withProperty(raw, APP_PROPERTIES.icon, inherited))

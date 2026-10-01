@@ -36,6 +36,8 @@ interface NoteLink {
    * verbatim so it can be found and rewritten; `resolveTarget` decodes it.
    */
   target: string
+  /** Offset of `target` in the note, frontmatter included: where a rename rewrites it. */
+  targetAt: number
   /**
    * True for `[[a]]`, false for `[a](b)`. It tells `resolveTarget`
    * to look a bare target up by name across the vault, which is
@@ -199,6 +201,7 @@ export function parseNoteLinks(text: string): NoteLink[] {
         links.push({
           label: body.slice(wiki.bar === -1 ? i + 2 : wiki.bar + 1, wiki.to),
           target,
+          targetAt: prefix.length + i + 2,
           wiki: true,
           start: prefix.length + i,
           end: prefix.length + wiki.end,
@@ -219,6 +222,7 @@ export function parseNoteLinks(text: string): NoteLink[] {
       links.push({
         label: body.slice(i + 1, close).replace(ESCAPED_PUNCT, '$1'),
         target,
+        targetAt: prefix.length + read.from,
         wiki: false,
         start: prefix.length + i,
         end: prefix.length + read.end,
@@ -604,13 +608,7 @@ export function retargetLinks(
     if (resolved.kind !== 'note') continue
     const to = moves.get(pathKey(resolved.note.path))
     if (!to) continue
-    const raw = out.slice(link.start, link.end)
-    // The destination's own occurrence: first in `[[target|label]]`, last in
-    // `[label](target)`, where a label equal to the target would otherwise match first.
-    const at = link.wiki ? raw.indexOf(link.target) : raw.lastIndexOf(link.target)
-    if (at === -1) continue
-    const next = raw.slice(0, at) + retarget(link, to) + raw.slice(at + link.target.length)
-    out = out.slice(0, link.start) + next + out.slice(link.end)
+    out = out.slice(0, link.targetAt) + retarget(link, to) + out.slice(link.targetAt + link.target.length)
   }
   return out
 }

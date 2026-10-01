@@ -71,7 +71,9 @@ export function useVault(buffer: RefObject<VaultBufferOps>, setError: (m: string
   ) {
     if (!vaultPath) return
     setError(null)
-    await buffer.current.flush()
+    // A note that could not be saved has said so, and its queued typing
+    // follows a move or is dropped by a delete; the operation goes on.
+    await buffer.current.flush().catch(() => {})
     try {
       const result = await op(vaultPath)
       const walked = await refresh(vaultPath)

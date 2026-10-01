@@ -99,7 +99,9 @@ export function useSync({
     busy.current = true
     setPhase('working')
     try {
-      await flush()
+      // A note that could not be saved has said so and keeps its typing queued;
+      // the round goes on with what is on disk.
+      await flush().catch(() => {})
       if (await syncCommit(vaultPath, byHand)) await onCommitted()
       if (current.remote && current.hasToken) {
         const pulled = await syncPull(vaultPath)

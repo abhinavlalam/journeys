@@ -8,7 +8,8 @@ import { describe, expect, it } from 'vitest'
  * a journal. Written as `\u0000` it is the same character to the code.
  */
 describe('the source', () => {
-  it('holds no NUL byte', () => {
+  // Reads every source file: slow on a synced folder under a full run, past the 5s default.
+  it('holds no NUL byte', { timeout: 30000 }, () => {
     const roots = ['../', '../../src-tauri/src/'].map((dir) => new URL(dir, import.meta.url))
     const holding = roots.flatMap((root) =>
       (readdirSync(root, { recursive: true }) as string[]).filter(

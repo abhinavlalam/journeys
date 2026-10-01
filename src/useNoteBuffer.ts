@@ -117,7 +117,8 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
   }
 
   async function openNote(file: VaultFile) {
-    await flushPendingSave()
+    // A save that failed keeps this buffer on its note, so the typing is not dropped.
+    if (!(await saved())) return
     // Read before switching, or the editor remounts with the
     // previous note's text and autosave writes it into the new file.
     const loaded = await readNoteBody(file)
@@ -157,7 +158,8 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
    */
   async function writeNote(file: VaultFile, raw: string) {
     const isNew = !openNoteExists.current
-    if (!isNew && loadedPath.current === file.path) {
+    // A note deleted elsewhere has nothing on disk to keep, so the typing is written.
+    if (!isNew && loadedPath.current === file.path && (await fileExists(file))) {
       const onDisk = await readVaultFile(file)
       if (seen.current !== null && onDisk !== seen.current && onDisk !== raw) {
         const other = await keepOther(file)
@@ -172,19 +174,26 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
     if (isNew && vaultPath) await refresh(vaultPath)
   }
 
-  /** Writes one queued edit now, and records it so a flush can wait for it. */
+  /**
+   * Writes one queued edit now, and records it so a flush can wait for it. A
+   * write that fails is said, queued again unless newer typing replaced it, and
+   * thrown, so a quit stays and a lock waits instead of dropping the typing.
+   */
   function runSave(pending: { file: VaultFile; raw: string }): Promise<void> {
     const write = (async () => {
       try {
         await writeNote(pending.file, pending.raw)
-      } catch {
-        setError(`Could not save ${pending.file.path}.`)
+      } catch (err) {
+        pendingSave.current ??= pending
+        setError(`Could not save ${pending.file.path}: ${String(err)}`)
+        throw err
       }
     })()
     inFlightSave.current = write
-    void write.then(() => {
+    const settled = () => {
       if (inFlightSave.current === write) inFlightSave.current = null
-    })
+    }
+    void write.then(settled, settled)
     return write
   }
 
@@ -193,14 +202,17 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
       clearTimeout(saveTimer.current)
       saveTimer.current = null
     }
+    // Waited for first: two writes to one file at once can land in either order.
+    // One that failed has queued its edit again, so it is tried once more below.
+    await inFlightSave.current?.catch(() => {})
     const pending = pendingSave.current
     pendingSave.current = null
-    // Waited for before writing the queued edit: two writes to
-    // one file at once can land in either order.
-    await inFlightSave.current
     if (!pending) return
     await runSave(pending)
   }
+
+  /** Whether every queued edit is on disk. A failure has been said and stays queued. */
+  const saved = () => flushPendingSave().then(() => true, () => false)
 
   /** Drops a queued save without writing it, for anything that deletes the file. */
   function discardPendingSave(pathOrPrefix: string) {
@@ -230,9 +242,9 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
       pendingSave.current = null
-      // Through `runSave`, so a flush during this write waits
-      // for it instead of reading the file mid-write.
-      void runSave({ file, raw: markdown })
+      // Through `runSave`, so a flush during this write waits for it instead
+      // of reading the file mid-write. A failure is said there and stays queued.
+      runSave({ file, raw: markdown }).catch(() => {})
     }, AUTOSAVE_MS)
   }
 
@@ -249,9 +261,9 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
   async function syncWithDisk() {
     if (!vaultPath) return
     const file = note
-    if (file && file.path === loadedPath.current) {
-      const generation = bufferGeneration.current
-      await flushPendingSave()
+    const generation = bufferGeneration.current
+    // After a failed save the disk is not read over the typing it holds.
+    if ((await saved()) && file && file.path === loadedPath.current) {
       const loaded = await readNoteBody(file)
       // The editor can be switched to another note during the awaits
       // above; applying this read after that would write A's text into B.
