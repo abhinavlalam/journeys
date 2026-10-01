@@ -72,7 +72,7 @@ export function useSettings(vaultPath: string | null, setError: (message: string
       } catch (err) {
         // There but unreadable is not missing: say so and write nothing over
         // it. The vault's settings stay unread, so none are handed out.
-        if (live) setError(`Could not read ${CONFIG_DIR}/${SETTINGS_FILE}: ${String(err)}`)
+        if (live) setError(`Could not read ${CONFIG_DIR}/${SETTINGS_FILE}: ${err instanceof Error ? err.message : String(err)}`)
         return
       }
       if (!live) return

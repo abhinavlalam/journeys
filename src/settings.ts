@@ -4,6 +4,7 @@
  * nothing in the panel changes nothing on screen; if they ever disagree,
  * the stylesheet is right. No React: pure functions and one DOM write.
  */
+import { asObject } from './configEntries'
 import { DAILY_FOLDER, readConfigFile, safeNewName, writeConfigFile } from './vault'
 import { SETTINGS_FILE } from './vaultModel'
 import { ACTIONS, defaultShortcuts, normalizeCombo, type ActionId } from './shortcuts'
@@ -344,18 +345,8 @@ function pickFace(value: unknown): FaceId {
  * from an older shape falls back on its own.
  */
 export function parseSettings(raw: unknown): Settings {
-  let stored: Partial<Record<keyof Settings, unknown>> = {}
-  if (typeof raw === 'string') {
-    try {
-      const parsed: unknown = JSON.parse(raw)
-      // `JSON.parse('7')` and `JSON.parse('null')` both succeed.
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        stored = parsed as Partial<Record<keyof Settings, unknown>>
-      }
-    } catch {
-      // Malformed JSON is a missing setting, not an error to throw into a render.
-    }
-  }
+  // Malformed JSON is missing settings, not an error to throw into a render.
+  const stored: Partial<Record<keyof Settings, unknown>> = (typeof raw === 'string' && asObject(raw)) || {}
 
   const daily = validateDailyFolder(stored.dailyFolder)
 
@@ -444,12 +435,15 @@ export function loadSettings(): Settings {
 
 /**
  * This vault's settings, or null when it has none yet, in which case the caller
- * writes them. A file of nonsense is different: it parses to the defaults and
- * is left exactly as it was, so a half-edited file is never overwritten.
+ * writes them. A file that is not JSON throws, as one that cannot be read does:
+ * read as the defaults, the next change in the panel wrote them over a half-edited
+ * file, and the calendars, which live only there, went with it.
  */
 export async function loadVaultSettings(vaultPath: string): Promise<Settings | null> {
   const text = await readConfigFile(vaultPath, SETTINGS_FILE)
-  return text === null ? null : parseSettings(text)
+  if (text === null) return null
+  if (!asObject(text)) throw new Error('it is not valid JSON, so it is left as it is until it is fixed.')
+  return parseSettings(text)
 }
 
 /**

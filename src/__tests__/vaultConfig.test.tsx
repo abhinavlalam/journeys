@@ -85,6 +85,11 @@ describe('a vault that has one', () => {
         `${DEFAULT_SETTINGS.proseSize}px`
       )
     )
+    expect(screen.getByRole('alert').textContent).toMatch(/settings\.json: it is not valid JSON/)
+    // Nor does a change in the panel write over it: the calendars live only in that file.
+    fireEvent.click(within(document.querySelector('.sidebar')!).getByLabelText('Settings'))
+    fireEvent.click(screen.getByRole('radio', { name: 'Light' }))
+    await new Promise((settle) => setTimeout(settle, 600))
     expect(disk.read(CONFIG)).toBe('{ this is not json')
   })
 })

@@ -8,16 +8,17 @@
  */
 export type Entries = Record<string, Record<string, unknown>>
 
+/** `value` when it is a plain object, else null. `JSON.parse('7')` and `'null'` both succeed. */
+const objectIn = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null
+
 /**
  * The JSON object a text holds, or null, which callers read as do
  * not write. A parse failure and a wrong shape are the same answer.
  */
-function asObject(text: string): Record<string, unknown> | null {
+export function asObject(text: string): Record<string, unknown> | null {
   try {
-    const read: unknown = JSON.parse(text)
-    return read && typeof read === 'object' && !Array.isArray(read)
-      ? (read as Record<string, unknown>)
-      : null
+    return objectIn(JSON.parse(text))
   } catch {
     return null
   }
@@ -32,7 +33,8 @@ export function readEntries(text: string): Entries | null {
   if (!parsed) return null
   const found: Entries = {}
   for (const [name, entry] of Object.entries(parsed)) {
-    if (entry && typeof entry === 'object' && !Array.isArray(entry)) found[name] = entry as Record<string, unknown>
+    const one = objectIn(entry)
+    if (one) found[name] = one
   }
   return found
 }
@@ -44,7 +46,8 @@ export function readEntries(text: string): Entries | null {
 export function withEntry(text: string, name: string, fields: Record<string, unknown>): string | null {
   const parsed = text.trim() ? asObject(text) : {}
   if (!parsed) return null
-  const next = { ...parsed, [name]: { ...(parsed[name] as object), ...fields } }
+  // Only an object is merged into: spread, a hand-typed `"amount": "number"` became {0: 'n', …}.
+  const next = { ...parsed, [name]: { ...objectIn(parsed[name]), ...fields } }
   const sorted = Object.fromEntries(Object.keys(next).sort().map((key) => [key, next[key]]))
   return `${JSON.stringify(sorted, null, 2)}\n`
 }

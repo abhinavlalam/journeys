@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { readEntries, withEntry, type Entries } from './configEntries'
 import { readConfigFile, writeConfigFile } from './vault'
 
@@ -8,6 +8,8 @@ import { readConfigFile, writeConfigFile } from './vault'
  */
 export function useConfigEntries(vaultPath: string | null, file: string, onError: (message: string) => void) {
   const [entries, setEntries] = useState<Entries>({})
+  /** The text last found not to be JSON, so it is said once and not on every focus. */
+  const broken = useRef<string | null>(null)
 
   useEffect(() => {
     // Another vault's entries are not this one's.
@@ -17,7 +19,12 @@ export function useConfigEntries(vaultPath: string | null, file: string, onError
     const load = () =>
       void readConfigFile(vaultPath, file).then(
         (text) => {
-          if (live) setEntries((text === null ? {} : readEntries(text)) ?? {})
+          if (!live) return
+          const read = text === null ? {} : readEntries(text)
+          // Said, not shown as no entries at all.
+          if (!read && text !== broken.current) onError(`${file} could not be read as JSON, so it was left alone.`)
+          broken.current = read ? null : text
+          setEntries(read ?? {})
         },
         (err: unknown) => {
           if (live) onError(`Could not read ${file}: ${String(err)}`)

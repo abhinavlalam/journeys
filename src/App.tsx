@@ -93,12 +93,12 @@ import {
 import { nothingPicked, pick, withoutUnder, type PickMode } from './picking'
 import type { GraphNode } from './graph'
 import { claimsIcon, FoldAllIcon, GraphIcon, NoteIcon, SearchIcon, PlusIcon, SettingsIcon, TerminalIcon } from './icons'
+import { SidebarSection } from './SidebarSection'
+import { stepIn, NoteRow, RowIcon } from './rows'
 /**
  * Loaded only when a terminal opens: xterm is large and touches `window` as it loads.
  */
 const TerminalPane = lazy(() => import('./TerminalPane').then((m) => ({ default: m.TerminalPane })))
-import { SidebarSection } from './SidebarSection'
-import { stepIn, NoteRow, RowIcon } from './rows'
 
 const SIDEBAR_KEY = 'journeys:sidebar-width'
 /**
@@ -186,7 +186,7 @@ export default function App() {
   }
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const stored = Number(localStorage.getItem(SIDEBAR_KEY))
-    return Number.isFinite(stored) && stored >= SIDEBAR_WIDTH.min ? stored : SIDEBAR_WIDTH.start
+    return Number.isFinite(stored) && stored >= SIDEBAR_WIDTH.min ? Math.min(stored, SIDEBAR_WIDTH.max) : SIDEBAR_WIDTH.start
   })
 
   /**
