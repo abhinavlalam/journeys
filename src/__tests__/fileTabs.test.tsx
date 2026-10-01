@@ -101,11 +101,6 @@ describe('the reading pane', () => {
 })
 
 /**
- * A file dragged in from outside is filed where it is dropped. The webview's default is
- * to open a dropped file in place of the app, so a PDF that missed the left pane
- * replaced everything. Now nothing outside a drop target acts, and a target copies.
- */
-/**
  * A file moves the way a note does: the same drag, targets and
  * `moveFile`. Only a note's own parts (its `path` and links) are
  * rewritten, and only for files that have them.
@@ -136,6 +131,11 @@ describe('moving a file that is not a note', () => {
   })
 })
 
+/**
+ * A file dragged in from outside is filed where it is dropped. The webview's default is
+ * to open a dropped file in place of the app, so a PDF that missed the left pane
+ * replaced everything. Now nothing outside a drop target acts, and a target copies.
+ */
 describe('a file dragged in from outside', () => {
   const dropping = (...files: File[]) => ({
     types: ['Files'],

@@ -7,6 +7,9 @@ function blank(run: string): string {
   return run.replace(/[^\n]/g, ' ')
 }
 
+/** How far a line is indented: its leading whitespace, in characters. */
+export const indentOf = (line: string) => line.length - line.trimStart().length
+
 /**
  * Replaces every code region with spaces, keeping the length, so
  * offsets still match the original.
@@ -18,9 +21,6 @@ function blank(run: string): string {
  * A four-space indented block is not code here: in these notes a deep
  * list item is far more common, and masking it would drop real links.
  */
-/** How far a line is indented: its leading whitespace, in characters. */
-export const indentOf = (line: string) => line.length - line.trimStart().length
-
 export function maskCode(text: string): string {
   const lines = text.split('\n')
   let out = ''

@@ -124,6 +124,12 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   (`keepOther`, the merge's own rule, as bytes so a locked note stays ciphertext),
   said, and then the typing is written. Typing during a pull used to write the
   pre-pull text over the other device's edit, and the next round pushed it.
+- **A save that fails stays queued, and the flush throws.** It was said and then
+  dropped, so the flush before a quit reported success and the typing was lost. A
+  quit stays, a lock waits, sync and vault operations go on, and focus does not
+  read the disk over the typing. A note deleted elsewhere is written, not failed.
+- **A move that moves nothing writes nothing** (`relocateFile`, `relocateFolder`):
+  a drop where an item already was wrote `path::` into every note under it.
 - **A quit writes the open notes first** (`quit.ts`, `lib.rs`'s `quit`). On macOS
   tao ends the app from `applicationWillTerminate`, with no event to hold it on, and
   the last 800ms of autosave went with it. So ⌘Q (the menu's own Quit replaces the
@@ -153,7 +159,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 - A read of a locked note throws `LockedFileError`; `openNote`, the funnel every
   row, hit, backlink and link goes through, asks for the passphrase under the
   note's own row. Passphrases live in `crypto.ts` memory for the window; a vault
-  change locks everything; a move carries the unlock.
+  change locks everything; a move carries the unlock, a folder's to everything in it.
+  A locked note's extension is whole (`extensionOf`, `other_path`): renamed or
+  copied as `x.enc (other).md`, its ciphertext became a plain note.
 - **Its owner's alone, unlocked or not.** The vault read skips it (no search,
   tags, properties, backlinks or calendar), the graph drops it after
   the walk, and `isNote` refuses it, so nothing writes into it. An icon picked for
@@ -324,7 +332,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 - `useCalendarSync` runs on vault open, on a new feed, every `calendarMinutes`
   and on a stale focus. The sync reads `tags.json` at that moment: the pane's
   copy may not be read yet, and "not read" is not "not declared".
-- The fetch is `curl` in Rust, off the main thread, scheme-checked.
+- The fetch is `curl` in Rust, off the main thread, scheme-checked. A body that is
+  not a calendar (a Wi-Fi sign-in page) is refused: read as no events, it took
+  every synced line back.
 - Nothing about the week is assumed (`firstWeekday` from `Intl.Locale`).
 
 ## What the app says
@@ -477,7 +487,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 ## Settings and the sheet
 
 - `.config/settings.json` dresses the vault; each value parses on its own and
-  falls back to its default; an unparsable file is left untouched.
+  falls back to its default. A file that is not JSON is said, not handed out and
+  not written over: read as the defaults, a panel change wrote them over a hand
+  edit, calendars and all. `tags.json` and `properties.json` are said once too.
   `readConfigFile`/`writeConfigFile` take a file name — do not add a second pair.
 - **A vault's calendars and hidden folders are its own** (`portable`): not carried
   into a new vault, not kept in `localStorage`, and not handed out until that

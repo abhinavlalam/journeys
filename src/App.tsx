@@ -262,15 +262,15 @@ export default function App() {
   })
   const syncSentence = syncWord(sync)
 
-  /**
-   * The one read of the vault and everything built from it. `liveText`,
-   * the open note as typed, is the one input not read from disk.
-   */
   /** Each property's type, from `.config/properties.json`. */
   const propertyTypes = useConfigEntries(vault.vaultPath, PROPERTIES_FILE, setError)
   /** Each tag's structure, from `.config/tags.json`. */
   const tagStructures = useConfigEntries(vault.vaultPath, TAGS_FILE, setError)
 
+  /**
+   * The one read of the vault and everything built from it. `liveText`,
+   * the open note as typed, is the one input not read from disk.
+   */
   const {
     notes,
     noteIndex,
