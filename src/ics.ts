@@ -43,8 +43,9 @@ export interface IcsFeed {
 
 /** A long line continues on the next after a leading space or tab. */
 const unfold = (text: string) => text.replace(/\r?\n[ \t]/g, '')
+/** `\n` is a newline; `\;`, `\,` and `\\` are the character itself. */
 const unescape = (text: string) =>
-  text.replace(/\\([\;,nN])/g, (_, c: string) => (c === 'n' || c === 'N' ? '\n' : c))
+  text.replace(/\\([\\;,nN])/g, (_, c: string) => (c === 'n' || c === 'N' ? '\n' : c))
 
 interface ContentLine {
   name: string

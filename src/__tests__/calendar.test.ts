@@ -105,6 +105,7 @@ describe('parseRepeats', () => {
     expect(parseRepeats('Daily')).toMatchObject({ freq: 'DAILY' })
     expect(parseRepeats('weekly')).toMatchObject({ freq: 'WEEKLY', byDay: [] })
     expect(parseRepeats('every 2 weeks')).toMatchObject({ freq: 'WEEKLY', interval: 2 })
+    expect(parseRepeats('every 0 days')).toBeNull()
     expect(parseRepeats('weekly on Monday, Thursday')).toMatchObject({ freq: 'WEEKLY', byDay: [1, 4] })
     expect(parseRepeats('every tuesday')).toMatchObject({ freq: 'WEEKLY', byDay: [2] })
     expect(parseRepeats('Mondays')).toMatchObject({ freq: 'WEEKLY', byDay: [1] })

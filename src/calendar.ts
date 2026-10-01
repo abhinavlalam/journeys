@@ -165,7 +165,8 @@ export function parseRepeats(text: string): Recurrence | null {
   const plain = /^(daily|everyday|weekly|monthly|yearly|annually)(?:\s+on\s+(.+))?$/.exec(value)
   if (plain) return rule(PLAIN[plain[1]], 1, plain[2] ?? '')
   const every = /^every\s+(?:(\d+)\s+)?(day|week|month|year)s?(?:\s+on\s+(.+))?$/.exec(value)
-  if (every) return rule(UNITS[every[2]], Number(every[1] ?? 1), every[3] ?? '')
+  // `every 0 days` repeats nothing; stepped, it was one day 100,000 times on every read.
+  if (every) return Number(every[1] ?? 1) < 1 ? null : rule(UNITS[every[2]], Number(every[1] ?? 1), every[3] ?? '')
   const days = weekdaysIn(value.replace(/^every\s+/, ''))
   return days.length > 0 ? rule('WEEKLY', 1, value) : null
 }

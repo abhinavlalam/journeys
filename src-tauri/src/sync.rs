@@ -478,13 +478,19 @@ fn clone(url: &str, into: &str) -> Result<()> {
     Ok(())
 }
 
-/// `Daily/2026-09-24.md` → `Daily/2026-09-24 (other).md`.
+/// `Daily/2026-09-24.md` → `Daily/2026-09-24 (other).md`. A v1 locked note keeps
+/// its whole `.enc.md`, as `keepOther` does: `x.enc (other).md` was ciphertext
+/// under a plain note's name, which the app would then write into.
 pub(crate) fn other_path(path: &str) -> String {
     let p = PathBuf::from(path);
-    let stem = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-    let ext = p.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
-    let name = format!("{stem} (other){ext}");
-    p.with_file_name(name).to_string_lossy().to_string()
+    let name = p.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+    let cut = if name.to_lowercase().ends_with(".enc.md") {
+        name.len() - ".enc.md".len()
+    } else {
+        p.file_stem().map(|s| s.len()).unwrap_or(name.len())
+    };
+    let (stem, ext) = name.split_at(cut);
+    p.with_file_name(format!("{stem} (other){ext}")).to_string_lossy().to_string()
 }
 
 fn write_blob(repo: &Repository, id: Oid, to: &Path) -> Result<()> {
@@ -827,5 +833,7 @@ mod tests {
     fn the_other_name() {
         assert_eq!(other_path("Daily/2026-09-24.md"), "Daily/2026-09-24 (other).md");
         assert_eq!(other_path("notes"), "notes (other)");
+        assert_eq!(other_path("Secure/Keys.enc"), "Secure/Keys (other).enc");
+        assert_eq!(other_path("Secure/Accounts.enc.md"), "Secure/Accounts (other).enc.md");
     }
 }

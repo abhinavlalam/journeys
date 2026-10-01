@@ -12,6 +12,11 @@ const feed = (body: string) =>
 const local = (y: number, mo: number, d: number, h = 0, mi = 0) => new Date(y, mo - 1, d, h, mi)
 
 describe('parseIcs', () => {
+  it('reads an escaped backslash as one', () => {
+    const { events } = parseIcs(feed('BEGIN:VEVENT\nDTSTART:20260924T093000Z\nSUMMARY:a\\\\b\nEND:VEVENT'))
+    expect(events[0].summary).toBe('a\\b')
+  })
+
   it('reads the calendar name and an event, unfolding and unescaping', () => {
     const { name, events } = parseIcs(
       feed(`
