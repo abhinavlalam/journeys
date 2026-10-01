@@ -112,9 +112,9 @@ function pageEntries(block: PageBlock | null): { name: string; value: string }[]
   })
 }
 
-/** A top-level property line in this block's form. */
+/** A top-level property line in this block's form, its name in any case. */
 function lineFor(key: string, block: PageBlock | null): RegExp {
-  return new RegExp(`^${key}\\s*${block?.yaml ? ':' : '::'}\\s*(.*)$`)
+  return new RegExp(`^${key}\\s*${block?.yaml ? ':' : '::'}\\s*(.*)$`, 'i')
 }
 
 /** `key:: value`, or `key::` when empty, with no trailing space. */
@@ -123,9 +123,9 @@ function line(key: string, value: string, block: PageBlock | null): string {
   return value === '' ? `${key}${sep}` : `${key}${sep} ${value}`
 }
 
-/** The value of page property `key`, or null when it is missing or empty. */
+/** The value of page property `key`, named in any case, or null when it is missing or empty. */
 export function readProperty(raw: string, key: string): string | null {
-  return pageEntries(pageBlock(raw)).find((one) => one.name === key)?.value || null
+  return pageEntries(pageBlock(raw)).find((one) => one.name.toLowerCase() === key.toLowerCase())?.value || null
 }
 
 /**
@@ -288,14 +288,14 @@ export function readBlock(line: string, typeOf: (name: string) => PropertyType):
  */
 export function noteProperties(raw: string, typeOf: (name: string) => PropertyType): { name: string; value: string }[] {
   const block = pageBlock(raw)
-  const lines = raw.split(/\r?\n/)
-  const prose = proseLines(raw)
-  const first = raw.slice(0, block?.end ?? 0).split('\n').length - 1
+  // The body alone: counted by lines, a block with no line ending after it was read twice.
+  const body = raw.slice(block?.end ?? 0)
+  const prose = proseLines(body)
   const found = pageEntries(block)
-  for (let at = first; at < lines.length; at++) {
-    for (const one of blockProperties(lines[at], typeOf, prose[at])) {
+  body.split(/\r?\n/).forEach((line, at) => {
+    for (const one of blockProperties(line, typeOf, prose[at])) {
       if (one.valid) found.push({ name: one.name, value: one.value })
     }
-  }
+  })
   return found
 }

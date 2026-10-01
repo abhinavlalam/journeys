@@ -81,6 +81,19 @@ describe('dropping on the root', () => {
     expect(disk.has('/v/Areas/Northwind')).toBe(false)
   })
 
+  /** A drop where it already is moves nothing, and writes nothing: a `path::` once went
+   *  into every note under a folder dropped back onto its own place, dailies included. */
+  it('writes nothing for a drop where the note or folder already is', async () => {
+    disk.write('/v/Daily/2026-09-01.md', 'the day\n')
+    await openApp()
+    const before = disk.read('/v/roadmap.md')
+    fireEvent.drop(tree(), { dataTransfer: carrying(FILE_MIME, file('roadmap.md')) })
+    fireEvent.drop(tree(), { dataTransfer: carrying(FOLDER_MIME, folder('Daily'), 'daily') })
+    await new Promise((settle) => setTimeout(settle, 300))
+    expect(disk.read('/v/Daily/2026-09-01.md')).toBe('the day\n')
+    expect(disk.read('/v/roadmap.md')).toBe(before)
+  })
+
   it('says so while a drag is over it', async () => {
     await openApp()
     fireEvent.dragOver(tree(), { dataTransfer: carrying(FILE_MIME, file('Ideas/pingbird.md')) })

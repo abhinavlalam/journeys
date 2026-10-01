@@ -98,7 +98,10 @@ export function useRelocation({
     return moves
   }
 
+  // Nothing moved (a drop where it already was, a name that folds to the one it has):
+  // nothing to follow, and a `path::` written then went into notes that had none.
   const relocateFile = (was: string) => async (now: VaultFile) => {
+    if (now.path === was) return
     buffer.followFile(was, now)
     onMoved.file(was, now)
     const unread = await writePathProperty([now])
@@ -112,6 +115,7 @@ export function useRelocation({
     // Read the folder back from the tree the move produced. The
     // operation returns the folder with new paths but its
     // children's old ones, so rewrites from those named old places.
+    if (now.path === was) return
     const moved = folderAt(root, now.path) ?? now
     const moves = folderMoves(was, moved)
     // Before the writes: the buffer may hold one of these paths, and a

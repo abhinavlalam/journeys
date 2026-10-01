@@ -194,12 +194,16 @@ export function passphraseFor(path: string): string | null {
   return unlocked.get(path) ?? null
 }
 
-/** A renamed or moved file keeps its passphrase, so the next save still works. */
+/**
+ * A renamed or moved file keeps its passphrase, and so does every note under
+ * a moved folder, so the next save still works. Missed for a folder, the open
+ * note's typing could not be saved.
+ */
 export function followUnlocked(from: string, to: string) {
-  const held = unlocked.get(from)
-  if (held !== undefined) {
-    unlocked.delete(from)
-    unlocked.set(to, held)
+  for (const [path, held] of [...unlocked]) {
+    if (path !== from && !path.startsWith(`${from}/`)) continue
+    unlocked.delete(path)
+    unlocked.set(to + path.slice(from.length), held)
   }
 }
 

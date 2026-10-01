@@ -145,6 +145,16 @@ describe('renaming a folder', () => {
     expect([...disk.keys()]).toEqual(['/v/Notes/trip/trip.md'])
   })
 
+  /** An unlocked note inside keeps its passphrase, as a moved file does, or its next save failed. */
+  it('carries an unlocked note inside along', async () => {
+    const { remember, passphraseFor, lockAll } = await import('../crypto')
+    lockAll()
+    remember('Notes/trip/Keys.enc', 'held')
+    await renameFolder(folder('Notes/trip', true), 'Plan')
+    expect(passphraseFor('Notes/Plan/Keys.enc')).toBe('held')
+    expect(passphraseFor('Notes/trip/Keys.enc')).toBeNull()
+  })
+
   it('folds a separator and keeps the folder note paired', async () => {
     const renamed = await renameFolder(folder('Notes/trip', true), 'Q3/Plan')
     expect(renamed.path).toBe('Notes/Q3-Plan')

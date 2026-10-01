@@ -735,6 +735,7 @@ export async function moveFolder(
     `"${folder.name}" already exists in that folder.`
   )
   if (!moved) return folder
+  followUnlocked(folder.path, newRelativePath)
   return { ...folder, path: newRelativePath, absolutePath: newAbsolutePath }
 }
 
@@ -782,6 +783,7 @@ export async function renameFolder(folder: VaultFolder, newName: string): Promis
     `"${trimmed}" already exists.`
   )
   if (!moved) return folder
+  followUnlocked(folder.path, newRelativePath)
 
   // The folder note is matched by name, so it follows the folder's rename.
   if (folder.note) {

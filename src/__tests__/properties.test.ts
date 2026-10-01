@@ -33,6 +33,12 @@ describe('readProperty', () => {
   it('does not read a block that is not at the very start', () => {
     expect(readProperty('text\n---\nicon: 📚\n---\n', 'icon')).toBeNull()
   })
+
+  /** A name in any case, as everywhere else: a hand-typed `Icon::` was a second icon line. */
+  it('reads and writes a name in any case', () => {
+    expect(readProperty('Icon:: book\n', 'icon')).toBe('book')
+    expect(withProperty('Icon:: book\n\nbody\n', 'icon', 'star')).toBe('icon:: star\n\nbody\n')
+  })
 })
 
 describe('withProperty', () => {
@@ -283,5 +289,10 @@ describe('block properties', () => {
       { name: 'icon', value: 'book' },
       { name: 'amount', value: '480' },
     ])
+  })
+
+  /** A note that is only its page block, with no line ending after it, was read twice. */
+  it('reads a page block once when nothing follows it', () => {
+    expect(noteProperties('icon:: book', typeOf)).toEqual([{ name: 'icon', value: 'book' }])
   })
 })
