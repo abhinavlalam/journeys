@@ -312,23 +312,21 @@ export function livePreviewDecorations(
 ): DecorationSet {
   const found: CmRange<Decoration>[] = []
 
-  // The page properties at the top of the note, in either form, marked
-  // as a block in mono so they read as metadata. Their end also bounds
-  // a YAML block's own `---`, which is drawn as a fence below.
-  let propertiesEnd = 0
-  if (from === 0) {
-    const { prefix } = splitPageProperties(state.doc.sliceString(0, Math.min(to, PROPERTIES_REACH)))
-    if (prefix) {
-      propertiesEnd = prefix.length
-      found.push(Decoration.mark({ class: 'cm-md-frontmatter' }).range(0, prefix.trimEnd().length))
-      // Each property's name in the accent colour, so it reads
-      // as a label beside its value.
-      for (let at = 0; at < propertiesEnd; ) {
-        const line = state.doc.lineAt(at)
-        const key = PROPERTY_KEY.exec(line.text)
-        if (key) found.push(propertyKey.range(line.from, line.from + key[1].length))
-        at = line.to + 1
-      }
+  // The page properties at the top of the note, in either form, marked as a block so
+  // they read as metadata. Their end also bounds a YAML block's own `---`, drawn as a
+  // fence below. Read from the top whatever is in view, or a block scrolled partway
+  // off lost its look and its names were hidden as a line's.
+  const { prefix } = splitPageProperties(state.doc.sliceString(0, PROPERTIES_REACH))
+  const propertiesEnd = prefix.length
+  if (prefix) {
+    found.push(Decoration.mark({ class: 'cm-md-frontmatter' }).range(0, prefix.trimEnd().length))
+    // Each property's name in the accent colour, so it reads
+    // as a label beside its value.
+    for (let at = 0; at < propertiesEnd; ) {
+      const line = state.doc.lineAt(at)
+      const key = PROPERTY_KEY.exec(line.text)
+      if (key) found.push(propertyKey.range(line.from, line.from + key[1].length))
+      at = line.to + 1
     }
   }
 
@@ -389,8 +387,10 @@ export function livePreviewDecorations(
   // scanning. A link shows its name: `[[Note|alias]]` shows the alias and
   // `[[Note]]` shows `Note`; the rest is hidden until the caret is on it.
   const text = state.doc.sliceString(from, to)
+  // Neither in code, which reads as written.
   for (const hit of text.matchAll(WIKILINK)) {
     const at = from + (hit.index ?? 0)
+    if (inCode(state, at)) continue
     const end = at + hit[0].length
     found.push(Decoration.mark({ class: 'cm-md-link' }).range(at, end))
     if (touched(state, at, end)) continue
@@ -408,6 +408,7 @@ export function livePreviewDecorations(
    */
   for (const hit of text.matchAll(TAG)) {
     const at = from + (hit.index ?? 0) + hit[1].length
+    if (inCode(state, at)) continue
     found.push(Decoration.mark({ class: 'cm-md-tag' }).range(at, at + hit[2].length + 1))
   }
 

@@ -316,6 +316,23 @@ describe('Live Preview', () => {
     expect(tagged('see [[Areas/Plans#Roadmap]]\n')).toEqual([])
   })
 
+  /** Code reads as written: no tag to press, no link with its brackets hidden. */
+  it('marks no tag or link in code', () => {
+    const marked = (doc: string) => all(stateOf(doc, doc.length)).filter((one) => /^(cm-md-tag|cm-md-link)@/.test(one))
+    expect(marked('```\n#include [[x]]\n```\n')).toEqual([])
+    expect(marked('see `#ef476f` and `[[x]]` here\n')).toEqual([])
+  })
+
+  /** The page block's look comes from the top, whatever span is in view. */
+  it('reads the page properties from the top when the view starts below it', () => {
+    const doc = 'icon:: book\nstatus:: draft\nowner:: me\n\nbody\n'
+    const state = stateOf(doc, doc.length)
+    const from = state.doc.line(2).from
+    const inView = spans(livePreviewDecorations(state, from, state.doc.length))
+    expect(inView).toContain(`cm-md-property@${from}-${from + 'status'.length}`)
+    expect(inView.some((one) => one.startsWith('hidden@'))).toBe(false)
+  })
+
   /**
    * A task is read as Obsidian reads it, not GFM: any single
    * character between the brackets is a state (`[-]`, `[>]`,
@@ -572,9 +589,25 @@ describe('Enter on an indented line', () => {
     })
   })
 
-  it('declines with nothing in front of the line, so a quote still continues', () => {
+  it('declines on a quote line, so the quote continues', () => {
     expect(run(continueIndent, stateOf('> quoted', 8, 8, 6)).handled).toBe(false)
-    expect(run(continueIndent, stateOf('plain', 5, 5, 6)).handled).toBe(false)
+  })
+
+  /**
+   * A plain line under a list item is, to markdown, part of that item. Markdown's own
+   * Enter took a line shorter than a task's marker for an empty item and deleted it,
+   * and under two tasks put the new line above the text instead of after it.
+   */
+  it('gives a plain line a plain new line, even under a task', () => {
+    expect(run(continueIndent, stateOf('plain', 5, 5, 6)).doc).toBe('plain\n')
+    for (const doc of ['- [ ] task\nmilk', '- [ ] a\n- [ ] b\nplain', '- one\nx']) {
+      const { container, unmount } = render(<MarkdownEditor initialMarkdown={doc} onChange={() => {}} indentWidth={6} />)
+      const view = EditorView.findFromDOM(container.querySelector('.cm-editor') as HTMLElement)!
+      view.dispatch({ selection: { anchor: doc.length } })
+      fireEvent.keyDown(view.contentDOM, { key: 'Enter' })
+      expect(view.state.doc.toString()).toBe(`${doc}\n`)
+      unmount()
+    }
   })
 
   it('moves an empty indented line out one level', () => {
@@ -837,6 +870,11 @@ describe('the mounted editor', () => {
     view.dispatch({ selection: { anchor: view.state.doc.line(2).to } })
     fireEvent.keyDown(view.contentDOM, { key: 'Enter' })
     expect(changed).toHaveBeenLastCalledWith('one!\r\ntwo\r\n\r\n')
+    // A list line too, with the caret after the new marker.
+    view.dispatch({ changes: { from: 0, insert: '- ' }, selection: { anchor: 6 } })
+    fireEvent.keyDown(view.contentDOM, { key: 'Enter' })
+    expect(changed).toHaveBeenLastCalledWith('- one!\r\n- \r\ntwo\r\n\r\n')
+    expect(view.state.selection.main.head).toBe(view.state.doc.line(2).to)
   })
 
   it('keeps the stray ending of a mixed file as it was written', () => {

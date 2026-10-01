@@ -167,9 +167,12 @@ const LIST_ITEM = /^([ \t]*)(?:([-*+])|(\d{1,9})([.)]))([ \t]+)(\[.\][ \t]+)?/
  * - on an empty item, the marker goes and the indent stays;
  * - on an empty indented line, the line moves out one indent width;
  * - on any other indented line, the next line keeps the indent;
- * - before a line's text, a blank line opens above it.
+ * - before a line's text, a blank line opens above it;
+ * - on a plain line, a plain new line.
  *
- * A line with no indent and no marker is left to markdown's Enter.
+ * Only a quote line is left to markdown's Enter, which continues the `>`. On a plain
+ * line under a task it took the line for an empty item and deleted it, when the line
+ * was shorter than the task's marker.
  */
 export const continueIndent: Command = ({ state, dispatch }) => {
   const range = state.selection.main
@@ -178,22 +181,19 @@ export const continueIndent: Command = ({ state, dispatch }) => {
   const lead = line.text.slice(0, indentOf(line.text))
   const item = LIST_ITEM.exec(line.text)
   const write = (from: number, to: number, insert: string) => {
-    dispatch(
-      state.update({
-        changes: { from, to, insert },
-        selection: { anchor: from + insert.length },
-        userEvent: 'input',
-        scrollIntoView: true,
-      })
-    )
+    const changes = state.changes({ from, to, insert })
+    // Mapped, not counted: a line break is one position however the file spells it.
+    dispatch(state.update({ changes, selection: { anchor: changes.mapPos(to, 1) }, userEvent: 'input', scrollIntoView: true }))
     return true
   }
-  if (!item && !lead) return false
+  // The file's own line break: in a CRLF file a bare `\n` is a stray character.
+  const br = state.lineBreak
+  if (!item && !lead) return /^>/.test(line.text) ? false : write(range.head, range.head, br)
   if (item && line.text === item[0]) return write(line.from, line.to, lead)
   if (line.text === lead) return write(line.from, line.to, lead.slice(0, Math.max(0, lead.length - getIndentUnit(state))))
-  if (range.head < line.from + (item ? item[0].length : lead.length)) return write(line.from, line.from, '\n')
+  if (range.head < line.from + (item ? item[0].length : lead.length)) return write(line.from, line.from, br)
   const marker = item ? (item[2] ?? `${Number(item[3]) + 1}${item[4]}`) + item[5] + (item[6] ? '[ ] ' : '') : ''
-  return write(range.head, range.head, `\n${lead}${marker}`)
+  return write(range.head, range.head, `${br}${lead}${marker}`)
 }
 
 export const formatKeymap = [

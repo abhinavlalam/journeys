@@ -237,7 +237,10 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   end at its tag. Tab: a popup's pick → block (a line heading a deeper run) → one
   indent width. Enter (`continueIndent`): a list line gets the same marker on the
   next line (the next number), an empty item loses its marker, an empty indented
-  line moves out one indent width, and any other indented line keeps its indent.
+  line moves out one indent width, any other indented line keeps its indent, and a
+  plain line gets a plain new line, in the file's own line break. Only a quote line
+  reaches markdown's Enter: on a plain line under a task it took the line for an
+  empty item and deleted it.
   **Test keys through the real keymap**; a
   command tested by direct call is a binding nobody tested. A popup refuses keys
   for its first 75 ms (`interactionDelay`), so a key test moves `Date.now` past it,
