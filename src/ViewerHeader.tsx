@@ -67,7 +67,9 @@ export function ViewerHeader({
           // The caret at the end, not the name selected: the title spans the header,
           // and a stray click and a key would rename the note and every link to it.
           selectOnFocus={false}
-          onChange={(typed) => setEditing({ was: name, typed })}
+          // `was` stays the name it opened with: reset on each key, a note that
+          // changed underneath before the typing was renamed after all.
+          onChange={(typed) => setEditing((open) => open && { ...open, typed })}
           onSubmit={commit}
           onBlur={commit}
           onCancel={() => setEditing(null)}

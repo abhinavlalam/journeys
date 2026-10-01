@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 import { localDateStamp } from '../clock'
 import { readProperty } from '../properties'
@@ -160,6 +160,19 @@ describe('renaming from the title', () => {
    * the daily note got the other note's new name. The blur is fired by hand
    * here: the worst case, with the field still mounted as the note changes.
    */
+  /** Also when the note changes before the typing: each key set the remembered name to the new one. */
+  it('abandons the rename when the note changed before it was typed into', async () => {
+    const { ViewerHeader } = await import('../ViewerHeader')
+    const renamed = vi.fn()
+    const { rerender } = render(<ViewerHeader name="target" onRename={renamed} />)
+    fireEvent.click(screen.getByText('target'))
+    rerender(<ViewerHeader name="elsewhere" onRename={renamed} />)
+    const field = screen.getByLabelText('Note name')
+    fireEvent.change(field, { target: { value: 'wayfinding' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(renamed).not.toHaveBeenCalled()
+  })
+
   it('abandons the rename when the open note changed underneath it', async () => {
     const today = localDateStamp()
     disk.write('/v/target.md', '# Target\n')
