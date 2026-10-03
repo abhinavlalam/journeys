@@ -80,11 +80,14 @@ mod store {
         value: Option<String>,
     }
 
+    /// `set` and `forget` answer with nothing, which arrives as null rather than
+    /// an empty `Answer`: read as one, every token the phone was given was refused.
     fn call(command: &str, name: &str, value: Option<&str>) -> Result<Answer> {
         KOTLIN
             .get()
             .ok_or("the phone's secret store is not ready")?
-            .run_mobile_plugin(command, Args { name, value })
+            .run_mobile_plugin::<Option<Answer>>(command, Args { name, value })
+            .map(Option::unwrap_or_default)
             .map_err(|e| format!("the phone's secret store refused: {e}"))
     }
 
