@@ -64,12 +64,14 @@ export function useVault(buffer: RefObject<VaultBufferOps>, setError: (m: string
    * `after` gets the tree the operation produced. `renameFolder` returns
    * the folder with its new path but its children's old ones, so
    * anything that walks into the result reads the folder from this tree.
+   *
+   * It says whether it went through, for a caller that tries again.
    */
   async function mutate<T>(
     op: (vault: string) => Promise<T>,
     after?: (result: T, root: VaultFolder | null) => unknown
-  ) {
-    if (!vaultPath) return
+  ): Promise<boolean> {
+    if (!vaultPath) return false
     setError(null)
     // A note that could not be saved has said so, and its queued typing
     // follows a move or is dropped by a delete; the operation goes on.
@@ -78,8 +80,10 @@ export function useVault(buffer: RefObject<VaultBufferOps>, setError: (m: string
       const result = await op(vaultPath)
       const walked = await refresh(vaultPath)
       await after?.(result, walked)
+      return true
     } catch (err) {
       setError(String(err))
+      return false
     }
   }
 

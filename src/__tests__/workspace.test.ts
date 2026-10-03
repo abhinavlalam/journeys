@@ -10,6 +10,7 @@ import {
   followFileTabs,
   groups,
   moveTab,
+  openAlone,
   openTab,
   openTerminal,
   resizeSplit,
@@ -232,5 +233,17 @@ describe('tabs following the tree', () => {
     ws = closeNotesUnder(ws, 'Plans')
     expect(labels(ws)).toEqual([['a2']])
     expect(actives(ws)).toEqual(['a2'])
+  })
+})
+
+describe('the phone’s one page', () => {
+  it('shows the tab asked for alone, and keeps the one on screen mounted', () => {
+    const ws = openAlone(openTab(openTab(emptyWorkspace(), note('a.md')), note('b.md')), note('c.md'))
+    expect(labels(ws)).toEqual([['c']])
+    const id = activeTab(ws)!.id
+    expect(activeTab(openAlone(ws, note('C.md')))!.id).toBe(id)
+    const next = openAlone(ws, { kind: 'timeline' })
+    expect(labels(next)).toEqual([['Timeline']])
+    expect(activeTab(next)!.id).toBeGreaterThan(id)
   })
 })

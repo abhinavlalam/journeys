@@ -574,6 +574,29 @@ export async function importFile(
   return { path: relativePath, absolutePath, name: noteName(fileName) }
 }
 
+/** Where a file shared from another app is kept. */
+export const SHARED_FOLDER = 'Files'
+
+/**
+ * Moves a shared file's copy (`from`, in the app's own files) into `folder` under its
+ * own name, or with ` 2`, ` 3`… before the extension when that is taken: a share
+ * is never refused, and never written over a file. A move, as the app's files and the
+ * vault are on one disk, so a large video is not read through the page.
+ */
+export async function keepShared(vaultPath: string, folder: string, name: string, from: string): Promise<VaultFile> {
+  const parent = await ensureFolder(vaultPath, folder)
+  const base = safeName(name).replace(/^\.+/, '') || 'shared'
+  const extension = extensionOf(base)
+  for (let n = 1; ; n++) {
+    const fileName = n === 1 ? base : `${base.slice(0, base.length - extension.length)} ${n}${extension}`
+    const relativePath = `${parent}/${fileName}`
+    const absolutePath = `${vaultPath}/${relativePath}`
+    if (await vaultFs.exists(absolutePath)) continue
+    await vaultFs.move(from, absolutePath)
+    return { path: relativePath, absolutePath, name: noteName(fileName) }
+  }
+}
+
 /**
  * Creates a note and any missing folders above it: a `[[link]]` can name
  * a place before it exists. `name` is one segment; a `/` in it is folded.
@@ -635,14 +658,18 @@ export async function ensureDailyNote(
   const folderAbsolute = `${vaultPath}/${folder}`
   if (!(await vaultFs.exists(folderAbsolute))) await vaultFs.makeFolder(folderAbsolute)
 
-  const relativePath = `${folder}/${day}.md`
-  const absolutePath = `${vaultPath}/${relativePath}`
-  const file = { path: relativePath, absolutePath, name: day }
+  const file = dailyNoteFile(vaultPath, folder, day)
   // Only a new day is written. The caller is told whether it was
   // created, because a new note's icon is given once.
-  const created = !(await vaultFs.exists(absolutePath))
-  if (created) await vaultFs.writeText(absolutePath, '')
+  const created = !(await vaultFs.exists(file.absolutePath))
+  if (created) await vaultFs.writeText(file.absolutePath, '')
   return { file, created }
+}
+
+/** A day's note, whether or not it is written yet. */
+export function dailyNoteFile(vaultPath: string, folder: string, day = localDateStamp()): VaultFile {
+  const path = `${folder}/${day}.md`
+  return { path, absolutePath: `${vaultPath}/${path}`, name: day }
 }
 
 // ---------------------------------------------------------------------------

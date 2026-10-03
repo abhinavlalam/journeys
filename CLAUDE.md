@@ -46,6 +46,8 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 | `crypto.ts`, `useLocks.ts`, `useAutoLock.ts` | Locked notes: the format and the passphrases held / asking and locking / the clock. |
 | `sync.ts`, `useSync.ts`, `src-tauri/src/sync.rs` | Git sync. |
 | `terminal.ts`, `TerminalPane.tsx`, `src-tauri/src/terminal.rs` | The terminal. |
+| `platform.ts`, `Phone.tsx`, `Composer.tsx` | Android, the phone's one place at a time and its bar, the capture line. |
+| `share.ts`, `useShares.ts`, `src-tauri/src/phone.rs`, `PhonePlugin.kt` | What other apps share in, filed into the day. |
 | `graph.ts`, `GraphView.tsx` | The graph's model, filters and layouts / its view. |
 | `settings.ts`, `useSettings.ts`, `SettingsPanel.tsx`, `SettingsFile.tsx` | Settings. |
 | `clock.ts` | The app's idea of time: local day stamps, units, relative words. |
@@ -308,6 +310,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   `#tag `, then narrowed as a name is typed, in the structure's order, never inside
   a value (after `name::`, in an open `[[` or quote), and never one the line
   already carries.
+- **A table leaves out a line of tags alone** (`tagsOnly`): a group's heading is
+  gathered as a line carrying its tag, and on the `#expense` page it was a row of
+  empty cells. The list keeps it, heading what is nested under it.
 - `LineTable` is read-only (a cell edit is a write through a partial parse), takes
   its columns and a reader of a line's values, leads with the note, adds `when`,
   sums a tag's `number` columns, and resizes columns (`useColumnWidths`: auto until
@@ -350,8 +355,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 
 - **The daily notes as each day happened**, oldest first and today at the bottom;
   the page opens at its end. The owner writes a day by kind — a line of tags alone
-  heads a group (`#timeline`, `#expense`, `#diet`), its entries nested under it —
-  and the timeline reads it by clock across the groups, a tie as written. **An
+  heads a group (`#timeline`, `#diet`), its entries nested under it, and a tag with
+  a structure (`#expense`) is a record, one to a line at the top level or in another
+  tag's group — and the timeline reads it by clock across the groups, a tie as written. **An
   entry is a line with a clock** (the owner's choice: the timeline is what happened
   when); what is nested under one is its detail, and a line without a clock is
   neither an entry nor a place for one, so what is nested under it reads on its own.
@@ -373,9 +379,10 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   note's is, the time key included. Enter files it, Escape clears it, and leaving
   keeps the draft.
   `withNewEntry` files it as the day is written — under the group its tag heads,
-  else where its tag's entries already are (`#food` under `#diet`), else
-  `#timeline`, made at the end if missing — after the group's last line, indented
-  as its lines are. It is filed as typed: with no clock it is a line of the note,
+  else beside its tag's entries, in their group (`#food` under `#diet`) or after the
+  last at the top level, else for a tag with a structure at the day's end at the top
+  level (the vault's records are written there), else `#timeline`, made at the end
+  if missing — indented as the lines beside it are. It is filed as typed: with no clock it is a line of the note,
   not on the timeline (it was stamped with the time, and the owner asked for it
   not to be). Today's note is made then, with the icon only, as ⌘⇧O makes it.
 
@@ -431,7 +438,10 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   ships no `<target>-ranlib` and the OpenSSL git builds asks for it by that name.
 - Build with `npx tauri android build --debug --apk --target aarch64`; Gradle calls
   back through the npm `tauri` script, and `run()` carries
-  `#[cfg_attr(mobile, tauri::mobile_entry_point)]`. The emulator (`journeys`, a
+  `#[cfg_attr(mobile, tauri::mobile_entry_point)]`. **`gen/android/app/build` is a
+  symlink to `~/.cargo-target/android-gradle`**, as `CARGO_TARGET_DIR` is for Rust:
+  inside the synced folder, each build rewrote 880 MB that Drive then uploaded, and
+  the machine's load sat above 30 until tests timed out. The emulator (`journeys`, a
   Pixel 8 on Android 36) runs headless; `adb exec-out screencap -p` is how to look.
 - **git's OpenSSL is built from source there and has no file access** (`no-stdio`,
   which openssl-src needs on Android), so no certificate file or folder can be
@@ -444,6 +454,38 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   it is the one credential the app holds.
 - **What Android cannot do is left out, not faked** (`platform.ts`): no folder to
   pick (the vault is cloned into the app's storage), no shell, no Finder.
+- **Look inside the running WebView**: a debug build serves DevTools on
+  `webview_devtools_remote_<pid>` (`adb shell cat /proc/net/unix`); `adb forward
+  tcp:9222 localabstract:…`, then evaluate over the DevTools protocol's WebSocket.
+- **The page is laid out between the system bars** (`MainActivity`): edge-to-edge
+  is enforced from targetSdk 35, the WebView read `env(safe-area-inset-bottom)` as 0
+  over the gesture bar, and a keyboard no longer resizes the window. So the content
+  view is padded by the bars, the cutout and the keyboard, and what shows behind
+  the bars is painted `--bg-viewer` (`paintBars`, from `applySettings`).
+- **An app switch is only `visibilitychange`**: the WebView sends no focus or blur,
+  which the vault read, the sync, the calendar and the lock wait for, so
+  `relayVisibility` sends them.
+- **One place at a time** (`Phone.tsx`): Browse, the left pane at full width, or a
+  page, the workspace's one tab (`openAlone`), over a bar of Today, Timeline,
+  Calendar and Browse. Each move keeps where it came from and the back gesture goes
+  there, closing the settings first; it is listened for only while there is
+  somewhere to go, so with nowhere Android leaves the app.
+- **Today is where capture is**: today's note, opened without being made (a look at
+  the day writes nothing), with the capture line under it (`Composer`), filed by
+  `withNewEntry`. Now starts the line with the time and leaves the caret; a tag's
+  chip puts the tag at the caret; neither takes the keyboard. A page opened to read
+  does not raise the keyboard (`EditorHost`'s `autoFocus`); a line editor does.
+- **A share is filed into the day it arrived** as `HH:MM #shared`, its subject and
+  first line, and `[[Files/<name>]]` per file, the rest of a message nested under
+  it, so the laptop's agent finds it by the tag. Files are copied into the app's files
+  while the sender's grant lasts (`PhonePlugin`), then *moved* into `Files/` under
+  their own name or ` 2`, never over a file. Shares are taken on vault open and on
+  each return, one taking at a time; one that could not be filed is kept, with how
+  far its files got (`kept`), and tried again on the next return, which is why
+  `mutate` says whether it went through.
+- **A link can name any file** (`collectFiles` builds the index): `[[Files/photo.jpg]]`
+  opens the photo, where with notes alone it was external and the OS refused it.
+  The graph still drops what is not text.
 
 ## The graph
 

@@ -3,26 +3,15 @@ import { folderNotePath } from './vaultModel'
 /**
  * Glyph weight is a setting, set in the sheet. A `stroke-width` is in
  * viewBox units, so the same number looks different on each grid. Each
- * glyph states only its grid (`data-grid`), and `index.css` works out
- * the stroke from `--icon-weight`. No weights live in this file.
+ * glyph states only its grid (`data-grid`), and `index.css` gives it its
+ * size and works out the stroke from `--icon-weight`. No sizes or weights
+ * live in this file.
  *
  * Dots are filled rather than stroked, so they are sized from the same token.
  */
 const GRID_16 = { 'data-grid': '16', viewBox: '0 0 16 16' } as const
 const GRID_10 = { 'data-grid': '10', viewBox: '0 0 10 10' } as const
 const GRID_24 = { 'data-grid': '24', viewBox: '0 0 24 24' } as const
-
-/**
- * The size a chrome glyph is drawn at: the sheet's `--glyph`, so
- * CSS and JSX share one size.
- */
-export const GLYPH = 'var(--glyph)'
-
-/**
- * A disclosure arrow points rather than depicts, so it uses the
- * smaller size. Also in the sheet, in `em`.
- */
-export const GLYPH_SM = 'var(--glyph-sm)'
 
 /**
  * The chevron's two paths, down for open and right for closed, and
@@ -33,13 +22,13 @@ export const GLYPH_SM = 'var(--glyph-sm)'
 const CHEVRON = {
   open: 'M1.5 3.5 5 7l3.5-3.5',
   shut: 'M3.5 1.5 7 5l-3.5 3.5',
-  box: `width="${GLYPH_SM}" height="${GLYPH_SM}" viewBox="0 0 10 10" data-grid="10"`,
+  box: `viewBox="0 0 10 10" data-grid="10"`,
   stroke: 'stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"',
 }
 
 const CHECK = {
   path: 'M2 5.3 4.2 7.5 8 3',
-  box: `width="${GLYPH_SM}" height="${GLYPH_SM}" viewBox="0 0 10 10" data-grid="10"`,
+  box: `viewBox="0 0 10 10" data-grid="10"`,
   stroke: 'stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"',
 }
 
@@ -60,7 +49,7 @@ export function chevronMarkup(open: boolean): string {
 
 export function ChevronIcon({ open }: { open: boolean }) {
   return (
-    <svg width={GLYPH_SM} height={GLYPH_SM} {...GRID_10} fill="none" aria-hidden="true">
+    <svg {...GRID_10} fill="none" aria-hidden="true">
       <path
         d={open ? CHEVRON.open : CHEVRON.shut}
         stroke="currentColor"
@@ -77,7 +66,7 @@ export function ChevronIcon({ open }: { open: boolean }) {
  */
 export function FoldAllIcon({ collapse }: { collapse: boolean }) {
   return (
-    <svg width={GLYPH} height={GLYPH} {...GRID_16} fill="none" aria-hidden="true">
+    <svg {...GRID_16} fill="none" aria-hidden="true">
       {/* Wide chevrons: a narrow pair reads smaller than the gear beside it. The
           3.2-unit gap in the middle keeps it legible; closer, the strokes met. */}
       <path
@@ -97,7 +86,7 @@ export function FoldAllIcon({ collapse }: { collapse: boolean }) {
 /** A terminal: a prompt's chevron and a cursor's line, in a frame. */
 export function TerminalIcon() {
   return (
-    <svg width={GLYPH} height={GLYPH} {...GRID_16} fill="none" aria-hidden="true">
+    <svg {...GRID_16} fill="none" aria-hidden="true">
       <path
         d="M4 2.5h8a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 4 2.5zM5 6l2 2-2 2M8.5 10.5h3"
         stroke="currentColor"
@@ -111,7 +100,7 @@ export function TerminalIcon() {
 /** A pane split in two. `row` puts the new pane beside, `column` below. */
 export function SplitIcon({ direction }: { direction: 'row' | 'column' }) {
   return (
-    <svg width={GLYPH} height={GLYPH} {...GRID_16} fill="none" aria-hidden="true">
+    <svg {...GRID_16} fill="none" aria-hidden="true">
       {/* The frame as a path: the sheet's test refuses
           `width`/`height` on a glyph, which a `<rect>` needs. */}
       <path
@@ -123,10 +112,10 @@ export function SplitIcon({ direction }: { direction: 'row' | 'column' }) {
   )
 }
 
-/** The `+`, one size everywhere: `GLYPH`, like every other control. */
+/** The `+`, one size everywhere, like every other control. */
 export function PlusIcon() {
   return (
-    <svg width={GLYPH} height={GLYPH} {...GRID_16} fill="none" aria-hidden="true">
+    <svg {...GRID_16} fill="none" aria-hidden="true">
       <path d="M8 2.5v11M2.5 8h11" stroke="currentColor" strokeLinecap="round" />
     </svg>
   )
@@ -139,7 +128,7 @@ export function PlusIcon() {
  */
 export function BracesIcon() {
   return (
-    <svg width={GLYPH} height={GLYPH} {...GRID_16} fill="none" aria-hidden="true">
+    <svg {...GRID_16} fill="none" aria-hidden="true">
       <path
         d="M6.2 2.4c-1.2 0-1.6.7-1.6 1.7v1.6c0 1-.4 1.6-1.3 1.6.9 0 1.3.6 1.3 1.6v1.7c0 1 .4 1.7 1.6 1.7M9.8 2.4c1.2 0 1.6.7 1.6 1.7v1.6c0 1 .4 1.6 1.3 1.6-.9 0-1.3.6-1.3 1.6v1.7c0 1-.4 1.7-1.6 1.7"
         stroke="currentColor"
@@ -153,7 +142,7 @@ export function BracesIcon() {
 /** A magnifier. The handle starts just outside the ring, so the strokes don't cross. */
 export function SearchIcon() {
   return (
-    <svg width={GLYPH} height={GLYPH} {...GRID_16} fill="none" aria-hidden="true">
+    <svg {...GRID_16} fill="none" aria-hidden="true">
       <circle cx="6.9" cy="6.9" r="4.2" stroke="currentColor" />
       <path
         d="M10.1 10.1 13.7 13.7"
@@ -170,7 +159,7 @@ export function SearchIcon() {
  */
 export function GraphIcon() {
   return (
-    <svg width={GLYPH} height={GLYPH} {...GRID_16} fill="none" aria-hidden="true">
+    <svg {...GRID_16} fill="none" aria-hidden="true">
       <path
         d="M4 4.6 12 6M4 4.6 7.6 11.6"
         stroke="currentColor"
@@ -186,7 +175,7 @@ export function GraphIcon() {
 /** Sliders, not a gear: WebKit draws U+2699 as a colour emoji. */
 export function SettingsIcon() {
   return (
-    <svg width={GLYPH} height={GLYPH} {...GRID_16} fill="none" aria-hidden="true">
+    <svg {...GRID_16} fill="none" aria-hidden="true">
       <path
         d="M2 4.5h12M2 8h12M2 11.5h12"
         stroke="currentColor"
@@ -312,7 +301,7 @@ export function NoteIcon({ icon }: { icon: string }) {
   const found = BY_KEY.get(icon)
   if (!found) return isGlyph(icon) ? <>{icon}</> : <NoteIcon icon={DEFAULT_NOTE_ICON} />
   return (
-    <svg width={GLYPH} height={GLYPH} {...GRID_24} fill="none" aria-hidden="true">
+    <svg {...GRID_24} fill="none" aria-hidden="true">
       {/* Lucide's grid is 24, drawn at 1.7 rather than its default 2, to match
           the other glyphs' weight. The colour comes from `.folder-icon`. */}
       <path

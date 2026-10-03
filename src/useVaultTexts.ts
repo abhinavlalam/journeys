@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { readVaultFile } from './vault'
 import { isEncrypted, isNote, type VaultFile, type VaultFolder } from './vaultModel'
-import { buildNoteIndex, collectNotes } from './links'
+import { buildNoteIndex, collectFiles, collectNotes } from './links'
 import { buildBacklinkIndex } from './links'
 import type { BacklinkIndex } from './links'
 import { buildNoteGraph, type NoteGraph, type NoteText } from './graph'
@@ -177,7 +177,7 @@ export function useVaultTexts({
   }, [root])
 
   const notes = useMemo(() => (root ? collectNotes(root) : []), [root])
-  const noteIndex = useMemo(() => buildNoteIndex(notes), [notes])
+  const noteIndex = useMemo(() => buildNoteIndex(root ? collectFiles(root) : []), [root])
 
   /**
    * The notes among the texts, which every cross-note answer is built from.

@@ -116,9 +116,11 @@ export const disk = {
   corrupt(path: string) {
     corrupted.add(key(path))
   },
-  /** Every write and mkdir under this prefix is refused, as an fs scope would. */
+  /** Every write and mkdir under this prefix is refused, as an fs scope would, until the undo is called. */
   forbid(prefix: string, message = `forbidden path: ${prefix}`) {
-    forbidden.push({ prefix, message })
+    const one = { prefix, message }
+    forbidden.push(one)
+    return () => void forbidden.splice(forbidden.indexOf(one), 1)
   },
   clear() {
     dirs.clear()

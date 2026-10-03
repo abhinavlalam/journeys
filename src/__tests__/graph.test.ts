@@ -235,6 +235,14 @@ describe('hidden folders', () => {
     expect(built([]).edgeCount).toBe(3)
   })
 
+  /** The graph is notes, days and tags: a photo a day links to is not one. */
+  it('never draws a file that is not text', () => {
+    const idx = buildNoteIndex(['Daily/day.md', 'Files/photo.jpg'].map(note))
+    const graph = buildNoteGraph([{ note: note('Daily/day.md'), text: 'lunch [[Files/photo.jpg]]' }], idx)
+    expect(graph.nodes.map((one) => one.name)).toEqual(['day'])
+    expect(graph.edgeCount).toBe(0)
+  })
+
   /** A locked note is its owner's alone, so a link into one draws nothing. */
   it('never draws an encrypted note, in either spelling', () => {
     const idx = buildNoteIndex(['Daily/day.md', 'Private.enc', 'Old.enc.md'].map(note))

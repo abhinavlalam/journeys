@@ -150,7 +150,8 @@ describe('writing an entry back', () => {
  */
 describe('filing a new entry', () => {
   const raw = ['#timeline', '     09:00 standup', '', '#expense', '     12:30 #expense lunch amount:: 480', '', '#diet', '     08:45 #food oats', ''].join('\n')
-  const filed = (text: string, into = raw) => withNewEntry(day, into, text, '    ')
+  /** `#expense` and `#food` have a structure, as `tags.json` gives them one. */
+  const filed = (text: string, into = raw) => withNewEntry(day, into, text, '    ', (tag) => ['expense', 'food'].includes(tag))
 
   it('goes under the group its tag heads, after the group’s last line, indented as its lines are', () => {
     expect(filed('19:00 #expense dinner')).toBe(raw.replace('amount:: 480\n', 'amount:: 480\n     19:00 #expense dinner\n'))
@@ -172,5 +173,25 @@ describe('filing a new entry', () => {
 
   it('indents a group with no lines yet one step in from its heading', () => {
     expect(filed('12:00 #expense tea', '#expense\n')).toBe('#expense\n    12:00 #expense tea\n')
+  })
+
+  /** The vault writes a record at the top level; a new one went under #timeline instead. */
+  it('goes after its tag’s entries at the top level, past what is nested under the last', () => {
+    const flat = ['#timeline', '    09:00 standup', '07:13 #expense cab amount:: 12', '    from the ferry', '', '- [ ] post', ''].join('\n')
+    expect(filed('19:00 #expense dinner', flat)).toBe(flat.replace('ferry\n', 'ferry\n19:00 #expense dinner\n'))
+  })
+
+  it('puts the first entry of a tag with a structure at the day’s end, at the top level', () => {
+    const plain = ['#timeline', '    09:00 standup', '- [ ] post'].join('\n')
+    expect(filed('12:30 #expense lunch', plain)).toBe(`${plain}\n12:30 #expense lunch\n`)
+    expect(filed('12:30 #expense lunch', '')).toBe('12:30 #expense lunch\n')
+  })
+
+  /** A shared message is one entry and its detail, not lines of the day of their own. */
+  it('nests the lines after the first under it', () => {
+    expect(filed('18:00 #shared menu\nsoup\nbread')).toBe(
+      raw.replace('standup\n', 'standup\n     18:00 #shared menu\n         soup\n         bread\n')
+    )
+    expect(filed('09:00 run\nslow', '')).toBe('#timeline\n    09:00 run\n        slow\n')
   })
 })

@@ -19,6 +19,7 @@ import {
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { codeFolding, indentUnit, syntaxTree } from '@codemirror/language'
 import { indentFold, indentFoldGutter } from './editorFold'
+import { onAndroid } from './platform'
 
 interface EditorHostProps {
   /**
@@ -58,6 +59,11 @@ interface EditorHostProps {
   indentWidth?: number
   /** Line numbers and folding. A one-line field, like a timeline entry, has neither. */
   gutters?: boolean
+  /**
+   * Takes the keyboard on mount and when shown. Not on a phone, where the keyboard
+   * would cover half of every page opened to read; a line editor still does.
+   */
+  autoFocus?: boolean
 }
 
 const indentSize = new Compartment()
@@ -172,6 +178,7 @@ export function EditorHost({
   indentWidth = 2,
   shown = true,
   gutters = true,
+  autoFocus = !onAndroid,
 }: EditorHostProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -218,7 +225,7 @@ export function EditorHost({
     //
     // Unless the owner is typing somewhere else. A double click on a row opens the
     // note and starts a rename, and focusing here ended the rename as it appeared.
-    if (!typingElsewhere(root)) view.focus()
+    if (autoFocus && !typingElsewhere(root)) view.focus()
     return () => {
       viewRef.current = null
       view.destroy()
@@ -230,13 +237,13 @@ export function EditorHost({
   // After the event that showed it: a tab switches on mousedown,
   // and that press then clears the focus the editor had just taken.
   useEffect(() => {
-    if (!shown) return
+    if (!shown || !autoFocus) return
     const later = setTimeout(() => {
       const root = rootRef.current
       if (root && !typingElsewhere(root)) viewRef.current?.focus()
     })
     return () => clearTimeout(later)
-  }, [shown])
+  }, [shown, autoFocus])
 
   return <div className={`code-editor ${className}`} ref={rootRef} />
 }

@@ -184,12 +184,14 @@ describe('a link', () => {
 describe('sizes', () => {
   const source = readFileSync(new URL('../icons.tsx', import.meta.url), 'utf8')
 
-  it('are absent from the icon components', () => {
-    // Each icon reads `GLYPH` or `GLYPH_SM`, so the size lives in the
-    // sheet. `stroke-width` is a hairline on a viewBox grid, not a size.
-    expect(source).not.toMatch(/(?<!stroke-)width="\d/)
-    expect(source).not.toMatch(/height="\d/)
-    expect(source.match(/width=\{GLYPH/g)?.length ?? 0).toBeGreaterThan(5)
+  /** Android's WebView reads no `var()` in an SVG's `width`, and drew each glyph as wide as its box. */
+  it('are absent from the icon components, and in the sheet by grid', () => {
+    expect(source).not.toMatch(/(?<![-\w])(width|height)[=:]/)
+    for (const [grid, token] of [['10', '--glyph-sm'], ['16', '--glyph'], ['24', '--glyph']]) {
+      const rule = rules().find((one) => one.selector === `svg[data-grid='${grid}']`)!
+      expect(rule.body, grid).toMatch(new RegExp(`(?<![-\\w])width:\\s*var\\(${token}\\)`))
+      expect(rule.body, grid).toMatch(new RegExp(`(?<![-\\w])height:\\s*var\\(${token}\\)`))
+    }
   })
 
   /**

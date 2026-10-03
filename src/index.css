@@ -570,6 +570,165 @@ button.primary:hover {
   color: var(--text);
 }
 
+/* ---- The phone ---- */
+
+/* One place at a time above the bar: Browse, the left pane at full width, or a
+   page, the workspace's one tab, so there is no tab strip and no resizer. The
+   app is laid out between Android's bars, which `MainActivity` keeps clear. */
+.app.phone {
+  flex-direction: column;
+  /* The column's inset, for a screen a few hundred pixels wide; the
+     settings write the desktop's onto the root, and this is nearer. */
+  --column-pad: 1rem;
+}
+
+/* `hidden` loses to `.sidebar`'s and `.workspace`'s own display. */
+.phone > [hidden] {
+  display: none;
+}
+
+.phone > .sidebar {
+  flex: 1;
+  min-height: 0;
+  border-right: none;
+}
+
+.phone > .workspace {
+  min-height: 0;
+}
+
+.phone .tab-strip {
+  display: none;
+}
+
+.phone .workspace-body {
+  --strip-h: 0px;
+}
+
+/* A message sits above the bar, in the column, while it shows. */
+.phone > .banner {
+  position: static;
+  margin: 0.4rem auto;
+}
+
+.phone-bar {
+  flex: none;
+  display: flex;
+  border-top: 1px solid var(--border);
+  background: var(--bg-viewer);
+}
+
+.phone-bar button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.5rem 0 0.4rem;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: var(--fs-chrome);
+  line-height: inherit;
+}
+
+.phone-bar button[aria-pressed='true'] {
+  color: var(--mark);
+}
+
+/* The capture line at the end of today's page, on the note's column: at the
+   bottom of the screen under a short day, and held there while a long one
+   scrolls above it. */
+.viewer > .composer {
+  position: sticky;
+  bottom: 0;
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg-viewer);
+}
+
+.composer-chips {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-inline: var(--column-pad);
+  scrollbar-width: none;
+}
+
+.composer-chips button,
+.composer-add {
+  flex: none;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: var(--fs-chrome);
+  line-height: inherit;
+}
+
+.composer-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-right: var(--column-pad);
+}
+
+.composer-line > .code-editor {
+  flex: 1;
+  min-width: 0;
+}
+
+.composer-add {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* The settings are the screen on a phone: the sections run across the top,
+   and each name sits above its control, as two columns left the fields a sliver. */
+.phone .settings-overlay {
+  padding: 0;
+}
+
+.phone .settings-dialog {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+}
+
+.phone .settings-body {
+  flex-direction: column;
+}
+
+.phone .settings-rail {
+  width: auto;
+  flex-direction: row;
+  overflow-x: auto;
+  border-right: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.phone .settings-rail button {
+  flex: none;
+  width: auto;
+}
+
+.phone .settings-field {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.phone .settings-field > :not(label) {
+  grid-column: 1;
+}
+
 /* ---- Sidebar ---- */
 
 .sidebar {
@@ -687,21 +846,30 @@ button.vault-name:hover {
   color: var(--accent-soft);
 }
 
-/* One weight for every glyph. A `stroke-width` is in viewBox units, so the
-   stroke a glyph needs is `weight × grid ÷ its em size`. Each glyph states
-   its grid as `data-grid`; the weight is `--icon-weight`, from the settings.
+/* One size and one weight for every glyph. Each glyph states its grid as
+   `data-grid`: the 10 grid is a pointer, at `--glyph-sm`, and the rest are
+   drawn at `--glyph`. The size is here, not on the element: Android's WebView
+   reads no `var()` in an SVG's `width`, and drew every glyph as wide as its box.
 
-   Filled dots use the same token: a filled circle beside a
+   A `stroke-width` is in viewBox units, so the stroke a glyph needs is
+   `weight × grid ÷ its em size`; the weight is `--icon-weight`, from the
+   settings. Filled dots use the same token: a filled circle beside a
    stroke read heavier. `1.35` is a node's ratio to a stem. */
 svg[data-grid='10'] {
+  width: var(--glyph-sm);
+  height: var(--glyph-sm);
   stroke-width: calc(var(--icon-weight) * 10 / var(--glyph-sm-num));
 }
 
 svg[data-grid='16'] {
+  width: var(--glyph);
+  height: var(--glyph);
   stroke-width: calc(var(--icon-weight) * 16 / var(--glyph-num));
 }
 
 svg[data-grid='24'] {
+  width: var(--glyph);
+  height: var(--glyph);
   stroke-width: calc(var(--icon-weight) * 24 / var(--glyph-num));
 }
 
@@ -1709,7 +1877,8 @@ button.folder-toggle {
 .viewer > .note-section,
 .viewer > .calendar-month,
 .viewer > .json-message,
-.viewer > .code-editor {
+.viewer > .code-editor,
+.viewer > .composer {
   width: 100%;
   max-width: var(--reading-width);
   margin-inline: auto;

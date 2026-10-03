@@ -5,6 +5,7 @@ import type { VaultFile, VaultFolder } from '../vaultModel'
 import {
   parseNoteLinks,
   isExternalTarget,
+  collectFiles,
   collectNotes,
   childrenOf,
   folderWithNote,
@@ -502,6 +503,28 @@ const wikiPath = (text: string, from = 'Index.md', into = index) => {
   const r = wikiResolve(text, from, into)
   return r.kind === 'note' ? r.note.path : r.kind === 'new' ? `new:${r.path}` : 'external'
 }
+
+/** A link to a photo was external, and the OS refused to open it. */
+describe('a link to a file that is not a note', () => {
+  const files: VaultFolder = {
+    path: 'Files',
+    absolutePath: '/vault/Files',
+    name: 'Files',
+    folders: [],
+    files: [note('Files/photo.jpg')],
+  }
+  const all = buildNoteIndex(collectFiles({ ...root, folders: [...root.folders, files] }))
+
+  it('opens the file, by its path or its name', () => {
+    expect(wikiPath('[[Files/photo.jpg]]', 'Index.md', all)).toBe('Files/photo.jpg')
+    expect(wikiPath('[[photo.jpg]]', 'Notes/Roadmap.md', all)).toBe('Files/photo.jpg')
+    expect(wikiPath('[[Files/photo.jpg]]')).toBe('external')
+  })
+
+  it('is no note to list', () => {
+    expect(collectNotes({ ...root, folders: [...root.folders, files] }).some((one) => one.path === 'Files/photo.jpg')).toBe(false)
+  })
+})
 
 describe('resolveTarget, for a wikilink', () => {
   it('finds a bare name anywhere in the vault — the whole point of the syntax', () => {

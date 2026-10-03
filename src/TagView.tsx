@@ -4,7 +4,7 @@ import { PlusIcon } from './icons'
 import { blockProperties, PROPERTY_NAME, readBlock, type PropertyType } from './properties'
 import { ViewerHeader } from './ViewerHeader'
 import { countOf, GatheredNotes, NameField, NoteRow, readable, RowIcon, Section, stepIn } from './rows'
-import { LINE_VIEWS, type LineView } from './tags'
+import { LINE_VIEWS, tagsOnly, type LineView } from './tags'
 import type { CollectedNote } from './useVaultTexts'
 import type { VaultFile } from './vaultModel'
 
@@ -48,7 +48,14 @@ export function TagView({
   onOpen: (file: VaultFile) => void
   onOpenLink: (target: string) => void
 }) {
-  const notes = collected ?? []
+  // A table leaves out a line of tags alone, a group's heading: it would be a
+  // row of empty cells. A list keeps it, heading the lines nested under it.
+  const notes =
+    view === 'table'
+      ? (collected ?? [])
+          .map((one) => ({ ...one, lines: one.lines.filter((line) => !tagsOnly(line.text)) }))
+          .filter((one) => one.lines.length > 0)
+      : (collected ?? [])
   const total = notes.reduce((sum, one) => sum + one.lines.length, 0)
   const [adding, setAdding] = useState<string | null>(null)
 

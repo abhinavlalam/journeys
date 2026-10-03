@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import { clockText, dayTitle, lengthOf, localDateStamp } from './clock'
 import type { Entries } from './configEntries'
 import { MarkdownEditor } from './MarkdownEditor'
+import { onAndroid } from './platform'
 import type { PropertyType } from './properties'
 import { countOf, NoteRow, READING, readable, RowIcon, Section, stepIn } from './rows'
 import { TAG_NAME, tagNames } from './tags'
@@ -192,11 +193,13 @@ function EntryEditor({
   onEnter,
   onEscape,
   onLeave,
+  autoFocus,
   onOpenLink,
   onOpenTag,
 }: {
   text: string
   typing: Typing
+  autoFocus?: boolean
   onEnter: (text: string) => void
   onEscape: () => void
   onLeave?: (text: string) => void
@@ -212,6 +215,7 @@ function EntryEditor({
       <MarkdownEditor
         initialMarkdown={text}
         caretAtEnd
+        autoFocus={autoFocus}
         notes={typing.notes}
         propertyTypes={typing.propertyTypes}
         tagStructures={typing.tagStructures}
@@ -250,6 +254,8 @@ function NewEntry({
         key={round}
         text=""
         typing={typing}
+        // Not on a phone: the page is opened to read, and the keyboard would cover it.
+        autoFocus={!onAndroid}
         onEnter={(text) => {
           if (text.trim() !== '') onAdd(text.trim())
           next()

@@ -100,6 +100,7 @@ async fn fetch_feed(url: String) -> Result<String, String> {
     .await
 }
 
+mod phone;
 mod secrets;
 mod sync;
 mod terminal;
@@ -171,7 +172,7 @@ mod quit {
 pub fn run() {
     let builder = tauri::Builder::default();
     #[cfg(target_os = "android")]
-    let builder = builder.plugin(secrets::init());
+    let builder = builder.plugin(secrets::init()).plugin(phone::init());
     #[cfg(target_os = "macos")]
     let builder = builder.menu(quit::menu).on_menu_event(|app, event| {
         if event.id() == "quit" {
@@ -206,6 +207,8 @@ pub fn run() {
             terminal::resize_terminal,
             terminal::kill_terminal,
             terminal::end_terminal,
+            phone::phone_shares,
+            phone::phone_paint,
             #[cfg(desktop)]
             quit::quit,
             #[cfg(desktop)]

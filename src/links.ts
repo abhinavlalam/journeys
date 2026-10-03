@@ -311,6 +311,15 @@ function decodeTarget(target: string): string {
 
 /** Every note in the vault, folder notes included, in tree order. */
 export function collectNotes(root: VaultFolder): VaultFile[] {
+  return collectFiles(root).filter((file) => isTextFile(file.path))
+}
+
+/**
+ * Every file in the tree, as `collectNotes` walks it, text or not: what a link
+ * can name. `[[Files/photo.jpg]]` opens the photo; with notes alone it was
+ * external, and the OS refused it.
+ */
+export function collectFiles(root: VaultFolder): VaultFile[] {
   const out: VaultFile[] = []
   const walk = (folder: VaultFolder) => {
     // A folder is a note even before its file is written, since the tree
@@ -322,7 +331,7 @@ export function collectNotes(root: VaultFolder): VaultFile[] {
     folder.folders.forEach(walk)
   }
   walk(root)
-  return out.filter((file) => isTextFile(file.path))
+  return out
 }
 
 /**

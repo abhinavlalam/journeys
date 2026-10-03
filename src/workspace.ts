@@ -170,6 +170,23 @@ export function openTab(ws: Workspace, request: TabRequest): Workspace {
   })
 }
 
+/** Whether two tabs are the same page: a note by its path, a page by its name. */
+export const sameTab = (a: TabRequest | Tab, b: TabRequest | Tab) => tabKey(a) === tabKey(b)
+
+/**
+ * The phone's one page: the tab asked for, alone in the one group. The tab on
+ * screen keeps its id when it is the one asked for, so its viewer stays mounted.
+ */
+export function openAlone(ws: Workspace, request: TabRequest): Workspace {
+  const shown = activeTab(ws)
+  const tab = shown && sameTab(shown, request) ? shown : ({ ...request, id: ws.nextId } as Tab)
+  return {
+    layout: { kind: 'group', group: { id: ws.focused, tabs: [tab], active: 0 } },
+    focused: ws.focused,
+    nextId: Math.max(ws.nextId, tab.id + 1),
+  }
+}
+
 /** The prefix of every session the app owns, on its own tmux socket. */
 const TERMINAL_PREFIX = 'journeys-'
 

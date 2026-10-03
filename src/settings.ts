@@ -7,6 +7,7 @@
 import { asObject } from './configEntries'
 import { DAILY_FOLDER, readConfigFile, safeNewName, writeConfigFile } from './vault'
 import { SETTINGS_FILE } from './vaultModel'
+import { onAndroid, paintBars } from './platform'
 import { ACTIONS, defaultShortcuts, normalizeCombo, type ActionId } from './shortcuts'
 
 export type { ActionId }
@@ -552,6 +553,8 @@ export function applySettings(settings: Settings, root?: HTMLElement): void {
   el.style.setProperty('--font-prose', faceStack(settings.fontFamily))
   // A space's width, for how far an indented line's wrapped rows hang.
   el.style.setProperty('--space-w', `${spaceWidth(settings)}px`)
+  // Behind the phone's bars is the app's ground, so they change with it.
+  if (onAndroid) paintBars()
 }
 
 /**

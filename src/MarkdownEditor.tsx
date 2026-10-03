@@ -86,6 +86,8 @@ interface MarkdownEditorProps {
    * Escape and leaving are the caller's. An open popup still takes its keys first.
    */
   line?: { onEnter: (text: string) => void; onEscape: () => void; onLeave?: (text: string) => void }
+  /** Takes the keyboard when it mounts: a line opened by a press does, unless told not to. */
+  autoFocus?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -247,6 +249,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
       className="markdown-editor"
       indentWidth={indentWidth}
       gutters={!props.line}
+      autoFocus={props.autoFocus ?? (props.line ? true : undefined)}
     />
   )
 }

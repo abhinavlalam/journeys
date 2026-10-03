@@ -32,6 +32,13 @@ export function tagNames(raw: string): string[] {
   )
 }
 
+/**
+ * A line of tags and nothing else. In a day it heads a group (`#diet`, its
+ * entries nested under it), and it is no record of its own: in a tag's
+ * table it was a row of empty cells.
+ */
+export const tagsOnly = (line: string) => line.trim() !== '' && line.replace(TAG, '').trim() === ''
+
 /** A gathered line: an entry, and what is written under it. */
 export interface CollectedLine {
   /** The line, without its indent or trailing space. */

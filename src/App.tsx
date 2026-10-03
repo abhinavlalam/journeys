@@ -3,10 +3,13 @@ import {
   CONFIG_DIR,
   convertToNested,
   createNote,
+  dailyNoteFile,
   ensureDailyNote,
   folderIcon,
+  keepShared,
   readConfigFile,
   readVaultFile,
+  SHARED_FOLDER,
   vaultFileRef,
   writeNoteProperty,
   writePathProperty,
@@ -55,6 +58,7 @@ import { useVaultTexts } from './useVaultTexts'
 import { useSettings } from './useSettings'
 import { useBuffers } from './useBuffers'
 import { NotePane } from './NotePane'
+import { isDailyNote } from './daily'
 import { WorkspaceView } from './WorkspaceView'
 import {
   activeTab,
@@ -63,6 +67,7 @@ import {
   emptyWorkspace,
   followFileTabs,
   followFolderTabs,
+  openAlone,
   openTab,
   openTerminal,
   terminalName,
@@ -76,6 +81,10 @@ import { useInlineCreate } from './useInlineCreate'
 import { useWindowShortcuts } from './useWindowShortcuts'
 import { useLocks } from './useLocks'
 import { onAndroid } from './platform'
+import { PhoneBar, usePhoneNav } from './Phone'
+import { Composer } from './Composer'
+import { useShares } from './useShares'
+import { shareDay, shareEntry, type Share } from './share'
 import { useDrops } from './useDrops'
 import { useCalendarSync } from './useCalendarSync'
 import { endTerminal } from './terminal'
@@ -169,7 +178,8 @@ export default function App() {
       bumpLive()
     }, LIVE_REFRESH_MS)
   }
-  const open = (tab: TabRequest) => setWs((current) => openTab(current, tab))
+  /** On the phone a page is a place in its trail (`usePhoneNav`), shown alone. */
+  const open = (tab: TabRequest) => (onAndroid ? phone.go(tab) : setWs((current) => openTab(current, tab)))
   /**
    * Opens a property's or tag's page: from a row, a `#tag` in a
    * note, or a new tag's `+`.
@@ -299,6 +309,20 @@ export default function App() {
     types: propertyTypes.entries,
     onError: setError,
   })
+
+  /** The phone's one place at a time, and where its back gesture goes. */
+  const phone = usePhoneNav({
+    page: active,
+    show: (tab) => setWs((current) => openAlone(current, tab)),
+    // A day's page opens written or not; another note only while it is in the tree.
+    exists: (tab) =>
+      (tab.kind !== 'note' && tab.kind !== 'file') ||
+      noteIndex.byKey.has(pathKey(tab.file.path)) ||
+      isDailyNote(tab.file.path, settings.dailyFolder),
+    overlay: settingsOpen ? () => setSettingsOpen(false) : null,
+  })
+  /** What is typed in the phone's capture line, kept while other pages are open. */
+  const captureDraft = useRef('')
 
   /**
    * Sets a folder's icon and, when icons pass down, the icon of the notes inside.
@@ -523,6 +547,19 @@ export default function App() {
     )
   const openToday = () => openDay()
   /**
+   * The phone's Today: the note opened without being made, so a look at the
+   * day writes nothing. Its first line makes it, from the capture line or typed.
+   */
+  const showToday = () => {
+    if (vault.vaultPath) void openNote(dailyNoteFile(vault.vaultPath, settings.dailyFolder))
+  }
+  const todayPath = `${settings.dailyFolder}/${localDateStamp()}.md`
+  // The phone starts on today, where capture is.
+  useEffect(() => {
+    if (onAndroid) showToday()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vault.vaultPath, settings.dailyFolder])
+  /**
    * Calendar sync: each feed's events for the days shown, written into those days'
    * notes as `#event` lines. The tag's structure is read from disk at that moment,
    * since the pane's copy may not be loaded yet. A new day note gets its folder's
@@ -709,15 +746,18 @@ export default function App() {
   }
 
   /**
-   * Files a new timeline entry in today's note (made if needed),
-   * where `withNewEntry` puts it. It is filed as typed: without
-   * a time it is a line of the note, not a timeline entry.
+   * Files an entry in a day's note (made if needed), where `withNewEntry` puts
+   * it. `entry` makes the text inside the change, so what it writes first, a
+   * share's files, is part of it. Says whether it went through.
    */
-  async function addEntry(text: string) {
-    await vault.mutate(
+  function fileEntry(day: string | undefined, entry: (vaultPath: string) => Promise<string>) {
+    return vault.mutate(
       async (v) => {
-        const { file, created } = await ensureDailyNote(v, settings.dailyFolder)
-        const next = withNewEntry(file, await readVaultFile(file), text, ' '.repeat(settings.indentWidth))
+        const text = await entry(v)
+        const { file, created } = await ensureDailyNote(v, settings.dailyFolder, day)
+        // A tag with a structure is a record, written at the top level of the day.
+        const structured = (tag: string) => propertiesOf(tagStructures.entries, tag).length > 0
+        const next = withNewEntry(file, await readVaultFile(file), text, ' '.repeat(settings.indentWidth), structured)
         await writeVaultFile(file, next)
         return { file, created, next }
       },
@@ -728,6 +768,33 @@ export default function App() {
       }
     )
   }
+
+  /**
+   * A new timeline entry in today's note. It is filed as typed: without
+   * a time it is a line of the note, not a timeline entry.
+   */
+  const addEntry = (text: string) => fileEntry(undefined, async () => text)
+
+  /**
+   * A share from another app, filed in the day it arrived with its files moved into
+   * `SHARED_FOLDER` first. Each file keeps where it went, so a second try after a
+   * failure moves none twice. Then a sync round, so the laptop has it soon.
+   */
+  async function fileShare(share: Share) {
+    const filed = await fileEntry(shareDay(share), async (v) => {
+      for (const one of share.files) {
+        if (one.path && !one.kept) one.kept = (await keepShared(v, SHARED_FOLDER, one.name, one.path)).path
+      }
+      return shareEntry(share, share.files.flatMap((one) => (one.kept ? [one.kept] : [])))
+    })
+    const unread = share.files.filter((one) => one.error)
+    if (filed && unread.length > 0) {
+      setError(`Could not read ${unread.map((one) => `${one.name} (${one.error})`).join(', ')} from what was shared.`)
+    }
+    if (filed) void sync.now()
+    return filed
+  }
+  useShares(vault.vaultPath, fileShare, setError)
 
   async function inheritIcon(file: VaultFile) {
     if (!settings.inheritIcons || !vault.vaultPath) return
@@ -843,9 +910,21 @@ export default function App() {
     )
   }
 
+  const banner = log.shown && (
+    <div className="banner" role="alert">
+      <span>{log.shown.text}</span>
+      <button aria-label="Dismiss" onClick={() => setError(null)}>
+        ×
+      </button>
+    </div>
+  )
+  const onPage = (kind: TabRequest['kind']) => !phone.browsing && active?.kind === kind
+
+  // On the phone, one place at a time: Browse is the left pane at full
+  // width, a page is the workspace's one tab, and the bar is below both.
   return (
-    <div className="app">
-      <aside className="sidebar" style={{ width: sidebarWidth }}>
+    <div className={onAndroid ? 'app phone' : 'app'}>
+      <aside className="sidebar" style={onAndroid ? undefined : { width: sidebarWidth }} hidden={onAndroid && !phone.browsing}>
         <header className="sidebar-header">
           <button
             className="vault-name"
@@ -1005,7 +1084,7 @@ export default function App() {
                 className={active?.kind === 'graph' ? 'selected' : undefined}
                 aria-label={active?.kind === 'graph' ? 'Close the note graph' : 'Open the note graph'}
                 aria-pressed={active?.kind === 'graph'}
-                onClick={() => setWs((current) => toggleTab(current, { kind: 'graph' }))}
+                onClick={() => (onAndroid ? open({ kind: 'graph' }) : setWs((current) => toggleTab(current, { kind: 'graph' })))}
               />
             </li>
             {(
@@ -1026,7 +1105,7 @@ export default function App() {
                   aria-label={name}
                   aria-pressed={active?.kind === kind}
                   trailing={count > 0 ? <span className="row-count">{count}</span> : undefined}
-                  onClick={() => setWs((current) => openTab(current, { kind }))}
+                  onClick={() => open({ kind })}
                 />
               </li>
             ))}
@@ -1073,30 +1152,27 @@ export default function App() {
         </div>
       </aside>
 
-      <Resizer
-        width={sidebarWidth}
-        onWidth={setSidebarWidth}
-        min={SIDEBAR_WIDTH.min}
-        max={SIDEBAR_WIDTH.max}
-        reset={SIDEBAR_WIDTH.start}
-        label="Resize the sidebar"
-      />
+      {!onAndroid && (
+        <Resizer
+          width={sidebarWidth}
+          onWidth={setSidebarWidth}
+          min={SIDEBAR_WIDTH.min}
+          max={SIDEBAR_WIDTH.max}
+          reset={SIDEBAR_WIDTH.start}
+          label="Resize the sidebar"
+        />
+      )}
 
-      <main className="workspace">
-        {log.shown && (
-          <div className="banner" role="alert">
-            <span>{log.shown.text}</span>
-            <button aria-label="Dismiss" onClick={() => setError(null)}>
-              ×
-            </button>
-          </div>
-        )}
+      <main className="workspace" hidden={onAndroid && phone.browsing}>
+        {!onAndroid && banner}
         <WorkspaceView
           ws={ws}
           onChange={setWs}
           onEndSession={(session) => void endTerminal(session, vault.vaultPath!)}
           empty={
-            <p className="viewer-empty">Choose a note on the left, or press ⌘⇧O for today’s page.</p>
+            <p className="viewer-empty">
+              {onAndroid ? 'Nothing is open. Today and Browse are below.' : 'Choose a note on the left, or press ⌘⇧O for today’s page.'}
+            </p>
           }
           render={(tab, isActive) => {
             switch (tab.kind) {
@@ -1126,6 +1202,19 @@ export default function App() {
                     onRename={(file, name) => void renameNote(file, name)}
                     onLock={(file) => void locks.lockNotes([file.path])}
                     onTyped={typed}
+                    below={
+                      onAndroid && tab.file.path === todayPath ? (
+                        <Composer
+                          notes={notes}
+                          propertyTypes={propertyTypes.entries}
+                          tagStructures={tagStructures.entries}
+                          draft={captureDraft}
+                          onAdd={(text) => void addEntry(text)}
+                          onOpenLink={(target, wiki) => void openLinkTarget(target, wiki)}
+                          onOpenTag={(tag) => view('tag', tag)}
+                        />
+                      ) : undefined
+                    }
                   />
                 )
               case 'file':
@@ -1226,6 +1315,17 @@ export default function App() {
         />
       </main>
 
+      {onAndroid && banner}
+      {onAndroid && (
+        <PhoneBar
+          items={[
+            { name: 'Today', icon: <NoteIcon icon="pen" />, current: !phone.browsing && active?.kind === 'note' && active.file.path === todayPath, onPress: showToday },
+            { name: 'Timeline', icon: <NoteIcon icon="clock" />, current: onPage('timeline'), onPress: () => open({ kind: 'timeline' }) },
+            { name: 'Calendar', icon: <NoteIcon icon="calendar" />, current: onPage('calendar'), onPress: () => open({ kind: 'calendar' }) },
+            { name: 'Browse', icon: <NoteIcon icon="list" />, current: phone.browsing, onPress: () => phone.go('browse') },
+          ]}
+        />
+      )}
       {panel}
     </div>
   )

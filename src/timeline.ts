@@ -1,13 +1,14 @@
 // The timeline: the daily notes as each day happened. A day is written by kind, a
-// line of tags alone (`#expense`, `#diet`) heading a group with its entries nested
-// under it. Here it is read by clock: every entry of the day, from every group, in
-// order. An entry carries its line number, which an edit writes back to.
+// line of tags alone (`#timeline`, `#diet`) heading a group with its entries nested
+// under it, and a record (`#expense`) one to a line. Here it is read by clock: every
+// entry of the day, from every group, in order. An entry carries its line number,
+// which an edit writes back to.
 
 import { leadingClock, minutesOf } from './clock'
 import { dayOf, isDailyNote } from './daily'
 import { blockProperties, readBlock, splitPageProperties, type PropertyType } from './properties'
 import { indentOf, proseLines } from './prose'
-import { TAG, tagNames } from './tags'
+import { tagNames, tagsOnly } from './tags'
 import type { VaultFile } from './vaultModel'
 
 export interface TimelineEntry {
@@ -37,9 +38,6 @@ export interface TimelineDay {
 }
 
 const DAY_MINUTES = 24 * 60
-
-/** A line of tags and nothing else heads a group. */
-const isGroupHead = (prose: string) => prose.trim() !== '' && prose.replace(TAG, '').trim() === ''
 
 /**
  * A group in a day's note: its heading's first tag, the
@@ -79,7 +77,7 @@ function readDay(note: VaultFile, raw: string): { entries: TimelineEntry[]; grou
     if (prose[at].trim() === '') continue
     while (heads.length > 0 && heads[heads.length - 1].indent >= indent) heads.pop()
     for (const head of heads) head.end = at
-    if (isGroupHead(prose[at])) {
+    if (tagsOnly(prose[at])) {
       const head = { name: tagNames(prose[at])[0], at, indent, end: at }
       heads.push(head)
       groups.push(head)
@@ -114,29 +112,56 @@ export function dayEntries(note: VaultFile, raw: string): TimelineEntry[] {
 const TIMELINE_GROUP = 'timeline'
 
 /**
- * A day's note with a new entry filed in it: under the group headed by
- * one of its tags; else the group already holding an entry with one
- * (`#food` under `#diet`); else `#timeline`, added at the note's end if
- * missing. It goes after the group's last line, indented like the group's
- * lines (or `indent` in from the heading), and nothing else moves.
+ * A day's note with a new entry filed in it, and nothing else moved: under the
+ * group headed by one of its tags; else beside the entries carrying one, in the
+ * group holding them (`#food` under `#diet`) or after the last at the top level
+ * (an `#expense`, as the vault writes a record); else, for a tag with a structure,
+ * at the day's end at the top level; else under `#timeline`, added at the note's
+ * end if missing. In a group it goes after the group's last line, indented like
+ * its lines (or `indent` in from the heading). Lines after the first in `text`
+ * are its detail, nested `indent` under it.
  */
-export function withNewEntry(note: VaultFile, raw: string, text: string, indent: string): string {
+export function withNewEntry(
+  note: VaultFile,
+  raw: string,
+  text: string,
+  indent: string,
+  structured: (tag: string) => boolean
+): string {
+  const [first, ...detail] = text.split('\n')
   const { entries, groups } = readDay(note, raw)
-  const tags = tagNames(text)
-  const carrying = entries.find((one) => one.group && tagNames(one.text).some((tag) => tags.includes(tag)))
+  const tags = tagNames(first)
+  const carrying = entries.filter((one) => tagNames(one.text).some((tag) => tags.includes(tag))).at(-1)
   const group =
     groups.find((one) => tags.includes(one.name)) ??
-    groups.find((one) => one.name === carrying?.group) ??
-    groups.find((one) => one.name === TIMELINE_GROUP)
-  if (!group) {
-    const gap = raw === '' || raw.endsWith('\n\n') ? '' : raw.endsWith('\n') ? '\n' : '\n\n'
-    return `${raw}${gap}#${TIMELINE_GROUP}\n${indent}${text}\n`
-  }
+    (carrying?.group ? groups.find((one) => one.name === carrying.group) : undefined) ??
+    (carrying || tags.some(structured) ? undefined : groups.find((one) => one.name === TIMELINE_GROUP))
+  const block = (pad: string) => [pad + first, ...detail.map((line) => pad + indent + line)]
   const lines = raw.split('\n')
-  const inside = lines.slice(group.at + 1, group.end + 1).find((line) => line.trim() !== '')
-  const pad = inside ? inside.slice(0, indentOf(inside)) : ' '.repeat(group.indent) + indent
-  lines.splice(group.end + 1, 0, pad + text)
-  return lines.join('\n')
+  if (group) {
+    const inside = lines.slice(group.at + 1, group.end + 1).find((line) => line.trim() !== '')
+    const pad = inside ? inside.slice(0, indentOf(inside)) : ' '.repeat(group.indent) + indent
+    lines.splice(group.end + 1, 0, ...block(pad))
+    return lines.join('\n')
+  }
+  if (carrying) {
+    const pad = lines[carrying.at].slice(0, indentOf(lines[carrying.at]))
+    lines.splice(runEnd(lines, carrying.at) + 1, 0, ...block(pad))
+    return lines.join('\n')
+  }
+  if (tags.some(structured)) return `${raw}${raw === '' || raw.endsWith('\n') ? '' : '\n'}${block('').join('\n')}\n`
+  const gap = raw === '' || raw.endsWith('\n\n') ? '' : raw.endsWith('\n') ? '\n' : '\n\n'
+  return `${raw}${gap}#${TIMELINE_GROUP}\n${block(indent).join('\n')}\n`
+}
+
+/** The last line of an entry and what is nested under it, blank lines inside included. */
+function runEnd(lines: readonly string[], at: number): number {
+  const indent = indentOf(lines[at])
+  let end = at
+  for (let next = at + 1; next < lines.length && (lines[next].trim() === '' || indentOf(lines[next]) > indent); next++) {
+    if (lines[next].trim() !== '') end = next
+  }
+  return end
 }
 
 /**

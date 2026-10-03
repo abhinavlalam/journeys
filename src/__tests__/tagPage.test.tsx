@@ -66,6 +66,17 @@ describe('a tag’s page', () => {
     expect(sum).toEqual(['sum', '', '485', '', ''])
   })
 
+  /** A day written by kind heads its expenses with `#expense` alone, which was a row of empty cells. */
+  it('leaves a line of tags alone out of the table, and keeps it in the list', async () => {
+    disk.write('/v/Daily/2026-09-25.md', ['#expense', '    09:10 #expense tea amount:: 3', ''].join('\n'))
+    await openTag()
+    const rows = () => [...document.querySelectorAll('.line-table tbody tr')].map((tr) => tr.querySelector('td + td')?.textContent)
+    await waitFor(() => expect(rows()).toEqual(['08:40', '12:00', '09:10']))
+    expect(viewer().getByText('3 lines')).toBeTruthy()
+    fireEvent.click(viewer().getByRole('button', { name: 'List' }))
+    await waitFor(() => expect(viewer().getByText('4 lines')).toBeTruthy())
+  })
+
   it('quotes each line as the note reads it, names and quotes left out', async () => {
     await openTag()
     fireEvent.click(await waitFor(() => viewer().getByRole('button', { name: 'List' })))
