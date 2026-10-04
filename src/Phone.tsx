@@ -68,11 +68,13 @@ export function usePhoneNav({
   return { browsing, go, back }
 }
 
-/** The phone's bottom bar: the places it starts from. */
+/** The phone's bottom bar: the places it starts from, and what sits on it (the +). */
 export function PhoneBar({
   items,
+  children,
 }: {
   items: { name: string; icon: ReactNode; current: boolean; onPress: () => void }[]
+  children?: ReactNode
 }) {
   return (
     <nav className="phone-bar" aria-label="Places">
@@ -82,6 +84,7 @@ export function PhoneBar({
           <span>{one.name}</span>
         </button>
       ))}
+      {children}
     </nav>
   )
 }

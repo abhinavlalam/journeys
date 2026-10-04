@@ -3,6 +3,7 @@
 
 import { indentOf, proseLines } from './prose'
 import type { Entries } from './configEntries'
+import { propertyText, type PropertyType } from './properties'
 
 /**
  * A tag is `#` and a word:
@@ -38,6 +39,22 @@ export function tagNames(raw: string): string[] {
  * table it was a row of empty cells.
  */
 export const tagsOnly = (line: string) => line.trim() !== '' && line.replace(TAG, '').trim() === ''
+
+/**
+ * A tag's line from a form: the clock, the tag, the words, then each property of its
+ * structure that has a value, in the structure's order and as its type reads it.
+ */
+export function tagLine(
+  tag: string,
+  properties: readonly string[],
+  { clock, what, fields }: { clock: string; what: string; fields: Record<string, string> },
+  typeOf: (name: string) => PropertyType
+): string {
+  const carried = properties.filter((name) => fields[name]?.trim())
+  return [clock, `#${tag}`, what.trim(), ...carried.map((name) => propertyText(name, fields[name].trim(), typeOf(name)))]
+    .filter(Boolean)
+    .join(' ')
+}
 
 /** A gathered line: an entry, and what is written under it. */
 export interface CollectedLine {

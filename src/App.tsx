@@ -6,6 +6,7 @@ import {
   dailyNoteFile,
   ensureDailyNote,
   folderIcon,
+  keepFile,
   keepShared,
   readConfigFile,
   readVaultFile,
@@ -82,7 +83,7 @@ import { useWindowShortcuts } from './useWindowShortcuts'
 import { useLocks } from './useLocks'
 import { onAndroid } from './platform'
 import { PhoneBar, usePhoneNav } from './Phone'
-import { Composer } from './Composer'
+import { Capture, type Adding } from './Capture'
 import { useShares } from './useShares'
 import { shareDay, shareEntry, type Share } from './share'
 import { useDrops } from './useDrops'
@@ -310,6 +311,9 @@ export default function App() {
     onError: setError,
   })
 
+  /** What the phone's + is adding, and the note line typed so far, kept while its sheet is closed. */
+  const [adding, setAdding] = useState<Adding | null>(null)
+  const captureDraft = useRef('')
   /** The phone's one place at a time, and where its back gesture goes. */
   const phone = usePhoneNav({
     page: active,
@@ -319,10 +323,8 @@ export default function App() {
       (tab.kind !== 'note' && tab.kind !== 'file') ||
       noteIndex.byKey.has(pathKey(tab.file.path)) ||
       isDailyNote(tab.file.path, settings.dailyFolder),
-    overlay: settingsOpen ? () => setSettingsOpen(false) : null,
+    overlay: settingsOpen ? () => setSettingsOpen(false) : adding ? () => setAdding(null) : null,
   })
-  /** What is typed in the phone's capture line, kept while other pages are open. */
-  const captureDraft = useRef('')
 
   /**
    * Sets a folder's icon and, when icons pass down, the icon of the notes inside.
@@ -796,6 +798,24 @@ export default function App() {
   }
   useShares(vault.vaultPath, fileShare, setError)
 
+  /** Photos or files picked with the phone's +, kept in `SHARED_FOLDER` and linked from a line in today. */
+  const fileUploads = (files: File[], caption: string, clock: string) =>
+    fileEntry(undefined, async (v) => {
+      const kept: string[] = []
+      for (const one of files) kept.push((await keepFile(v, SHARED_FOLDER, one.name, new Uint8Array(await one.arrayBuffer()))).path)
+      return [clock, caption, ...kept.map((path) => `[[${path}]]`)].filter(Boolean).join(' ')
+    })
+
+  /** A note made with the phone's +, given what every new note is, and opened. */
+  const makeNote = (folder: string, name: string) =>
+    vault.mutate(
+      (v) => createNote(v, folder, name),
+      async (created) => {
+        await endowNote(created)
+        await openNote(created)
+      }
+    )
+
   async function inheritIcon(file: VaultFile) {
     if (!settings.inheritIcons || !vault.vaultPath) return
     const inherited = await folderIcon(vault.vaultPath, file.path)
@@ -1202,19 +1222,6 @@ export default function App() {
                     onRename={(file, name) => void renameNote(file, name)}
                     onLock={(file) => void locks.lockNotes([file.path])}
                     onTyped={typed}
-                    below={
-                      onAndroid && tab.file.path === todayPath ? (
-                        <Composer
-                          notes={notes}
-                          propertyTypes={propertyTypes.entries}
-                          tagStructures={tagStructures.entries}
-                          draft={captureDraft}
-                          onAdd={(text) => void addEntry(text)}
-                          onOpenLink={(target, wiki) => void openLinkTarget(target, wiki)}
-                          onOpenTag={(tag) => view('tag', tag)}
-                        />
-                      ) : undefined
-                    }
                   />
                 )
               case 'file':
@@ -1324,7 +1331,23 @@ export default function App() {
             { name: 'Calendar', icon: <NoteIcon icon="calendar" />, current: onPage('calendar'), onPress: () => open({ kind: 'calendar' }) },
             { name: 'Browse', icon: <NoteIcon icon="list" />, current: phone.browsing, onPress: () => phone.go('browse') },
           ]}
-        />
+        >
+          <Capture
+            adding={adding}
+            onAdding={setAdding}
+            notes={notes}
+            folders={folderPaths}
+            propertyTypes={propertyTypes.entries}
+            tagStructures={tagStructures.entries}
+            typeOf={(name) => typeOf(propertyTypes.entries, name)}
+            draft={captureDraft}
+            onLine={(day, text) => fileEntry(day, async () => text)}
+            onFiles={fileUploads}
+            onPage={makeNote}
+            onOpenLink={(target, wiki) => void openLinkTarget(target, wiki)}
+            onOpenTag={(tag) => view('tag', tag)}
+          />
+        </PhoneBar>
       )}
       {panel}
     </div>

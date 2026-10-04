@@ -618,7 +618,7 @@ button.primary:hover {
   background: var(--bg-viewer);
 }
 
-.phone-bar button {
+.phone-bar > button {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -633,62 +633,154 @@ button.primary:hover {
   line-height: inherit;
 }
 
-.phone-bar button[aria-pressed='true'] {
+.phone-bar > button[aria-pressed='true'] {
   color: var(--mark);
 }
 
-/* The capture line at the end of today's page, on the note's column: at the
-   bottom of the screen under a short day, and held there while a long one
-   scrolls above it. */
-.viewer > .composer {
-  position: sticky;
-  bottom: 0;
-  margin-top: auto;
+/* The +, over the bottom right of every page, standing on the bar. A child of the
+   bar, so it out-ranks the bar's own buttons, which are clear and share the row. */
+.phone-bar {
+  position: relative;
+}
+
+.phone-bar > .capture-plus {
+  position: absolute;
+  right: 1rem;
+  bottom: calc(100% + 1rem);
+  z-index: var(--layer-menu);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4em;
+  height: 2.4em;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* What the + adds, as a sheet from the bottom; the page dims behind it. */
+.capture-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-modal);
+  display: flex;
+  align-items: flex-end;
+  background: var(--scrim);
+}
+
+.capture-sheet {
+  width: 100%;
+  max-height: 85%;
+  overflow-y: auto;
+  padding-bottom: 0.75rem;
+  border-top: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--bg-raised);
+  color: var(--text);
+  font-family: var(--font-prose);
+  font-size: var(--fs-prose);
+  line-height: var(--line-height-prose);
+}
+
+.capture-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  font-weight: var(--fw-strong);
+}
+
+.capture-header button {
+  padding: 0 0.5rem;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.capture-list {
+  margin: 0;
+  padding: 0.5rem 0;
+  list-style: none;
+}
+
+.capture-form {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.5rem 0;
-  border-top: 1px solid var(--border);
-  background: var(--bg-viewer);
+  gap: 0.75rem;
+  padding: 0.75rem 1rem 0;
 }
 
-.composer-chips {
+.capture-field {
   display: flex;
-  gap: 0.4rem;
-  overflow-x: auto;
-  padding-inline: var(--column-pad);
-  scrollbar-width: none;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--text-dim);
 }
 
-.composer-chips button,
-.composer-add {
+.capture-field input,
+.capture-field select {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sidebar);
+  color: var(--text);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.capture-field input[type='file'] {
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.capture-when {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.capture-line {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sidebar);
+}
+
+.capture-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.capture-when button,
+.capture-actions button {
   flex: none;
-  padding: 0.15rem 0.6rem;
+  padding: 0.4rem 0.85rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: transparent;
   color: var(--text-dim);
   font-family: inherit;
-  font-size: var(--fs-chrome);
+  font-size: inherit;
   line-height: inherit;
 }
 
-.composer-line {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding-right: var(--column-pad);
-}
-
-.composer-line > .code-editor {
-  flex: 1;
-  min-width: 0;
-}
-
-.composer-add {
+.capture-actions .capture-add {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--on-accent);
+}
+
+.capture-add:disabled {
+  opacity: 0.5;
 }
 
 /* The settings are the screen on a phone: the sections run across the top,
@@ -1877,8 +1969,7 @@ button.folder-toggle {
 .viewer > .note-section,
 .viewer > .calendar-month,
 .viewer > .json-message,
-.viewer > .code-editor,
-.viewer > .composer {
+.viewer > .code-editor {
   width: 100%;
   max-width: var(--reading-width);
   margin-inline: auto;

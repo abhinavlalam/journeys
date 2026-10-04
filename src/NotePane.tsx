@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type ComponentProps, type MutableRefObject, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, type ComponentProps, type MutableRefObject } from 'react'
 import { useNoteBuffer } from './useNoteBuffer'
 import type { BufferSet } from './useBuffers'
 import { ViewerHeader } from './ViewerHeader'
@@ -53,8 +53,6 @@ interface NotePaneProps {
   onRename: (file: VaultFile, name: string) => void
   /** Locks a locked note again: its tab closes and its passphrase is forgotten. */
   onLock: (file: VaultFile) => void
-  /** At the page's end: the phone's capture line, on today's note. */
-  below?: ReactNode
   /**
    * A key was typed. `App` listens while a view built from the notes is
    * on screen in another pane, to take the live text; see `liveVersion`.
@@ -92,7 +90,6 @@ export function NotePane({
   onRename,
   onLock,
   onTyped,
-  below,
 }: NotePaneProps) {
   const buffer = useNoteBuffer({ vaultPath, refresh, setError })
 
@@ -275,7 +272,6 @@ export function NotePane({
           onOpen={onOpen}
         />
       )}
-      {loaded && !buffer.unreadable && below}
     </>
   )
 }

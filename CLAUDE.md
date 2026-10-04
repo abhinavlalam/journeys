@@ -46,7 +46,7 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 | `crypto.ts`, `useLocks.ts`, `useAutoLock.ts` | Locked notes: the format and the passphrases held / asking and locking / the clock. |
 | `sync.ts`, `useSync.ts`, `src-tauri/src/sync.rs` | Git sync. |
 | `terminal.ts`, `TerminalPane.tsx`, `src-tauri/src/terminal.rs` | The terminal. |
-| `platform.ts`, `Phone.tsx`, `Composer.tsx` | Android, the phone's one place at a time and its bar, the capture line. |
+| `platform.ts`, `Phone.tsx`, `Capture.tsx` | Android, the phone's one place at a time and its bar, the + and what it adds. |
 | `share.ts`, `useShares.ts`, `src-tauri/src/phone.rs`, `PhonePlugin.kt` | What other apps share in, filed into the day. |
 | `graph.ts`, `GraphView.tsx` | The graph's model, filters and layouts / its view. |
 | `settings.ts`, `useSettings.ts`, `SettingsPanel.tsx`, `SettingsFile.tsx` | Settings. |
@@ -470,11 +470,16 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   Calendar and Browse. Each move keeps where it came from and the back gesture goes
   there, closing the settings first; it is listened for only while there is
   somewhere to go, so with nowhere Android leaves the app.
-- **Today is where capture is**: today's note, opened without being made (a look at
-  the day writes nothing), with the capture line under it (`Composer`), filed by
-  `withNewEntry`. Now starts the line with the time and leaves the caret; a tag's
-  chip puts the tag at the caret; neither takes the keyboard. A page opened to read
-  does not raise the keyboard (`EditorHost`'s `autoFocus`); a line editor does.
+- **The + adds from any page** (`Capture`; the owner preferred it to a capture line
+  under today): a note's line in today; a tag's line from a form of its structure
+  (`tagLine`: clock, tag, words, then each value in the structure's order as its type
+  reads it, `propertyText`); a photo or file kept in `Files/` and linked (`keepFile`);
+  an event in its own day as the calendar writes one (`eventText`, without
+  `source::`); or a new note, which opens. A sheet closes once its line is written
+  and the page stays; the back gesture closes it. No time is filled in unasked: Now
+  fills it. Today is today's note, opened without being made (a look at the day
+  writes nothing). A page opened to read does not raise the keyboard (`EditorHost`'s
+  `autoFocus`); a line editor does.
 - **A share is filed into the day it arrived** as `HH:MM #shared`, its subject and
   first line, and `[[Files/<name>]]` per file, the rest of a message nested under
   it, so the laptop's agent finds it by the tag. Files are copied into the app's files

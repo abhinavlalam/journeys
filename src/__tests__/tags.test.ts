@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { collectTagLines, tagAt, tagNames } from '../tags'
+import { collectTagLines, tagAt, tagLine, tagNames } from '../tags'
 
 /**
  * `#word` in a note's prose. Most of this file is what is not a tag (a heading,
@@ -136,5 +136,25 @@ describe('tagAt', () => {
   /** Folded, so pressing `#Travel` opens the same page as the `travel` row. */
   it('folds what a press reads', () => {
     expect(tagAt('went #Travel today', 6)).toBe('travel')
+  })
+})
+
+/** The phone's tag form writes the line the laptop would, and reads back as written. */
+describe('a tag’s line from a form', () => {
+  const types: Record<string, 'number' | 'backlink' | 'text' | 'date'> = { amount: 'number', merchant: 'backlink', note: 'text', on: 'date' }
+  const typeOf = (name: string) => types[name] ?? 'text'
+  const line = (fields: Record<string, string>, clock = '', what = '') =>
+    tagLine('expense', ['amount', 'merchant', 'note', 'on'], { clock, what, fields }, typeOf)
+
+  it('puts the clock, the tag and the words first, then each value in the structure’s order', () => {
+    expect(line({ merchant: 'Harbour Bistro', amount: '24.50' }, '12:30', 'lunch')).toBe(
+      '12:30 #expense lunch amount:: 24.50 merchant:: [[Harbour Bistro]]'
+    )
+  })
+
+  it('writes each value as its type reads it, and leaves out what is empty', () => {
+    expect(line({ merchant: '[[Harbour Bistro]]', note: 'by the water', on: '2026-10-04', amount: ' ' })).toBe(
+      '#expense merchant:: [[Harbour Bistro]] note:: "by the water" on:: 2026-10-04'
+    )
   })
 })

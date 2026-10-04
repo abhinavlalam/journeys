@@ -212,6 +212,15 @@ export function textProperty(name: string, value: string): string {
   return `${name}:: ${/\s/.test(text) ? `"${text}"` : text}`
 }
 
+/**
+ * `name:: value` as its type reads it: a backlink as one `[[link]]`, text and a
+ * path quoted past one word (`textProperty`), anything else as given.
+ */
+export function propertyText(name: string, value: string, type: PropertyType): string {
+  if (type === 'backlink') return `${name}:: ${/^\[\[[^\]]+\]\]$/.test(value) ? value : `[[${value}]]`}`
+  return QUOTABLE.includes(type) ? textProperty(name, value) : `${name}:: ${value}`
+}
+
 /** One `key:: value` on a line. */
 export interface BlockProperty {
   name: string
