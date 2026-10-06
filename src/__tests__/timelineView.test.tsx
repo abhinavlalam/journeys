@@ -45,14 +45,13 @@ beforeEach(() => {
 
 const viewer = () => within(document.querySelector('.viewer:not([hidden])') as HTMLElement)
 /** The days with today last; with nothing written, today still has its new line. */
-const days = () => [...document.querySelectorAll('.viewer:not([hidden]) .note-section')]
+const days = () => [...document.querySelectorAll('.viewer:not([hidden]) .journal-day')]
 const lineIn = (section: Element) => section.querySelector<HTMLInputElement>('[data-testid="line-editor"]')
 const today = () => `/v/Daily/${localDateStamp()}.md`
 const entries = (day: Element) =>
   [...day.querySelectorAll('.timeline-entry')].map((one) => [
     one.querySelector('.timeline-when')!.textContent,
     one.querySelector('.timeline-what')!.textContent,
-    one.querySelector('.timeline-group')?.textContent ?? '',
     one.classList.contains('block') ? 'block' : 'moment',
   ])
 
@@ -68,13 +67,13 @@ describe('the timeline', () => {
   it('reads the days oldest first, each by clock across its groups', async () => {
     await openTimeline()
     const [first, second] = days()
-    expect(entries(first)).toEqual([['08:00', '#walk by the river', '', 'moment']])
+    expect(entries(first)).toEqual([['08:00', '#walk by the river', 'moment']])
     expect(entries(second)).toEqual([
-      ['08:30', '#expenseamount 60', '', 'moment'],
-      ['08:45', '#food oats', 'diet', 'moment'],
-      ['09:00', 'standup', 'timeline', 'moment'],
-      ['12:30', '#expense lunchamount 480merchant Harbour Bistro', '', 'moment'],
-      ['13:00–13:5050 min', 'review with Mira Vance', 'timeline', 'block'],
+      ['08:30', '#expenseamount 60', 'moment'],
+      ['08:45', '#food oats', 'moment'],
+      ['09:00', 'standup', 'moment'],
+      ['12:30', '#expense lunchamount 480merchant Harbour Bistro', 'moment'],
+      ['13:00–13:5050 min', 'review with Mira Vance', 'block'],
     ])
     expect(second.querySelector('.timeline-totals')!.textContent).toBe('#expense amount 540')
   })
@@ -86,6 +85,9 @@ describe('the timeline', () => {
       ['08:00 #walk by the river', '    - **Cold** at the ferry ([01:18](https://example.com/v?t=78))', '    see [[Harbour Bistro|the bistro]]', ''].join('\n')
     )
     await openTimeline()
+    // Folded to a count, so the day's entries are not buried; a press opens it.
+    expect(days()[0].querySelector('.timeline-below')).toBeNull()
+    fireEvent.click(within(days()[0] as HTMLElement).getByRole('button', { name: '2 lines' }))
     const below = [...days()[0].querySelectorAll('.timeline-below')].map((one) => one.textContent)
     // Each keeps its indent under the entry, so the nesting reads as written.
     expect(below).toEqual(['    - Cold at the ferry (01:18)', '    see the bistro'])
@@ -127,9 +129,9 @@ describe('the timeline', () => {
     await waitFor(() => expect(disk.read(today())).toBe('#timeline\n    coffee with [[Mira Vance]]\n'))
     // A fresh line for the next, and nothing on the timeline for a line with no time.
     expect(lineIn(days()[2])!.value).toBe('')
-    expect(entries(days()[2])).toEqual([['', '', '', 'moment']])
+    expect(entries(days()[2])).toEqual([['', '', 'moment']])
     type('10:00 call with [[Mira Vance]]')
-    await waitFor(() => expect(entries(days()[2])[0]).toEqual(['10:00', 'call with Mira Vance', 'timeline', 'moment']))
+    await waitFor(() => expect(entries(days()[2])[0]).toEqual(['10:00', 'call with Mira Vance', 'moment']))
     expect(disk.read(today())).toBe('#timeline\n    coffee with [[Mira Vance]]\n    10:00 call with [[Mira Vance]]\n')
   })
 
@@ -150,9 +152,11 @@ describe('the timeline', () => {
   it('has one today, in its place before a day ahead the calendar wrote, with one new line', async () => {
     disk.write(`/v/Daily/${daysAfter(localDateStamp(), 3)}.md`, '18:00 #event flight\n')
     await openTimeline(4)
-    const titles = days().map((one) => one.querySelector('.folder-toggle')!.textContent ?? '')
+    const titles = days().map((one) => one.querySelector('.journal-weekday')!.textContent ?? '')
     expect(titles.filter((one) => one.startsWith('Today'))).toHaveLength(1)
     expect(titles.findIndex((one) => one.startsWith('Today'))).toBe(2)
+    // Today's page is marked as today's.
+    expect(days()[2].querySelector('.journal-head')!.classList.contains('today')).toBe(true)
     expect(document.querySelectorAll('[data-testid="line-editor"]')).toHaveLength(1)
   })
 
@@ -162,9 +166,9 @@ describe('the timeline', () => {
     expect(lineIn(days()[2])!.dataset.timeKey).toBe(DEFAULT_SETTINGS.shortcuts.insertTime)
   })
 
-  it('opens a day’s note from its name', async () => {
+  it('opens a day’s note from its date', async () => {
     await openTimeline()
-    fireEvent.click(days()[1].querySelector('.folder-toggle')!)
+    fireEvent.click(days()[1].querySelector('.journal-date')!)
     await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('2026-09-21'))
   })
 

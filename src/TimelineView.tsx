@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
-import { clockText, dayTitle, lengthOf, localDateStamp } from './clock'
+import { clockText, dayDate, daysBetween, lengthOf, localDateStamp, relativeDay } from './clock'
 import type { Entries } from './configEntries'
 import { MarkdownEditor } from './MarkdownEditor'
 import { onAndroid } from './platform'
 import type { PropertyType } from './properties'
 import { countOf, NoteRow, READING, RowIcon, Section, stepIn } from './rows'
-import { tagNames } from './tags'
+import { ChevronIcon } from './icons'
 import { fieldsOf, totalsOf, wordsOf, type TimelineDay, type TimelineEntry } from './timeline'
 import { ViewerHeader } from './ViewerHeader'
 import { Live } from './Live'
@@ -34,13 +34,15 @@ interface Typing {
 
 /**
  * The timeline: every daily note as the day happened, oldest at the top
- * and today at the bottom. The page opens at its end. Each day is its
- * entries by clock, whatever group they are written in. A moment is a
- * dot on the rail; a stretch of time is a bar with its length. A tag
- * drawn as a table shows its fields, and the day ends with its totals.
+ * and today at the bottom. The page opens at its end. Each day is a page
+ * of a journal, headed by its date, its entries by clock whatever group
+ * they are written in. A moment is a dot on the rail; a stretch of time is
+ * a bar with its length. What is nested under an entry is folded to a
+ * count, and opens on a press. A tag drawn as a table shows its fields,
+ * and the day ends with its totals.
  *
  * A press on an entry edits it, with the note's own editor on one line. A
- * day's name opens its note. A new entry is typed at the bottom of today.
+ * day's date opens its note. A new entry is typed at the bottom of today.
  */
 export function TimelineView({
   days,
@@ -100,39 +102,58 @@ export function TimelineView({
         </Section>
       )}
       {shown.map(({ note, ...day }) => (
-        <Section
-          key={day.day}
-          title={dayTitle(day.day, today)}
-          count={day.entries.length}
-          startOpen
-          onOpen={note ? () => opens.onOpen(note) : undefined}
-        >
-          <li className="timeline-box">
-            <ol className="timeline-entries">
-              {day.entries.map((entry) => (
-                <Entry
-                  key={entry.at}
-                  entry={entry}
-                  tables={tables}
-                  typeOf={typeOf}
-                  editor={editing === keyOf(entry) && editorFor(entry)}
-                  onPress={() => setEditing(keyOf(entry))}
-                  {...opens}
-                />
-              ))}
-              {day.day === today && newEntry}
-            </ol>
-            <Totals entries={day.entries} tables={tables} typeOf={typeOf} />
-          </li>
-        </Section>
+        <section key={day.day} className="journal-day">
+          <DayHead day={day.day} today={today} count={day.entries.length} onOpen={note ? () => opens.onOpen(note) : undefined} />
+          <ol className="timeline-entries">
+            {day.entries.map((entry) => (
+              <Entry
+                key={entry.at}
+                entry={entry}
+                tables={tables}
+                typeOf={typeOf}
+                editor={editing === keyOf(entry) && editorFor(entry)}
+                onPress={() => setEditing(keyOf(entry))}
+                {...opens}
+              />
+            ))}
+            {day.day === today && newEntry}
+          </ol>
+          <Totals entries={day.entries} tables={tables} typeOf={typeOf} />
+        </section>
       ))}
     </>
   )
 }
 
+const weekday = new Intl.DateTimeFormat(undefined, { weekday: 'long' })
+const month = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' })
+
 /**
- * One entry: its clock, its mark on the rail, what it says (or
- * its `editor` while being edited), and its group.
+ * A day's head, as a journal's page opens: the day's number large, its weekday
+ * (or today, yesterday, tomorrow) and month beside it, and how many entries it
+ * holds. The date opens the day's note.
+ */
+function DayHead({ day, today, count, onOpen }: { day: string; today: string; count: number; onOpen?: () => void }) {
+  const date = dayDate(day)
+  const near = Math.abs(daysBetween(today, day)) <= 1 ? relativeDay(day, today) : ''
+  return (
+    <header className={day === today ? 'journal-head today' : 'journal-head'}>
+      <button className="journal-date" onClick={onOpen} disabled={!onOpen}>
+        <span className="journal-number">{date.getDate()}</span>
+        <span className="journal-names">
+          <span className="journal-weekday">{near ? `${near.charAt(0).toUpperCase()}${near.slice(1)} · ${weekday.format(date)}` : weekday.format(date)}</span>
+          <span className="journal-month">{month.format(date)}</span>
+        </span>
+      </button>
+      {count > 0 && <span className="journal-count">{countOf(count, 'entry', 'entries')}</span>}
+    </header>
+  )
+}
+
+/**
+ * One entry: its clock, its mark on the rail, and what it says (or its `editor`
+ * while being edited), its fields under it. What is nested under it is a count
+ * until pressed open: shown whole, a video's notes buried the rest of the day.
  */
 function Entry({
   entry,
@@ -150,8 +171,8 @@ function Entry({
 } & Opens) {
   const fields = fieldsOf(entry.text, tables, typeOf)
   const block = entry.end !== null
-  // The group says what the entry's own tags do not: `#food` under `#diet`.
-  const group = entry.group && !tagNames(entry.text).includes(entry.group) ? entry.group : null
+  const [open, setOpen] = useState(false)
+  const detail = entry.below.filter((line) => line.trim() !== '')
   return (
     <li className={block ? 'timeline-entry block' : 'timeline-entry'} onClick={onPress}>
       <span className="timeline-when">
@@ -172,14 +193,27 @@ function Entry({
               ))}
             </span>
           )}
-          {entry.below.map((line, at) => (
-            <span key={at} className="timeline-below">
-              <Live text={line} {...opens} />
+          {detail.length > 0 && (
+            <button
+              className="timeline-more"
+              aria-expanded={open}
+              onClick={(event) => (event.stopPropagation(), setOpen((was) => !was))}
+            >
+              <ChevronIcon open={open} />
+              {countOf(detail.length, 'line')}
+            </button>
+          )}
+          {open && (
+            <span className="timeline-detail">
+              {entry.below.map((line, at) => (
+                <span key={at} className="timeline-below">
+                  <Live text={line} {...opens} />
+                </span>
+              ))}
             </span>
-          ))}
+          )}
         </span>
       )}
-      {group && <span className="timeline-group">{group}</span>}
     </li>
   )
 }

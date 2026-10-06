@@ -372,6 +372,12 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   entry is a line with a clock** (the owner's choice: the timeline is what happened
   when); what is nested under one is its detail, and a line without a clock is
   neither an entry nor a place for one, so what is nested under it reads on its own.
+- **Each day is a page of a journal** (the owner found the list hard to take in):
+  its date as the head, the day's number large over the clocks and its weekday and
+  month over the words, `--mark` for today; room between entries and a hairline
+  between days; no group label on a line. What is nested under an entry is folded to
+  a count (`timeline-more`) and opens on a press: shown whole, a video's notes buried
+  the day. One family still, by size and weight alone.
 - **A moment and a block read apart**: one clock is a dot on the rail, a range
   (`to`, `-`, `–`, `—`) a bar with its length, and one that ends before it starts
   ran past midnight.
