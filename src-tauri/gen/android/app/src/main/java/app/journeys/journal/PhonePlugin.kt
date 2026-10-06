@@ -32,8 +32,8 @@ class PaintArgs {
  * A share's files are copied into the app's own files as it arrives, while the
  * sender's grant to read them lasts; the page moves the copies into the vault as it
  * files the share. Not the cache: a file moved out of it keeps the cache's group, and
- * Android counted the vault's photos as cache. The copying is off the main thread, and `take` runs on the same thread after
- * it, so a share is never taken half copied.
+ * Android counted the vault's photos as cache. The copying is off the main thread,
+ * and `take` runs on the same thread after it, so a share is never taken half copied.
  */
 @TauriPlugin
 class PhonePlugin(private val activity: Activity) : Plugin(activity) {

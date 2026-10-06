@@ -15,7 +15,7 @@ export interface Share {
 }
 
 /** The tag a share is filed with, so an agent on the laptop finds every one. */
-export const SHARED_TAG = 'shared'
+const SHARED_TAG = 'shared'
 
 /** Every share since the last call, each once. */
 export const takeShares = () => invoke<Share[]>('phone_shares')

@@ -129,6 +129,16 @@ function Field({ name, children }: { name: string; children: ReactNode }) {
   )
 }
 
+function Submit({ disabled, children }: { disabled?: boolean; children: string }) {
+  return (
+    <div className="capture-actions">
+      <button className="capture-add" disabled={disabled}>
+        {children}
+      </button>
+    </div>
+  )
+}
+
 /** A time, empty unless set: a line is filed as typed, and Now fills it. */
 function When({ value, onChange }: { value: string; onChange: (clock: string) => void }) {
   return (
@@ -194,13 +204,13 @@ function NoteForm({ draft, notes, propertyTypes, tagStructures, onOpenLink, onOp
   )
 }
 
-/** A control for a property's value, by its type: a number keypad, a date picker, a note's name. */
-function ValueInput({ type, value, onChange, notes }: { type: PropertyType; value: string; onChange: (value: string) => void; notes: string }) {
+/** A control for a property's value, by its type: a number keypad, a date picker, a note's name from `list`. */
+function ValueInput({ type, value, onChange, list }: { type: PropertyType; value: string; onChange: (value: string) => void; list?: string }) {
   const common = { value, onChange: (event: { currentTarget: HTMLInputElement }) => onChange(event.currentTarget.value) }
   if (type === 'number') return <input {...common} type="text" inputMode="decimal" />
   if (type === 'date') return <input {...common} type="date" />
   if (type === 'url') return <input {...common} type="url" />
-  return <input {...common} type="text" list={type === 'backlink' ? notes : undefined} autoCapitalize="off" />
+  return <input {...common} type="text" list={type === 'backlink' ? list : undefined} autoCapitalize="off" />
 }
 
 /** The notes' names, for a backlink's suggestions. */
@@ -229,12 +239,10 @@ function TagForm({ tag, tagStructures, typeOf, notes, onLine }: Omit<CaptureProp
       </Field>
       {properties.map((name) => (
         <Field key={name} name={name}>
-          <ValueInput type={typeOf(name)} value={fields[name] ?? ''} onChange={(value) => setFields((was) => ({ ...was, [name]: value }))} notes="capture-notes" />
+          <ValueInput type={typeOf(name)} value={fields[name] ?? ''} onChange={(value) => setFields((was) => ({ ...was, [name]: value }))} list="capture-notes" />
         </Field>
       ))}
-      <div className="capture-actions">
-        <button className="capture-add">Add</button>
-      </div>
+      <Submit>Add</Submit>
     </form>
   )
 }
@@ -266,12 +274,10 @@ function EventForm({ tagStructures, onLine }: Omit<CaptureProps, 'onLine'> & { o
       </Field>
       {properties.map((name) => (
         <Field key={name} name={name}>
-          <ValueInput type="text" value={fields[name] ?? ''} onChange={(value) => setFields((was) => ({ ...was, [name]: value }))} notes="" />
+          <ValueInput type="text" value={fields[name] ?? ''} onChange={(value) => setFields((was) => ({ ...was, [name]: value }))} />
         </Field>
       ))}
-      <div className="capture-actions">
-        <button className="capture-add">Add</button>
-      </div>
+      <Submit>Add</Submit>
     </form>
   )
 }
@@ -290,11 +296,7 @@ function FileForm({ onFiles }: { onFiles: (files: File[], caption: string, clock
       <Field name="Caption">
         <input type="text" value={caption} onChange={(event) => setCaption(event.currentTarget.value)} />
       </Field>
-      <div className="capture-actions">
-        <button className="capture-add" disabled={files.length === 0}>
-          Add
-        </button>
-      </div>
+      <Submit disabled={files.length === 0}>Add</Submit>
     </form>
   )
 }
@@ -318,9 +320,7 @@ function PageForm({ folders, onPage }: { folders: string[]; onPage: (folder: str
           ))}
         </select>
       </Field>
-      <div className="capture-actions">
-        <button className="capture-add">Make it</button>
-      </div>
+      <Submit>Make it</Submit>
     </form>
   )
 }

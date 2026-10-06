@@ -625,6 +625,7 @@ button.primary:hover {
 }
 
 .phone-bar {
+  position: relative;
   flex: none;
   display: flex;
   border-top: 1px solid var(--border);
@@ -652,10 +653,6 @@ button.primary:hover {
 
 /* The +, over the bottom right of every page, standing on the bar. A child of the
    bar, so it out-ranks the bar's own buttons, which are clear and share the row. */
-.phone-bar {
-  position: relative;
-}
-
 .phone-bar > .capture-plus {
   position: absolute;
   right: 1rem;

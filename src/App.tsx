@@ -10,7 +10,6 @@ import {
   keepShared,
   readConfigFile,
   readVaultFile,
-  SHARED_FOLDER,
   vaultFileRef,
   writeNoteProperty,
   writePathProperty,
@@ -317,11 +316,10 @@ export default function App() {
   /** What the phone's + is adding, and the note line typed so far, kept while its sheet is closed. */
   const [adding, setAdding] = useState<Adding | null>(null)
   const captureDraft = useRef('')
-  /** Each tag's daily totals, as set on its page (`dayTotalsOf`). */
-  const dayTotals = useMemo(
-    () => dayTotalsOf(tagStructures.entries, (name) => typeOf(propertyTypes.entries, name)),
-    [tagStructures.entries, propertyTypes.entries]
-  )
+  const typeOfName = (name: string) => typeOf(propertyTypes.entries, name)
+  /** Each tag's daily totals and colour, as set on its page. */
+  const dayTotals = useMemo(() => dayTotalsOf(tagStructures.entries, typeOfName), [tagStructures.entries, propertyTypes.entries])
+  const colours = useMemo(() => coloursOf(tagStructures.entries), [tagStructures.entries])
   /** The phone's one place at a time, and where its back gesture goes. */
   const phone = usePhoneNav({
     page: active,
@@ -560,10 +558,10 @@ export default function App() {
    * The phone's Today: the note opened without being made, so a look at the
    * day writes nothing. Its first line makes it, from the capture line or typed.
    */
+  const todayNote = vault.vaultPath ? dailyNoteFile(vault.vaultPath, settings.dailyFolder) : null
   const showToday = () => {
-    if (vault.vaultPath) void openNote(dailyNoteFile(vault.vaultPath, settings.dailyFolder))
+    if (todayNote) void openNote(todayNote)
   }
-  const todayPath = `${settings.dailyFolder}/${localDateStamp()}.md`
   // The phone starts on today, where capture is.
   useEffect(() => {
     if (onAndroid) showToday()
@@ -582,7 +580,7 @@ export default function App() {
     if (!declared[EVENT]) await tagStructures.write(EVENT, { properties: EVENT_PROPERTIES })
     const format = {
       properties: declared[EVENT] ? propertiesOf(declared, EVENT) : EVENT_PROPERTIES,
-      typeOf: (name: string) => typeOf(propertyTypes.entries, name),
+      typeOf: typeOfName,
     }
     const today = localDateStamp()
     const from = dayDate(today)
@@ -642,6 +640,7 @@ export default function App() {
    * A clicked link. The editor sends the raw target and whether
    * it was `[[…]]`; resolving it needs the note index.
    */
+  const openLink = (target: string, wiki: boolean) => void openLinkTarget(target, wiki)
   async function openLinkTarget(target: string, wiki: boolean) {
     const from = focusedNote?.path ?? ''
     const resolved = resolveTarget(
@@ -789,13 +788,13 @@ export default function App() {
 
   /**
    * A share from another app, filed in the day it arrived with its files moved into
-   * `SHARED_FOLDER` first. Each file keeps where it went, so a second try after a
+   * the vault first. Each file keeps where it went, so a second try after a
    * failure moves none twice. Then a sync round, so the laptop has it soon.
    */
   async function fileShare(share: Share) {
     const filed = await fileEntry(shareDay(share), async (v) => {
       for (const one of share.files) {
-        if (one.path && !one.kept) one.kept = (await keepShared(v, SHARED_FOLDER, one.name, one.path)).path
+        if (one.path && !one.kept) one.kept = (await keepShared(v, one.name, one.path)).path
       }
       return shareEntry(share, share.files.flatMap((one) => (one.kept ? [one.kept] : [])))
     })
@@ -808,11 +807,11 @@ export default function App() {
   }
   useShares(vault.vaultPath, fileShare, setError)
 
-  /** Photos or files picked with the phone's +, kept in `SHARED_FOLDER` and linked from a line in today. */
+  /** Photos or files picked with the phone's +, kept in the vault and linked from a line in today. */
   const fileUploads = (files: File[], caption: string, clock: string) =>
     fileEntry(undefined, async (v) => {
       const kept: string[] = []
-      for (const one of files) kept.push((await keepFile(v, SHARED_FOLDER, one.name, new Uint8Array(await one.arrayBuffer()))).path)
+      for (const one of files) kept.push((await keepFile(v, one.name, new Uint8Array(await one.arrayBuffer()))).path)
       return [clock, caption, ...kept.map((path) => `[[${path}]]`)].filter(Boolean).join(' ')
     })
 
@@ -1227,7 +1226,7 @@ export default function App() {
                     backlinks={backlinks}
                     treeProps={treeProps}
                     onOpen={(file) => void openNote(file)}
-                    onOpenLink={(target, wiki) => void openLinkTarget(target, wiki)}
+                    onOpenLink={openLink}
                     onOpenTag={(tag) => view('tag', tag)}
                     onRename={(file, name) => void renameNote(file, name)}
                     onLock={(file) => void locks.lockNotes([file.path])}
@@ -1263,18 +1262,18 @@ export default function App() {
                     properties={propertiesOf(tagStructures.entries, tab.name)}
                     view={viewOf(tagStructures.entries, tab.name)}
                     onView={(next) => void tagStructures.write(tab.name.toLowerCase(), { view: next })}
-                    typeOf={(property) => typeOf(propertyTypes.entries, property)}
+                    typeOf={typeOfName}
                     icons={icons}
                     loading={reading}
                     onProperties={(next) => void tagStructures.write(tab.name.toLowerCase(), { properties: next })}
                     totals={dayTotals[tab.name.toLowerCase()] ?? []}
                     onTotals={(next) => void tagStructures.write(tab.name.toLowerCase(), { totals: next.map(writtenTotal) })}
-                    colour={coloursOf(tagStructures.entries)[tab.name.toLowerCase()]}
+                    colour={colours[tab.name.toLowerCase()]}
                     onColour={(next) => void tagStructures.write(tab.name.toLowerCase(), { color: next })}
                     onError={setError}
                     onOpenProperty={(property) => view('property', property)}
                     onOpen={(file) => void openNote(file)}
-                    onOpenLink={(target, wiki) => void openLinkTarget(target, wiki)}
+                    onOpenLink={openLink}
                   />
                 )
               case 'timeline':
@@ -1283,8 +1282,8 @@ export default function App() {
                     days={timeline}
                     tables={tablesOf(tagStructures.entries)}
                     totals={dayTotals}
-                    colours={coloursOf(tagStructures.entries)}
-                    typeOf={(name) => typeOf(propertyTypes.entries, name)}
+                    colours={colours}
+                    typeOf={typeOfName}
                     typing={{
                       notes,
                       propertyTypes: propertyTypes.entries,
@@ -1298,7 +1297,7 @@ export default function App() {
                     onEdit={(entry, text) => void editEntry(entry, text)}
                     onAdd={(text) => void addEntry(text)}
                     onOpen={(file) => void openNote(file)}
-                    onOpenLink={(target, wiki) => void openLinkTarget(target, wiki)}
+                    onOpenLink={openLink}
                     onOpenTag={(tag) => view('tag', tag)}
                   />
                 )
@@ -1345,7 +1344,7 @@ export default function App() {
       {onAndroid && (
         <PhoneBar
           items={[
-            { name: 'Today', icon: <NoteIcon icon="pen" />, current: !phone.browsing && active?.kind === 'note' && active.file.path === todayPath, onPress: showToday },
+            { name: 'Today', icon: <NoteIcon icon="pen" />, current: !phone.browsing && active?.kind === 'note' && active.file.path === todayNote?.path, onPress: showToday },
             { name: 'Timeline', icon: <NoteIcon icon="clock" />, current: onPage('timeline'), onPress: () => open({ kind: 'timeline' }) },
             { name: 'Calendar', icon: <NoteIcon icon="calendar" />, current: onPage('calendar'), onPress: () => open({ kind: 'calendar' }) },
             { name: 'Browse', icon: <NoteIcon icon="list" />, current: phone.browsing, onPress: () => phone.go('browse') },
@@ -1358,12 +1357,12 @@ export default function App() {
             folders={folderPaths}
             propertyTypes={propertyTypes.entries}
             tagStructures={tagStructures.entries}
-            typeOf={(name) => typeOf(propertyTypes.entries, name)}
+            typeOf={typeOfName}
             draft={captureDraft}
             onLine={(day, text) => fileEntry(day, async () => text)}
             onFiles={fileUploads}
             onPage={makeNote}
-            onOpenLink={(target, wiki) => void openLinkTarget(target, wiki)}
+            onOpenLink={openLink}
             onOpenTag={(tag) => view('tag', tag)}
           />
         </PhoneBar>

@@ -13,7 +13,7 @@ const QUIET = 60
 /** A folded stretch's band. */
 export const QUIET_EM = 1.6
 
-export interface Placed {
+interface Placed {
   entry: TimelineEntry
   /** From the grid's top, and how tall. */
   top: number
@@ -23,7 +23,7 @@ export interface Placed {
   columns: number
 }
 
-export interface DayGrid {
+interface DayGrid {
   placed: Placed[]
   /** Each whole hour drawn, by its minutes into the day. */
   hours: { top: number; minutes: number }[]

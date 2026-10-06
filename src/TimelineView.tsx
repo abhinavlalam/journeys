@@ -199,12 +199,11 @@ function Grid({
       <div className="day-boxes">
         {grid.placed.map(({ entry, top, height, column, columns }) => {
           const fields = fieldsOf(entry.text, tables, typeOf)
-          const hue = tagNames(entry.text).map((tag) => colours[tag]).find(Boolean)
           return (
             <div
               key={entry.at}
               className={open === entry.at ? 'day-box open' : 'day-box'}
-              data-hue={hue}
+              data-hue={hueOf(entry, colours)}
               role="button"
               tabIndex={0}
               aria-expanded={open === entry.at}
@@ -215,21 +214,8 @@ function Grid({
                 {clockText(entry.start)}
                 {entry.end !== null && `–${clockText(entry.end)}`}
               </span>{' '}
-              <Live text={wordsOf(entry, typeOf, fields.length > 0)} hueOf={(tag) => colours[tag]} {...opens} />
-              {open === entry.at && (
-                <span className="timeline-detail">
-                  {fields.map((one) => (
-                    <span key={one.name} className="timeline-below">
-                      {one.name} <Live text={one.value} {...opens} />
-                    </span>
-                  ))}
-                  {entry.below.map((line, at) => (
-                    <span key={at} className="timeline-below">
-                      <Live text={line} {...opens} />
-                    </span>
-                  ))}
-                </span>
-              )}
+              <Live text={wordsOf(entry, typeOf, fields.length > 0)} colours={colours} {...opens} />
+              {open === entry.at && <Detail lines={[...fields.map((one) => `${one.name} ${one.value}`), ...entry.below]} {...opens} />}
             </div>
           )
         })}
@@ -288,11 +274,8 @@ function Entry({
   const block = entry.end !== null
   const [open, setOpen] = useState(false)
   const detail = entry.below.filter((line) => line.trim() !== '')
-  // The entry's colour is its first coloured tag's: its dot, its wash, its chips.
-  const hue = tagNames(entry.text).map((tag) => colours[tag]).find(Boolean)
-  const hueOf = (tag: string) => colours[tag]
   return (
-    <li className={block ? 'timeline-entry block' : 'timeline-entry'} data-hue={hue} onClick={onPress}>
+    <li className={block ? 'timeline-entry block' : 'timeline-entry'} data-hue={hueOf(entry, colours)} onClick={onPress}>
       <span className="timeline-when">
         {clockText(entry.start)}
         {block && `–${clockText(entry.end!)}`}
@@ -301,7 +284,7 @@ function Entry({
       <span className="timeline-rail" aria-hidden />
       {editor || (
         <span className="timeline-what">
-          <Live text={wordsOf(entry, typeOf, fields.length > 0)} hueOf={hueOf} {...opens} />
+          <Live text={wordsOf(entry, typeOf, fields.length > 0)} colours={colours} {...opens} />
           {fields.length > 0 && (
             <span className="timeline-fields">
               {fields.map((one) => (
@@ -321,18 +304,27 @@ function Entry({
               {countOf(detail.length, 'line')}
             </button>
           )}
-          {open && (
-            <span className="timeline-detail">
-              {entry.below.map((line, at) => (
-                <span key={at} className="timeline-below">
-                  <Live text={line} {...opens} />
-                </span>
-              ))}
-            </span>
-          )}
+          {open && <Detail lines={entry.below} {...opens} />}
         </span>
       )}
     </li>
+  )
+}
+
+/** An entry's colour is its first coloured tag's: its dot, its wash, its chips. */
+const hueOf = (entry: TimelineEntry, colours: Record<string, string>) =>
+  tagNames(entry.text).map((tag) => colours[tag]).find(Boolean)
+
+/** What is nested under an entry, opened. */
+function Detail({ lines, ...opens }: { lines: readonly string[] } & Opens) {
+  return (
+    <span className="timeline-detail">
+      {lines.map((line, at) => (
+        <span key={at} className="timeline-below">
+          <Live text={line} {...opens} />
+        </span>
+      ))}
+    </span>
   )
 }
 

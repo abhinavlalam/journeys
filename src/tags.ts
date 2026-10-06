@@ -104,7 +104,7 @@ function indentOrBlank(line: string): number {
  * The run goes on while lines are deeper than the entry and ends at the first line
  * back at its level. A blank line does not end it; trailing blanks are dropped.
  */
-export function gatherLines(raw: string, wanted: (prose: string) => boolean): CollectedLine[] {
+function gatherLines(raw: string, wanted: (prose: string) => boolean): CollectedLine[] {
   const lines = raw.split(/\r?\n/)
   // Masked in one pass, since the run under an entry is gathered looking ahead.
   const prose = proseLines(raw)

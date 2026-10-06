@@ -4,7 +4,7 @@ import { onAndroid } from './platform'
 import { sameTab, type Tab, type TabRequest } from './workspace'
 
 /** Where the phone is: a page (the workspace's one tab), or Browse, the left pane at full width. */
-export type Place = 'browse' | TabRequest
+type Place = 'browse' | TabRequest
 
 /** How many places back are remembered. */
 const TRAIL = 30

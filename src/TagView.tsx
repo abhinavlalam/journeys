@@ -5,13 +5,13 @@ import { blockProperties, PROPERTY_NAME, readBlock, type PropertyType } from './
 import { ViewerHeader } from './ViewerHeader'
 import { countOf, GatheredNotes, NameField, NoteRow, readable, RowIcon, Section, stepIn } from './rows'
 import { COMBINES, LINE_VIEWS, lineWords, TAG_COLOURS, tagsOnly, TOTAL_PLACES, type Combine, type DayTotal, type LineView, type TagColour, type TotalPlace } from './tags'
+import type { CollectedNote } from './useVaultTexts'
+import type { VaultFile } from './vaultModel'
 
 /** How each way of combining reads in its menu. */
 const COMBINE_NAMES: Record<Combine, string> = { sum: 'Sum', average: 'Average', count: 'Count', min: 'Lowest', max: 'Highest' }
 /** Where a total shows, as its menu says it. */
 const PLACE_NAMES: Record<TotalPlace, string> = { both: 'Timeline and note', timeline: 'Timeline', note: 'Note' }
-import type { CollectedNote } from './useVaultTexts'
-import type { VaultFile } from './vaultModel'
 
 /**
  * A tag's page: the properties its lines carry, and every line in the vault with
@@ -73,6 +73,7 @@ export function TagView({
           .filter((one) => one.lines.length > 0)
       : (collected ?? [])
   const total = notes.reduce((sum, one) => sum + one.lines.length, 0)
+  const numbers = properties.filter((one) => typeOf(one) === 'number')
   const [adding, setAdding] = useState<string | null>(null)
 
   /**
@@ -178,54 +179,52 @@ export function TagView({
       </Section>
       {/* Each `number` property, totalled for every day when chosen here, and how:
           combined, labelled and shown as set. The one place the choice is made. */}
-      {properties.some((one) => typeOf(one) === 'number') && (
+      {numbers.length > 0 && (
         <Section title="Daily totals" count={totals.length} startOpen>
-          {properties
-            .filter((one) => typeOf(one) === 'number')
-            .map((one) => {
-              const at = totals.findIndex((total) => total.property.toLowerCase() === one.toLowerCase())
-              const total = totals[at]
-              const change = (fields: Partial<DayTotal>) => onTotals(totals.map((was, n) => (n === at ? { ...was, ...fields } : was)))
-              return (
-                <li key={one} className="note-row" style={{ paddingLeft: stepIn(1) }}>
-                  <NoteRow
-                    icon={<RowIcon icon={total ? 'check' : undefined} />}
-                    name={one}
-                    aria-pressed={!!total}
-                    aria-label={total ? `Stop totalling ${one} each day` : `Total ${one} each day`}
-                    trailing={<span className="row-count">{total ? 'totalled each day' : 'not totalled'}</span>}
-                    onClick={() =>
-                      onTotals(total ? totals.filter((_, n) => n !== at) : [...totals, { property: one, by: 'sum', label: '', show: 'both' }])
-                    }
-                  />
-                  {total && (
-                    <span className="total-settings" style={{ paddingLeft: stepIn(1) }}>
-                      <select aria-label={`How ${one} is combined`} value={total.by} onChange={(event) => change({ by: event.currentTarget.value as Combine })}>
-                        {COMBINES.map((by) => (
-                          <option key={by} value={by}>
-                            {COMBINE_NAMES[by]}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        aria-label={`What ${one}'s total is called`}
-                        placeholder={`${one} · #${name}`}
-                        defaultValue={total.label}
-                        onBlur={(event) => event.currentTarget.value !== total.label && change({ label: event.currentTarget.value.trim() })}
-                        onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
-                      />
-                      <select aria-label={`Where ${one}'s total shows`} value={total.show} onChange={(event) => change({ show: event.currentTarget.value as TotalPlace })}>
-                        {TOTAL_PLACES.map((place) => (
-                          <option key={place} value={place}>
-                            {PLACE_NAMES[place]}
-                          </option>
-                        ))}
-                      </select>
-                    </span>
-                  )}
-                </li>
-              )
-            })}
+          {numbers.map((one) => {
+            const at = totals.findIndex((total) => total.property.toLowerCase() === one.toLowerCase())
+            const total = totals[at]
+            const change = (fields: Partial<DayTotal>) => onTotals(totals.map((was, n) => (n === at ? { ...was, ...fields } : was)))
+            return (
+              <li key={one} className="note-row" style={{ paddingLeft: stepIn(1) }}>
+                <NoteRow
+                  icon={<RowIcon icon={total ? 'check' : undefined} />}
+                  name={one}
+                  aria-pressed={!!total}
+                  aria-label={total ? `Stop totalling ${one} each day` : `Total ${one} each day`}
+                  trailing={<span className="row-count">{total ? 'totalled each day' : 'not totalled'}</span>}
+                  onClick={() =>
+                    onTotals(total ? totals.filter((_, n) => n !== at) : [...totals, { property: one, by: 'sum', label: '', show: 'both' }])
+                  }
+                />
+                {total && (
+                  <span className="total-settings" style={{ paddingLeft: stepIn(1) }}>
+                    <select aria-label={`How ${one} is combined`} value={total.by} onChange={(event) => change({ by: event.currentTarget.value as Combine })}>
+                      {COMBINES.map((by) => (
+                        <option key={by} value={by}>
+                          {COMBINE_NAMES[by]}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      aria-label={`What ${one}'s total is called`}
+                      placeholder={`${one} · #${name}`}
+                      defaultValue={total.label}
+                      onBlur={(event) => event.currentTarget.value !== total.label && change({ label: event.currentTarget.value.trim() })}
+                      onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
+                    />
+                    <select aria-label={`Where ${one}'s total shows`} value={total.show} onChange={(event) => change({ show: event.currentTarget.value as TotalPlace })}>
+                      {TOTAL_PLACES.map((place) => (
+                        <option key={place} value={place}>
+                          {PLACE_NAMES[place]}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                )}
+              </li>
+            )
+          })}
         </Section>
       )}
       <Section title="Lines" count={total} startOpen>

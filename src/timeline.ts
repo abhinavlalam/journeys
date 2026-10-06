@@ -231,7 +231,7 @@ export function fieldsOf(
 const TOTAL_DECIMALS = 2
 
 /** `values` combined `by` the owner's choice, or null with none to combine. */
-export function combine(values: readonly number[], by: Combine): number | null {
+function combine(values: readonly number[], by: Combine): number | null {
   if (values.length === 0) return null
   if (by === 'count') return values.length
   if (by === 'min') return Math.min(...values)

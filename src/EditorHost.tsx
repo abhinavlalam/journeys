@@ -177,7 +177,7 @@ export function decorated(
 }
 
 /** The one change from `was` to `now`: what lies between their common start and common end. */
-export function smallestChange(was: string, now: string): { from: number; to: number; insert: string } {
+function smallestChange(was: string, now: string): { from: number; to: number; insert: string } {
   let from = 0
   while (from < was.length && from < now.length && was[from] === now[from]) from++
   let end = 0

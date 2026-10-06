@@ -574,16 +574,16 @@ export async function importFile(
   return { path: relativePath, absolutePath, name: noteName(fileName) }
 }
 
-/** Where a file shared from another app is kept. */
-export const SHARED_FOLDER = 'Files'
+/** Where a file shared from another app, or picked on the phone, is kept. */
+const SHARED_FOLDER = 'Files'
 
 /**
- * Where a file kept from the phone goes in `folder`: under its own name, or with
- * ` 2`, ` 3`… before the extension when that is taken, so nothing is refused and
- * nothing is written over.
+ * Where a file kept from the phone goes: under its own name, or with ` 2`, ` 3`…
+ * before the extension when that is taken, so nothing is refused and nothing is
+ * written over.
  */
-async function freeFile(vaultPath: string, folder: string, name: string): Promise<VaultFile> {
-  const parent = await ensureFolder(vaultPath, folder)
+async function freeFile(vaultPath: string, name: string): Promise<VaultFile> {
+  const parent = await ensureFolder(vaultPath, SHARED_FOLDER)
   const base = safeName(name).replace(/^\.+/, '') || 'shared'
   const extension = extensionOf(base)
   for (let n = 1; ; n++) {
@@ -594,19 +594,19 @@ async function freeFile(vaultPath: string, folder: string, name: string): Promis
 }
 
 /**
- * A shared file's copy (`from`, in the app's own files) moved into `folder`. A
+ * A shared file's copy (`from`, in the app's own files) moved into the vault. A
  * move, as the app's files and the vault are on one disk, so a large video is not
  * read through the page.
  */
-export async function keepShared(vaultPath: string, folder: string, name: string, from: string): Promise<VaultFile> {
-  const file = await freeFile(vaultPath, folder, name)
+export async function keepShared(vaultPath: string, name: string, from: string): Promise<VaultFile> {
+  const file = await freeFile(vaultPath, name)
   await vaultFs.move(from, file.absolutePath)
   return file
 }
 
-/** A file picked on the phone, written into `folder` from its bytes. */
-export async function keepFile(vaultPath: string, folder: string, name: string, bytes: Uint8Array): Promise<VaultFile> {
-  const file = await freeFile(vaultPath, folder, name)
+/** A file picked on the phone, written into the vault from its bytes. */
+export async function keepFile(vaultPath: string, name: string, bytes: Uint8Array): Promise<VaultFile> {
+  const file = await freeFile(vaultPath, name)
   await vaultFs.writeBytes(file.absolutePath, bytes)
   return file
 }
