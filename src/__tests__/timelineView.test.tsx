@@ -177,6 +177,8 @@ describe('the timeline', () => {
     const hues = [...days()[1].querySelectorAll('.timeline-entry')].map((one) => one.getAttribute('data-hue'))
     expect(hues).toEqual(['amber', 'green', null, 'amber', null])
     expect(days()[1].querySelector('.timeline-tag[data-hue="green"]')!.textContent).toBe('#food')
+    // A total's tile takes its tag's colour too.
+    expect(days()[1].querySelector('.day-total')!.getAttribute('data-hue')).toBe('amber')
   })
 
   /** The same totals close the day's note, where they are set to show there too. */

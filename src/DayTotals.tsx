@@ -10,12 +10,15 @@ import { totalsOf } from './timeline'
 export function DayTotals({
   text,
   totals,
+  colours,
   typeOf,
   place,
 }: {
   /** The day's note as written. */
   text: string
   totals: Readonly<Record<string, readonly DayTotal[]>>
+  /** Each tag's colour, which its tiles take. */
+  colours: Readonly<Record<string, string>>
   typeOf: (name: string) => PropertyType
   place: 'timeline' | 'note'
 }) {
@@ -24,7 +27,7 @@ export function DayTotals({
   return (
     <ul className="day-totals" aria-label="The day’s totals">
       {shown.map((one) => (
-        <li key={one.key} className="day-total">
+        <li key={one.key} className="day-total" data-hue={colours[one.tag]}>
           <span className="day-total-number">{one.value}</span>
           <span className="day-total-name">{one.label}</span>
         </li>

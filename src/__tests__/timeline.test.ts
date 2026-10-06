@@ -107,7 +107,7 @@ describe('a table tag’s entry', () => {
   it('totals every line of the day carrying the tag, timed or not', () => {
     const raw = ['08:30 #expense amount:: 60', '#expense parking amount:: 4.5', '    12:00 #expense amount:: 480.5', '13:00 #food amount:: 9'].join('\n')
     expect(totalsOf(raw, { expense: [total('amount')] }, typeOf, 'timeline')).toEqual([
-      { key: 'expense amount sum', value: '545', label: 'amount · #expense' },
+      { key: 'expense amount sum', tag: 'expense', value: '545', label: 'amount · #expense' },
     ])
     expect(totalsOf(raw, {}, typeOf, 'timeline')).toEqual([])
   })

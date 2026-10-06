@@ -18,7 +18,7 @@ import type { useVaultTexts } from './useVaultTexts'
 import type { Entries } from './configEntries'
 import { DayTotals } from './DayTotals'
 import { typeOf } from './properties'
-import type { DayTotal } from './tags'
+import { coloursOf, type DayTotal } from './tags'
 
 interface NotePaneProps {
   /** The tab's id, which this pane's buffer is registered under. */
@@ -267,6 +267,7 @@ export function NotePane({
         <DayTotals
           text={liveText.current?.path === file.path ? liveText.current.text : buffer.body}
           totals={dayTotals}
+          colours={coloursOf(tagStructures)}
           typeOf={(name) => typeOf(propertyTypes, name)}
           place="note"
         />

@@ -251,7 +251,7 @@ export function totalsOf(
   totals: Readonly<Record<string, readonly DayTotal[]>>,
   typeOf: (name: string) => PropertyType,
   place: Exclude<TotalPlace, 'both'>
-): { key: string; value: string; label: string }[] {
+): { key: string; tag: string; value: string; label: string }[] {
   return Object.entries(totals).flatMap(([tag, chosen]) => {
     const lines = collectTagLines(raw, tag).map((one) => one.text)
     return chosen
@@ -261,7 +261,7 @@ export function totalsOf(
         const value = combine(values, one.by)
         if (value === null) return []
         const named = one.by === 'sum' ? one.property : `${one.property}, ${one.by === 'min' ? 'lowest' : one.by === 'max' ? 'highest' : one.by}`
-        return [{ key: `${tag} ${one.property} ${one.by}`, value: String(Number(value.toFixed(TOTAL_DECIMALS))), label: one.label || `${named} · #${tag}` }]
+        return [{ key: `${tag} ${one.property} ${one.by}`, tag, value: String(Number(value.toFixed(TOTAL_DECIMALS))), label: one.label || `${named} · #${tag}` }]
       })
   })
 }

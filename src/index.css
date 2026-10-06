@@ -2988,7 +2988,9 @@ button.folder-toggle {
   background: color-mix(in srgb, var(--tint) 16%, transparent);
 }
 
-/* The swatches on a tag's page: none, then the six. The chosen one is ringed. */
+/* The swatches on a tag's page: none, then the six. The chosen one is ringed.
+   Three classes deep: they sit in a list of rows, whose buttons (and their
+   hover) stretch and clear every button in it. */
 .tag-swatches {
   display: flex;
   flex-wrap: wrap;
@@ -2996,7 +2998,7 @@ button.folder-toggle {
   padding-block: 0.4rem;
 }
 
-.tag-swatch {
+.file-list .tag-swatches > .tag-swatch {
   width: 1.6em;
   height: 1.6em;
   padding: 0;
@@ -3008,7 +3010,7 @@ button.folder-toggle {
   cursor: pointer;
 }
 
-.tag-swatch[aria-pressed='true'] {
+.file-list .tag-swatches > .tag-swatch[aria-pressed='true'] {
   outline: 2px solid var(--text);
   outline-offset: 2px;
 }
@@ -3044,6 +3046,11 @@ button.folder-toggle {
   background: color-mix(in srgb, var(--mark) 10%, var(--bg-raised));
 }
 
+/* A tile in its tag's colour, where the tag has one. */
+.day-total[data-hue] {
+  background: color-mix(in srgb, var(--tint) 16%, var(--bg-raised));
+}
+
 .day-total-number {
   font-size: 1.6em;
   line-height: 1.2;
@@ -3057,7 +3064,12 @@ button.folder-toggle {
 }
 
 /* A chosen total's settings under its row: how it is combined, what it is
-   called, where it shows. One line that wraps on a narrow screen. */
+   called, where it shows, on a line of their own, wrapping on a narrow screen.
+   The row holding them is not a flex line: in one, they took its whole width. */
+.note-row:has(> .total-settings) {
+  display: block;
+}
+
 .total-settings {
   display: flex;
   flex-wrap: wrap;

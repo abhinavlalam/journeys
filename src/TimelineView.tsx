@@ -131,7 +131,7 @@ export function TimelineView({
             ))}
             {day.day === today && newEntry}
           </ol>
-          <DayTotals text={day.text} totals={totals} typeOf={typeOf} place="timeline" />
+          <DayTotals text={day.text} totals={totals} colours={colours} typeOf={typeOf} place="timeline" />
         </section>
       ))}
     </>
