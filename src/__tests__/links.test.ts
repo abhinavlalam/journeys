@@ -105,7 +105,7 @@ describe('parseNoteLinks', () => {
   it('keeps balanced parentheses inside a bare target', () => {
     expect(targets('[a](Notes/Plan(draft).md)')).toEqual(['Notes/Plan(draft).md'])
     // A space in a bare target is not a link in markdown, which
-    // is why `linkToNote` percent-encodes spaces and parentheses.
+    // is why `retarget` writes a moved note's spaces as `%20`.
     expect(targets('[a](Notes/Plan (draft).md)')).toEqual([])
   })
 

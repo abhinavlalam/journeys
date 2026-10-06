@@ -97,7 +97,7 @@ function maskInlineCode(text: string): string {
 /**
  * A note's lines with code masked out: fences, their markers and
  * inline code become spaces. `maskCode`'s rule. Line numbers are
- * kept, since `collectLines` reads the unmasked line back by index.
+ * kept, since `gatherLines` reads the unmasked line back by index.
  */
 export function proseLines(raw: string): string[] {
   return maskCode(raw).split(/\r?\n/)

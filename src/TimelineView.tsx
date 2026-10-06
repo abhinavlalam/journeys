@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
-import { clockText, dayDate, daysBetween, lengthOf, localDateStamp, relativeDay } from './clock'
+import { clockText, dayDate, lengthOf, localDateStamp, nearDay } from './clock'
 import type { Entries } from './configEntries'
 import { MarkdownEditor } from './MarkdownEditor'
 import { onAndroid } from './platform'
@@ -234,13 +234,13 @@ const month = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric
  */
 function DayHead({ day, today, count, onOpen }: { day: string; today: string; count: number; onOpen?: () => void }) {
   const date = dayDate(day)
-  const near = Math.abs(daysBetween(today, day)) <= 1 ? relativeDay(day, today) : ''
+  const near = nearDay(day, today)
   return (
     <header className={day === today ? 'journal-head today' : 'journal-head'}>
       <button className="journal-date" onClick={onOpen} disabled={!onOpen}>
         <span className="journal-number">{date.getDate()}</span>
         <span className="journal-names">
-          <span className="journal-weekday">{near ? `${near.charAt(0).toUpperCase()}${near.slice(1)} · ${weekday.format(date)}` : weekday.format(date)}</span>
+          <span className="journal-weekday">{near ? `${near} · ${weekday.format(date)}` : weekday.format(date)}</span>
           <span className="journal-month">{month.format(date)}</span>
         </span>
       </button>

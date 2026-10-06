@@ -4,7 +4,7 @@ import { useColumnWidths } from './columnWidths'
 import { Live } from './Live'
 import { numberText } from './properties'
 import type { CollectedNote } from './useVaultTexts'
-import { linkLabelSpan, type VaultFile } from './vaultModel'
+import type { VaultFile } from './vaultModel'
 
 /** One gathered line, read as values. */
 interface Row {
@@ -124,7 +124,7 @@ export function LineTable({
             )}
             {shown.map((column) => (
               <td key={column}>
-                <Cell value={row.values[column]} onOpenLink={onOpenLink} />
+                <Live text={row.values[column] ?? ''} onOpenLink={onOpenLink} />
               </td>
             ))}
           </tr>
@@ -143,28 +143,5 @@ export function LineTable({
         </tfoot>
       )}
     </table>
-  )
-}
-
-/**
- * One value. It is a link when the value is one (`merchant::
- * [[Harbour Bistro]]`); `note:: cash` is a word. A link shows its
- * alias where it has one. An empty cell is empty, with no dash.
- */
-export function Cell({
-  value,
-  onOpenLink,
-}: {
-  value: string | undefined
-  onOpenLink: (target: string, wiki: boolean) => void
-}) {
-  const link = value?.match(/^\[\[([^\]]+)\]\]$/)
-  if (!value) return null
-  if (!link) return <>{value}</>
-  const shown = linkLabelSpan(link[1])
-  return (
-    <button className="line-link" onClick={() => onOpenLink(link[1].split('|')[0].trim(), true)}>
-      {link[1].slice(shown.from, shown.to).trim()}
-    </button>
   )
 }

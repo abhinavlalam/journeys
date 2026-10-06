@@ -15,8 +15,9 @@ const LIVE = new RegExp(
  * Words as the note shows them: a link reads as its name and opens what it names, a
  * tag opens its page, and neither also opens the row it is in. Emphasis loses its
  * marks and is not made heavier: a mark in a sentence changes colour and nothing
- * else. A timeline entry and the lines under it read this way, and a table's words:
- * as written, a markdown link was its whole address and a strong phrase its asterisks.
+ * else. A timeline entry and the lines under it read this way, and a table's words and
+ * values: as written, a markdown link was its whole address and a strong phrase its
+ * asterisks, and a `url` value could not be opened.
  */
 export function Live({
   text,

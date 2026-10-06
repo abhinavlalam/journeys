@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { Cell } from './LineTable'
+import { Live } from './Live'
 import { useColumnWidths } from './columnWidths'
 import { ViewerHeader } from './ViewerHeader'
 import { countOf, NoteRow, READING, stepIn, RowIcon, Section } from './rows'
@@ -99,7 +99,7 @@ export function PropertyView({
                       </button>
                     </td>
                     <td>
-                      <Cell value={value} onOpenLink={onOpenLink} />
+                      <Live text={value} onOpenLink={onOpenLink} />
                     </td>
                   </tr>
                 ))}

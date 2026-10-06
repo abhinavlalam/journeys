@@ -96,13 +96,16 @@ export function agoWord(then: number, now = Date.now()): string {
 /** A day as a heading: `Wednesday 24 Sept`. */
 export const longDay = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'short' })
 
-/**
- * `Today · Wednesday 24 Sept` within a day of today either way, else
- * the date alone. For the agenda's and the timeline's headings.
- */
+/** `Today`, `Yesterday` or `Tomorrow` for a day within one of today, else null: what a day's heading leads with. */
+export function nearDay(day: string, today: string): string | null {
+  if (Math.abs(daysBetween(today, day)) > 1) return null
+  const word = relativeDay(day, today)
+  return `${word.charAt(0).toUpperCase()}${word.slice(1)}`
+}
+
+/** `Today · Wednesday 24 Sept` within a day of today either way, else the date alone. */
 export function dayTitle(day: string, today: string): string {
   const date = longDay.format(dayDate(day))
-  if (Math.abs(daysBetween(today, day)) > 1) return date
-  const word = relativeDay(day, today)
-  return `${word.charAt(0).toUpperCase()}${word.slice(1)} · ${date}`
+  const near = nearDay(day, today)
+  return near ? `${near} · ${date}` : date
 }

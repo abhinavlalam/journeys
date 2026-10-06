@@ -546,6 +546,18 @@ describe('the Properties group', () => {
     expect(pane().getByText('owner').closest('.file-row')!.className).toContain('selected')
   })
 
+  /** A value reads as the note shows it (`Live`): an address is a link to it. */
+  it('shows an address value as a link', async () => {
+    disk.write('/v/vendor.md', 'website:: https://northwind.example/orders\n# Vendor\n')
+    await openApp()
+    await openActionsExpanded()
+    await waitFor(() => expect(pane().getByText('website')).toBeTruthy())
+    fireEvent.click(pane().getByText('website'))
+    await waitFor(() =>
+      expect(document.querySelector('.line-table .line-link')?.textContent).toBe('https://northwind.example/orders')
+    )
+  })
+
   /**
    * A block property is a property: `amount:: 480` on a line is
    * listed with the page ones, counted by notes, and its page has
