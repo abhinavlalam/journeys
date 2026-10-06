@@ -43,6 +43,11 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
   // Without it, a re-read updated state the mounted editor never
   // showed, and the next keystroke saved the stale text over the disk.
   const [editorEpoch, setEditorEpoch] = useState(0)
+  /**
+   * The note as last re-read from disk, for the editor already holding it, which
+   * applies it as a change (`EditorHost`'s `incoming`). Null after a remount.
+   */
+  const [incoming, setIncoming] = useState<{ text: string; n: number } | null>(null)
   // The note the editor won't mount over, because its text couldn't be
   // read. Compared with the open note's path, so switching clears it.
   const [unreadablePath, setUnreadablePath] = useState<string | null>(null)
@@ -110,9 +115,25 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
     setUnreadablePath(failed ? path : null)
     bufferGeneration.current += 1
     setEditorEpoch((n) => n + 1)
+    setIncoming(null)
     bodyRef.current = failed ? '' : loaded.body
     seen.current = failed ? null : loaded.body
     setBody(failed ? '' : loaded.body)
+    setSaveStatus('idle')
+  }
+
+  /**
+   * A re-read of the note the editor already holds, handed to it as a change, so
+   * the caret, folds and undo stay. Rebuilt instead, the editor lost them after
+   * every outside write, and keys pressed during the re-read went into an editor
+   * about to be replaced. A note that could not be read is a remount, as on opening.
+   */
+  function takeFromDisk(loaded: NoteRead, path: string) {
+    if ('failed' in loaded || loadedPath.current !== path || unreadablePath === path) return applyNoteBody(loaded, path)
+    bufferGeneration.current += 1
+    bodyRef.current = loaded.body
+    seen.current = loaded.body
+    setIncoming((was) => ({ text: loaded.body, n: (was?.n ?? 0) + 1 }))
     setSaveStatus('idle')
   }
 
@@ -140,7 +161,7 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
   async function reread(file: VaultFile | null, ours = true) {
     if (!file || loadedPath.current !== file.path) return
     const loaded = await readNoteBody(file)
-    if (!pendingSave.current) applyNoteBody(loaded, file.path)
+    if (!pendingSave.current) takeFromDisk(loaded, file.path)
     else if (ours && !('failed' in loaded)) seen.current = loaded.body
   }
 
@@ -236,6 +257,12 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
       return
     }
 
+    // The disk's own text, taken in from outside (`takeFromDisk`): nothing to write.
+    if (markdown === seen.current && !pendingSave.current) {
+      bodyRef.current = markdown
+      return
+    }
+
     setSaveStatus('saving')
     bodyRef.current = markdown
     pendingSave.current = { file, raw: markdown }
@@ -269,8 +296,10 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
       // above; applying this read after that would write A's text into B.
       const stillOurs =
         bufferGeneration.current === generation && loadedPath.current === file.path
-      if (stillOurs && !('failed' in loaded) && loaded.body !== bodyRef.current) {
-        applyNoteBody(loaded, file.path)
+      // Not over keys pressed during the read: they are queued, and their save keeps
+      // what is on disk beside the note if it changed (`writeNote`).
+      if (stillOurs && !('failed' in loaded) && loaded.body !== bodyRef.current && !pendingSave.current) {
+        takeFromDisk(loaded, file.path)
       }
     }
     await refresh(vaultPath)
@@ -346,6 +375,7 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
     note,
     body,
     editorEpoch,
+    incoming,
     saveStatus,
     /** The open note's text couldn't be read: mount no editor over it. */
     unreadable: note !== null && note.path === unreadablePath,

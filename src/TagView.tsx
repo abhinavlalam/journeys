@@ -4,7 +4,7 @@ import { PlusIcon } from './icons'
 import { blockProperties, PROPERTY_NAME, readBlock, type PropertyType } from './properties'
 import { ViewerHeader } from './ViewerHeader'
 import { countOf, GatheredNotes, NameField, NoteRow, readable, RowIcon, Section, stepIn } from './rows'
-import { LINE_VIEWS, tagsOnly, type LineView } from './tags'
+import { LINE_VIEWS, lineWords, tagsOnly, type LineView } from './tags'
 import type { CollectedNote } from './useVaultTexts'
 import type { VaultFile } from './vaultModel'
 
@@ -46,7 +46,8 @@ export function TagView({
   onError: (message: string) => void
   onOpenProperty: (property: string) => void
   onOpen: (file: VaultFile) => void
-  onOpenLink: (target: string) => void
+  /** A link's target, and whether it was a `[[wikilink]]`. */
+  onOpenLink: (target: string, wiki: boolean) => void
 }) {
   // A table leaves out a line of tags alone, a group's heading: it would be a
   // row of empty cells. A list keeps it, heading the lines nested under it.
@@ -150,6 +151,7 @@ export function TagView({
             <LineTable
               columns={properties}
               valuesOf={valuesOf}
+              wordsOf={(text) => lineWords(text, typeOf)}
               summable={(column) => typeOf(column) === 'number'}
               notes={notes}
               onOpen={onOpen}

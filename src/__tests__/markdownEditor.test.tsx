@@ -1345,6 +1345,51 @@ describe('what folds', () => {
 })
 
 /**
+ * A fold is one unit to the cursor, so a delete that reached it took every line it
+ * hid: a heading and its five lines went with one key, unseen. Now the fold opens and
+ * the key does nothing, so what was about to go is seen first. Through the keymap.
+ */
+describe('a key at a folded block', () => {
+  const doc = 'before\n#diet\n     08:40 #food oats\n     09:00 #food tea\nafter'
+  const folded = () => {
+    const { container } = render(<MarkdownEditor initialMarkdown={doc} onChange={() => {}} />)
+    const view = viewOf(container)
+    const head = view.state.doc.line(2)
+    const range = indentRange(view.state, head.from, head.to)!
+    view.dispatch({ effects: foldEffect.of(range) })
+    return { view, range }
+  }
+  const hasFold = (view: EditorView) => foldMarkerFor(view.state, view.state.doc.line(2).from)?.folded
+
+  it('opens the fold on Backspace after it, and deletes nothing', () => {
+    const { view, range } = folded()
+    view.dispatch({ selection: { anchor: range.to } })
+    fireEvent.keyDown(view.contentDOM, { key: 'Backspace' })
+    expect(view.state.doc.toString()).toBe(doc)
+    expect(hasFold(view)).toBe(false)
+    // Open, the next Backspace takes one character, as anywhere else.
+    fireEvent.keyDown(view.contentDOM, { key: 'Backspace' })
+    expect(view.state.doc.toString()).toBe(doc.replace('tea', 'te'))
+  })
+
+  it('opens the fold when its line is deleted to its start, and deletes nothing', () => {
+    const { view, range } = folded()
+    view.dispatch({ selection: { anchor: range.to } })
+    fireEvent.keyDown(view.contentDOM, { key: 'Backspace', metaKey: true })
+    expect(view.state.doc.toString()).toBe(doc)
+    expect(hasFold(view)).toBe(false)
+  })
+
+  it('still lets the heading’s own words go, before the fold', () => {
+    const { view, range } = folded()
+    view.dispatch({ selection: { anchor: range.from } })
+    fireEvent.keyDown(view.contentDOM, { key: 'Backspace' })
+    expect(view.state.doc.toString()).toBe(doc.replace('#diet', '#die'))
+    expect(hasFold(view)).toBe(true)
+  })
+})
+
+/**
  * A guide down each step of an indent, marked on the spaces. The prose
  * face is proportional, so a step has no width to compute; a mark over
  * the spaces starts where they do, and the sheet draws its left edge.

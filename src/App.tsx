@@ -1261,7 +1261,7 @@ export default function App() {
                     onError={setError}
                     onOpenProperty={(property) => view('property', property)}
                     onOpen={(file) => void openNote(file)}
-                    onOpenLink={(target) => void openLinkTarget(target, true)}
+                    onOpenLink={(target, wiki) => void openLinkTarget(target, wiki)}
                   />
                 )
               case 'timeline':

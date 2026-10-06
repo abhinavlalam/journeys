@@ -58,12 +58,35 @@ describe('a tag’s page', () => {
     await waitFor(() => expect(rows()).toHaveLength(2))
     expect(structure().getByText('amount').closest('.note-row')!.textContent).toContain('number')
     expect(structure().getByText('merchant').closest('.note-row')!.textContent).toContain('backlink')
+    // The line's own words come after the clock: what each line is about.
     expect(rows()).toEqual([
-      ['2026-09-24', '08:40', '480', 'Harbour Bistro', ''],
-      ['2026-09-24', '12:00', '5', '', 'with Mira Vance'],
+      ['2026-09-24', '08:40', 'lunch at', '480', 'Harbour Bistro', ''],
+      ['2026-09-24', '12:00', 'coffee after', '5', '', 'with Mira Vance'],
     ])
     const sum = [...document.querySelectorAll('.line-sum td')].map((td) => td.textContent)
-    expect(sum).toEqual(['sum', '', '485', '', ''])
+    expect(sum).toEqual(['sum', '', '', '485', '', ''])
+  })
+
+  /** A tag whose subject is prose: without its words, the table listed doses and not what was taken. */
+  it('shows each line’s own words, its links by their names, and no column for a tag that has none', async () => {
+    disk.write('/v/.config/tags.json', JSON.stringify({ expense: { properties: ['amount'] }, supplement: { properties: ['dose'] } }))
+    disk.write(
+      '/v/Daily/2026-09-24.md',
+      ['08:45 #supplement [[Fish Oil|fish oil]] dose:: "2 tablets"', '- #supplement Vitamin D, with breakfast dose:: 1', '09:00 #expense amount:: 5', ''].join('\n')
+    )
+    const { default: App } = await import('../App')
+    render(<App />)
+    await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
+    fireEvent.click(screen.getByLabelText('Expand all actions'))
+    fireEvent.click(await waitFor(() => pane().getByText('supplement')))
+    const cells = () => [...document.querySelectorAll('.line-table tbody tr')].map((tr) => tr.querySelectorAll('td')[2]?.textContent)
+    await waitFor(() => expect(cells()).toEqual(['fish oil', 'Vitamin D, with breakfast']))
+    expect(viewer().getByRole('button', { name: 'fish oil' })).toBeTruthy()
+
+    // `#expense` lines are all properties, and their table is as it was.
+    fireEvent.click(pane().getByText('expense'))
+    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('#expense'))
+    await waitFor(() => expect([...document.querySelectorAll('.viewer:not([hidden]) .line-table th')].map((th) => th.textContent)).toEqual(['note', 'when', 'amount']))
   })
 
   /** A day written by kind heads its expenses with `#expense` alone, which was a row of empty cells. */

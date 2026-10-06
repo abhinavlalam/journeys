@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import type { Extension } from '@codemirror/state'
 import { EditorHost } from './EditorHost'
 import { jsonPreview } from './jsonPreview'
@@ -7,6 +8,8 @@ interface JsonEditorProps {
   name: string
   /** Read at mount only; see `EditorHost`. The caller keys this on the file. */
   initialText: string
+  /** The file as now on disk, applied in place (see `EditorHost`). */
+  incoming?: ComponentProps<typeof EditorHost>['incoming']
   /** Called on every change; the caller saves. */
   onChange: (text: string) => void
   indentWidth?: number
@@ -27,6 +30,7 @@ interface JsonEditorProps {
 export function JsonEditor({
   name,
   initialText,
+  incoming,
   onChange,
   indentWidth,
   extensions,
@@ -36,6 +40,7 @@ export function JsonEditor({
     <EditorHost
       shown={shown}
       initialText={initialText}
+      incoming={incoming}
       onChange={onChange}
       extensions={extensions ? [...extensions, ...JSON_EXTENSIONS] : JSON_EXTENSIONS}
       ariaLabel={`${name} source`}

@@ -271,8 +271,10 @@ export function markdownEditorModule() {
       shown = true,
       line,
       insertTimeCombo,
+      incoming,
     }: {
       initialMarkdown: string
+      incoming?: { text: string; n: number } | null
       onChange: (markdown: string) => void
       shown?: boolean
       insertTimeCombo?: string | null
@@ -289,12 +291,14 @@ export function markdownEditorModule() {
           onBlur={(e) => line.onLeave?.(e.currentTarget.value)}
         />
       ) : (
-        // A hidden tab keeps its editor mounted; "the editor" is the one shown.
+        // A hidden tab keeps its editor mounted; "the editor" is the one shown. A text
+        // read from disk while open arrives as `incoming`, which the real one applies.
         <textarea
+          key={incoming?.n ?? 0}
           data-testid={shown ? 'editor' : 'hidden-editor'}
           className="markdown-editor"
           aria-label="Markdown source"
-          defaultValue={initialMarkdown}
+          defaultValue={incoming?.text ?? initialMarkdown}
           onChange={(e) => onChange(e.target.value)}
         />
       ),

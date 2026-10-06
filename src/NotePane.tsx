@@ -213,6 +213,7 @@ export function NotePane({
           shown={active}
           name={file.name}
           initialText={buffer.body}
+          incoming={buffer.incoming}
           onChange={handleEditorChange}
           indentWidth={settings.indentWidth}
         />
@@ -222,6 +223,7 @@ export function NotePane({
           shown={active}
           name={file.name}
           initialText={buffer.body}
+          incoming={buffer.incoming}
           onChange={handleEditorChange}
           indentWidth={settings.indentWidth}
         />
@@ -231,6 +233,7 @@ export function NotePane({
           shown={active}
           name={file.name}
           initialText={buffer.body}
+          incoming={buffer.incoming}
           onChange={handleEditorChange}
           indentWidth={settings.indentWidth}
         />
@@ -239,6 +242,7 @@ export function NotePane({
           key={`${file.path}:${buffer.editorEpoch}`}
           shown={active}
           initialMarkdown={buffer.body}
+          incoming={buffer.incoming}
           onChange={handleEditorChange}
           insertTimeCombo={settingsOpen ? null : settings.shortcuts.insertTime}
           notes={notes}

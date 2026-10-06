@@ -3,7 +3,8 @@
 
 import { indentOf, proseLines } from './prose'
 import type { Entries } from './configEntries'
-import { propertyText, type PropertyType } from './properties'
+import { leadingClock } from './clock'
+import { blockProperties, propertyText, type PropertyType } from './properties'
 
 /**
  * A tag is `#` and a word:
@@ -54,6 +55,26 @@ export function tagLine(
   return [clock, `#${tag}`, what.trim(), ...carried.map((name) => propertyText(name, fields[name].trim(), typeOf(name)))]
     .filter(Boolean)
     .join(' ')
+}
+
+/**
+ * A line's own words, for a tag's table: the line without its clock, its tags, its
+ * `name:: value`s and a leading list mark, as the calendar reads an event's title.
+ * Without them, `#supplement` listed doses and not what was taken, and `#task` due
+ * dates and not the task. A line that is all properties has none.
+ */
+export function lineWords(line: string, typeOf: (name: string) => PropertyType): string {
+  let words = ''
+  let at = leadingClock(line)?.length ?? 0
+  for (const one of blockProperties(line, typeOf)) {
+    words += line.slice(at, one.from)
+    at = one.to
+  }
+  return (words + line.slice(at))
+    .replace(TAG, '$1')
+    .replace(/^\s*(?:[-*+–—]\s+)?(?:\[.\]\s+)?/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 /** A gathered line: an entry, and what is written under it. */

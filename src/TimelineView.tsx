@@ -5,10 +5,11 @@ import { MarkdownEditor } from './MarkdownEditor'
 import { onAndroid } from './platform'
 import type { PropertyType } from './properties'
 import { countOf, NoteRow, READING, RowIcon, Section, stepIn } from './rows'
-import { TAG_NAME, tagNames } from './tags'
+import { tagNames } from './tags'
 import { fieldsOf, totalsOf, wordsOf, type TimelineDay, type TimelineEntry } from './timeline'
 import { ViewerHeader } from './ViewerHeader'
-import { linkLabelSpan, type VaultFile } from './vaultModel'
+import { Live } from './Live'
+import type { VaultFile } from './vaultModel'
 
 /** Decimal places a total is rounded to, as a tag's table rounds its sums. */
 const TOTAL_DECIMALS = 2
@@ -292,55 +293,4 @@ function Totals({
       ))}
     </p>
   )
-}
-
-/**
- * What a line shows other than as typed: a `[[wikilink]]`, a markdown link, a bare
- * address, `**strong**` or `__strong__` text, and a tag after a space or the start.
- */
-const LIVE = new RegExp(
-  String.raw`\[\[([^\]\n]+)\]\]|\[([^\]\n]+)\]\(([^)\s]+)\)|(https?:\/\/[^\s<>()]+)|(\*\*|__)(.+?)\5|(^|\s)#(${TAG_NAME})`,
-  'g'
-)
-
-/**
- * Words as the note shows them: a link reads as its name and opens what it names, a
- * tag opens its page, and neither also opens the entry's note. Emphasis loses its
- * marks and is not made heavier: a mark in a sentence changes colour and nothing
- * else. The lines nested under an entry read this way too: as written, a markdown
- * link was its whole address and a strong phrase kept its asterisks.
- */
-function Live({ text, onOpenLink, onOpenTag }: { text: string } & Opens) {
-  const parts: ReactNode[] = []
-  let at = 0
-  const link = (key: number, shown: string, target: string, wiki: boolean) => (
-    <button key={key} className="line-link" onClick={(event) => (event.stopPropagation(), onOpenLink(target, wiki))}>
-      {shown}
-    </button>
-  )
-  for (const hit of text.matchAll(LIVE)) {
-    const start = hit.index ?? 0
-    const lead = hit[7] ?? ''
-    parts.push(text.slice(at, start) + lead)
-    if (hit[1]) {
-      const inner = hit[1]
-      const shown = linkLabelSpan(inner)
-      parts.push(link(start, inner.slice(shown.from, shown.to).trim(), inner.split('|')[0].trim(), true))
-    } else if (hit[2]) {
-      parts.push(link(start, hit[2], hit[3], false))
-    } else if (hit[4]) {
-      parts.push(link(start, hit[4], hit[4], false))
-    } else if (hit[6]) {
-      parts.push(hit[6])
-    } else {
-      parts.push(
-        <button key={start} className="timeline-tag" onClick={(event) => (event.stopPropagation(), onOpenTag(hit[8].toLowerCase()))}>
-          #{hit[8]}
-        </button>
-      )
-    }
-    at = start + hit[0].length
-  }
-  parts.push(text.slice(at))
-  return <>{parts}</>
 }

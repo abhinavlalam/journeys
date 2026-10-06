@@ -88,6 +88,8 @@ interface MarkdownEditorProps {
   line?: { onEnter: (text: string) => void; onEscape: () => void; onLeave?: (text: string) => void }
   /** Takes the keyboard when it mounts: a line opened by a press does, unless told not to. */
   autoFocus?: boolean
+  /** The file as now on disk, applied in place (see `EditorHost`). */
+  incoming?: { text: string; n: number } | null
 }
 
 // ---------------------------------------------------------------------------
@@ -250,6 +252,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
       indentWidth={indentWidth}
       gutters={!props.line}
       autoFocus={props.autoFocus ?? (props.line ? true : undefined)}
+      incoming={props.incoming}
     />
   )
 }

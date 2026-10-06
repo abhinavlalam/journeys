@@ -126,6 +126,15 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   (`keepOther`, the merge's own rule, as bytes so a locked note stays ciphertext),
   said, and then the typing is written. Typing during a pull used to write the
   pre-pull text over the other device's edit, and the next round pushed it.
+- **An outside write reaches the open editor as a change, not a remount**
+  (`takeFromDisk`, `EditorHost`'s `incoming`, `smallestChange`), out of the undo
+  history, and only with no typing queued. Rebuilt, the editor put the caret at a
+  daily note's end and lost its folds and undo after every agent write, and keys
+  pressed during the re-read went into an editor about to be replaced. A change that
+  leaves the text as it is on disk queues no save.
+- **A key never deletes what a fold hides** (`keepFolded`): the fold opens and the
+  key does nothing. A fold is atomic to the cursor, so Backspace after `#diet …` took
+  the heading's five hidden lines, unseen, and the next round committed it.
 - **A save that fails stays queued, and the flush throws.** It was said and then
   dropped, so the flush before a quit reported success and the typing was lost. A
   quit stays, a lock waits, sync and vault operations go on, and focus does not
@@ -314,7 +323,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   gathered as a line carrying its tag, and on the `#expense` page it was a row of
   empty cells. The list keeps it, heading what is nested under it.
 - `LineTable` is read-only (a cell edit is a write through a partial parse), takes
-  its columns and a reader of a line's values, leads with the note, adds `when`,
+  its columns and a reader of a line's values, leads with the note, adds `when` and
+  `what` (`lineWords`: the line without clock, tags and values, read by `Live`; on a
+  prose tag the table had doses and no supplement), drops a column no line fills,
   sums a tag's `number` columns, and resizes columns (`useColumnWidths`: auto until
   the first drag, then fixed).
 

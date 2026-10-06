@@ -5,7 +5,7 @@
 // what the bytes mean (grammar, popups, decorations) is passed in by the caller.
 
 import { useEffect, useRef } from 'react'
-import { Compartment, EditorState, type Extension } from '@codemirror/state'
+import { Compartment, EditorState, Transaction, type Extension } from '@codemirror/state'
 import {
   Decoration,
   EditorView,
@@ -18,7 +18,7 @@ import {
 } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { codeFolding, indentUnit, syntaxTree } from '@codemirror/language'
-import { indentFold, indentFoldGutter } from './editorFold'
+import { indentFold, indentFoldGutter, keepFolded } from './editorFold'
 import { onAndroid } from './platform'
 
 interface EditorHostProps {
@@ -33,6 +33,14 @@ interface EditorHostProps {
    * remount. That is also why `onChange` never fires on open.
    */
   initialText: string
+  /**
+   * The file as it is now on disk, after a change made outside this editor (an
+   * agent, a pull, the app's own write). Applied as a change to the open document,
+   * not a remount, so the caret, folds, scroll and undo stay. Rebuilt, the editor
+   * put the caret at a daily note's end and dropped its folds after every outside
+   * write. `n` counts the reads, so the same text read twice is applied once.
+   */
+  incoming?: { text: string; n: number } | null
   /** Called on every document change, and nothing else. */
   onChange: (text: string) => void
   /**
@@ -82,7 +90,7 @@ function shared(
     indentSize.of(indentUnit.of(' '.repeat(indentWidth))),
     // Folding by indent works for JSON too: a pretty-printed `{`
     // opens an indented block as a heading opens a section.
-    gutters ? [codeFolding(), indentFoldGutter, indentFold] : [],
+    gutters ? [codeFolding(), indentFoldGutter, indentFold, keepFolded] : [],
     drawSelection(),
     // Line numbers on every file type; they were taken off notes once and asked
     // back. The gutter is a fixed width, so crossing 10 or 100 moves nothing.
@@ -168,6 +176,15 @@ export function decorated(
   )
 }
 
+/** The one change from `was` to `now`: what lies between their common start and common end. */
+export function smallestChange(was: string, now: string): { from: number; to: number; insert: string } {
+  let from = 0
+  while (from < was.length && from < now.length && was[from] === now[from]) from++
+  let end = 0
+  while (end < was.length - from && end < now.length - from && was[was.length - 1 - end] === now[now.length - 1 - end]) end++
+  return { from, to: was.length - end, insert: now.slice(from, now.length - end) }
+}
+
 export function EditorHost({
   initialText,
   onChange,
@@ -179,8 +196,11 @@ export function EditorHost({
   shown = true,
   gutters = true,
   autoFocus = !onAndroid,
+  incoming,
 }: EditorHostProps) {
   const rootRef = useRef<HTMLDivElement>(null)
+  // What was applied, so a mount never applies a read meant for the editor before it.
+  const taken = useRef(incoming?.n)
   const viewRef = useRef<EditorView | null>(null)
   // The mount effect sees one render, and `onChange` is new on each.
   const onChangeRef = useRef(onChange)
@@ -233,6 +253,15 @@ export function EditorHost({
     // Intentionally mount-once — see `initialText` above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view || !incoming || incoming.n === taken.current) return
+    taken.current = incoming.n
+    const now = view.state.doc.toString()
+    if (now === incoming.text) return
+    view.dispatch({ changes: smallestChange(now, incoming.text), annotations: Transaction.addToHistory.of(false) })
+  }, [incoming])
 
   // After the event that showed it: a tab switches on mousedown,
   // and that press then clears the focus the editor had just taken.

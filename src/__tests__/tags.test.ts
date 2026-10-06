@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { collectTagLines, tagAt, tagLine, tagNames } from '../tags'
+import { collectTagLines, lineWords, tagAt, tagLine, tagNames } from '../tags'
 
 /**
  * `#word` in a note's prose. Most of this file is what is not a tag (a heading,
@@ -156,5 +156,23 @@ describe('a tag’s line from a form', () => {
     expect(line({ merchant: '[[Harbour Bistro]]', note: 'by the water', on: '2026-10-04', amount: ' ' })).toBe(
       '#expense merchant:: [[Harbour Bistro]] note:: "by the water" on:: 2026-10-04'
     )
+  })
+})
+
+/** What a tag's table shows as a line's own words: the calendar's reading of an event's title. */
+describe('a line’s own words', () => {
+  const typeOf = (name: string) => (name === 'dose' || name === 'amount' ? ('number' as const) : ('text' as const))
+
+  it('leaves out the clock, the tags, the values and a leading list mark', () => {
+    expect(lineWords('08:45 #supplement [[Supplements/Fish Oil]] dose:: 2', typeOf)).toBe('[[Supplements/Fish Oil]]')
+    expect(lineWords('09:15 - #youtube [[Tide tables]] link:: https://example.com/tides', typeOf)).toBe('[[Tide tables]]')
+    expect(lineWords('- #task Book the retest: vitamin D due:: 2026-12-20', typeOf)).toBe('Book the retest: vitamin D')
+    expect(lineWords('- [ ] #task call the harbour', typeOf)).toBe('call the harbour')
+    expect(lineWords('#quote Without a goal, you can’t score. by:: [[Mira Vance]]', typeOf)).toBe('Without a goal, you can’t score.')
+  })
+
+  it('keeps words written after a value, and is empty on a line that is all values', () => {
+    expect(lineWords('08:40 #expense lunch amount:: 480 at the water', typeOf)).toBe('lunch at the water')
+    expect(lineWords('09:00 #expense amount:: 5', typeOf)).toBe('')
   })
 })

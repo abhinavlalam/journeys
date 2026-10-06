@@ -1,6 +1,6 @@
 // What folds, and the arrow that folds it.
 
-import type { EditorState } from '@codemirror/state'
+import { EditorState } from '@codemirror/state'
 import { GutterMarker, gutter } from '@codemirror/view'
 import { foldEffect, foldService, foldedRanges, unfoldEffect } from '@codemirror/language'
 import { chevronMarkup } from './icons'
@@ -47,6 +47,22 @@ export function indentRange(
 }
 
 export const indentFold = foldService.of(indentRange)
+
+/**
+ * A key never deletes what a fold hides: the fold opens instead, and the key does
+ * nothing, so what was about to go is seen first. A fold is one unit to the cursor,
+ * so Backspace after it, or deleting its line, took every line it hid: a heading
+ * and the five lines under it went that way, unseen.
+ */
+export const keepFolded = EditorState.transactionFilter.of((tr) => {
+  if (!tr.docChanged || !tr.isUserEvent('delete') && !tr.isUserEvent('input')) return tr
+  const folded = foldedRanges(tr.startState)
+  const hidden: { from: number; to: number }[] = []
+  tr.changes.iterChangedRanges((fromA, toA) => {
+    if (toA > fromA) folded.between(fromA, toA, (from, to) => void (fromA < to && toA > from && hidden.push({ from, to })))
+  })
+  return hidden.length === 0 ? tr : { effects: hidden.map((range) => unfoldEffect.of(range)) }
+})
 
 /** The fold already at this line's end, if any. */
 function foldAt(state: EditorState, at: number): { from: number; to: number } | null {

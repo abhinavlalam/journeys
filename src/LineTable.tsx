@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { leadingClock } from './clock'
 import { useColumnWidths } from './columnWidths'
+import { Live } from './Live'
 import type { CollectedNote } from './useVaultTexts'
 import { linkLabelSpan, type VaultFile } from './vaultModel'
 
@@ -10,6 +11,8 @@ interface Row {
   /** The line itself, for the row that opens it and its hover text. */
   text: string
   when: string | null
+  /** The line's own words (`lineWords`), when the table shows them. */
+  words: string
   values: Record<string, string>
 }
 
@@ -20,8 +23,10 @@ const SUM_DECIMALS = 2
  * Gathered lines as a table: a row per line, a column per property in the tag's
  * structure. `valuesOf` reads a line's values; a blank cell is a line that did not say.
  *
- * Two columns come free: the note the line is from, first, and `when`, from the
- * line's leading clock. A `backlink` value is a link and its cell opens the note.
+ * Three columns come free: the note the line is from, first, `when`, from the line's
+ * leading clock, and `what`, the line's own words, read as the note shows them. Each
+ * is dropped, as a property's column is, when no line fills it. A `backlink` value is
+ * a link and its cell opens the note.
  *
  * Read-only. Editing a cell would write into a note through a partial parse,
  * which is how an app corrupts a file. The row opens the note instead.
@@ -29,6 +34,7 @@ const SUM_DECIMALS = 2
 export function LineTable({
   columns,
   valuesOf,
+  wordsOf,
   summable,
   notes,
   onOpen,
@@ -37,23 +43,27 @@ export function LineTable({
   columns: readonly string[]
   /** A line's values, by column. */
   valuesOf: (text: string) => Record<string, string>
+  /** A line's own words, for the `what` column. */
+  wordsOf?: (text: string) => string
   /** Which columns are summed: the tag's `number` properties. */
   summable: (column: string) => boolean
   notes: readonly CollectedNote[]
   onOpen: (file: VaultFile) => void
-  onOpenLink: (target: string) => void
+  onOpenLink: (target: string, wiki: boolean) => void
 }) {
   const rows: Row[] = notes.flatMap(({ note, lines }) =>
     lines.map((line) => ({
       note,
       text: line.text,
       when: leadingClock(line.text),
+      words: wordsOf?.(line.text) ?? '',
       values: valuesOf(line.text),
     }))
   )
   // A column no line fills is dropped: it would be a header taking width.
   const shown = columns.filter((column) => rows.some((row) => row.values[column]))
   const dated = rows.some((row) => row.when)
+  const worded = rows.some((row) => row.words)
   /**
    * A sum under every `number` column. A `number` value is
    * exactly a number, so each one parses.
@@ -84,6 +94,12 @@ export function LineTable({
               {gripFor('when')}
             </th>
           )}
+          {worded && (
+            <th data-col="what" style={{ width: widths?.what }}>
+              what
+              {gripFor('what')}
+            </th>
+          )}
           {shown.map((column) => (
             <th key={column} data-col={column} style={{ width: widths?.[column] }}>
               {column}
@@ -103,6 +119,11 @@ export function LineTable({
               </button>
             </td>
             {dated && <td className="line-when">{row.when ?? ''}</td>}
+            {worded && (
+              <td>
+                <Live text={row.words} onOpenLink={onOpenLink} />
+              </td>
+            )}
             {shown.map((column) => (
               <td key={column}>
                 <Cell value={row.values[column]} onOpenLink={onOpenLink} />
@@ -116,6 +137,7 @@ export function LineTable({
           <tr className="line-sum">
             <td>sum</td>
             {dated && <td />}
+            {worded && <td />}
             {shown.map((column) => (
               <td key={column}>{sums[column] ?? ''}</td>
             ))}
@@ -136,14 +158,14 @@ export function Cell({
   onOpenLink,
 }: {
   value: string | undefined
-  onOpenLink: (target: string) => void
+  onOpenLink: (target: string, wiki: boolean) => void
 }) {
   const link = value?.match(/^\[\[([^\]]+)\]\]$/)
   if (!value) return null
   if (!link) return <>{value}</>
   const shown = linkLabelSpan(link[1])
   return (
-    <button className="line-link" onClick={() => onOpenLink(link[1].split('|')[0].trim())}>
+    <button className="line-link" onClick={() => onOpenLink(link[1].split('|')[0].trim(), true)}>
       {link[1].slice(shown.from, shown.to).trim()}
     </button>
   )
