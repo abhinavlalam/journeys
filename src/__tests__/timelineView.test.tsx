@@ -189,6 +189,22 @@ describe('the timeline', () => {
     await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) > .day-totals')!.textContent).toBe('540amount · #expense'))
   })
 
+  /** A day as a calendar draws one: the switch is kept, and a box opens on a press. */
+  it('draws each day as a grid in Day, kept in the vault’s settings', async () => {
+    await openTimeline()
+    fireEvent.click(viewer().getByRole('button', { name: 'Day' }))
+    await waitFor(() => expect(days()[1].querySelector('.day-grid')).toBeTruthy())
+    await waitFor(() => expect(JSON.parse(disk.read('/v/.config/settings.json')!).timelineView).toBe('day'))
+    // The list's entries give way to boxes; the 13:00 to 13:50 review is one of them.
+    expect(days()[1].querySelector('.timeline-entry')).toBeNull()
+    const review = [...days()[1].querySelectorAll('.day-box')].find((one) => one.textContent!.includes('review'))!
+    expect(review.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(review)
+    expect(review.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(viewer().getByRole('button', { name: 'List' }))
+    await waitFor(() => expect(days()[1].querySelector('.day-grid')).toBeNull())
+  })
+
   it('opens a day’s note from its date', async () => {
     await openTimeline()
     fireEvent.click(days()[1].querySelector('.journal-date')!)

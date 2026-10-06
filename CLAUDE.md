@@ -380,6 +380,12 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   What is nested under an entry is folded to a count (`timeline-more`) and opens on
   a press: shown whole, a video's notes buried the day. Its totals are tiles at its
   foot. One family still, by size and weight alone.
+- **Day view draws a day as a calendar does** (`dayGrid`, the owner's idea, from
+  Google Calendar; `timelineView` in settings): height is time (`HOUR_EM`), each
+  entry a box as tall as it lasted, a moment one line's slot (`MOMENT`), entries
+  that clash side by side in the first free column, and a stretch of over an hour
+  with nothing in it folded to a band. A box takes its tag's colour and opens on a
+  press. For work done on and off through a day, amid small things.
 - **A moment and a block read apart**: one clock is a dot on the rail, a range
   (`to`, `-`, `–`, `—`) a bar with its length, and one that ends before it starts
   ran past midnight.

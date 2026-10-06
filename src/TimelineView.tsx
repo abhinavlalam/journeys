@@ -7,6 +7,7 @@ import type { PropertyType } from './properties'
 import { countOf, NoteRow, READING, RowIcon, Section, stepIn } from './rows'
 import { ChevronIcon } from './icons'
 import { DayTotals } from './DayTotals'
+import { dayGrid, QUIET_EM } from './dayGrid'
 import { tagNames, type DayTotal } from './tags'
 import { fieldsOf, wordsOf, type TimelineDay, type TimelineEntry } from './timeline'
 import { ViewerHeader } from './ViewerHeader'
@@ -51,6 +52,8 @@ export function TimelineView({
   colours,
   typeOf,
   typing,
+  view,
+  onView,
   onEdit,
   onAdd,
   ...opens
@@ -65,6 +68,9 @@ export function TimelineView({
   colours: Record<string, string>
   typeOf: (name: string) => PropertyType
   typing: Typing
+  /** A list by clock, or a grid where height is time; kept in the vault's settings. */
+  view: 'list' | 'day'
+  onView: (next: 'list' | 'day') => void
   /** An entry's line was changed to `text`. */
   onEdit: (entry: TimelineEntry, text: string) => void
   /** A new entry was typed at the bottom of today. */
@@ -99,7 +105,15 @@ export function TimelineView({
 
   return (
     <>
-      <ViewerHeader name="Timeline" status={total > 0 ? countOf(total, 'entry', 'entries') : ''} />
+      <ViewerHeader name="Timeline" status={total > 0 ? countOf(total, 'entry', 'entries') : ''}>
+        <span className="view-switch" role="group" aria-label="View">
+          {(['list', 'day'] as const).map((one) => (
+            <button key={one} className="header-action" aria-pressed={view === one} onClick={() => onView(one)}>
+              {one === 'list' ? 'List' : 'Day'}
+            </button>
+          ))}
+        </span>
+      </ViewerHeader>
       {!read && (
         <Section title="Days" count={0} startOpen>
           <li style={{ paddingLeft: stepIn(1) }}>
@@ -110,8 +124,9 @@ export function TimelineView({
       {shown.map(({ note, ...day }) => (
         <section key={day.day} className="journal-day">
           <DayHead day={day.day} today={today} count={day.entries.length} onOpen={note ? () => opens.onOpen(note) : undefined} />
+          {view === 'day' && <Grid entries={day.entries} colours={colours} typeOf={typeOf} tables={tables} {...opens} />}
           <ol className="timeline-entries">
-            {day.entries.map((entry, at) => (
+            {view === 'list' && day.entries.map((entry, at) => (
               <Fragment key={entry.at}>
                 {partOf(entry.start) !== partOf(day.entries[at - 1]?.start ?? -1) && (
                   <li className="timeline-part" aria-hidden>
@@ -147,6 +162,80 @@ function partOf(minutes: number): string {
   if (minutes < 0) return ''
   const hour = Math.floor(minutes / 60) % 24
   return hour < 5 ? 'Night' : hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening'
+}
+
+/**
+ * A day as a calendar draws one (`dayGrid`): hours down the side, each entry a box as
+ * tall as it lasted, entries that clash side by side, quiet stretches folded to a
+ * band. A box shows what fits; a press opens it whole, with what is nested under it.
+ */
+function Grid({
+  entries,
+  colours,
+  typeOf,
+  tables,
+  ...opens
+}: {
+  entries: readonly TimelineEntry[]
+  colours: Record<string, string>
+  typeOf: (name: string) => PropertyType
+  tables: Record<string, string[]>
+} & Opens) {
+  const [open, setOpen] = useState<number | null>(null)
+  const grid = dayGrid(entries)
+  if (grid.placed.length === 0) return null
+  return (
+    <div className="day-grid" style={{ height: `${grid.height}em` }}>
+      {grid.hours.map((one) => (
+        <span key={`h${one.minutes}`} className="day-hour" style={{ top: `${one.top}em` }}>
+          <span>{clockText(one.minutes)}</span>
+        </span>
+      ))}
+      {grid.quiet.map((one) => (
+        <span key={`q${one.top}`} className="day-quiet" style={{ top: `${one.top}em`, height: `${QUIET_EM}em` }}>
+          {lengthOf(one.minutes)} quiet
+        </span>
+      ))}
+      <div className="day-boxes">
+        {grid.placed.map(({ entry, top, height, column, columns }) => {
+          const fields = fieldsOf(entry.text, tables, typeOf)
+          const hue = tagNames(entry.text).map((tag) => colours[tag]).find(Boolean)
+          return (
+            <div
+              key={entry.at}
+              className={open === entry.at ? 'day-box open' : 'day-box'}
+              data-hue={hue}
+              role="button"
+              tabIndex={0}
+              aria-expanded={open === entry.at}
+              style={{ top: `${top}em`, minHeight: `${height}em`, height: open === entry.at ? undefined : `${height}em`, left: `${(column / columns) * 100}%`, width: `${100 / columns}%` }}
+              onClick={() => setOpen((was) => (was === entry.at ? null : entry.at))}
+            >
+              <span className="day-box-when">
+                {clockText(entry.start)}
+                {entry.end !== null && `–${clockText(entry.end)}`}
+              </span>{' '}
+              <Live text={wordsOf(entry, typeOf, fields.length > 0)} hueOf={(tag) => colours[tag]} {...opens} />
+              {open === entry.at && (
+                <span className="timeline-detail">
+                  {fields.map((one) => (
+                    <span key={one.name} className="timeline-below">
+                      {one.name} <Live text={one.value} {...opens} />
+                    </span>
+                  ))}
+                  {entry.below.map((line, at) => (
+                    <span key={at} className="timeline-below">
+                      <Live text={line} {...opens} />
+                    </span>
+                  ))}
+                </span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 const weekday = new Intl.DateTimeFormat(undefined, { weekday: 'long' })

@@ -174,6 +174,8 @@ export interface Settings {
    * its top: links in the text, links in properties, tags.
    */
   graphShows: { text: boolean; property: boolean; tag: boolean }
+  /** How the timeline draws a day: a list by clock, or a grid where height is time. */
+  timelineView: 'list' | 'day'
   /**
    * The calendars Sync reads: each a private iCal address (Google's secret
    * address in iCal format) and a name, which is what `source::` says on
@@ -275,6 +277,7 @@ export const DEFAULT_SETTINGS: Settings = {
   shortcuts: defaultShortcuts(),
   graphHides: [],
   graphShows: { text: true, property: true, tag: true },
+  timelineView: 'list',
   calendarFeeds: [],
   calendarDays: 7,
   calendarMinutes: 5,
@@ -383,6 +386,7 @@ export function parseSettings(raw: unknown): Settings {
     // Trailing slashes off: a folder is named as the tree spells it.
     graphHides: pickStrings(stored.graphHides).map((one) => one.replace(/\/+$/, '')),
     graphShows: pickShows(stored.graphShows),
+    timelineView: stored.timelineView === 'day' ? 'day' : 'list',
     calendarFeeds: pickFeeds(stored.calendarFeeds),
     calendarDays: pickNumber(stored.calendarDays, BOUNDS.calendarDays, DEFAULT_SETTINGS.calendarDays),
     calendarMinutes: pickNumber(stored.calendarMinutes, BOUNDS.calendarMinutes, DEFAULT_SETTINGS.calendarMinutes),

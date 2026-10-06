@@ -3096,6 +3096,80 @@ button.folder-toggle {
   line-height: inherit;
 }
 
+/* ---- A day as a grid (the timeline's Day view) ---- */
+
+/* Height is time, as a calendar draws a day (`dayGrid` places everything): an
+   hour's line across the grid with its clock in the margin, a folded quiet
+   stretch as a dashed band, and each entry a box as tall as it lasted, beside
+   whatever it clashed with. Lengths are inline, in `em` of the day's size. */
+.day-grid {
+  position: relative;
+  margin: 0.5rem var(--pane-inset) 0.75rem 0;
+}
+
+.day-hour {
+  position: absolute;
+  left: var(--timeline-when);
+  right: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.day-hour > span {
+  position: absolute;
+  right: calc(100% + 0.5rem);
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.day-quiet {
+  position: absolute;
+  left: var(--timeline-when);
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-block: 1px dashed var(--border);
+  color: var(--text-faint);
+}
+
+.day-boxes {
+  position: absolute;
+  inset: 0 0 0 calc(var(--timeline-when) + 0.25rem);
+}
+
+/* A box in its tag's colour, or the accent's: a tinted ground and a straight rule
+   at its left, as a calendar marks an event (a border rule bent round the corner).
+   Its ground-coloured border is the gap between two boxes side by side. A moment's
+   slot is one line, so the line is set close and has no space above or below.
+   Opened, it grows to show all of it. */
+.day-box {
+  position: absolute;
+  overflow: hidden;
+  padding: 0 0.4rem;
+  border: 1px solid var(--bg-raised);
+  border-radius: var(--radius);
+  /* The accent unless its tag has a colour: set here, it out-ranked the tag's. */
+  background:
+    linear-gradient(var(--tint, var(--mark)), var(--tint, var(--mark))) left / 2px 100% no-repeat,
+    color-mix(in srgb, var(--tint, var(--mark)) 14%, var(--bg-raised));
+  color: var(--text);
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.day-box.open {
+  z-index: var(--layer-menu);
+  overflow: visible;
+  outline: 1px solid var(--mark);
+}
+
+.day-box-when {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---- Lines under a row ---- */
 
 /* The lines under a backlink and the lines a tag gathers: one rule for both.

@@ -1293,6 +1293,8 @@ export default function App() {
                       // note: the shortcut may be being changed.
                       insertTimeCombo: settingsOpen ? null : settings.shortcuts.insertTime,
                     }}
+                    view={settings.timelineView}
+                    onView={(timelineView) => changeSettings({ ...settings, timelineView })}
                     onEdit={(entry, text) => void editEntry(entry, text)}
                     onAdd={(text) => void addEntry(text)}
                     onOpen={(file) => void openNote(file)}
