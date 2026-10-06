@@ -5,7 +5,8 @@
  * the stylesheet is right. No React: pure functions and one DOM write.
  */
 import { asObject } from './configEntries'
-import { DAILY_FOLDER, readConfigFile, safeNewName, writeConfigFile } from './vault'
+import { DAILY_FOLDER, FILES_FOLDER, readConfigFile, safeNewName, writeConfigFile } from './vault'
+import { TAG_NAME } from './tags'
 import { SETTINGS_FILE } from './vaultModel'
 import { onAndroid, paintBars } from './platform'
 import { ACTIONS, defaultShortcuts, normalizeCombo, type ActionId } from './shortcuts'
@@ -162,6 +163,12 @@ export interface Settings {
   indentWidth: number
   /** A single path segment under the vault root. */
   dailyFolder: string
+  /** Where a photo or file from the phone is kept, as `dailyFolder` is named. */
+  filesFolder: string
+  /** The tag a share from another app is filed with, so an agent finds every one. */
+  shareTag: string
+  /** The group a new timeline entry goes under when none of its tags has one. */
+  timelineGroup: string
   shortcuts: Record<ActionId, string>
   /**
    * Folders the graph leaves out, as vault-relative paths (`Archive/Old`). Useful
@@ -274,6 +281,9 @@ export const DEFAULT_SETTINGS: Settings = {
   inheritIcons: true,
   // `vault.ts`'s constant, so this default and `ensureDailyNote`'s can't drift apart.
   dailyFolder: DAILY_FOLDER,
+  filesFolder: FILES_FOLDER,
+  shareTag: 'shared',
+  timelineGroup: 'timeline',
   shortcuts: defaultShortcuts(),
   graphHides: [],
   graphShows: { text: true, property: true, tag: true },
@@ -352,7 +362,10 @@ export function parseSettings(raw: unknown): Settings {
   // Malformed JSON is missing settings, not an error to throw into a render.
   const stored: Partial<Record<keyof Settings, unknown>> = (typeof raw === 'string' && asObject(raw)) || {}
 
-  const daily = validateDailyFolder(stored.dailyFolder)
+  const valid = <K extends keyof Settings>(key: K, check: (value: unknown) => NameCheck) => {
+    const read = check(stored[key])
+    return read.ok ? read.value : DEFAULT_SETTINGS[key]
+  }
 
   return {
     mode: pick(stored.mode, MODES, DEFAULT_SETTINGS.mode),
@@ -381,7 +394,10 @@ export function parseSettings(raw: unknown): Settings {
       BOUNDS.indentWidth,
       DEFAULT_SETTINGS.indentWidth
     ),
-    dailyFolder: daily.ok ? daily.value : DEFAULT_SETTINGS.dailyFolder,
+    dailyFolder: valid('dailyFolder', validateFolder),
+    filesFolder: valid('filesFolder', validateFolder),
+    shareTag: valid('shareTag', validateTag),
+    timelineGroup: valid('timelineGroup', validateTag),
     shortcuts: pickShortcuts(stored.shortcuts),
     // Trailing slashes off: a folder is named as the tree spells it.
     graphHides: pickStrings(stored.graphHides).map((one) => one.replace(/\/+$/, '')),
@@ -483,10 +499,10 @@ export function saveSettings(settings: Settings): void {
 }
 
 // ---------------------------------------------------------------------------
-// The daily folder
+// Folders and tags named in the panel
 // ---------------------------------------------------------------------------
 
-type FolderCheck = { ok: true; value: string } | { ok: false; reason: string }
+type NameCheck = { ok: true; value: string } | { ok: false; reason: string }
 
 /**
  * The typed folder, cleaned, or why it can't be used. Uses
@@ -497,13 +513,21 @@ type FolderCheck = { ok: true; value: string } | { ok: false; reason: string }
  * become `-`, so show it rather than assume it round-trips. One
  * segment only: `ensureDailyNote` doesn't create nested folders.
  */
-export function validateDailyFolder(value: unknown): FolderCheck {
+export function validateFolder(value: unknown): NameCheck {
   if (typeof value !== 'string') return { ok: false, reason: 'Name required.' }
   try {
     return { ok: true, value: safeNewName(value) }
   } catch (err) {
     return { ok: false, reason: err instanceof Error ? err.message : String(err) }
   }
+}
+
+/** A tag as typed, with or without its `#`, folded to lower case as every tag is; or why it is not one. */
+export function validateTag(value: unknown): NameCheck {
+  const typed = typeof value === 'string' ? value.trim().replace(/^#/, '') : ''
+  return new RegExp(`^(?:${TAG_NAME})$`).test(typed)
+    ? { ok: true, value: typed.toLowerCase() }
+    : { ok: false, reason: 'A tag is a word with a letter in it.' }
 }
 
 // ---------------------------------------------------------------------------

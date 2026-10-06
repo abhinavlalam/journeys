@@ -766,9 +766,12 @@ export default function App() {
       async (v) => {
         const text = await entry(v)
         const { file, created } = await ensureDailyNote(v, settings.dailyFolder, day)
-        // A tag with a structure is a record, written at the top level of the day.
-        const structured = (tag: string) => propertiesOf(tagStructures.entries, tag).length > 0
-        const next = withNewEntry(file, await readVaultFile(file), text, ' '.repeat(settings.indentWidth), structured)
+        const next = withNewEntry(file, await readVaultFile(file), text, {
+          indent: ' '.repeat(settings.indentWidth),
+          group: settings.timelineGroup,
+          // A tag with a structure is a record, written at the top level of the day.
+          structured: (tag) => propertiesOf(tagStructures.entries, tag).length > 0,
+        })
         await writeVaultFile(file, next)
         return { file, created, next }
       },
@@ -788,15 +791,15 @@ export default function App() {
 
   /**
    * A share from another app, filed in the day it arrived with its files moved into
-   * the vault first. Each file keeps where it went, so a second try after a
+   * `filesFolder` first. Each file keeps where it went, so a second try after a
    * failure moves none twice. Then a sync round, so the laptop has it soon.
    */
   async function fileShare(share: Share) {
     const filed = await fileEntry(shareDay(share), async (v) => {
       for (const one of share.files) {
-        if (one.path && !one.kept) one.kept = (await keepShared(v, one.name, one.path)).path
+        if (one.path && !one.kept) one.kept = (await keepShared(v, settings.filesFolder, one.name, one.path)).path
       }
-      return shareEntry(share, share.files.flatMap((one) => (one.kept ? [one.kept] : [])))
+      return shareEntry(share, share.files.flatMap((one) => (one.kept ? [one.kept] : [])), settings.shareTag)
     })
     const unread = share.files.filter((one) => one.error)
     if (filed && unread.length > 0) {
@@ -807,11 +810,11 @@ export default function App() {
   }
   useShares(vault.vaultPath, fileShare, setError)
 
-  /** Photos or files picked with the phone's +, kept in the vault and linked from a line in today. */
+  /** Photos or files picked with the phone's +, kept in `filesFolder` and linked from a line in today. */
   const fileUploads = (files: File[], caption: string, clock: string) =>
     fileEntry(undefined, async (v) => {
       const kept: string[] = []
-      for (const one of files) kept.push((await keepFile(v, one.name, new Uint8Array(await one.arrayBuffer()))).path)
+      for (const one of files) kept.push((await keepFile(v, settings.filesFolder, one.name, new Uint8Array(await one.arrayBuffer()))).path)
       return [clock, caption, ...kept.map((path) => `[[${path}]]`)].filter(Boolean).join(' ')
     })
 

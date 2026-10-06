@@ -14,7 +14,8 @@ import {
   resolveMode,
   saveSettings,
   SETTINGS_KEY,
-  validateDailyFolder,
+  validateFolder,
+  validateTag,
   settingsJson,
 } from '../settings'
 
@@ -268,28 +269,46 @@ describe('reading what was stored', () => {
 
 describe('the daily folder', () => {
   it('refuses a leading dot, with vault.ts’s own reason', () => {
-    const check = validateDailyFolder('.Journal')
+    const check = validateFolder('.Journal')
     expect(check.ok).toBe(false)
     if (!check.ok) expect(check.reason).toMatch(/starts with a dot/)
   })
 
   it('refuses an empty name', () => {
-    expect(validateDailyFolder('   ').ok).toBe(false)
-    expect(validateDailyFolder(null).ok).toBe(false)
-    expect(validateDailyFolder(undefined).ok).toBe(false)
+    expect(validateFolder('   ').ok).toBe(false)
+    expect(validateFolder(null).ok).toBe(false)
+    expect(validateFolder(undefined).ok).toBe(false)
   })
 
   it('folds characters a path cannot carry, and says what it saved', () => {
-    const check = validateDailyFolder(' Day: notes? ')
+    const check = validateFolder(' Day: notes? ')
     expect(check).toEqual({ ok: true, value: 'Day- notes' })
   })
 
   it('keeps an ordinary name as typed', () => {
-    expect(validateDailyFolder('Journal')).toEqual({ ok: true, value: 'Journal' })
+    expect(validateFolder('Journal')).toEqual({ ok: true, value: 'Journal' })
   })
 
   it('does not let a dot-folder reach the settings object', () => {
     expect(parseSettings(JSON.stringify({ dailyFolder: '.hidden' })).dailyFolder).toBe('Daily')
+    expect(parseSettings(JSON.stringify({ filesFolder: '.hidden' })).filesFolder).toBe('Files')
+    expect(parseSettings(JSON.stringify({ filesFolder: 'Clips' })).filesFolder).toBe('Clips')
+  })
+})
+
+/** The tags the app files with are the owner's to name: a share's, and a new entry's group. */
+describe('a tag named in the settings', () => {
+  it('is a word with a letter, its # optional, folded to lower case as every tag is', () => {
+    expect(validateTag(' #Clips ')).toEqual({ ok: true, value: 'clips' })
+    expect(validateTag('reading/log')).toEqual({ ok: true, value: 'reading/log' })
+    expect(validateTag('2026').ok).toBe(false)
+    expect(validateTag('two words').ok).toBe(false)
+    expect(validateTag(null).ok).toBe(false)
+  })
+
+  it('falls back on its own when it is not a tag', () => {
+    const read = parseSettings(JSON.stringify({ shareTag: '#Clips', timelineGroup: '2026' }))
+    expect([read.shareTag, read.timelineGroup]).toEqual(['clips', 'timeline'])
   })
 })
 

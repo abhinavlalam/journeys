@@ -143,6 +143,32 @@ describe('the sync', () => {
    * Opening the vault runs a round, without waiting for a focus
    * that may come before the vault loads.
    */
+  /** A blur and the timer together: both rounds once committed at once, and one found `main.lock` taken. */
+  it('runs one round at a time, however many ask at once', async () => {
+    await openAppSettled()
+    fireEvent(window, new Event('blur'))
+    fireEvent(window, new Event('focus'))
+    await waitFor(() => expect(calls).toContain('push'))
+    await new Promise((r) => setTimeout(r, 50))
+    expect(calls).toEqual(['commit', 'pull', 'push'])
+  })
+
+  /** An agent's `git commit` in the terminal holds the lock a moment; one left behind holds it for good. */
+  it('waits a round for a lock another git holds, and says so when the next round finds it too', async () => {
+    const lock = "failed to lock file '/v/.git/refs/heads/main.lock' for writing: ; class=Os (2); code=Locked (-14)"
+    await openAppSettled()
+    fake.commit = async () => {
+      throw new Error(lock)
+    }
+    fireEvent(window, new Event('focus'))
+    await waitFor(() => expect(calls).toContain('commit'))
+    await new Promise((r) => setTimeout(r, 50))
+    expect(screen.queryByRole('alert')).toBeNull()
+    fireEvent(window, new Event('focus'))
+    const banner = await screen.findByRole('alert')
+    expect(banner.textContent).toContain('still locked by another program (/v/.git/refs/heads/main.lock)')
+  })
+
   it('runs a round when the vault opens', async () => {
     await openApp()
     await waitFor(() => expect(calls).toEqual(['commit', 'pull', 'push']))

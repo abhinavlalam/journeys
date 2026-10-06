@@ -14,9 +14,6 @@ export interface Share {
   files: { name: string; path?: string | null; error?: string | null; kept?: string }[]
 }
 
-/** The tag a share is filed with, so an agent on the laptop finds every one. */
-const SHARED_TAG = 'shared'
-
 /** Every share since the last call, each once. */
 export const takeShares = () => invoke<Share[]>('phone_shares')
 
@@ -24,16 +21,17 @@ export const takeShares = () => invoke<Share[]>('phone_shares')
 export const shareDay = (share: Share) => localDateStamp(new Date(share.at))
 
 /**
- * A share as a day's entry: the clock it arrived at, `#shared`, its subject (a page's
- * title beside its address) and first line, and a link to each file in the vault.
- * The rest of a message is nested under it, a line each, blank lines left out.
+ * A share as a day's entry: the clock it arrived at, its `tag` (`settings.shareTag`),
+ * its subject (a page's title beside its address) and first line, and a link to each
+ * file in the vault. The rest of a message is nested under it, a line each, blank
+ * lines left out.
  */
-export function shareEntry(share: Share, files: readonly string[]): string {
+export function shareEntry(share: Share, files: readonly string[], tag: string): string {
   const lines = (share.text ?? '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
   const subject = share.subject?.trim()
   const head = [
     localTimeStamp(new Date(share.at)),
-    `#${SHARED_TAG}`,
+    `#${tag}`,
     subject && !lines.some((line) => line.includes(subject)) ? subject : '',
     lines[0] ?? '',
     ...files.map((path) => `[[${path}]]`),

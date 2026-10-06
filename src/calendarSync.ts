@@ -1,7 +1,7 @@
 // Writing the feeds' events into the daily notes: the calendar's
 // one write, through `vault.ts`.
 
-import { EVENT, lineKey, readEvent, untouched, type EventFormat } from './calendar'
+import { EVENT, lineKey, readEvent, SOURCE, untouched, type EventFormat } from './calendar'
 import { collectTagLines } from './tags'
 import { ensureDailyNote, fileExists, readVaultFile, vaultFileRef, writeVaultFile } from './vault'
 import type { VaultFile } from './vaultModel'
@@ -50,7 +50,7 @@ export async function syncEvents(
         .filter(
           (entry) =>
             entry.below.length === 0 &&
-            sources.has(readEvent(entry.text, format.typeOf).fields.source ?? '') &&
+            sources.has(readEvent(entry.text, format.typeOf).fields[SOURCE] ?? '') &&
             !wanted.has(keyOf(entry.text)) &&
             untouched(format, entry.text)
         )

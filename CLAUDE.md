@@ -34,7 +34,7 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 | `workspace.ts` / `WorkspaceView.tsx` | Tabs, groups and splits as a pure model / its flat rendering. |
 | `NotePane.tsx`, `useNoteBuffer.ts`, `useBuffers.ts` | A note tab, its buffer, and the one door to every open buffer. |
 | `EditorHost.tsx` | The editor minus the language: box, gutters, folding, caret, `decorated()`. |
-| `MarkdownEditor.tsx`, `JsonEditor.tsx`, `CsvEditor.tsx`, `TextEditor.tsx` | One language each; `TextEditor` is none, for a `.conf`, `.yaml` or `.txt` (as markdown, every `# comment` was a heading). |
+| `MarkdownEditor.tsx`, `SourceEditor.tsx` | A note; and a file that is not one, as its own text: JSON and CSV coloured, a `.conf`, `.yaml` or `.txt` plain (as markdown, every `# comment` was a heading). |
 | `editorCommands.ts`, `editorComplete.ts`, `editorFold.ts`, `editorPreview.ts` | Keys that write syntax, the `[[`, `/` and property popups, folding, decorations. |
 | `FolderTree.tsx`, `rows.tsx`, `SidebarSection.tsx`, `useDrops.ts` | The left pane; `rows.tsx` is the one row shape everything lists with; `useDrops` is what is dropped onto the tree. |
 | `tags.ts`, `properties.ts`, `actionKinds.ts`, `TagView.tsx`, `PropertyView.tsx`, `LineTable.tsx` | Tags and their structures, properties and their types, the Actions pane's kinds, and their pages. |
@@ -417,8 +417,8 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   `withNewEntry` files it as the day is written — under the group its tag heads,
   else beside its tag's entries, in their group (`#food` under `#diet`) or after the
   last at the top level, else for a tag with a structure at the day's end at the top
-  level (the vault's records are written there), else `#timeline`, made at the end
-  if missing — indented as the lines beside it are. It is filed as typed: with no clock it is a line of the note,
+  level (the vault's records are written there), else the settings' `timelineGroup`
+  (`#timeline` unset), made at the end if missing — indented as the lines beside it are. It is filed as typed: with no clock it is a line of the note,
   not on the timeline (it was stamped with the time, and the owner asked for it
   not to be). Today's note is made then, with the icon only, as ⌘⇧O makes it.
 
@@ -433,6 +433,11 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   checkout; else merge, each conflict kept as this side plus `name (other).md`.
   Checkouts are `safe()`; libgit2's `Conflict` means wait a round. Push only when
   ahead and not behind.
+- **One round at a time** (`busy`, taken before the first wait: a blur and the timer
+  both passed the check while the status was read, and their commits raced for
+  `main.lock`). A lock another git holds (an agent's commit in the terminal) waits a
+  round quietly; the next round finding it too says so, naming the file, since one
+  left behind stops every round.
 - **A round deleting over half the tracked files is refused** unless Sync now is
   pressed.
 - `useSync`: flush, commit, pull, push — on vault open, every `syncSeconds`
@@ -509,17 +514,17 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 - **The + adds from any page** (`Capture`; the owner preferred it to a capture line
   under today): a note's line in today; a tag's line from a form of its structure
   (`tagLine`: clock, tag, words, then each value in the structure's order as its type
-  reads it, `propertyText`); a photo or file kept in `Files/` and linked (`keepFile`);
+  reads it, `propertyText`); a photo or file kept in `filesFolder` and linked (`keepFile`);
   an event in its own day as the calendar writes one (`eventText`, without
   `source::`); or a new note, which opens. A sheet closes once its line is written
   and the page stays; the back gesture closes it. No time is filled in unasked: Now
   fills it. Today is today's note, opened without being made (a look at the day
   writes nothing). A page opened to read does not raise the keyboard (`EditorHost`'s
   `autoFocus`); a line editor does.
-- **A share is filed into the day it arrived** as `HH:MM #shared`, its subject and
-  first line, and `[[Files/<name>]]` per file, the rest of a message nested under
-  it, so the laptop's agent finds it by the tag. Files are copied into the app's files
-  while the sender's grant lasts (`PhonePlugin`), then *moved* into `Files/` under
+- **A share is filed into the day it arrived** as `HH:MM #shared` (`shareTag`), its
+  subject and first line, and `[[Files/<name>]]` per file, the rest of a message nested
+  under it, so the laptop's agent finds it by the tag. Files are copied into the app's
+  files while the sender's grant lasts (`PhonePlugin`), then *moved* into `filesFolder` under
   their own name or ` 2`, never over a file. Shares are taken on vault open and on
   each return, one taking at a time; one that could not be filed is kept, with how
   far its files got (`kept`), and tried again on the next return, which is why
@@ -579,6 +584,11 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   not written over: read as the defaults, a panel change wrote them over a hand
   edit, calendars and all. `tags.json` and `properties.json` are said once too.
   `readConfigFile`/`writeConfigFile` take a file name — do not add a second pair.
+- **The vault's names are its owner's settings**: the daily folder, the files folder,
+  the share tag and the timeline's group (`dailyFolder`, `filesFolder`, `shareTag`,
+  `timelineGroup`), each checked as it is typed (`validateFolder`, `validateTag`). The
+  app's own names stay fixed: `.config`, `icon::`, `path::`, and the calendar's
+  `#event` and `source::`.
 - **A vault's calendars and hidden folders are its own** (`portable`): not carried
   into a new vault, not kept in `localStorage`, and not handed out until that
   vault's file is read. Carried, a secret feed reached another vault's remote, and

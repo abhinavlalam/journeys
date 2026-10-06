@@ -49,6 +49,12 @@ const OFFLINE = /resolve|connect|network|timed out|unreachable|offline|reset by 
  */
 export const isOffline = (message: string) => OFFLINE.test(message)
 
+/**
+ * A lock another git holds in the repository: an agent's commit in the terminal,
+ * a moment's wait. Said only when the next round finds it too, as one left behind.
+ */
+const LOCKED = /failed to lock file '([^']+)'/
+
 export function useSync({
   vaultPath,
   everySeconds,
@@ -78,6 +84,8 @@ export function useSync({
   const busy = useRef(false)
   /** Said once: the same failure every tick is one failure. */
   const said = useRef<string | null>(null)
+  /** The last round found the repository locked (`LOCKED`). */
+  const waited = useRef(false)
 
   // `sync_status` never fails in Rust (a folder that is not a
   // repository gets a default), so a failed status means the
@@ -90,13 +98,15 @@ export function useSync({
 
   async function now(byHand = false) {
     if (!vaultPath || busy.current) return
+    // Taken before the first wait: a blur and the timer together both passed the
+    // check while the status was read, and their commits raced for `main.lock`.
+    busy.current = true
     const current = await look()
-    if (!current) return
-    if (!current.isRepo) {
-      setStatus(current)
+    if (!current?.isRepo) {
+      if (current) setStatus(current)
+      busy.current = false
       return
     }
-    busy.current = true
     setPhase('working')
     try {
       // A note that could not be saved has said so and keeps its typing queued;
@@ -116,15 +126,18 @@ export function useSync({
       setSyncedAt(Date.now())
       setPhase('idle')
       said.current = null
+      waited.current = false
     } catch (err) {
       const message = String(err)
+      const lock = LOCKED.exec(message)
       if (isOffline(message)) {
         setPhase('offline')
       } else {
         setPhase('idle')
-        if (said.current !== message) {
+        if (lock && !waited.current) waited.current = true
+        else if (said.current !== message) {
           said.current = message
-          onError(message)
+          onError(lock ? `The vault's git history is still locked by another program (${lock[1]}). If no git is running, deleting that file lets sync go on.` : message)
         }
       }
     } finally {

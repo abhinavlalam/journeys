@@ -212,6 +212,9 @@ export function textProperty(name: string, value: string): string {
   return `${name}:: ${/\s/.test(text) ? `"${text}"` : text}`
 }
 
+/** A number as shown: to two places, trailing zeros dropped. Sums and half steps give `1.7000000000000002`. */
+export const numberText = (value: number) => String(Number(value.toFixed(2)))
+
 /**
  * `name:: value` as its type reads it: a backlink as one `[[link]]`, text and a
  * path quoted past one word (`textProperty`), anything else as given.

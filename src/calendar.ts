@@ -22,6 +22,9 @@ export const EVENT = 'event'
  */
 export const EVENT_PROPERTIES = ['with', 'at', 'source', 'repeats', 'reminder']
 
+/** The property the sync writes, naming the feed a line came from. A typed event has none. */
+export const SOURCE = 'source'
+
 /** How the vault writes an event: its structure, and each property's type. */
 export interface EventFormat {
   properties: readonly string[]
@@ -221,7 +224,7 @@ export function eventLine(properties: readonly string[], { event, start, end }: 
     fields: {
       with: event.attendees.map(oneLine).join(', '),
       at: oneLine(event.location),
-      source: oneLine(source),
+      [SOURCE]: oneLine(source),
       reminder: event.reminder,
     },
   })

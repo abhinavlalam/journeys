@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { keymap } from '@codemirror/view'
-import { JsonEditor } from './JsonEditor'
+import { SourceEditor } from './SourceEditor'
 import { ViewerHeader } from './ViewerHeader'
 import { parseSettings, settingsJson, type Settings } from './settings'
 import { SETTINGS_FILE } from './vaultModel'
@@ -119,8 +119,9 @@ export function SettingsFile({ vaultPath, settings, onChange }: SettingsFileProp
         </p>
       )}
       {/* The same editor as every `.json` file, with ⌘S bound in. */}
-      <JsonEditor
+      <SourceEditor
         key={version}
+        kind="json"
         name={SETTINGS_FILE}
         initialText={stored}
         onChange={setDraft}

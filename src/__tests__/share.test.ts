@@ -5,13 +5,17 @@ import { shareEntry, type Share } from '../share'
 /** A share as the day's entry an agent on the laptop will find by its tag. */
 describe('a share’s entry', () => {
   const at = new Date(2026, 9, 2, 14, 5).getTime()
-  const entry = (share: Partial<Share>, files: string[] = []) => shareEntry({ at, files: [], ...share }, files)
+  const entry = (share: Partial<Share>, files: string[] = [], tag = 'shared') => shareEntry({ at, files: [], ...share }, files, tag)
 
   it('is the time it arrived, the tag, its first line and a link to each file', () => {
     expect(entry({ text: 'Lunch spot' }, ['Files/photo.jpg', 'Files/menu.pdf'])).toBe(
       `${localTimeStamp(new Date(at))} #shared Lunch spot [[Files/photo.jpg]] [[Files/menu.pdf]]`
     )
     expect(entry({}, ['Files/photo.jpg'])).toBe('14:05 #shared [[Files/photo.jpg]]')
+  })
+
+  it('carries the tag the settings name', () => {
+    expect(entry({ text: 'Lunch spot' }, [], 'clips')).toBe('14:05 #clips Lunch spot')
   })
 
   it('nests the rest of a message under it, a line each, blank lines left out', () => {

@@ -1,7 +1,7 @@
 import { useRef, useState, type MutableRefObject, type ReactNode } from 'react'
 import { EditorView } from '@codemirror/view'
 import { LEADING_CLOCK, localDateStamp, localTimeStamp } from './clock'
-import { EVENT, EVENT_PROPERTIES, eventText } from './calendar'
+import { EVENT, EVENT_PROPERTIES, eventText, SOURCE } from './calendar'
 import type { Entries } from './configEntries'
 import { PlusIcon } from './icons'
 import { MarkdownEditor } from './MarkdownEditor'
@@ -17,13 +17,10 @@ export type Adding = 'menu' | 'note' | 'tags' | { tag: string } | 'file' | 'even
 const CHOICES = [
   { step: 'note', icon: 'pen', name: 'Note', hint: 'a line in today' },
   { step: 'tags', icon: 'tag', name: 'Tag', hint: 'a line of one of your tags' },
-  { step: 'file', icon: 'image', name: 'Photo or file', hint: 'kept in Files, linked from today' },
+  { step: 'file', icon: 'image', name: 'Photo or file', hint: 'kept in the vault, linked from today' },
   { step: 'event', icon: 'calendar', name: 'Event', hint: 'on its day, in the calendar' },
   { step: 'page', icon: 'page', name: 'New note', hint: 'a page of its own' },
 ] as const
-
-/** The calendar's own property, which the sync writes and a typed event leaves out. */
-const SOURCE = 'source'
 
 interface CaptureProps {
   adding: Adding | null

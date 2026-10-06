@@ -169,7 +169,8 @@ describe('writing an entry back', () => {
 describe('filing a new entry', () => {
   const raw = ['#timeline', '     09:00 standup', '', '#expense', '     12:30 #expense lunch amount:: 480', '', '#diet', '     08:45 #food oats', ''].join('\n')
   /** `#expense` and `#food` have a structure, as `tags.json` gives them one. */
-  const filed = (text: string, into = raw) => withNewEntry(day, into, text, '    ', (tag) => ['expense', 'food'].includes(tag))
+  const filed = (text: string, into = raw, group = 'timeline') =>
+    withNewEntry(day, into, text, { indent: '    ', group, structured: (tag) => ['expense', 'food'].includes(tag) })
 
   it('goes under the group its tag heads, after the group’s last line, indented as its lines are', () => {
     expect(filed('19:00 #expense dinner')).toBe(raw.replace('amount:: 480\n', 'amount:: 480\n     19:00 #expense dinner\n'))
@@ -182,6 +183,12 @@ describe('filing a new entry', () => {
   it('goes under #timeline with no tag, or with none that has a group', () => {
     expect(filed('18:00 walk')).toBe(raw.replace('standup\n', 'standup\n     18:00 walk\n'))
     expect(filed('18:00 #travel cab')).toBe(raw.replace('standup\n', 'standup\n     18:00 #travel cab\n'))
+  })
+
+  /** The owner's own group, `settings.timelineGroup`: the app names none of its own. */
+  it('goes under the group the settings name, made at the end if missing', () => {
+    expect(filed('18:00 walk', raw, 'log')).toBe(`${raw}\n#log\n    18:00 walk\n`)
+    expect(filed('18:00 walk', '#log\n    07:00 tea\n', 'log')).toBe('#log\n    07:00 tea\n    18:00 walk\n')
   })
 
   it('makes #timeline at the end of a note with none, a blank line from what is above it', () => {

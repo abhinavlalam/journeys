@@ -3,15 +3,13 @@ import { useNoteBuffer } from './useNoteBuffer'
 import type { BufferSet } from './useBuffers'
 import { ViewerHeader } from './ViewerHeader'
 import { MarkdownEditor } from './MarkdownEditor'
-import { JsonEditor } from './JsonEditor'
+import { SourceEditor } from './SourceEditor'
 import { NoteFooter } from './NoteFooter'
 import { FolderTree } from './FolderTree'
 import { backlinksTo, childrenOf, folderWithNote, trailTo } from './links'
 import { dailyNeighbours, isDailyNote } from './daily'
 import { ChevronIcon } from './icons'
 import { fileKind, isEncrypted, isNote } from './vaultModel'
-import { CsvEditor } from './CsvEditor'
-import { TextEditor } from './TextEditor'
 import type { VaultFile, VaultFolder } from './vaultModel'
 import type { Settings } from './settings'
 import type { useVaultTexts } from './useVaultTexts'
@@ -155,6 +153,7 @@ export function NotePane({
    * two editors per open, with a moment between them where there was none.
    */
   const loaded = buffer.note?.path === file.path
+  const kind = fileKind(file.path)
 
   function handleEditorChange(markdown: string) {
     liveText.current = { path: file.path, text: markdown }
@@ -213,29 +212,10 @@ export function NotePane({
            tab. The question is what *kind* of file it is and not whether it is a
            note: an unlocked `.enc` is markdown once it is open, and a `.txt` or a
            `.conf` is not — in the markdown editor every `# comment` was a heading. */
-      fileKind(file.path) === 'json' ? (
-        <JsonEditor
+      kind === 'json' || kind === 'csv' || kind === 'text' ? (
+        <SourceEditor
           key={`${file.path}:${buffer.editorEpoch}`}
-          shown={active}
-          name={file.name}
-          initialText={buffer.body}
-          incoming={buffer.incoming}
-          onChange={handleEditorChange}
-          indentWidth={settings.indentWidth}
-        />
-      ) : fileKind(file.path) === 'csv' ? (
-        <CsvEditor
-          key={`${file.path}:${buffer.editorEpoch}`}
-          shown={active}
-          name={file.name}
-          initialText={buffer.body}
-          incoming={buffer.incoming}
-          onChange={handleEditorChange}
-          indentWidth={settings.indentWidth}
-        />
-      ) : fileKind(file.path) === 'text' ? (
-        <TextEditor
-          key={`${file.path}:${buffer.editorEpoch}`}
+          kind={kind}
           shown={active}
           name={file.name}
           initialText={buffer.body}

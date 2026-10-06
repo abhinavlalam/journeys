@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { leadingClock } from './clock'
 import { useColumnWidths } from './columnWidths'
 import { Live } from './Live'
+import { numberText } from './properties'
 import type { CollectedNote } from './useVaultTexts'
 import { linkLabelSpan, type VaultFile } from './vaultModel'
 
@@ -15,9 +16,6 @@ interface Row {
   words: string
   values: Record<string, string>
 }
-
-/** Decimal places a column's sum is rounded to. Trailing zeros are dropped. */
-const SUM_DECIMALS = 2
 
 /**
  * Gathered lines as a table: a row per line, a column per property in the tag's
@@ -71,7 +69,7 @@ export function LineTable({
   const sums: Record<string, string> = Object.fromEntries(
     shown.filter(summable).map((column) => {
       const sum = rows.reduce((total, row) => total + (Number(row.values[column]) || 0), 0)
-      return [column, String(Number(sum.toFixed(SUM_DECIMALS)))]
+      return [column, numberText(sum)]
     })
   )
   const summed = Object.keys(sums).length > 0

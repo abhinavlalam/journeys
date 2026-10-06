@@ -17,7 +17,8 @@ import {
   FACES,
   MODES,
   SCHEMES,
-  validateDailyFolder,
+  validateFolder,
+  validateTag,
   type FaceCategory,
   type FaceId,
   type Mode,
@@ -28,6 +29,7 @@ import { ACTIONS, comboFromEvent, findConflict, formatCombo, type ActionId } fro
 import { characterWidth, COLUMN_PADDING } from './settings'
 import { syncWord, type Sync } from './useSync'
 import { agoWord, SECOND_MS } from './clock'
+import { numberText } from './properties'
 
 interface SettingsProps {
   settings: Settings
@@ -119,12 +121,7 @@ function measureReadout(readingWidth: number, settings: Settings): string {
   const characters = lineCharacters(readingWidth, settings)
   const verdict =
     characters > COMFORTABLE.to ? ' — wide' : characters < COMFORTABLE.from ? ' — narrow' : ''
-  return `${readout(readingWidth)}px · ${characters} characters${verdict}`
-}
-
-/** Half steps give floats like `1.7000000000000002`. */
-function readout(value: number): string {
-  return String(Number(value.toFixed(2)))
+  return `${numberText(readingWidth)}px · ${characters} characters${verdict}`
 }
 
 /** One slider row: label, track, value. */
@@ -169,6 +166,59 @@ function Slider({
   )
 }
 
+/**
+ * A folder or tag named in a field. Only a valid name goes up; an invalid one stays
+ * in the field with its reason, so it can be empty while typing without losing the
+ * setting. A name saved other than as typed says so.
+ */
+function NameSetting({
+  uid,
+  name,
+  label,
+  value,
+  check,
+  onChange,
+  hint,
+}: {
+  uid: string
+  name: string
+  label: string
+  value: string
+  check: (typed: string) => { ok: true; value: string } | { ok: false; reason: string }
+  onChange: (value: string) => void
+  hint: string
+}) {
+  const [draft, setDraft] = useState(value)
+  const read = check(draft)
+  return (
+    <div className="settings-field">
+      <label htmlFor={`${uid}-${name}`}>{label}</label>
+      <input
+        id={`${uid}-${name}`}
+        className="settings-text-input"
+        type="text"
+        value={draft}
+        autoCapitalize="off"
+        spellCheck={false}
+        onChange={(e) => {
+          const typed = e.currentTarget.value
+          setDraft(typed)
+          const next = check(typed)
+          if (next.ok) onChange(next.value)
+        }}
+      />
+      {read.ok ? (
+        read.value !== draft && <p className="settings-field-hint">Saved as “{read.value}”.</p>
+      ) : (
+        <p className="settings-conflict" role="alert">
+          {read.reason}
+        </p>
+      )}
+      <p className="settings-field-hint">{hint}</p>
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // The panel
 // ---------------------------------------------------------------------------
@@ -179,8 +229,6 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
   const [section, setSection] = useState<SectionId>(initialSection)
   const [capturing, setCapturing] = useState<ActionId | null>(null)
   const [conflict, setConflict] = useState<string | null>(null)
-  // The folder as typed. Only a valid name goes up to `settings.dailyFolder`.
-  const [dailyDraft, setDailyDraft] = useState(settings.dailyFolder)
   // A feed being typed or pasted, kept until Add or Enter, so a half address
   // is never saved. `shownFeeds` are the saved addresses shown unmasked.
   const [feedDraft, setFeedDraft] = useState({ name: '', url: '' })
@@ -323,8 +371,6 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
     }
   }
 
-  const daily = validateDailyFolder(dailyDraft)
-
   return (
     <div className="settings-overlay">
       <div
@@ -460,7 +506,7 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
                   bounds={BOUNDS.proseSize}
                   value={settings.proseSize}
                   onChange={(proseSize) => patch({ proseSize })}
-                  format={(value) => `${readout(value)}px`}
+                  format={(value) => `${numberText(value)}px`}
                 />
                 <Slider
                   uid={uid}
@@ -469,7 +515,7 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
                   bounds={BOUNDS.proseWeight}
                   value={settings.proseWeight}
                   onChange={(proseWeight) => patch({ proseWeight })}
-                  format={readout}
+                  format={numberText}
                 />
                 {/* Next to text weight: the sheet turns this one
                     number into a stroke width for each icon grid. */}
@@ -489,7 +535,7 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
                   bounds={BOUNDS.lineHeight}
                   value={settings.lineHeight}
                   onChange={(lineHeight) => patch({ lineHeight })}
-                  format={readout}
+                  format={numberText}
                 />
                 {/* The characters per line are in the readout, since
                     they change with the size as well as the width. */}
@@ -516,7 +562,7 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
                   bounds={BOUNDS.lineGap}
                   value={settings.lineGap}
                   onChange={(lineGap) => patch({ lineGap })}
-                  format={(value) => `${readout(value)}px`}
+                  format={(value) => `${numberText(value)}px`}
                 />
                 <Slider
                   uid={uid}
@@ -525,7 +571,7 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
                   bounds={BOUNDS.rowGap}
                   value={settings.rowGap}
                   onChange={(rowGap) => patch({ rowGap })}
-                  format={(value) => `${readout(value)}px`}
+                  format={(value) => `${numberText(value)}px`}
                 />
                 <Slider
                   uid={uid}
@@ -534,7 +580,7 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
                   bounds={BOUNDS.indentWidth}
                   value={settings.indentWidth}
                   onChange={(indentWidth) => patch({ indentWidth })}
-                  format={(value) => `${readout(value)} spaces`}
+                  format={(value) => `${numberText(value)} spaces`}
                 />
               </section>
             )}
@@ -580,36 +626,42 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
             {section === 'notes' && (
               <section className="settings-section">
                 <h3>Notes</h3>
-                <div className="settings-field">
-                  <label htmlFor={`${uid}-daily`}>Daily notes folder</label>
-                  <input
-                    id={`${uid}-daily`}
-                    className="settings-text-input"
-                    type="text"
-                    value={dailyDraft}
-                    onChange={(e) => {
-                      const typed = e.currentTarget.value
-                      setDailyDraft(typed)
-                      // Only a valid name goes up. An invalid one
-                      // stays in the field, so it can be empty while
-                      // typing without losing where daily notes go.
-                      const check = validateDailyFolder(typed)
-                      if (check.ok) patch({ dailyFolder: check.value })
-                    }}
-                  />
-                  {daily.ok ? (
-                    daily.value !== dailyDraft && (
-                      <p className="settings-field-hint">Saved as “{daily.value}”.</p>
-                    )
-                  ) : (
-                    <p className="settings-conflict" role="alert">
-                      {daily.reason}
-                    </p>
-                  )}
-                  <p className="settings-field-hint">
-                    At the top of the vault. Today’s page goes here.
-                  </p>
-                </div>
+                <NameSetting
+                  uid={uid}
+                  name="daily"
+                  label="Daily notes folder"
+                  value={settings.dailyFolder}
+                  check={validateFolder}
+                  onChange={(dailyFolder) => patch({ dailyFolder })}
+                  hint="At the top of the vault. Today’s page goes here."
+                />
+                <NameSetting
+                  uid={uid}
+                  name="files"
+                  label="Files folder"
+                  value={settings.filesFolder}
+                  check={validateFolder}
+                  onChange={(filesFolder) => patch({ filesFolder })}
+                  hint="At the top of the vault. A photo or file added on the phone, or shared into it, is kept here."
+                />
+                <NameSetting
+                  uid={uid}
+                  name="timeline-group"
+                  label="Timeline group"
+                  value={settings.timelineGroup}
+                  check={validateTag}
+                  onChange={(timelineGroup) => patch({ timelineGroup })}
+                  hint="A tag. A new timeline entry whose tags head no group of their own goes under this one, made at the day’s end if missing."
+                />
+                <NameSetting
+                  uid={uid}
+                  name="share-tag"
+                  label="Share tag"
+                  value={settings.shareTag}
+                  check={validateTag}
+                  onChange={(shareTag) => patch({ shareTag })}
+                  hint="What another app shares into the phone is filed in its day with this tag."
+                />
                 <Slider
                   uid={uid}
                   name="lock-minutes"

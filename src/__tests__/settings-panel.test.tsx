@@ -48,7 +48,7 @@ function Harness({
   sync = quietSync(),
 }: {
   settings?: Settings
-  onChange?: () => void
+  onChange?: (next: Settings) => void
   sync?: Sync
   /**
    * `false` to test focus going back on close, which needs a real
@@ -65,7 +65,7 @@ function Harness({
         <SettingsPanel
           settings={current}
           onChange={(next) => {
-            onChange?.()
+            onChange?.(next)
             setCurrent(next)
           }}
           onClose={() => setOpen(false)}
@@ -402,6 +402,25 @@ describe('the daily folder', () => {
       target: { value: 'Day/Book' },
     })
     expect(screen.getByText(/Saved as “Day-Book”/)).toBeTruthy()
+  })
+})
+
+describe('a tag named in the panel', () => {
+  it('saves the tag folded, says so, and refuses what is not a tag', () => {
+    const onChange = vi.fn()
+    render(<Harness onChange={onChange} />)
+    fireEvent.click(rail('Notes'))
+    const input = screen.getByLabelText('Share tag')
+    expect(input).toHaveProperty('value', 'shared')
+
+    fireEvent.change(input, { target: { value: '#Clips' } })
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ shareTag: 'clips' }))
+    expect(screen.getByText(/Saved as “clips”/)).toBeTruthy()
+
+    onChange.mockClear()
+    fireEvent.change(input, { target: { value: '12' } })
+    expect(screen.getByRole('alert').textContent).toContain('a word with a letter')
+    expect(onChange).not.toHaveBeenCalled()
   })
 })
 

@@ -4,12 +4,10 @@ import { PlusIcon } from './icons'
 import { blockProperties, PROPERTY_NAME, readBlock, type PropertyType } from './properties'
 import { ViewerHeader } from './ViewerHeader'
 import { countOf, GatheredNotes, NameField, NoteRow, readable, RowIcon, Section, stepIn } from './rows'
-import { COMBINES, LINE_VIEWS, lineWords, TAG_COLOURS, tagsOnly, TOTAL_PLACES, type Combine, type DayTotal, type LineView, type TagColour, type TotalPlace } from './tags'
+import { COMBINE_NAMES, COMBINES, LINE_VIEWS, lineWords, TAG_COLOURS, tagsOnly, TOTAL_PLACES, type Combine, type DayTotal, type LineView, type TagColour, type TotalPlace } from './tags'
 import type { CollectedNote } from './useVaultTexts'
 import type { VaultFile } from './vaultModel'
 
-/** How each way of combining reads in its menu. */
-const COMBINE_NAMES: Record<Combine, string> = { sum: 'Sum', average: 'Average', count: 'Count', min: 'Lowest', max: 'Highest' }
 /** Where a total shows, as its menu says it. */
 const PLACE_NAMES: Record<TotalPlace, string> = { both: 'Timeline and note', timeline: 'Timeline', note: 'Note' }
 

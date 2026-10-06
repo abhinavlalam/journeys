@@ -6,9 +6,9 @@
 
 import { leadingClock, minutesOf } from './clock'
 import { dayOf, isDailyNote } from './daily'
-import { blockProperties, readBlock, splitPageProperties, type PropertyType } from './properties'
+import { blockProperties, numberText, readBlock, splitPageProperties, type PropertyType } from './properties'
 import { indentOf, proseLines } from './prose'
-import { collectTagLines, tagNames, tagsOnly, type Combine, type DayTotal, type TotalPlace } from './tags'
+import { collectTagLines, COMBINE_NAMES, tagNames, tagsOnly, type Combine, type DayTotal, type TotalPlace } from './tags'
 import type { VaultFile } from './vaultModel'
 
 export interface TimelineEntry {
@@ -110,25 +110,21 @@ export function dayEntries(note: VaultFile, raw: string): TimelineEntry[] {
   return readDay(note, raw).entries.sort((a, b) => a.start - b.start)
 }
 
-/** The group for an entry when none of its tags heads one. */
-const TIMELINE_GROUP = 'timeline'
-
 /**
  * A day's note with a new entry filed in it, and nothing else moved: under the
  * group headed by one of its tags; else beside the entries carrying one, in the
  * group holding them (`#food` under `#diet`) or after the last at the top level
  * (an `#expense`, as the vault writes a record); else, for a tag with a structure,
- * at the day's end at the top level; else under `#timeline`, added at the note's
- * end if missing. In a group it goes after the group's last line, indented like
- * its lines (or `indent` in from the heading). Lines after the first in `text`
- * are its detail, nested `indent` under it.
+ * at the day's end at the top level; else under `group` (`settings.timelineGroup`),
+ * added at the note's end if missing. In a group it goes after the group's last
+ * line, indented like its lines (or `indent` in from the heading). Lines after the
+ * first in `text` are its detail, nested `indent` under it.
  */
 export function withNewEntry(
   note: VaultFile,
   raw: string,
   text: string,
-  indent: string,
-  structured: (tag: string) => boolean
+  { indent, group: fallback, structured }: { indent: string; group: string; structured: (tag: string) => boolean }
 ): string {
   const [first, ...detail] = text.split('\n')
   const { entries, groups } = readDay(note, raw)
@@ -137,7 +133,7 @@ export function withNewEntry(
   const group =
     groups.find((one) => tags.includes(one.name)) ??
     (carrying?.group ? groups.find((one) => one.name === carrying.group) : undefined) ??
-    (carrying || tags.some(structured) ? undefined : groups.find((one) => one.name === TIMELINE_GROUP))
+    (carrying || tags.some(structured) ? undefined : groups.find((one) => one.name === fallback))
   const block = (pad: string) => [pad + first, ...detail.map((line) => pad + indent + line)]
   const lines = raw.split('\n')
   if (group) {
@@ -153,7 +149,7 @@ export function withNewEntry(
   }
   if (tags.some(structured)) return `${raw}${raw === '' || raw.endsWith('\n') ? '' : '\n'}${block('').join('\n')}\n`
   const gap = raw === '' || raw.endsWith('\n\n') ? '' : raw.endsWith('\n') ? '\n' : '\n\n'
-  return `${raw}${gap}#${TIMELINE_GROUP}\n${block(indent).join('\n')}\n`
+  return `${raw}${gap}#${fallback}\n${block(indent).join('\n')}\n`
 }
 
 /** The last line of an entry and what is nested under it, blank lines inside included. */
@@ -227,9 +223,6 @@ export function fieldsOf(
   })
 }
 
-/** Decimal places a total is rounded to, as a tag's table rounds its sums. */
-const TOTAL_DECIMALS = 2
-
 /** `values` combined `by` the owner's choice, or null with none to combine. */
 function combine(values: readonly number[], by: Combine): number | null {
   if (values.length === 0) return null
@@ -260,8 +253,8 @@ export function totalsOf(
         const values = lines.flatMap((line) => fieldsOf(line, { [tag]: [one.property] }, typeOf)).map((field) => Number(field.value))
         const value = combine(values, one.by)
         if (value === null) return []
-        const named = one.by === 'sum' ? one.property : `${one.property}, ${one.by === 'min' ? 'lowest' : one.by === 'max' ? 'highest' : one.by}`
-        return [{ key: `${tag} ${one.property} ${one.by}`, tag, value: String(Number(value.toFixed(TOTAL_DECIMALS))), label: one.label || `${named} · #${tag}` }]
+        const named = one.by === 'sum' ? one.property : `${one.property}, ${COMBINE_NAMES[one.by].toLowerCase()}`
+        return [{ key: `${tag} ${one.property} ${one.by}`, tag, value: numberText(value), label: one.label || `${named} · #${tag}` }]
       })
   })
 }

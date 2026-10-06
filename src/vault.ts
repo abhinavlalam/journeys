@@ -574,16 +574,16 @@ export async function importFile(
   return { path: relativePath, absolutePath, name: noteName(fileName) }
 }
 
-/** Where a file shared from another app, or picked on the phone, is kept. */
-const SHARED_FOLDER = 'Files'
+/** Where a file from the phone is kept when the settings don't say (`filesFolder`). */
+export const FILES_FOLDER = 'Files'
 
 /**
- * Where a file kept from the phone goes: under its own name, or with ` 2`, ` 3`…
- * before the extension when that is taken, so nothing is refused and nothing is
- * written over.
+ * Where a file kept from the phone goes in `folder`: under its own name, or with
+ * ` 2`, ` 3`… before the extension when that is taken, so nothing is refused and
+ * nothing is written over.
  */
-async function freeFile(vaultPath: string, name: string): Promise<VaultFile> {
-  const parent = await ensureFolder(vaultPath, SHARED_FOLDER)
+async function freeFile(vaultPath: string, folder: string, name: string): Promise<VaultFile> {
+  const parent = await ensureFolder(vaultPath, folder)
   const base = safeName(name).replace(/^\.+/, '') || 'shared'
   const extension = extensionOf(base)
   for (let n = 1; ; n++) {
@@ -594,19 +594,19 @@ async function freeFile(vaultPath: string, name: string): Promise<VaultFile> {
 }
 
 /**
- * A shared file's copy (`from`, in the app's own files) moved into the vault. A
+ * A shared file's copy (`from`, in the app's own files) moved into `folder`. A
  * move, as the app's files and the vault are on one disk, so a large video is not
  * read through the page.
  */
-export async function keepShared(vaultPath: string, name: string, from: string): Promise<VaultFile> {
-  const file = await freeFile(vaultPath, name)
+export async function keepShared(vaultPath: string, folder: string, name: string, from: string): Promise<VaultFile> {
+  const file = await freeFile(vaultPath, folder, name)
   await vaultFs.move(from, file.absolutePath)
   return file
 }
 
-/** A file picked on the phone, written into the vault from its bytes. */
-export async function keepFile(vaultPath: string, name: string, bytes: Uint8Array): Promise<VaultFile> {
-  const file = await freeFile(vaultPath, name)
+/** A file picked on the phone, written into `folder` from its bytes. */
+export async function keepFile(vaultPath: string, folder: string, name: string, bytes: Uint8Array): Promise<VaultFile> {
+  const file = await freeFile(vaultPath, folder, name)
   await vaultFs.writeBytes(file.absolutePath, bytes)
   return file
 }
@@ -660,7 +660,7 @@ export const DAILY_FOLDER = 'Daily'
 
 /**
  * Today's daily note, created with its folder if missing. `folder` is one
- * segment, because `makeFolder` isn't recursive; `validateDailyFolder` in
+ * segment, because `makeFolder` isn't recursive; `validateFolder` in
  * `settings.ts` enforces that. `Daily/` is a plain folder with no `Daily.md`.
  * The note is written empty, so it exists even if nothing is typed.
  */

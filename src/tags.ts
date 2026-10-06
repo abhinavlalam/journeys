@@ -195,6 +195,8 @@ export function coloursOf(entries: Entries): Record<string, TagColour> {
 /** How a day's values of a property become one number. */
 export const COMBINES = ['sum', 'average', 'count', 'min', 'max'] as const
 export type Combine = (typeof COMBINES)[number]
+/** How each way of combining is named: in its menu, and in a total's label. */
+export const COMBINE_NAMES: Record<Combine, string> = { sum: 'Sum', average: 'Average', count: 'Count', min: 'Lowest', max: 'Highest' }
 
 /** Where a day's total shows: the day's card in the timeline, the end of its note, or both. */
 export const TOTAL_PLACES = ['both', 'timeline', 'note'] as const

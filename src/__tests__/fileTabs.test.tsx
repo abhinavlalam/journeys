@@ -18,9 +18,9 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
 }))
 // A CSV's editor is the real CodeMirror, which jsdom cannot lay
 // out. What a CSV tab is comes from the model.
-vi.mock('../CsvEditor', () => ({
-  CsvEditor: ({ initialText }: { initialText: string }) => (
-    <div data-testid="csv">{initialText}</div>
+vi.mock('../SourceEditor', () => ({
+  SourceEditor: ({ kind, initialText }: { kind: string; initialText: string }) => (
+    <div data-testid={kind}>{initialText}</div>
   ),
 }))
 
