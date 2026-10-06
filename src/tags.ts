@@ -175,6 +175,26 @@ export function tablesOf(entries: Entries): Record<string, string[]> {
   )
 }
 
+/**
+ * Which properties each tag totals for a day: `totals` in its `tags.json` entry,
+ * chosen on its page; unchosen, a table tag's `number` properties, as before there
+ * was a choice. Only `number` properties sum, so a property retyped drops out.
+ */
+export function daySumsOf(entries: Entries, typeOf: (name: string) => PropertyType): Record<string, string[]> {
+  return Object.fromEntries(
+    Object.keys(entries).flatMap((tag) => {
+      const chosen = entries[tag]?.totals
+      const names = Array.isArray(chosen)
+        ? chosen.filter((one): one is string => typeof one === 'string')
+        : viewOf(entries, tag) === 'table'
+          ? propertiesOf(entries, tag)
+          : []
+      const summed = names.filter((name) => typeOf(name) === 'number')
+      return summed.length > 0 ? [[tag.toLowerCase(), summed]] : []
+    })
+  )
+}
+
 /** The properties a tag's structure names, in order. */
 export function propertiesOf(entries: Entries, tag: string): string[] {
   const listed = entries[tag.toLowerCase()]?.properties

@@ -27,6 +27,8 @@ export function TagView({
   loading,
   onView,
   onProperties,
+  totals,
+  onTotals,
   onError,
   onOpenProperty,
   onOpen,
@@ -43,6 +45,9 @@ export function TagView({
   loading: boolean
   onView: (next: LineView) => void
   onProperties: (next: string[]) => void
+  /** The properties totalled each day (`daySumsOf`), and a change to them. */
+  totals: readonly string[]
+  onTotals: (next: string[]) => void
   onError: (message: string) => void
   onOpenProperty: (property: string) => void
   onOpen: (file: VaultFile) => void
@@ -145,6 +150,29 @@ export function TagView({
           </li>
         )}
       </Section>
+      {/* Each `number` property, totalled at the foot of every day in the timeline
+          when chosen here: the one place the choice is made. */}
+      {properties.some((one) => typeOf(one) === 'number') && (
+        <Section title="Daily totals" count={totals.length} startOpen>
+          {properties
+            .filter((one) => typeOf(one) === 'number')
+            .map((one) => {
+              const on = totals.some((name) => name.toLowerCase() === one.toLowerCase())
+              return (
+                <li key={one} className="note-row" style={{ paddingLeft: stepIn(1) }}>
+                  <NoteRow
+                    icon={<RowIcon icon={on ? 'check' : undefined} />}
+                    name={one}
+                    aria-pressed={on}
+                    aria-label={on ? `Stop totalling ${one} each day` : `Total ${one} each day`}
+                    trailing={<span className="row-count">{on ? 'totalled each day' : 'not totalled'}</span>}
+                    onClick={() => onTotals(on ? totals.filter((name) => name.toLowerCase() !== one.toLowerCase()) : [...totals, one])}
+                  />
+                </li>
+              )
+            })}
+        </Section>
+      )}
       <Section title="Lines" count={total} startOpen>
         {view === 'table' && notes.length > 0 ? (
           <li className="line-table-box">

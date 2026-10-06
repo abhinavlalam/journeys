@@ -372,12 +372,14 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   entry is a line with a clock** (the owner's choice: the timeline is what happened
   when); what is nested under one is its detail, and a line without a clock is
   neither an entry nor a place for one, so what is nested under it reads on its own.
-- **Each day is a page of a journal** (the owner found the list hard to take in):
-  its date as the head, the day's number large over the clocks and its weekday and
-  month over the words, `--mark` for today; room between entries and a hairline
-  between days; no group label on a line. What is nested under an entry is folded to
-  a count (`timeline-more`) and opens on a press: shown whole, a video's notes buried
-  the day. One family still, by size and weight alone.
+- **Each day is a page of a journal, raised as a card** (`--bg-raised`; the owner
+  found text alone on the ground hard to take in): its date as the head, the day's
+  number large over the clocks and its weekday and month over the words, today's
+  card edged and named in `--mark`; the day broken into Night, Morning, Afternoon,
+  Evening (`partOf`); tags as tinted chips; room between entries; no group label.
+  What is nested under an entry is folded to a count (`timeline-more`) and opens on
+  a press: shown whole, a video's notes buried the day. Its totals are tiles at its
+  foot. One family still, by size and weight alone.
 - **A moment and a block read apart**: one clock is a dot on the rail, a range
   (`to`, `-`, `–`, `—`) a bar with its length, and one that ends before it starts
   ran past midnight.
@@ -385,8 +387,11 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   link as its name (a wikilink, a markdown link, a bare address), a tag as a button,
   emphasis without its marks. As typed, a markdown link was its whole address.
 - A tag drawn as a table (`tablesOf`) shows its entry's fields in place of its
-  properties in the sentence (`wordsOf`, `fieldsOf`), and the day closes on its
-  `number` fields' totals (`totalsOf`). A timeline is one more memo over the one
+  properties in the sentence (`wordsOf`, `fieldsOf`). **What a day totals is the
+  owner's choice**, per tag on its page (Daily totals, kept as `totals` in its
+  `tags.json` entry; unchosen, a table tag's `number` properties: `daySumsOf`), and
+  `totalsOf` sums it over every line of the day carrying the tag, timed or not: over
+  entries alone, an expense written without a time was not counted. A timeline is one more memo over the one
   read (`useVaultTexts`' `timeline`), so it follows typing as the graph does.
 - **A press on an entry edits its one line** under the note's own editor in `line`
   mode (no gutters; Enter, Escape and leaving each the caller's, an open popup's own

@@ -89,6 +89,17 @@ describe('a tag’s page', () => {
     await waitFor(() => expect([...document.querySelectorAll('.viewer:not([hidden]) .line-table th')].map((th) => th.textContent)).toEqual(['note', 'when', 'amount']))
   })
 
+  /** Which properties a day totals is the owner's to choose, on the tag's page. */
+  it('chooses what a day totals, and keeps the choice in tags.json', async () => {
+    await openTag()
+    const row = await waitFor(() => viewer().getByRole('button', { name: 'Stop totalling amount each day' }))
+    expect(viewer().queryByRole('button', { name: /totalling merchant/ })).toBeNull()
+    fireEvent.click(row)
+    await waitFor(() => expect(JSON.parse(disk.read('/v/.config/tags.json')!).expense.totals).toEqual([]))
+    fireEvent.click(await waitFor(() => viewer().getByRole('button', { name: 'Total amount each day' })))
+    await waitFor(() => expect(JSON.parse(disk.read('/v/.config/tags.json')!).expense.totals).toEqual(['amount']))
+  })
+
   /** A day written by kind heads its expenses with `#expense` alone, which was a row of empty cells. */
   it('leaves a line of tags alone out of the table, and keeps it in the list', async () => {
     disk.write('/v/Daily/2026-09-25.md', ['#expense', '    09:10 #expense tea amount:: 3', ''].join('\n'))

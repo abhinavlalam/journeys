@@ -75,7 +75,11 @@ describe('the timeline', () => {
       ['12:30', '#expense lunchamount 480merchant Harbour Bistro', 'moment'],
       ['13:00–13:5050 min', 'review with Mira Vance', 'block'],
     ])
-    expect(second.querySelector('.timeline-totals')!.textContent).toBe('#expense amount 540')
+    const tiles = [...second.querySelectorAll('.timeline-total')].map((one) => [
+      one.querySelector('.timeline-total-number')!.textContent,
+      one.querySelector('.timeline-total-name')!.textContent,
+    ])
+    expect(tiles).toEqual([['540', 'amount · #expense']])
   })
 
   /** As written, a markdown link was its whole address, and a strong phrase kept its asterisks. */

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { Fragment, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { clockText, dayDate, daysBetween, lengthOf, localDateStamp, relativeDay } from './clock'
 import type { Entries } from './configEntries'
 import { MarkdownEditor } from './MarkdownEditor'
@@ -47,6 +47,7 @@ interface Typing {
 export function TimelineView({
   days,
   tables,
+  sums,
   typeOf,
   typing,
   onEdit,
@@ -57,6 +58,8 @@ export function TimelineView({
   days: TimelineDay[] | null
   /** Every tag drawn as a table, with its structure (`tablesOf`). */
   tables: Record<string, string[]>
+  /** What each tag totals for a day (`daySumsOf`). */
+  sums: Record<string, string[]>
   typeOf: (name: string) => PropertyType
   typing: Typing
   /** An entry's line was changed to `text`. */
@@ -77,10 +80,10 @@ export function TimelineView({
   const total = days?.reduce((sum, one) => sum + one.entries.length, 0) ?? 0
   // Today is always one section, in date order, for the new-entry line, even
   // with nothing written and before days a calendar sync has written ahead.
-  const shown: { day: string; note: VaultFile | null; entries: TimelineEntry[] }[] =
+  const shown: { day: string; note: VaultFile | null; entries: TimelineEntry[]; text: string }[] =
     !days || days.some((one) => one.day === today)
       ? (days ?? [])
-      : [...days, { day: today, note: null, entries: [] }].sort((a, b) => a.day.localeCompare(b.day))
+      : [...days, { day: today, note: null, entries: [], text: '' }].sort((a, b) => a.day.localeCompare(b.day))
   const editorFor = (entry: TimelineEntry) => {
     const done = (text: string) => {
       setEditing(null)
@@ -105,24 +108,41 @@ export function TimelineView({
         <section key={day.day} className="journal-day">
           <DayHead day={day.day} today={today} count={day.entries.length} onOpen={note ? () => opens.onOpen(note) : undefined} />
           <ol className="timeline-entries">
-            {day.entries.map((entry) => (
-              <Entry
-                key={entry.at}
-                entry={entry}
-                tables={tables}
-                typeOf={typeOf}
-                editor={editing === keyOf(entry) && editorFor(entry)}
-                onPress={() => setEditing(keyOf(entry))}
-                {...opens}
-              />
+            {day.entries.map((entry, at) => (
+              <Fragment key={entry.at}>
+                {partOf(entry.start) !== partOf(day.entries[at - 1]?.start ?? -1) && (
+                  <li className="timeline-part" aria-hidden>
+                    <span>{partOf(entry.start)}</span>
+                  </li>
+                )}
+                <Entry
+                  entry={entry}
+                  tables={tables}
+                  typeOf={typeOf}
+                  editor={editing === keyOf(entry) && editorFor(entry)}
+                  onPress={() => setEditing(keyOf(entry))}
+                  {...opens}
+                />
+              </Fragment>
             ))}
             {day.day === today && newEntry}
           </ol>
-          <Totals entries={day.entries} tables={tables} typeOf={typeOf} />
+          <Totals text={day.text} sums={sums} typeOf={typeOf} />
         </section>
       ))}
     </>
   )
+}
+
+/**
+ * The part of the day an entry starts in, so a long day reads in pieces: before
+ * five is the night (an entry past midnight is filed on its day), then morning,
+ * afternoon from noon, evening from five. Nothing before the first entry.
+ */
+function partOf(minutes: number): string {
+  if (minutes < 0) return ''
+  const hour = Math.floor(minutes / 60) % 24
+  return hour < 5 ? 'Night' : hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening'
 }
 
 const weekday = new Intl.DateTimeFormat(undefined, { weekday: 'long' })
@@ -303,28 +323,31 @@ function NewEntry({
   )
 }
 
-/** The day's totals for each table tag's `number` fields, at the end of the day. */
+/**
+ * The day's totals as tiles at the foot of its page: the number large, what it
+ * totals under it. What each tag totals is chosen on its page (`daySumsOf`).
+ */
 function Totals({
-  entries,
-  tables,
+  text,
+  sums,
   typeOf,
 }: {
-  entries: readonly TimelineEntry[]
-  tables: Record<string, string[]>
+  text: string
+  sums: Record<string, string[]>
   typeOf: (name: string) => PropertyType
 }) {
-  const totals = totalsOf(entries, tables, typeOf)
+  const totals = totalsOf(text, sums, typeOf)
   if (totals.length === 0) return null
   return (
-    <p className="timeline-totals">
+    <ul className="timeline-totals" aria-label="The day's totals">
       {totals.map((one) => (
-        <span key={`${one.tag} ${one.name}`} className="timeline-field">
-          <span className="timeline-field-name">
-            #{one.tag} {one.name}
-          </span>{' '}
-          {Number(one.total.toFixed(TOTAL_DECIMALS))}
-        </span>
+        <li key={`${one.tag} ${one.name}`} className="timeline-total">
+          <span className="timeline-total-number">{Number(one.total.toFixed(TOTAL_DECIMALS))}</span>
+          <span className="timeline-total-name">
+            {one.name} · #{one.tag}
+          </span>
+        </li>
       ))}
-    </p>
+    </ul>
   )
 }

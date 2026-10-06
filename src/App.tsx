@@ -38,7 +38,7 @@ import {
 } from './properties'
 import { useConfigEntries } from './useConfigEntries'
 import { readEntries } from './configEntries'
-import { propertiesOf, tablesOf, TAG_NAME, TAGS_FILE, viewOf } from './tags'
+import { daySumsOf, propertiesOf, tablesOf, TAG_NAME, TAGS_FILE, viewOf } from './tags'
 import { withEditedEntry, withNewEntry, type TimelineEntry } from './timeline'
 import { TimelineView } from './TimelineView'
 import { LogView } from './LogView'
@@ -1258,6 +1258,8 @@ export default function App() {
                     icons={icons}
                     loading={reading}
                     onProperties={(next) => void tagStructures.write(tab.name.toLowerCase(), { properties: next })}
+                    totals={daySumsOf(tagStructures.entries, (name) => typeOf(propertyTypes.entries, name))[tab.name.toLowerCase()] ?? []}
+                    onTotals={(next) => void tagStructures.write(tab.name.toLowerCase(), { totals: next })}
                     onError={setError}
                     onOpenProperty={(property) => view('property', property)}
                     onOpen={(file) => void openNote(file)}
@@ -1269,6 +1271,7 @@ export default function App() {
                   <TimelineView
                     days={timeline}
                     tables={tablesOf(tagStructures.entries)}
+                    sums={daySumsOf(tagStructures.entries, (name) => typeOf(propertyTypes.entries, name))}
                     typeOf={(name) => typeOf(propertyTypes.entries, name)}
                     typing={{
                       notes,

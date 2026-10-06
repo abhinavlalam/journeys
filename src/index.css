@@ -611,6 +611,12 @@ button.primary:hover {
   --timeline-when: 6ch;
 }
 
+/* A card short of the screen's edges, so it reads as one. */
+.phone .viewer > .journal-day {
+  width: auto;
+  margin-inline: 0.5rem;
+}
+
 /* A message sits above the bar, in the column, while it shows. */
 .phone > .banner {
   position: static;
@@ -2695,19 +2701,25 @@ button.folder-toggle {
 
 /* ---- The timeline ---- */
 
-/* Each day is a page of a journal: its date as the page's head, its entries
-   on one grid under it (clock, rail, what was said), and a hairline and room
-   before the next. In the reading face and size: this is the journal. */
+/* Each day is a page of a journal, raised off the page as a card: its date as
+   the head, its entries on one grid under it (clock, rail, what was said), its
+   totals as tiles at its foot. Text alone on the ground was hard to take in. In
+   the reading face and size: this is the journal. */
 .journal-day {
   --timeline-when: 12ch;
   --timeline-rail: 1em;
-  padding: 2rem 0 0.75rem var(--column-pad);
+  margin-top: 1rem;
+  padding: 1rem 0 1rem var(--column-pad);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
   font-size: var(--fs-prose);
   line-height: var(--line-height-prose);
 }
 
-.journal-day + .journal-day {
-  border-top: 1px solid var(--border);
+/* Today's page, lifted by the one accent at its edge. */
+.journal-day:has(.journal-head.today) {
+  border-color: color-mix(in srgb, var(--mark) 45%, var(--border));
 }
 
 /* The head on the entries' grid: the day's number large over the clocks, its
@@ -2780,6 +2792,29 @@ button.folder-toggle {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* Morning, afternoon, evening: where a long day breaks, over the words' column.
+   The row is indented at the entries' size and only its word is small: in its own
+   size, `ch` was smaller and the word sat left of the column. */
+.timeline-part {
+  margin: 0.5rem 0 0.15rem calc(var(--timeline-when) + var(--timeline-rail) + 1rem);
+  color: var(--text-faint);
+  font-weight: var(--fw-medium);
+}
+
+.timeline-part > span {
+  font-size: 0.75em;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* A tag on an entry, a tinted chip: the kind of each entry at a glance. */
+.timeline-entries .timeline-tag {
+  padding: 0 0.35em;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--mark) 14%, transparent);
 }
 
 /* An entry: clock, rail, what was said, with room above and below, so each
@@ -2906,12 +2941,34 @@ button.folder-toggle {
   white-space: pre-wrap;
 }
 
-/* The day's totals end the day, on the sentences' column. */
+/* The day's totals as tiles at the foot of its page: the number large, what it
+   totals under it, on the words' column. Chosen per tag on its page. */
 .timeline-totals {
   display: flex;
   flex-wrap: wrap;
-  column-gap: 0.75rem;
-  margin: 0.5rem 0 0 calc(var(--timeline-when) + var(--timeline-rail) + 1rem);
+  gap: 0.5rem;
+  margin: 0.75rem var(--pane-inset) 0 calc(var(--timeline-when) + var(--timeline-rail) + 1rem);
+  padding: 0;
+  list-style: none;
+}
+
+.timeline-total {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--mark) 10%, var(--bg-raised));
+}
+
+.timeline-total-number {
+  font-size: 1.6em;
+  line-height: 1.2;
+  font-weight: var(--fw-strong);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.timeline-total-name {
   color: var(--text-dim);
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { collectTagLines, lineWords, tagAt, tagLine, tagNames } from '../tags'
+import { collectTagLines, daySumsOf, lineWords, tagAt, tagLine, tagNames } from '../tags'
 
 /**
  * `#word` in a note's prose. Most of this file is what is not a tag (a heading,
@@ -174,5 +174,25 @@ describe('a line’s own words', () => {
   it('keeps words written after a value, and is empty on a line that is all values', () => {
     expect(lineWords('08:40 #expense lunch amount:: 480 at the water', typeOf)).toBe('lunch at the water')
     expect(lineWords('09:00 #expense amount:: 5', typeOf)).toBe('')
+  })
+})
+
+/** What a day totals, chosen per tag on its page. */
+describe('a day’s totals', () => {
+  const typeOf = (name: string) => (['amount', 'calories', 'dose'].includes(name) ? ('number' as const) : ('text' as const))
+
+  it('are a table tag’s number properties until chosen, and then exactly the choice', () => {
+    const entries = {
+      expense: { properties: ['amount', 'merchant'] },
+      food: { properties: ['item', 'calories'], totals: ['calories'] },
+      supplement: { properties: ['dose'], view: 'list' },
+      walk: { properties: [] },
+    }
+    expect(daySumsOf(entries, typeOf)).toEqual({ expense: ['amount'], food: ['calories'] })
+    expect(daySumsOf({ expense: { properties: ['amount'], totals: [] } }, typeOf)).toEqual({})
+  })
+
+  it('leave out a chosen property that is no longer a number', () => {
+    expect(daySumsOf({ food: { properties: ['item'], totals: ['item'] } }, typeOf)).toEqual({})
   })
 })

@@ -100,9 +100,12 @@ describe('a table tag’s entry', () => {
     expect(fieldsOf('12:00 #food item:: oats', tables, text)).toEqual([])
   })
 
-  it('totals the number fields over the day', () => {
-    const entries = dayEntries(day, ['08:30 #expense amount:: 60', '12:00 #expense amount:: 480.5', '13:00 #food amount:: 9'].join('\n'))
-    expect(totalsOf(entries, tables, typeOf)).toEqual([{ tag: 'expense', name: 'amount', total: 540.5 }])
+  /** An expense written without a time was left out when only entries counted. */
+  it('totals the chosen fields over every line of the day carrying the tag, timed or not', () => {
+    const raw = ['08:30 #expense amount:: 60', '#expense parking amount:: 4.5', '    12:00 #expense amount:: 480.5', '13:00 #food amount:: 9'].join('\n')
+    expect(totalsOf(raw, { expense: ['amount'] }, typeOf)).toEqual([{ tag: 'expense', name: 'amount', total: 545 }])
+    expect(totalsOf(raw, { expense: ['amount'], food: ['amount'] }, typeOf)).toHaveLength(2)
+    expect(totalsOf(raw, {}, typeOf)).toEqual([])
   })
 })
 

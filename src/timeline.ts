@@ -8,7 +8,7 @@ import { leadingClock, minutesOf } from './clock'
 import { dayOf, isDailyNote } from './daily'
 import { blockProperties, readBlock, splitPageProperties, type PropertyType } from './properties'
 import { indentOf, proseLines } from './prose'
-import { tagNames, tagsOnly } from './tags'
+import { collectTagLines, tagNames, tagsOnly } from './tags'
 import type { VaultFile } from './vaultModel'
 
 export interface TimelineEntry {
@@ -35,6 +35,8 @@ export interface TimelineDay {
   day: string
   note: VaultFile
   entries: TimelineEntry[]
+  /** The day's note as written, for its totals, which count untimed lines too. */
+  text: string
 }
 
 const DAY_MINUTES = 24 * 60
@@ -198,7 +200,7 @@ export function wordsOf(entry: TimelineEntry, typeOf: (name: string) => Property
 export function timelineDays(notes: readonly { note: VaultFile; text: string }[], folder: string): TimelineDay[] {
   return notes
     .filter(({ note }) => isDailyNote(note.path, folder))
-    .map(({ note, text }) => ({ day: dayOf(note.path), note, entries: dayEntries(note, text) }))
+    .map(({ note, text }) => ({ day: dayOf(note.path), note, entries: dayEntries(note, text), text }))
     .filter((one) => one.entries.length > 0)
     .sort((a, b) => a.day.localeCompare(b.day))
 }
@@ -226,21 +228,20 @@ export function fieldsOf(
 }
 
 /**
- * Each `number` field's total over a day's entries of a
- * table-view tag, as a tag's table sums it.
+ * A day's totals: each chosen property (`daySumsOf`) summed over every line of
+ * the day carrying its tag, timed or not, as the tag's table sums it. Over the
+ * timeline's entries alone, an expense written without a time was not counted.
  */
 export function totalsOf(
-  entries: readonly TimelineEntry[],
-  tables: Readonly<Record<string, readonly string[]>>,
+  raw: string,
+  sums: Readonly<Record<string, readonly string[]>>,
   typeOf: (name: string) => PropertyType
 ): { tag: string; name: string; total: number }[] {
-  return Object.entries(tables).flatMap(([tag, properties]) => {
-    const carrying = entries.filter((one) => tagNames(one.text).includes(tag))
-    return properties
-      .filter((name) => typeOf(name) === 'number')
-      .flatMap((name) => {
-        const values = carrying.flatMap((one) => fieldsOf(one.text, { [tag]: [name] }, typeOf)).map((one) => Number(one.value))
-        return values.length > 0 ? [{ tag, name, total: values.reduce((sum, one) => sum + one, 0) }] : []
-      })
+  return Object.entries(sums).flatMap(([tag, names]) => {
+    const lines = collectTagLines(raw, tag).map((one) => one.text)
+    return names.flatMap((name) => {
+      const values = lines.flatMap((line) => fieldsOf(line, { [tag]: [name] }, typeOf)).map((one) => Number(one.value))
+      return values.length > 0 ? [{ tag, name, total: values.reduce((sum, one) => sum + one, 0) }] : []
+    })
   })
 }
