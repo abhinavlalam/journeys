@@ -11,8 +11,6 @@ import { ViewerHeader } from './ViewerHeader'
 import { Live } from './Live'
 import type { VaultFile } from './vaultModel'
 
-/** Decimal places a total is rounded to, as a tag's table rounds its sums. */
-const TOTAL_DECIMALS = 2
 
 interface Opens {
   onOpen: (file: VaultFile) => void
@@ -342,7 +340,7 @@ function Totals({
     <ul className="timeline-totals" aria-label="The day's totals">
       {totals.map((one) => (
         <li key={`${one.tag} ${one.name}`} className="timeline-total">
-          <span className="timeline-total-number">{Number(one.total.toFixed(TOTAL_DECIMALS))}</span>
+          <span className="timeline-total-number">{one.total}</span>
           <span className="timeline-total-name">
             {one.name} · #{one.tag}
           </span>

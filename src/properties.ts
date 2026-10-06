@@ -32,8 +32,9 @@ export function isAppProperty(name: string): boolean {
  * and kept in `.config/properties.json`, like `{ "amount": {
  * "type": "number" } }`. Unset or unknown is `text`.
  *
- * `backlink` is one `[[page]]`. `url` is a web address. `icon` and `path` are
- * the types of the app's own two properties; other properties may use them too.
+ * A `number` may start with `~`, an estimate. `backlink` is one `[[page]]`. `url` is
+ * a web address. `icon` and `path` are the types of the app's own two properties;
+ * other properties may use them too.
  */
 export const PROPERTY_TYPES = ['text', 'number', 'date', 'backlink', 'url', 'icon', 'path'] as const
 export type PropertyType = (typeof PROPERTY_TYPES)[number]
@@ -188,13 +189,31 @@ const STOP = String.raw`(?=$|[\s,;:!?)\]]|\.(?!\d))`
  */
 const WORD = /^(?:\[\[[^\]\n]+\]\]|[^\s"“”]\S*)/
 const VALUE: Record<PropertyType, RegExp> = {
-  number: new RegExp(String.raw`^-?\d+(?:\.\d+)?${STOP}`),
+  // `~400` is about 400: an estimate, kept as one (`numberValue`).
+  number: new RegExp(String.raw`^~?-?\d+(?:\.\d+)?${STOP}`),
   date: new RegExp(String.raw`^\d{4}-\d{2}-\d{2}${STOP}`),
   backlink: /^\[\[[^\]\n]+\]\]/,
   url: /^https?:\/\/\S*[^\s.,;:!?)\]]/,
   icon: /^(?:[a-z][a-z0-9-]*|[^\x00-\x7F\s]{1,4})(?=$|\s)/,
   path: WORD,
   text: WORD,
+}
+
+/**
+ * A `number` value as a number, and whether it is an estimate: `~400` is about
+ * 400, and a sum with one in it is about its total too. Without the `~`, a vault
+ * that marked its estimates could total none of them.
+ */
+export function numberValue(value: string): { value: number; about: boolean } {
+  const about = value.startsWith('~')
+  return { value: Number(about ? value.slice(1) : value), about }
+}
+
+/** A sum written as it reads: `~` before it when any of its parts was an estimate. */
+export function sumText(values: readonly string[], decimals: number): string {
+  const read = values.map(numberValue)
+  const total = read.reduce((sum, one) => sum + (Number.isFinite(one.value) ? one.value : 0), 0)
+  return `${read.some((one) => one.about) ? '~' : ''}${Number(total.toFixed(decimals))}`
 }
 
 /** The types whose longer values are written in quotes. */

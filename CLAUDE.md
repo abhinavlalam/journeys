@@ -89,7 +89,8 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   written *as YAML* — a skill must open with one — so nothing converts a note's
   form behind its owner's back; a note with none is given the `::` form. A
   **block property** is `key:: value` on a line, and its value is **exactly its
-  type** (`blockProperties`, `PROPERTY_TYPES`): a number, a date, one
+  type** (`blockProperties`, `PROPERTY_TYPES`): a number (a leading `~` an estimate,
+  and a sum with one in it is one too, `sumText`: the vault marks its estimates), a date, one
   `[[backlink]]`, a url, an icon, or a path or text — one word, or a run between
   quotes (curly ones too; macOS types them). The owner's words may
   follow any value. A value not of its type is not read, and its name stays on the

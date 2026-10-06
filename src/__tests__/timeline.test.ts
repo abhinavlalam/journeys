@@ -103,9 +103,18 @@ describe('a table tag’s entry', () => {
   /** An expense written without a time was left out when only entries counted. */
   it('totals the chosen fields over every line of the day carrying the tag, timed or not', () => {
     const raw = ['08:30 #expense amount:: 60', '#expense parking amount:: 4.5', '    12:00 #expense amount:: 480.5', '13:00 #food amount:: 9'].join('\n')
-    expect(totalsOf(raw, { expense: ['amount'] }, typeOf)).toEqual([{ tag: 'expense', name: 'amount', total: 545 }])
+    expect(totalsOf(raw, { expense: ['amount'] }, typeOf)).toEqual([{ tag: 'expense', name: 'amount', total: '545' }])
     expect(totalsOf(raw, { expense: ['amount'], food: ['amount'] }, typeOf)).toHaveLength(2)
     expect(totalsOf(raw, {}, typeOf)).toEqual([])
+  })
+
+  /** The vault marks an estimate `~400`; a total with one in it is an estimate too. */
+  it('totals estimates, and says the total is one', () => {
+    const raw = ['08:40 #food oats amount:: ~400', '09:00 #food tea amount:: 100', '10:00 #expense amount:: 5'].join('\n')
+    expect(totalsOf(raw, { food: ['amount'], expense: ['amount'] }, typeOf)).toEqual([
+      { tag: 'food', name: 'amount', total: '~500' },
+      { tag: 'expense', name: 'amount', total: '5' },
+    ])
   })
 })
 

@@ -6,7 +6,7 @@
 
 import { leadingClock, minutesOf } from './clock'
 import { dayOf, isDailyNote } from './daily'
-import { blockProperties, readBlock, splitPageProperties, type PropertyType } from './properties'
+import { blockProperties, readBlock, splitPageProperties, sumText, type PropertyType } from './properties'
 import { indentOf, proseLines } from './prose'
 import { collectTagLines, tagNames, tagsOnly } from './tags'
 import type { VaultFile } from './vaultModel'
@@ -236,12 +236,15 @@ export function totalsOf(
   raw: string,
   sums: Readonly<Record<string, readonly string[]>>,
   typeOf: (name: string) => PropertyType
-): { tag: string; name: string; total: number }[] {
+): { tag: string; name: string; total: string }[] {
   return Object.entries(sums).flatMap(([tag, names]) => {
     const lines = collectTagLines(raw, tag).map((one) => one.text)
     return names.flatMap((name) => {
-      const values = lines.flatMap((line) => fieldsOf(line, { [tag]: [name] }, typeOf)).map((one) => Number(one.value))
-      return values.length > 0 ? [{ tag, name, total: values.reduce((sum, one) => sum + one, 0) }] : []
+      const values = lines.flatMap((line) => fieldsOf(line, { [tag]: [name] }, typeOf)).map((one) => one.value)
+      return values.length > 0 ? [{ tag, name, total: sumText(values, TOTAL_DECIMALS) }] : []
     })
   })
 }
+
+/** Decimal places a total is rounded to, as a tag's table rounds its sums. */
+const TOTAL_DECIMALS = 2
