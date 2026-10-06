@@ -6,7 +6,9 @@ import { onAndroid } from './platform'
 import type { PropertyType } from './properties'
 import { countOf, NoteRow, READING, RowIcon, Section, stepIn } from './rows'
 import { ChevronIcon } from './icons'
-import { fieldsOf, totalsOf, wordsOf, type TimelineDay, type TimelineEntry } from './timeline'
+import { DayTotals } from './DayTotals'
+import { tagNames, type DayTotal } from './tags'
+import { fieldsOf, wordsOf, type TimelineDay, type TimelineEntry } from './timeline'
 import { ViewerHeader } from './ViewerHeader'
 import { Live } from './Live'
 import type { VaultFile } from './vaultModel'
@@ -45,7 +47,8 @@ interface Typing {
 export function TimelineView({
   days,
   tables,
-  sums,
+  totals,
+  colours,
   typeOf,
   typing,
   onEdit,
@@ -56,8 +59,10 @@ export function TimelineView({
   days: TimelineDay[] | null
   /** Every tag drawn as a table, with its structure (`tablesOf`). */
   tables: Record<string, string[]>
-  /** What each tag totals for a day (`daySumsOf`). */
-  sums: Record<string, string[]>
+  /** Each tag's daily totals (`dayTotalsOf`). */
+  totals: Record<string, DayTotal[]>
+  /** Each tag's colour (`coloursOf`): an entry takes its first tag's. */
+  colours: Record<string, string>
   typeOf: (name: string) => PropertyType
   typing: Typing
   /** An entry's line was changed to `text`. */
@@ -115,6 +120,7 @@ export function TimelineView({
                 )}
                 <Entry
                   entry={entry}
+                  colours={colours}
                   tables={tables}
                   typeOf={typeOf}
                   editor={editing === keyOf(entry) && editorFor(entry)}
@@ -125,7 +131,7 @@ export function TimelineView({
             ))}
             {day.day === today && newEntry}
           </ol>
-          <Totals text={day.text} sums={sums} typeOf={typeOf} />
+          <DayTotals text={day.text} totals={totals} typeOf={typeOf} place="timeline" />
         </section>
       ))}
     </>
@@ -175,6 +181,7 @@ function DayHead({ day, today, count, onOpen }: { day: string; today: string; co
  */
 function Entry({
   entry,
+  colours,
   tables,
   typeOf,
   editor,
@@ -182,6 +189,7 @@ function Entry({
   ...opens
 }: {
   entry: TimelineEntry
+  colours: Record<string, string>
   tables: Record<string, string[]>
   typeOf: (name: string) => PropertyType
   editor: ReactNode
@@ -191,8 +199,11 @@ function Entry({
   const block = entry.end !== null
   const [open, setOpen] = useState(false)
   const detail = entry.below.filter((line) => line.trim() !== '')
+  // The entry's colour is its first coloured tag's: its dot, its wash, its chips.
+  const hue = tagNames(entry.text).map((tag) => colours[tag]).find(Boolean)
+  const hueOf = (tag: string) => colours[tag]
   return (
-    <li className={block ? 'timeline-entry block' : 'timeline-entry'} onClick={onPress}>
+    <li className={block ? 'timeline-entry block' : 'timeline-entry'} data-hue={hue} onClick={onPress}>
       <span className="timeline-when">
         {clockText(entry.start)}
         {block && `–${clockText(entry.end!)}`}
@@ -201,7 +212,7 @@ function Entry({
       <span className="timeline-rail" aria-hidden />
       {editor || (
         <span className="timeline-what">
-          <Live text={wordsOf(entry, typeOf, fields.length > 0)} {...opens} />
+          <Live text={wordsOf(entry, typeOf, fields.length > 0)} hueOf={hueOf} {...opens} />
           {fields.length > 0 && (
             <span className="timeline-fields">
               {fields.map((one) => (
@@ -321,31 +332,3 @@ function NewEntry({
   )
 }
 
-/**
- * The day's totals as tiles at the foot of its page: the number large, what it
- * totals under it. What each tag totals is chosen on its page (`daySumsOf`).
- */
-function Totals({
-  text,
-  sums,
-  typeOf,
-}: {
-  text: string
-  sums: Record<string, string[]>
-  typeOf: (name: string) => PropertyType
-}) {
-  const totals = totalsOf(text, sums, typeOf)
-  if (totals.length === 0) return null
-  return (
-    <ul className="timeline-totals" aria-label="The day's totals">
-      {totals.map((one) => (
-        <li key={`${one.tag} ${one.name}`} className="timeline-total">
-          <span className="timeline-total-number">{one.total}</span>
-          <span className="timeline-total-name">
-            {one.name} · #{one.tag}
-          </span>
-        </li>
-      ))}
-    </ul>
-  )
-}

@@ -95,9 +95,27 @@ describe('a tag’s page', () => {
     const row = await waitFor(() => viewer().getByRole('button', { name: 'Stop totalling amount each day' }))
     expect(viewer().queryByRole('button', { name: /totalling merchant/ })).toBeNull()
     fireEvent.click(row)
-    await waitFor(() => expect(JSON.parse(disk.read('/v/.config/tags.json')!).expense.totals).toEqual([]))
+    const written = () => JSON.parse(disk.read('/v/.config/tags.json')!).expense
+    await waitFor(() => expect(written().totals).toEqual([]))
     fireEvent.click(await waitFor(() => viewer().getByRole('button', { name: 'Total amount each day' })))
-    await waitFor(() => expect(JSON.parse(disk.read('/v/.config/tags.json')!).expense.totals).toEqual(['amount']))
+    await waitFor(() => expect(written().totals).toEqual([{ property: 'amount', by: 'sum', show: 'both' }]))
+
+    // How it is combined, what it is called, where it shows: each kept as set.
+    fireEvent.change(await waitFor(() => viewer().getByLabelText('How amount is combined')), { target: { value: 'average' } })
+    await waitFor(() => expect(written().totals[0].by).toBe('average'))
+    const label = viewer().getByLabelText('What amount’s total is called'.replace('’', "'"))
+    fireEvent.change(label, { target: { value: 'spent' } })
+    fireEvent.blur(label)
+    await waitFor(() => expect(written().totals[0].label).toBe('spent'))
+    fireEvent.change(viewer().getByLabelText('Where amount’s total shows'.replace('’', "'")), { target: { value: 'note' } })
+    await waitFor(() => expect(written().totals).toEqual([{ property: 'amount', by: 'average', show: 'note', label: 'spent' }]))
+  })
+
+  it('keeps the colour chosen for the tag in tags.json', async () => {
+    await openTag()
+    fireEvent.click(await waitFor(() => viewer().getByRole('button', { name: 'Amber' })))
+    await waitFor(() => expect(JSON.parse(disk.read('/v/.config/tags.json')!).expense.color).toBe('amber'))
+    await waitFor(() => expect(viewer().getByRole('button', { name: 'Amber' }).getAttribute('aria-pressed')).toBe('true'))
   })
 
   /** A day written by kind heads its expenses with `#expense` alone, which was a row of empty cells. */

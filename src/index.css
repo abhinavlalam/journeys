@@ -218,19 +218,20 @@
 
   --alert: #ef7a7a;
 
-  /* A column's colour in a delimited file (`csvPreview`): six fixed
-     hues, cycling. The one fixed palette besides the terminal's ANSI
-     set, since telling six columns apart is about hue. Per mode.
+  /* Six fixed hues, per mode: a column's colour in a delimited file
+     (`csvPreview`, cycling) and a tag's colour on the timeline (`TAG_COLOURS`,
+     chosen on its page). The one fixed palette besides the terminal's ANSI set,
+     since telling six columns or six kinds apart is about hue.
 
      On every scheme's note ground, worst first: red 7.98 · violet 9.30
      · blue 9.32 · green 10.75 · teal 10.88 · amber 11.50. Columns stay
      in fixed places for readers who cannot tell two apart. */
-  --csv-1: #79b8f0;
-  --csv-2: #6ed39a;
-  --csv-3: #e8c07a;
-  --csv-4: #c9a2f0;
-  --csv-5: #5fd3c3;
-  --csv-6: #e88b8b;
+  --hue-blue: #79b8f0;
+  --hue-green: #6ed39a;
+  --hue-amber: #e8c07a;
+  --hue-violet: #c9a2f0;
+  --hue-teal: #5fd3c3;
+  --hue-red: #e88b8b;
 
   /* The modal scrim, per mode: it must darken the whole app.
      Dark mode uses `--bg-viewer`, the darkest ground; light mode
@@ -281,12 +282,12 @@
 
   /* The same six, darker for a light ground. Worst first, over every scheme:
      teal 4.77 · amber 5.06 · green 5.16 · blue 5.62 · red 6.31 · violet 6.33. */
-  --csv-1: #1f5fd0;
-  --csv-2: #1e7a46;
-  --csv-3: #946200;
-  --csv-4: #7a3fb5;
-  --csv-5: #0f7c86;
-  --csv-6: #b3261e;
+  --hue-blue: #1f5fd0;
+  --hue-green: #1e7a46;
+  --hue-amber: #946200;
+  --hue-violet: #7a3fb5;
+  --hue-teal: #0f7c86;
+  --hue-red: #b3261e;
 
   --scrim: color-mix(in srgb, var(--text) 42%, transparent);
 }
@@ -1879,27 +1880,27 @@ button.folder-toggle {
 /* One colour per column, down the file, in the app's palette. The file is its
    own text: nothing is aligned or rewritten. Separators keep the prose colour. */
 .csv-editor .cm-csv-c0 {
-  color: var(--csv-1);
+  color: var(--hue-blue);
 }
 
 .csv-editor .cm-csv-c1 {
-  color: var(--csv-2);
+  color: var(--hue-green);
 }
 
 .csv-editor .cm-csv-c2 {
-  color: var(--csv-3);
+  color: var(--hue-amber);
 }
 
 .csv-editor .cm-csv-c3 {
-  color: var(--csv-4);
+  color: var(--hue-violet);
 }
 
 .csv-editor .cm-csv-c4 {
-  color: var(--csv-5);
+  color: var(--hue-teal);
 }
 
 .csv-editor .cm-csv-c5 {
-  color: var(--csv-6);
+  color: var(--hue-red);
 }
 
 /* ---- A file the pane shows rather than edits ---- */
@@ -1980,6 +1981,7 @@ button.folder-toggle {
 .viewer > .daily-steps,
 .viewer > .note-section,
 .viewer > .journal-day,
+.viewer > .day-totals,
 .viewer > .calendar-month,
 .viewer > .json-message,
 .viewer > .code-editor {
@@ -2941,18 +2943,100 @@ button.folder-toggle {
   white-space: pre-wrap;
 }
 
-/* The day's totals as tiles at the foot of its page: the number large, what it
-   totals under it, on the words' column. Chosen per tag on its page. */
-.timeline-totals {
+/* A tag's colour, one of the palette's six hues, chosen on its page: set on an
+   entry, a chip or a swatch as `data-hue`, it is `--tint` to what is inside. */
+[data-hue='blue'] {
+  --tint: var(--hue-blue);
+}
+
+[data-hue='green'] {
+  --tint: var(--hue-green);
+}
+
+[data-hue='amber'] {
+  --tint: var(--hue-amber);
+}
+
+[data-hue='violet'] {
+  --tint: var(--hue-violet);
+}
+
+[data-hue='teal'] {
+  --tint: var(--hue-teal);
+}
+
+[data-hue='red'] {
+  --tint: var(--hue-red);
+}
+
+/* An entry in its tag's colour: a faint wash on its row and its dot in full,
+   so a day's kinds read apart at a glance. Its chip takes its own tag's. */
+.timeline-entry[data-hue] {
+  background: color-mix(in srgb, var(--tint) 7%, transparent);
+}
+
+.timeline-entry[data-hue]:hover {
+  background: color-mix(in srgb, var(--tint) 13%, transparent);
+}
+
+.timeline-entry[data-hue] .timeline-rail::after {
+  background: var(--tint);
+}
+
+.timeline-entries .timeline-tag[data-hue] {
+  color: var(--tint);
+  background: color-mix(in srgb, var(--tint) 16%, transparent);
+}
+
+/* The swatches on a tag's page: none, then the six. The chosen one is ringed. */
+.tag-swatches {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin: 0.75rem var(--pane-inset) 0 calc(var(--timeline-when) + var(--timeline-rail) + 1rem);
-  padding: 0;
-  list-style: none;
+  padding-block: 0.4rem;
 }
 
-.timeline-total {
+.tag-swatch {
+  width: 1.6em;
+  height: 1.6em;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--tint, transparent);
+  font-size: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.tag-swatch[aria-pressed='true'] {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+/* A day's totals as tiles: the number large, its label under it. They close a
+   day's card in the timeline, on the words' column, and a day's note, on its
+   text's column. What each totals, how and where is set on its tag's page. */
+.day-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-prose);
+  line-height: var(--line-height-prose);
+}
+
+.journal-day .day-totals {
+  margin: 0.75rem var(--pane-inset) 0 calc(var(--timeline-when) + var(--timeline-rail) + 1rem);
+}
+
+.viewer > .day-totals {
+  margin-top: 0.75rem;
+  margin-bottom: 0.5rem;
+  padding-left: calc(var(--gutter-w) + var(--column-pad));
+}
+
+.day-total {
   display: flex;
   flex-direction: column;
   padding: 0.5rem 0.75rem;
@@ -2960,7 +3044,7 @@ button.folder-toggle {
   background: color-mix(in srgb, var(--mark) 10%, var(--bg-raised));
 }
 
-.timeline-total-number {
+.day-total-number {
   font-size: 1.6em;
   line-height: 1.2;
   font-weight: var(--fw-strong);
@@ -2968,8 +3052,36 @@ button.folder-toggle {
   color: var(--text);
 }
 
-.timeline-total-name {
+.day-total-name {
   color: var(--text-dim);
+}
+
+/* A chosen total's settings under its row: how it is combined, what it is
+   called, where it shows. One line that wraps on a narrow screen. */
+.total-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-bottom: 0.4rem;
+}
+
+.total-settings select,
+.total-settings input {
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sidebar);
+  color: var(--text);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.total-settings input {
+  flex: 1;
+  min-width: 8em;
+  font-size: inherit;
+  line-height: inherit;
 }
 
 /* ---- Lines under a row ---- */

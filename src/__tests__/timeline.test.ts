@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { clockText, lengthOf } from '../clock'
 import { dayEntries, fieldsOf, timelineDays, totalsOf, withEditedEntry, withNewEntry, wordsOf } from '../timeline'
+import type { Combine, TotalPlace } from '../tags'
 import type { PropertyType } from '../properties'
 import { vaultFile as note } from './fakeVault'
 
@@ -100,21 +101,26 @@ describe('a table tag’s entry', () => {
     expect(fieldsOf('12:00 #food item:: oats', tables, text)).toEqual([])
   })
 
+  const total = (property: string, by: Combine = 'sum', show: TotalPlace = 'both', label = '') => ({ property, by, label, show })
+
   /** An expense written without a time was left out when only entries counted. */
-  it('totals the chosen fields over every line of the day carrying the tag, timed or not', () => {
+  it('totals every line of the day carrying the tag, timed or not', () => {
     const raw = ['08:30 #expense amount:: 60', '#expense parking amount:: 4.5', '    12:00 #expense amount:: 480.5', '13:00 #food amount:: 9'].join('\n')
-    expect(totalsOf(raw, { expense: ['amount'] }, typeOf)).toEqual([{ tag: 'expense', name: 'amount', total: '545' }])
-    expect(totalsOf(raw, { expense: ['amount'], food: ['amount'] }, typeOf)).toHaveLength(2)
-    expect(totalsOf(raw, {}, typeOf)).toEqual([])
+    expect(totalsOf(raw, { expense: [total('amount')] }, typeOf, 'timeline')).toEqual([
+      { key: 'expense amount sum', value: '545', label: 'amount · #expense' },
+    ])
+    expect(totalsOf(raw, {}, typeOf, 'timeline')).toEqual([])
   })
 
-  /** The vault marks an estimate `~400`; a total with one in it is an estimate too. */
-  it('totals estimates, and says the total is one', () => {
-    const raw = ['08:40 #food oats amount:: ~400', '09:00 #food tea amount:: 100', '10:00 #expense amount:: 5'].join('\n')
-    expect(totalsOf(raw, { food: ['amount'], expense: ['amount'] }, typeOf)).toEqual([
-      { tag: 'food', name: 'amount', total: '~500' },
-      { tag: 'expense', name: 'amount', total: '5' },
-    ])
+  it('combines as set, says how in its label, and shows only where it is set to', () => {
+    const raw = ['#expense amount:: 60', '#expense amount:: 40', '#expense amount:: 5'].join('\n')
+    const shown = (by: Combine) => totalsOf(raw, { expense: [total('amount', by)] }, typeOf, 'note')[0]
+    expect(shown('average')).toMatchObject({ value: '35', label: 'amount, average · #expense' })
+    expect(shown('count')).toMatchObject({ value: '3' })
+    expect(shown('min')).toMatchObject({ value: '5', label: 'amount, lowest · #expense' })
+    expect(shown('max')).toMatchObject({ value: '60' })
+    expect(totalsOf(raw, { expense: [total('amount', 'sum', 'note', 'spent')] }, typeOf, 'note')[0]).toMatchObject({ value: '105', label: 'spent' })
+    expect(totalsOf(raw, { expense: [total('amount', 'sum', 'note')] }, typeOf, 'timeline')).toEqual([])
   })
 })
 

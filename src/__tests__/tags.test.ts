@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { collectTagLines, daySumsOf, lineWords, tagAt, tagLine, tagNames } from '../tags'
+import { collectTagLines, coloursOf, dayTotalsOf, lineWords, tagAt, tagLine, tagNames } from '../tags'
 
 /**
  * `#word` in a note's prose. Most of this file is what is not a tag (a heading,
@@ -177,22 +177,39 @@ describe('a line’s own words', () => {
   })
 })
 
-/** What a day totals, chosen per tag on its page. */
+/** What a day totals, and how, set per tag on its page. */
 describe('a day’s totals', () => {
   const typeOf = (name: string) => (['amount', 'calories', 'dose'].includes(name) ? ('number' as const) : ('text' as const))
+  const sum = (property: string) => ({ property, by: 'sum', label: '', show: 'both' })
 
-  it('are a table tag’s number properties until chosen, and then exactly the choice', () => {
+  it('are a table tag’s number properties, summed, until set, and then exactly what is set', () => {
     const entries = {
       expense: { properties: ['amount', 'merchant'] },
-      food: { properties: ['item', 'calories'], totals: ['calories'] },
+      food: { properties: ['item', 'calories'], totals: [{ property: 'calories', by: 'average', label: 'eaten', show: 'note' }] },
       supplement: { properties: ['dose'], view: 'list' },
       walk: { properties: [] },
     }
-    expect(daySumsOf(entries, typeOf)).toEqual({ expense: ['amount'], food: ['calories'] })
-    expect(daySumsOf({ expense: { properties: ['amount'], totals: [] } }, typeOf)).toEqual({})
+    expect(dayTotalsOf(entries, typeOf)).toEqual({
+      expense: [sum('amount')],
+      food: [{ property: 'calories', by: 'average', label: 'eaten', show: 'note' }],
+    })
+    expect(dayTotalsOf({ expense: { properties: ['amount'], totals: [] } }, typeOf)).toEqual({})
   })
 
-  it('leave out a chosen property that is no longer a number', () => {
-    expect(daySumsOf({ food: { properties: ['item'], totals: ['item'] } }, typeOf)).toEqual({})
+  it('read a bare name as a sum shown in both places, and an unknown setting as its default', () => {
+    expect(dayTotalsOf({ expense: { totals: ['amount', { property: 'dose', by: 'median', show: 'everywhere' }] } }, typeOf)).toEqual({
+      expense: [sum('amount'), sum('dose')],
+    })
+  })
+
+  it('leave out a property that is no longer a number', () => {
+    expect(dayTotalsOf({ food: { properties: ['item'], totals: ['item'] } }, typeOf)).toEqual({})
+  })
+})
+
+/** A tag's colour, one of the palette's hues; anything else is no colour. */
+describe('a tag’s colour', () => {
+  it('is read only when it names a hue', () => {
+    expect(coloursOf({ expense: { color: 'amber' }, food: { color: 'chartreuse' }, walk: {} })).toEqual({ expense: 'amber' })
   })
 })

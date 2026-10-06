@@ -16,6 +16,9 @@ import type { VaultFile, VaultFolder } from './vaultModel'
 import type { Settings } from './settings'
 import type { useVaultTexts } from './useVaultTexts'
 import type { Entries } from './configEntries'
+import { DayTotals } from './DayTotals'
+import { typeOf } from './properties'
+import type { DayTotal } from './tags'
 
 interface NotePaneProps {
   /** The tab's id, which this pane's buffer is registered under. */
@@ -53,6 +56,8 @@ interface NotePaneProps {
   onRename: (file: VaultFile, name: string) => void
   /** Locks a locked note again: its tab closes and its passphrase is forgotten. */
   onLock: (file: VaultFile) => void
+  /** Each tag's daily totals, closing a daily note as they close its day in the timeline. */
+  dayTotals: Readonly<Record<string, readonly DayTotal[]>>
   /**
    * A key was typed. `App` listens while a view built from the notes is
    * on screen in another pane, to take the live text; see `liveVersion`.
@@ -90,6 +95,7 @@ export function NotePane({
   onRename,
   onLock,
   onTyped,
+  dayTotals,
 }: NotePaneProps) {
   const buffer = useNoteBuffer({ vaultPath, refresh, setError })
 
@@ -253,6 +259,16 @@ export function NotePane({
           indentWidth={settings.indentWidth}
           onOpenLink={onOpenLink}
           onOpenTag={onOpenTag}
+        />
+      )}
+      {/* A day's totals at its note's end, from the text as last saved or typed: the
+          pane is drawn again when a save lands, so they follow the typing. */}
+      {loaded && !buffer.unreadable && isDailyNote(file.path, settings.dailyFolder) && (
+        <DayTotals
+          text={liveText.current?.path === file.path ? liveText.current.text : buffer.body}
+          totals={dayTotals}
+          typeOf={(name) => typeOf(propertyTypes, name)}
+          place="note"
         />
       )}
       {/* Notes only. A link to a non-`.md` target is external,

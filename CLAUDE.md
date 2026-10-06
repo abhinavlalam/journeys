@@ -89,8 +89,7 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   written *as YAML* — a skill must open with one — so nothing converts a note's
   form behind its owner's back; a note with none is given the `::` form. A
   **block property** is `key:: value` on a line, and its value is **exactly its
-  type** (`blockProperties`, `PROPERTY_TYPES`): a number (a leading `~` an estimate,
-  and a sum with one in it is one too, `sumText`: the vault marks its estimates), a date, one
+  type** (`blockProperties`, `PROPERTY_TYPES`): a number, a date, one
   `[[backlink]]`, a url, an icon, or a path or text — one word, or a run between
   quotes (curly ones too; macOS types them). The owner's words may
   follow any value. A value not of its type is not read, and its name stays on the
@@ -388,11 +387,16 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   link as its name (a wikilink, a markdown link, a bare address), a tag as a button,
   emphasis without its marks. As typed, a markdown link was its whole address.
 - A tag drawn as a table (`tablesOf`) shows its entry's fields in place of its
-  properties in the sentence (`wordsOf`, `fieldsOf`). **What a day totals is the
-  owner's choice**, per tag on its page (Daily totals, kept as `totals` in its
-  `tags.json` entry; unchosen, a table tag's `number` properties: `daySumsOf`), and
-  `totalsOf` sums it over every line of the day carrying the tag, timed or not: over
-  entries alone, an expense written without a time was not counted. A timeline is one more memo over the one
+  properties in the sentence (`wordsOf`, `fieldsOf`). **A day's totals are the
+  owner's settings, not rules in the code** (`dayTotalsOf`, `totals` in a tag's
+  `tags.json` entry, set under Daily totals on its page): for each `number` property,
+  how it is combined (`COMBINES`), its label and where it shows (the timeline's card,
+  the day's note, both). Unset, a table tag's `number` properties, summed. `totalsOf`
+  reads every line of the day carrying the tag, timed or not, and only plain numbers:
+  a built-in `~` for estimates was taken out as hardcoding the owner's notation.
+- **A tag's colour is its setting** (`color`, one of `TAG_COLOURS`, the palette's
+  six hues, which the CSV columns share): an entry takes its first coloured tag's as
+  `data-hue`, a wash on its row and its dot, and each chip its own tag's. A timeline is one more memo over the one
   read (`useVaultTexts`' `timeline`), so it follows typing as the graph does.
 - **A press on an entry edits its one line** under the note's own editor in `line`
   mode (no gutters; Enter, Escape and leaving each the caller's, an open popup's own

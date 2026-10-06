@@ -218,13 +218,6 @@ describe('block properties', () => {
     expect(gaps).toEqual(['', 'using', 'at', 'for'])
   })
 
-  /** The vault marks an estimate with `~`; as a number it was not read, and no total had it. */
-  it('reads a number marked as an estimate', () => {
-    expect(read('08:40 #food oats amount:: ~400 by eye')).toEqual([['amount', '~400', true]])
-    // The mark alone is no number.
-    expect(read('amount:: ~')).toEqual([['amount', '', false]])
-  })
-
   it('reads text as one word, or as the run between quotes, the curly ones too', () => {
     expect(read('category:: food at lunch')).toEqual([['category', 'food', true]])
     expect(read('note:: “smart quotes from macOS” then prose')).toEqual([['note', 'smart quotes from macOS', true]])

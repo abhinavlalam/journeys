@@ -75,9 +75,9 @@ describe('the timeline', () => {
       ['12:30', '#expense lunchamount 480merchant Harbour Bistro', 'moment'],
       ['13:00–13:5050 min', 'review with Mira Vance', 'block'],
     ])
-    const tiles = [...second.querySelectorAll('.timeline-total')].map((one) => [
-      one.querySelector('.timeline-total-number')!.textContent,
-      one.querySelector('.timeline-total-name')!.textContent,
+    const tiles = [...second.querySelectorAll('.day-total')].map((one) => [
+      one.querySelector('.day-total-number')!.textContent,
+      one.querySelector('.day-total-name')!.textContent,
     ])
     expect(tiles).toEqual([['540', 'amount · #expense']])
   })
@@ -168,6 +168,23 @@ describe('the timeline', () => {
     await openTimeline()
     const { DEFAULT_SETTINGS } = await import('../settings')
     expect(lineIn(days()[2])!.dataset.timeKey).toBe(DEFAULT_SETTINGS.shortcuts.insertTime)
+  })
+
+  /** A tag's colour, chosen on its page, marks its entries and its chips. */
+  it('marks an entry and its chips with their tags’ colours', async () => {
+    disk.write('/v/.config/tags.json', JSON.stringify({ expense: { properties: ['amount', 'merchant'], color: 'amber' }, food: { color: 'green' } }))
+    await openTimeline()
+    const hues = [...days()[1].querySelectorAll('.timeline-entry')].map((one) => one.getAttribute('data-hue'))
+    expect(hues).toEqual(['amber', 'green', null, 'amber', null])
+    expect(days()[1].querySelector('.timeline-tag[data-hue="green"]')!.textContent).toBe('#food')
+  })
+
+  /** The same totals close the day's note, where they are set to show there too. */
+  it('closes a day’s note with its totals', async () => {
+    await openTimeline()
+    fireEvent.click(days()[1].querySelector('.journal-date')!)
+    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('2026-09-21'))
+    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) > .day-totals')!.textContent).toBe('540amount · #expense'))
   })
 
   it('opens a day’s note from its date', async () => {

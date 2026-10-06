@@ -6,9 +6,9 @@
 
 import { leadingClock, minutesOf } from './clock'
 import { dayOf, isDailyNote } from './daily'
-import { blockProperties, readBlock, splitPageProperties, sumText, type PropertyType } from './properties'
+import { blockProperties, readBlock, splitPageProperties, type PropertyType } from './properties'
 import { indentOf, proseLines } from './prose'
-import { collectTagLines, tagNames, tagsOnly } from './tags'
+import { collectTagLines, tagNames, tagsOnly, type Combine, type DayTotal, type TotalPlace } from './tags'
 import type { VaultFile } from './vaultModel'
 
 export interface TimelineEntry {
@@ -227,24 +227,41 @@ export function fieldsOf(
   })
 }
 
+/** Decimal places a total is rounded to, as a tag's table rounds its sums. */
+const TOTAL_DECIMALS = 2
+
+/** `values` combined `by` the owner's choice, or null with none to combine. */
+export function combine(values: readonly number[], by: Combine): number | null {
+  if (values.length === 0) return null
+  if (by === 'count') return values.length
+  if (by === 'min') return Math.min(...values)
+  if (by === 'max') return Math.max(...values)
+  const sum = values.reduce((total, one) => total + one, 0)
+  return by === 'average' ? sum / values.length : sum
+}
+
 /**
- * A day's totals: each chosen property (`daySumsOf`) summed over every line of
- * the day carrying its tag, timed or not, as the tag's table sums it. Over the
- * timeline's entries alone, an expense written without a time was not counted.
+ * A day's totals for one place (its card in the timeline, or its note's end): each
+ * of a tag's totals (`dayTotalsOf`) over every line of the day carrying the tag,
+ * timed or not, combined as set. Over entries alone, an expense written without a
+ * time was not counted.
  */
 export function totalsOf(
   raw: string,
-  sums: Readonly<Record<string, readonly string[]>>,
-  typeOf: (name: string) => PropertyType
-): { tag: string; name: string; total: string }[] {
-  return Object.entries(sums).flatMap(([tag, names]) => {
+  totals: Readonly<Record<string, readonly DayTotal[]>>,
+  typeOf: (name: string) => PropertyType,
+  place: Exclude<TotalPlace, 'both'>
+): { key: string; value: string; label: string }[] {
+  return Object.entries(totals).flatMap(([tag, chosen]) => {
     const lines = collectTagLines(raw, tag).map((one) => one.text)
-    return names.flatMap((name) => {
-      const values = lines.flatMap((line) => fieldsOf(line, { [tag]: [name] }, typeOf)).map((one) => one.value)
-      return values.length > 0 ? [{ tag, name, total: sumText(values, TOTAL_DECIMALS) }] : []
-    })
+    return chosen
+      .filter((one) => one.show === 'both' || one.show === place)
+      .flatMap((one) => {
+        const values = lines.flatMap((line) => fieldsOf(line, { [tag]: [one.property] }, typeOf)).map((field) => Number(field.value))
+        const value = combine(values, one.by)
+        if (value === null) return []
+        const named = one.by === 'sum' ? one.property : `${one.property}, ${one.by === 'min' ? 'lowest' : one.by === 'max' ? 'highest' : one.by}`
+        return [{ key: `${tag} ${one.property} ${one.by}`, value: String(Number(value.toFixed(TOTAL_DECIMALS))), label: one.label || `${named} · #${tag}` }]
+      })
   })
 }
-
-/** Decimal places a total is rounded to, as a tag's table rounds its sums. */
-const TOTAL_DECIMALS = 2

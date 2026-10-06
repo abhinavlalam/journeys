@@ -4,7 +4,12 @@ import { PlusIcon } from './icons'
 import { blockProperties, PROPERTY_NAME, readBlock, type PropertyType } from './properties'
 import { ViewerHeader } from './ViewerHeader'
 import { countOf, GatheredNotes, NameField, NoteRow, readable, RowIcon, Section, stepIn } from './rows'
-import { LINE_VIEWS, lineWords, tagsOnly, type LineView } from './tags'
+import { COMBINES, LINE_VIEWS, lineWords, TAG_COLOURS, tagsOnly, TOTAL_PLACES, type Combine, type DayTotal, type LineView, type TagColour, type TotalPlace } from './tags'
+
+/** How each way of combining reads in its menu. */
+const COMBINE_NAMES: Record<Combine, string> = { sum: 'Sum', average: 'Average', count: 'Count', min: 'Lowest', max: 'Highest' }
+/** Where a total shows, as its menu says it. */
+const PLACE_NAMES: Record<TotalPlace, string> = { both: 'Timeline and note', timeline: 'Timeline', note: 'Note' }
 import type { CollectedNote } from './useVaultTexts'
 import type { VaultFile } from './vaultModel'
 
@@ -29,6 +34,8 @@ export function TagView({
   onProperties,
   totals,
   onTotals,
+  colour,
+  onColour,
   onError,
   onOpenProperty,
   onOpen,
@@ -45,9 +52,12 @@ export function TagView({
   loading: boolean
   onView: (next: LineView) => void
   onProperties: (next: string[]) => void
-  /** The properties totalled each day (`daySumsOf`), and a change to them. */
-  totals: readonly string[]
-  onTotals: (next: string[]) => void
+  /** The tag's daily totals (`dayTotalsOf`), and a change to them. */
+  totals: readonly DayTotal[]
+  onTotals: (next: DayTotal[]) => void
+  /** The tag's colour on the timeline, and a change to it (null: none). */
+  colour: TagColour | undefined
+  onColour: (next: TagColour | null) => void
   onError: (message: string) => void
   onOpenProperty: (property: string) => void
   onOpen: (file: VaultFile) => void
@@ -150,24 +160,69 @@ export function TagView({
           </li>
         )}
       </Section>
-      {/* Each `number` property, totalled at the foot of every day in the timeline
-          when chosen here: the one place the choice is made. */}
+      {/* The tag's colour on the timeline: its entries' dots, rows and chips. */}
+      <Section title="Colour" count={colour ? 1 : 0} startOpen>
+        <li className="tag-swatches" style={{ paddingLeft: stepIn(1) }}>
+          <button className="tag-swatch none" aria-label="No colour" aria-pressed={!colour} onClick={() => onColour(null)} />
+          {TAG_COLOURS.map((one) => (
+            <button
+              key={one}
+              className="tag-swatch"
+              data-hue={one}
+              aria-label={`${one.charAt(0).toUpperCase()}${one.slice(1)}`}
+              aria-pressed={colour === one}
+              onClick={() => onColour(one)}
+            />
+          ))}
+        </li>
+      </Section>
+      {/* Each `number` property, totalled for every day when chosen here, and how:
+          combined, labelled and shown as set. The one place the choice is made. */}
       {properties.some((one) => typeOf(one) === 'number') && (
         <Section title="Daily totals" count={totals.length} startOpen>
           {properties
             .filter((one) => typeOf(one) === 'number')
             .map((one) => {
-              const on = totals.some((name) => name.toLowerCase() === one.toLowerCase())
+              const at = totals.findIndex((total) => total.property.toLowerCase() === one.toLowerCase())
+              const total = totals[at]
+              const change = (fields: Partial<DayTotal>) => onTotals(totals.map((was, n) => (n === at ? { ...was, ...fields } : was)))
               return (
                 <li key={one} className="note-row" style={{ paddingLeft: stepIn(1) }}>
                   <NoteRow
-                    icon={<RowIcon icon={on ? 'check' : undefined} />}
+                    icon={<RowIcon icon={total ? 'check' : undefined} />}
                     name={one}
-                    aria-pressed={on}
-                    aria-label={on ? `Stop totalling ${one} each day` : `Total ${one} each day`}
-                    trailing={<span className="row-count">{on ? 'totalled each day' : 'not totalled'}</span>}
-                    onClick={() => onTotals(on ? totals.filter((name) => name.toLowerCase() !== one.toLowerCase()) : [...totals, one])}
+                    aria-pressed={!!total}
+                    aria-label={total ? `Stop totalling ${one} each day` : `Total ${one} each day`}
+                    trailing={<span className="row-count">{total ? 'totalled each day' : 'not totalled'}</span>}
+                    onClick={() =>
+                      onTotals(total ? totals.filter((_, n) => n !== at) : [...totals, { property: one, by: 'sum', label: '', show: 'both' }])
+                    }
                   />
+                  {total && (
+                    <span className="total-settings" style={{ paddingLeft: stepIn(1) }}>
+                      <select aria-label={`How ${one} is combined`} value={total.by} onChange={(event) => change({ by: event.currentTarget.value as Combine })}>
+                        {COMBINES.map((by) => (
+                          <option key={by} value={by}>
+                            {COMBINE_NAMES[by]}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        aria-label={`What ${one}'s total is called`}
+                        placeholder={`${one} · #${name}`}
+                        defaultValue={total.label}
+                        onBlur={(event) => event.currentTarget.value !== total.label && change({ label: event.currentTarget.value.trim() })}
+                        onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
+                      />
+                      <select aria-label={`Where ${one}'s total shows`} value={total.show} onChange={(event) => change({ show: event.currentTarget.value as TotalPlace })}>
+                        {TOTAL_PLACES.map((place) => (
+                          <option key={place} value={place}>
+                            {PLACE_NAMES[place]}
+                          </option>
+                        ))}
+                      </select>
+                    </span>
+                  )}
                 </li>
               )
             })}

@@ -22,12 +22,15 @@ export function Live({
   text,
   onOpenLink,
   onOpenTag,
+  hueOf,
 }: {
   text: string
   /** A link's target, and whether it was a `[[wikilink]]` rather than a markdown link or an address. */
   onOpenLink: (target: string, wiki: boolean) => void
   /** Absent where tags are not live, and a tag reads as its words. */
   onOpenTag?: (tag: string) => void
+  /** A tag's colour, for its chip. */
+  hueOf?: (tag: string) => string | undefined
 }) {
   const parts: ReactNode[] = []
   let at = 0
@@ -52,7 +55,12 @@ export function Live({
       parts.push(hit[6])
     } else if (onOpenTag) {
       parts.push(
-        <button key={start} className="timeline-tag" onClick={(event) => (event.stopPropagation(), onOpenTag(hit[8].toLowerCase()))}>
+        <button
+          key={start}
+          className="timeline-tag"
+          data-hue={hueOf?.(hit[8].toLowerCase())}
+          onClick={(event) => (event.stopPropagation(), onOpenTag(hit[8].toLowerCase()))}
+        >
           #{hit[8]}
         </button>
       )

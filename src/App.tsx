@@ -38,7 +38,7 @@ import {
 } from './properties'
 import { useConfigEntries } from './useConfigEntries'
 import { readEntries } from './configEntries'
-import { daySumsOf, propertiesOf, tablesOf, TAG_NAME, TAGS_FILE, viewOf } from './tags'
+import { coloursOf, dayTotalsOf, propertiesOf, tablesOf, TAG_NAME, TAGS_FILE, viewOf, type DayTotal } from './tags'
 import { withEditedEntry, withNewEntry, type TimelineEntry } from './timeline'
 import { TimelineView } from './TimelineView'
 import { LogView } from './LogView'
@@ -121,6 +121,9 @@ const SECTIONS = ['section:notes', 'section:actions', 'section:applications'] as
 const LIVE_REFRESH_MS = 250
 /** The left pane's width in px: where it starts, and the resizer's limits. */
 const SIDEBAR_WIDTH = { start: 260, min: 180, max: 520 }
+
+/** A daily total as `tags.json` keeps it: a label only when one was given. */
+const writtenTotal = ({ label, ...rest }: DayTotal) => (label ? { ...rest, label } : rest)
 
 export default function App() {
   // Every message goes through `setError`: shown at the bottom
@@ -314,6 +317,11 @@ export default function App() {
   /** What the phone's + is adding, and the note line typed so far, kept while its sheet is closed. */
   const [adding, setAdding] = useState<Adding | null>(null)
   const captureDraft = useRef('')
+  /** Each tag's daily totals, as set on its page (`dayTotalsOf`). */
+  const dayTotals = useMemo(
+    () => dayTotalsOf(tagStructures.entries, (name) => typeOf(propertyTypes.entries, name)),
+    [tagStructures.entries, propertyTypes.entries]
+  )
   /** The phone's one place at a time, and where its back gesture goes. */
   const phone = usePhoneNav({
     page: active,
@@ -1224,6 +1232,7 @@ export default function App() {
                     onRename={(file, name) => void renameNote(file, name)}
                     onLock={(file) => void locks.lockNotes([file.path])}
                     onTyped={typed}
+                    dayTotals={dayTotals}
                   />
                 )
               case 'file':
@@ -1258,8 +1267,10 @@ export default function App() {
                     icons={icons}
                     loading={reading}
                     onProperties={(next) => void tagStructures.write(tab.name.toLowerCase(), { properties: next })}
-                    totals={daySumsOf(tagStructures.entries, (name) => typeOf(propertyTypes.entries, name))[tab.name.toLowerCase()] ?? []}
-                    onTotals={(next) => void tagStructures.write(tab.name.toLowerCase(), { totals: next })}
+                    totals={dayTotals[tab.name.toLowerCase()] ?? []}
+                    onTotals={(next) => void tagStructures.write(tab.name.toLowerCase(), { totals: next.map(writtenTotal) })}
+                    colour={coloursOf(tagStructures.entries)[tab.name.toLowerCase()]}
+                    onColour={(next) => void tagStructures.write(tab.name.toLowerCase(), { color: next })}
                     onError={setError}
                     onOpenProperty={(property) => view('property', property)}
                     onOpen={(file) => void openNote(file)}
@@ -1271,7 +1282,8 @@ export default function App() {
                   <TimelineView
                     days={timeline}
                     tables={tablesOf(tagStructures.entries)}
-                    sums={daySumsOf(tagStructures.entries, (name) => typeOf(propertyTypes.entries, name))}
+                    totals={dayTotals}
+                    colours={coloursOf(tagStructures.entries)}
                     typeOf={(name) => typeOf(propertyTypes.entries, name)}
                     typing={{
                       notes,

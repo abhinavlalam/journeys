@@ -176,21 +176,65 @@ export function tablesOf(entries: Entries): Record<string, string[]> {
 }
 
 /**
- * Which properties each tag totals for a day: `totals` in its `tags.json` entry,
- * chosen on its page; unchosen, a table tag's `number` properties, as before there
- * was a choice. Only `number` properties sum, so a property retyped drops out.
+ * The colours a tag can take, the palette's six hues (`--hue-*`), so each follows
+ * the theme. Chosen on a tag's page and kept as `color` in its `tags.json` entry.
  */
-export function daySumsOf(entries: Entries, typeOf: (name: string) => PropertyType): Record<string, string[]> {
+export const TAG_COLOURS = ['blue', 'green', 'amber', 'violet', 'teal', 'red'] as const
+export type TagColour = (typeof TAG_COLOURS)[number]
+
+/** Each tag's colour, for those given one. */
+export function coloursOf(entries: Entries): Record<string, TagColour> {
+  return Object.fromEntries(
+    Object.entries(entries).flatMap(([tag, entry]) => {
+      const colour = TAG_COLOURS.find((one) => one === entry?.color)
+      return colour ? [[tag.toLowerCase(), colour]] : []
+    })
+  )
+}
+
+/** How a day's values of a property become one number. */
+export const COMBINES = ['sum', 'average', 'count', 'min', 'max'] as const
+export type Combine = (typeof COMBINES)[number]
+
+/** Where a day's total shows: the day's card in the timeline, the end of its note, or both. */
+export const TOTAL_PLACES = ['both', 'timeline', 'note'] as const
+export type TotalPlace = (typeof TOTAL_PLACES)[number]
+
+/** One of a tag's daily totals: a property, how it is combined, what it is called, where it shows. */
+export interface DayTotal {
+  property: string
+  by: Combine
+  /** What the tile says under the number; empty is the property and the tag. */
+  label: string
+  show: TotalPlace
+}
+
+const oneOf = <T extends string>(values: readonly T[], value: unknown, fallback: T): T =>
+  values.find((one) => one === value) ?? fallback
+
+/**
+ * Each tag's daily totals: `totals` in its `tags.json` entry, set on its page, each a
+ * property and how it is combined, labelled and shown. Unset, a table tag's `number`
+ * properties, summed. A property no longer a `number` drops out. Nothing is read from
+ * a value but its digits: what a value means is the owner's to say here.
+ */
+export function dayTotalsOf(entries: Entries, typeOf: (name: string) => PropertyType): Record<string, DayTotal[]> {
   return Object.fromEntries(
     Object.keys(entries).flatMap((tag) => {
       const chosen = entries[tag]?.totals
-      const names = Array.isArray(chosen)
-        ? chosen.filter((one): one is string => typeof one === 'string')
-        : viewOf(entries, tag) === 'table'
-          ? propertiesOf(entries, tag)
-          : []
-      const summed = names.filter((name) => typeOf(name) === 'number')
-      return summed.length > 0 ? [[tag.toLowerCase(), summed]] : []
+      const listed: unknown[] = Array.isArray(chosen) ? chosen : viewOf(entries, tag) === 'table' ? propertiesOf(entries, tag) : []
+      const totals = listed.flatMap((one): DayTotal[] => {
+        const given = typeof one === 'string' ? { property: one } : one && typeof one === 'object' ? (one as Record<string, unknown>) : {}
+        const property = typeof given.property === 'string' ? given.property : ''
+        if (!property || typeOf(property) !== 'number') return []
+        return [{
+          property,
+          by: oneOf(COMBINES, given.by, 'sum'),
+          label: typeof given.label === 'string' ? given.label : '',
+          show: oneOf(TOTAL_PLACES, given.show, 'both'),
+        }]
+      })
+      return totals.length > 0 ? [[tag.toLowerCase(), totals]] : []
     })
   )
 }
