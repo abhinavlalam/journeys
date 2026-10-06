@@ -55,7 +55,8 @@ export function CalendarView({
   feeds: number
   syncing: boolean
   loading: boolean
-  onSync: () => void
+  /** Absent on the phone, where the laptop's sync writes the lines this reads. */
+  onSync?: () => void
   onOpen: (file: VaultFile) => void
   /** Opens a day's page, making it if missing. */
   onOpenDay: (day: string) => void
@@ -78,7 +79,7 @@ export function CalendarView({
   const ahead = events.filter((one) => one.day >= today && one.day <= shown[shown.length - 1])
   const due = dueReminders(events, now)
 
-  const status = syncing ? 'Syncing…' : feeds === 0 ? 'No feeds' : ahead.length > 0 ? countOf(ahead.length, 'event') : ''
+  const status = syncing ? 'Syncing…' : feeds === 0 && onSync ? 'No feeds' : ahead.length > 0 ? countOf(ahead.length, 'event') : ''
   return (
     <>
       <ViewerHeader name="Calendar" status={status}>
@@ -95,9 +96,11 @@ export function CalendarView({
               </button>
             ))}
           </span>
-          <button className="header-action" onClick={onSync} disabled={syncing || feeds === 0}>
-            Sync
-          </button>
+          {onSync && (
+            <button className="header-action" onClick={onSync} disabled={syncing || feeds === 0}>
+              Sync
+            </button>
+          )}
         </span>
       </ViewerHeader>
       {view === 'month' ? (

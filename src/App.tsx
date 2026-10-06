@@ -607,9 +607,11 @@ export default function App() {
       }
     )
   }
+  // Not on the phone: there is no `curl`, and the laptop's sync writes the lines
+  // the phone reads; two devices writing the same lines would collide in git.
   const calendar = useCalendarSync({
     vaultPath: vault.vaultPath,
-    feeds: settings.calendarFeeds.length,
+    feeds: onAndroid ? 0 : settings.calendarFeeds.length,
     everyMinutes: settings.calendarMinutes,
     sync: syncCalendar,
     onError: setError,
@@ -1279,7 +1281,7 @@ export default function App() {
                     onEdit={(entry, text) => void editEntry(entry, text)}
                     onAdd={(text) => void addEntry(text)}
                     onOpen={(file) => void openNote(file)}
-                    onOpenLink={(target) => void openLinkTarget(target, true)}
+                    onOpenLink={(target, wiki) => void openLinkTarget(target, wiki)}
                     onOpenTag={(tag) => view('tag', tag)}
                   />
                 )
@@ -1295,7 +1297,7 @@ export default function App() {
                     feeds={settings.calendarFeeds.length}
                     syncing={calendar.syncing}
                     loading={reading}
-                    onSync={() => void calendar.now(true)}
+                    onSync={onAndroid ? undefined : () => void calendar.now(true)}
                     onOpen={(file) => void openNote(file)}
                     onOpenDay={(day) => void openDay(day)}
                   />

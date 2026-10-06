@@ -79,6 +79,19 @@ describe('the timeline', () => {
     expect(second.querySelector('.timeline-totals')!.textContent).toBe('#expense amount 540')
   })
 
+  /** As written, a markdown link was its whole address, and a strong phrase kept its asterisks. */
+  it('reads the lines under an entry as the note shows them', async () => {
+    disk.write(
+      '/v/Daily/2026-09-20.md',
+      ['08:00 #walk by the river', '    - **Cold** at the ferry ([01:18](https://example.com/v?t=78))', '    see [[Harbour Bistro|the bistro]]', ''].join('\n')
+    )
+    await openTimeline()
+    const below = [...days()[0].querySelectorAll('.timeline-below')].map((one) => one.textContent)
+    // Each keeps its indent under the entry, so the nesting reads as written.
+    expect(below).toEqual(['    - Cold at the ferry (01:18)', '    see the bistro'])
+    expect(within(days()[0] as HTMLElement).getByRole('button', { name: '01:18' })).toBeTruthy()
+  })
+
   it('edits an entry’s line where it stands, on a press, and writes nothing else', async () => {
     await openTimeline()
     const before = disk.read('/v/Daily/2026-09-21.md')!

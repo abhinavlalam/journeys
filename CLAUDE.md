@@ -364,6 +364,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
 - **A moment and a block read apart**: one clock is a dot on the rail, a range
   (`to`, `-`, `–`, `—`) a bar with its length, and one that ends before it starts
   ran past midnight.
+- **An entry and what is nested under it read as the note shows them** (`Live`): a
+  link as its name (a wikilink, a markdown link, a bare address), a tag as a button,
+  emphasis without its marks. As typed, a markdown link was its whole address.
 - A tag drawn as a table (`tablesOf`) shows its entry's fields in place of its
   properties in the sentence (`wordsOf`, `fieldsOf`), and the day closes on its
   `number` fields' totals (`totalsOf`). A timeline is one more memo over the one
@@ -488,6 +491,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   each return, one taking at a time; one that could not be filed is kept, with how
   far its files got (`kept`), and tried again on the next return, which is why
   `mutate` says whether it went through.
+- **The calendar's feeds are the laptop's** to fetch: Android has no `curl`, and the
+  laptop's sync writes the `#event` lines the phone reads, where two devices writing
+  the same lines would collide in git. The phone's Calendar has no Sync.
 - **A link can name any file** (`collectFiles` builds the index): `[[Files/photo.jpg]]`
   opens the photo, where with notes alone it was external and the OS refused it.
   The graph still drops what is not text.

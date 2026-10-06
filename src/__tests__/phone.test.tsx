@@ -13,7 +13,7 @@ import { disk, fsModule, openApp, rememberVault, resetFakeVault } from './fakeVa
  */
 
 const back = vi.hoisted(() => ({ press: null as null | (() => void) }))
-const shared = vi.hoisted(() => ({ waiting: [] as Share[] }))
+const shared = vi.hoisted(() => ({ waiting: [] as Share[], called: [] as string[] }))
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(async () => null), confirm: vi.fn(async () => true) }))
@@ -27,6 +27,7 @@ vi.mock('@tauri-apps/api/app', () => ({
 // The bridge: shares are handed over once; anything else is not there, as in jsdom.
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(async (command: string) => {
+    shared.called.push(command)
     if (command === 'phone_shares') return shared.waiting.splice(0)
     throw new Error(`no bridge for ${command}`)
   }),
@@ -37,6 +38,7 @@ beforeEach(() => {
   resetFakeVault()
   rememberVault('/v')
   shared.waiting = []
+  shared.called = []
   back.press = null
   disk.write('/v/.config/tags.json', JSON.stringify({ expense: { properties: ['amount', 'merchant'] }, walk: { properties: [] } }))
   disk.write('/v/.config/properties.json', JSON.stringify({ amount: { type: 'number' }, merchant: { type: 'backlink' } }))
@@ -154,6 +156,16 @@ describe('the phone', () => {
     fireEvent.click(sheet().getByRole('button', { name: 'Make it' }))
     await waitFor(() => expect(disk.has('/v/Ideas/Tide tables.md')).toBe(true))
     await waitFor(() => expect(page().getByText('Tide tables')).toBeTruthy())
+  })
+
+  /** The phone has no `curl`, and the laptop's sync writes the lines; both writing them collided in git. */
+  it('reads the calendar the laptop wrote, and fetches no feed', async () => {
+    await openApp({ calendarFeeds: [{ name: 'Work', url: 'https://example.com/work.ics' }] })
+    fireEvent.click(bar().getByRole('button', { name: 'Calendar' }))
+    await waitFor(() => expect(page().getByText('Calendar')).toBeTruthy())
+    expect(page().queryByRole('button', { name: 'Sync' })).toBeNull()
+    expect(page().queryByText('No feeds')).toBeNull()
+    expect(shared.called).not.toContain('fetch_feed')
   })
 
   /** One page at a time, and the gesture goes back the way it came. */

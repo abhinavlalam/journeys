@@ -605,6 +605,12 @@ button.primary:hover {
   --strip-h: 0px;
 }
 
+/* The timeline's clock column, half the desktop's: a range breaks after its
+   dash, and the sentences get the width. At 12ch they took a third of it. */
+.phone .timeline-box {
+  --timeline-when: 6ch;
+}
+
 /* A message sits above the bar, in the column, while it shows. */
 .phone > .banner {
   position: static;
