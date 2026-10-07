@@ -122,6 +122,10 @@ export const FACES = [
 /** An id not in `FACES` is a type error at every call site. */
 export type FaceId = (typeof FACES)[number]['id']
 
+/** How the timeline draws a day, and how the Tasks page groups tasks: the switches in their headers. */
+export const TIMELINE_VIEWS = ['list', 'day'] as const
+export const TASK_VIEWS = ['due', 'page'] as const
+
 export interface Settings {
   mode: Mode
   scheme: Scheme
@@ -180,9 +184,9 @@ export interface Settings {
    */
   graphShows: { text: boolean; property: boolean; tag: boolean }
   /** How the timeline draws a day: a list by clock, or a grid where height is time. */
-  timelineView: 'list' | 'day'
+  timelineView: (typeof TIMELINE_VIEWS)[number]
   /** How the Tasks page groups tasks: by when they are due, or by the page they are on. */
-  tasksView: 'due' | 'page'
+  tasksView: (typeof TASK_VIEWS)[number]
   /**
    * The calendars Sync reads: each a private iCal address (Google's secret
    * address in iCal format) and a name, which is what `source::` says on
@@ -384,8 +388,8 @@ export function parseSettings(raw: unknown): Settings {
     // Trailing slashes off: a folder is named as the tree spells it.
     graphHides: pickStrings(stored.graphHides).map((one) => one.replace(/\/+$/, '')),
     graphShows: pickShows(stored.graphShows),
-    timelineView: oneOf(['list', 'day'] as const, stored.timelineView) ?? DEFAULT_SETTINGS.timelineView,
-    tasksView: oneOf(['due', 'page'] as const, stored.tasksView) ?? DEFAULT_SETTINGS.tasksView,
+    timelineView: oneOf(TIMELINE_VIEWS, stored.timelineView) ?? DEFAULT_SETTINGS.timelineView,
+    tasksView: oneOf(TASK_VIEWS, stored.tasksView) ?? DEFAULT_SETTINGS.tasksView,
     calendarFeeds: pickFeeds(stored.calendarFeeds),
     calendarDays: pickNumber(stored.calendarDays, BOUNDS.calendarDays, DEFAULT_SETTINGS.calendarDays),
     calendarMinutes: pickNumber(stored.calendarMinutes, BOUNDS.calendarMinutes, DEFAULT_SETTINGS.calendarMinutes),
@@ -613,7 +617,7 @@ function spaceWidth(settings: Settings): number {
 const SAMPLE = 'the quick brown fox jumps over a lazy dog and then writes it all down '
 
 /** The fallback, 0.516 em, is a good estimate taken from two face and size pairs. */
-const EM_PER_CHARACTER = 0.516
+export const EM_PER_CHARACTER = 0.516
 
 export function characterWidth(settings: Settings): number {
   return faceWidth(settings, SAMPLE.repeat(3)) ?? settings.proseSize * EM_PER_CHARACTER

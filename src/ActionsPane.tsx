@@ -73,7 +73,6 @@ export function headsOf(names: readonly string[]): string[] {
   return [...heads]
 }
 
-
 interface ActionsPaneProps {
   vaultPath: string
   /**

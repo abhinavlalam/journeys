@@ -2,6 +2,13 @@ import type { ReactNode } from 'react'
 import { TAG_NAME } from './tags'
 import { linkLabelSpan } from './vaultModel'
 
+/** What a line's links and tags open, where a page lets them. */
+export interface Opens {
+  /** A link's target, and whether it was a `[[wikilink]]` rather than a markdown link or an address. */
+  onOpenLink: (target: string, wiki: boolean) => void
+  onOpenTag: (tag: string) => void
+}
+
 /**
  * What a line shows other than as typed: a `[[wikilink]]`, a markdown link, a bare
  * address, `**strong**` or `__strong__` text, and a tag after a space or the start.
@@ -58,7 +65,7 @@ export function Live({
       parts.push(
         <button
           key={start}
-          className="timeline-tag"
+          className="line-tag"
           data-hue={colours?.[hit[8].toLowerCase()]}
           onClick={(event) => (event.stopPropagation(), onOpenTag(hit[8].toLowerCase()))}
         >

@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { Live } from './Live'
 import { useColumnWidths } from './columnWidths'
 import { ViewerHeader } from './ViewerHeader'
-import { countOf, EmptyRow, READING, RowIcon, Section } from './rows'
+import { EmptyRow, READING, RowIcon, Section, statusCount } from './rows'
 import type { VaultFile } from './vaultModel'
 import { PROPERTY_TYPES, type PropertyType } from './properties'
 
@@ -45,7 +45,7 @@ export function PropertyView({
       {/* `icon::`, not `icon`: the header shows the syntax, as `#travel` does. */}
       <ViewerHeader
         name={`${name}::`}
-        status={[values.length > 0 ? countOf(values.length, 'value') : '', appOwned ? 'the app’s own' : '']
+        status={[statusCount(values.length, 'value'), appOwned ? 'the app’s own' : '']
           .filter(Boolean)
           .join(' · ')}
       >

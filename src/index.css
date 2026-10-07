@@ -2667,7 +2667,7 @@ button.folder-toggle {
    and a section heading do. */
 .line-link,
 .line-source,
-.timeline-tag {
+.line-tag {
   -webkit-app-region: no-drag;
   padding: 0;
   border: none;
@@ -2811,8 +2811,9 @@ button.folder-toggle {
   text-transform: uppercase;
 }
 
-/* A tag on an entry, a tinted chip: the kind of each entry at a glance. */
-.timeline-entries .timeline-tag {
+/* A tag on a line, wherever it can be pressed, a tinted chip in its tag's colour: the
+   kind of each entry at a glance, the same on the timeline and a task. */
+.line-tag {
   padding: 0 0.35em;
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--mark) 14%, transparent);
@@ -2982,9 +2983,16 @@ button.folder-toggle {
   background: var(--tint);
 }
 
-.timeline-entries .timeline-tag[data-hue] {
+.line-tag[data-hue] {
   color: var(--tint);
   background: color-mix(in srgb, var(--tint) 16%, transparent);
+}
+
+/* Not in a day's box, which is washed in its tag's colour already. */
+.day-box .line-tag {
+  padding: 0;
+  color: var(--mark);
+  background: transparent;
 }
 
 /* The swatches on a tag's page: none, then the six. The chosen one is ringed.

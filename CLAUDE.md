@@ -47,7 +47,8 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 | `calendar.ts`, `ics.ts`, `calendarSync.ts`, `useCalendarSync.ts`, `CalendarView.tsx` | The calendar. |
 | `timeline.ts` / `TimelineView.tsx` | The daily notes as each day happened / its page. |
 | `tasks.ts` / `TasksView.tsx` | Every `#task` line by when it is due / its page. |
-| `LineEditor.tsx` | One line in the note's own editor, for a page that takes typing (an entry, a task); `Typing`, what every editor types with. |
+| `LineEditor.tsx` | One line in the note's own editor, for a page that takes typing: `EditLine` for one written (saved on Enter or leaving when changed, emptied is not deleted), `NewLine` for a new one; `Typing`, what every editor types with. |
+| `ViewerHeader.tsx` | Every page's header: its name (a note's renames it), its status (`statusCount`: nothing at none), its controls, and `ViewSwitch`, a page's ways of being drawn. |
 | `useLog.ts` / `LogView.tsx` | What the app says: shown a while, kept in the Log / its page. |
 | `crypto.ts`, `useLocks.ts`, `useAutoLock.ts` | Locked notes: the format and the passphrases held / asking and locking / the clock. |
 | `sync.ts`, `useSync.ts`, `src-tauri/src/sync.rs` | Git sync. |
@@ -431,7 +432,10 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   ran past midnight.
 - **An entry and what is nested under it read as the note shows them** (`Live`): a
   link as its name (a wikilink, a markdown link, a bare address), a tag as a button,
-  emphasis without its marks. As typed, a markdown link was its whole address.
+  emphasis without its marks. As typed, a markdown link was its whole address. A tag
+  that opens is a chip in its colour (`line-tag`) on the timeline and a task alike;
+  scoped to the timeline, a task's coloured tag was plain text. Not in a day's box,
+  already washed in its colour.
 - A tag drawn as a table (`tablesOf`) shows its entry's fields in place of its
   properties in the sentence (`wordsOf`, `fieldsOf`). **A day's totals are the
   owner's settings, not rules in the code** (`dayTotalsOf`, `totals` in a tag's

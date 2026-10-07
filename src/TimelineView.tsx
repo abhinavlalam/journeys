@@ -1,25 +1,19 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { clockText, dayDate, lengthOf, localDateStamp, monthName, nearDay, weekdayName } from './clock'
-import { LineEditor, type Typing } from './LineEditor'
-import { onAndroid } from './platform'
+import { EditLine, NewLine, type Typing } from './LineEditor'
 import type { PropertyType } from './properties'
-import { countOf, EmptyRow, READING, Section } from './rows'
+import { countOf, EmptyRow, READING, Section, statusCount } from './rows'
 import { ChevronIcon } from './icons'
 import { DayTotals } from './DayTotals'
 import { dayGrid, QUIET_EM } from './dayGrid'
 import { tagNames, type DayTotal } from './tags'
 import { fieldsOf, wordsOf, type TimelineDay, type TimelineEntry } from './timeline'
-import { ViewerHeader } from './ViewerHeader'
-import { Live } from './Live'
+import { TIMELINE_VIEWS, type Settings } from './settings'
+import { ViewerHeader, ViewSwitch } from './ViewerHeader'
+import { Live, type Opens as LineOpens } from './Live'
 import type { VaultFile } from './vaultModel'
 
-
-interface Opens {
-  onOpen: (file: VaultFile) => void
-  /** A link's target, and whether it was a `[[wikilink]]` rather than a markdown link or an address. */
-  onOpenLink: (target: string, wiki: boolean) => void
-  onOpenTag: (tag: string) => void
-}
+type Opens = LineOpens & { onOpen: (file: VaultFile) => void }
 
 /**
  * The timeline: every daily note as the day happened, oldest at the top
@@ -57,8 +51,8 @@ export function TimelineView({
   typeOf: (name: string) => PropertyType
   typing: Typing
   /** A list by clock, or a grid where height is time; kept in the vault's settings. */
-  view: 'list' | 'day'
-  onView: (next: 'list' | 'day') => void
+  view: Settings['timelineView']
+  onView: (next: Settings['timelineView']) => void
   /** An entry's line was changed to `text`. */
   onEdit: (entry: TimelineEntry, text: string) => void
   /** A new entry was typed at the bottom of today. */
@@ -81,26 +75,22 @@ export function TimelineView({
     !days || days.some((one) => one.day === today)
       ? (days ?? [])
       : [...days, { day: today, note: null, entries: [], text: '' }].sort((a, b) => a.day.localeCompare(b.day))
-  const editorFor = (entry: TimelineEntry) => {
-    const done = (text: string) => {
-      setEditing(null)
-      // Emptied is not deleted: the lines nested under it would lose their parent.
-      if (text.trim() !== '' && text.trim() !== entry.text) onEdit(entry, text)
-    }
-    return <LineEditor className="timeline-what line-edit" text={entry.text} typing={typing} onEnter={done} onLeave={done} onEscape={() => setEditing(null)} {...opens} />
-  }
-  const newEntry = <NewEntry typing={typing} onAdd={onAdd} rowRef={end} {...opens} />
+  const editorFor = (entry: TimelineEntry) => (
+    <EditLine className="timeline-what line-edit" text={entry.text} typing={typing} onSave={(text) => onEdit(entry, text)} onDone={() => setEditing(null)} {...opens} />
+  )
+  const newEntry = (
+    // The new entry's line at the bottom of today, where an entry's clock and rail would be.
+    <li className="timeline-entry timeline-new" ref={end}>
+      <span className="timeline-when" />
+      <span className="timeline-rail" aria-hidden />
+      <NewLine className="timeline-what line-edit" typing={typing} onAdd={onAdd} {...opens} />
+    </li>
+  )
 
   return (
     <>
-      <ViewerHeader name="Timeline" status={total > 0 ? countOf(total, 'entry', 'entries') : ''}>
-        <span className="view-switch" role="group" aria-label="View">
-          {(['list', 'day'] as const).map((one) => (
-            <button key={one} className="header-action" aria-pressed={view === one} onClick={() => onView(one)}>
-              {one === 'list' ? 'List' : 'Day'}
-            </button>
-          ))}
-        </span>
+      <ViewerHeader name="Timeline" status={statusCount(total, 'entry', 'entries')}>
+        <ViewSwitch views={TIMELINE_VIEWS} view={view} onView={onView} />
       </ViewerHeader>
       {!read && (
         <Section title="Days" count={0} startOpen>
@@ -210,7 +200,6 @@ function Grid({
   )
 }
 
-
 /**
  * A day's head, as a journal's page opens: the day's number large, its weekday
  * (or today, yesterday, tomorrow) and month beside it, and how many entries it
@@ -309,41 +298,6 @@ function Detail({ lines, ...opens }: { lines: readonly string[] } & Opens) {
         </span>
       ))}
     </span>
-  )
-}
-
-/**
- * The line for a new entry at the bottom of today. Enter files it and starts
- * the next; Escape clears it; leaving keeps the draft until it is filed.
- */
-function NewEntry({
-  typing,
-  onAdd,
-  rowRef,
-  ...opens
-}: { typing: Typing; onAdd: (text: string) => void; rowRef: RefObject<HTMLLIElement | null> } & Opens) {
-  // A new line each time: the editor reads its text at mount only.
-  const [round, setRound] = useState(0)
-  const next = () => setRound((was) => was + 1)
-  return (
-    <li className="timeline-entry timeline-new" ref={rowRef}>
-      <span className="timeline-when" />
-      <span className="timeline-rail" aria-hidden />
-      <LineEditor
-        key={round}
-        className="timeline-what line-edit"
-        text=""
-        typing={typing}
-        // Not on a phone: the page is opened to read, and the keyboard would cover it.
-        autoFocus={!onAndroid}
-        onEnter={(text) => {
-          if (text.trim() !== '') onAdd(text.trim())
-          next()
-        }}
-        onEscape={next}
-        {...opens}
-      />
-    </li>
   )
 }
 

@@ -1,7 +1,9 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import type { Entries } from './configEntries'
 import type { Alias } from './links'
+import type { Opens } from './Live'
 import { MarkdownEditor } from './MarkdownEditor'
+import { onAndroid } from './platform'
 import type { VaultFile } from './vaultModel'
 
 /**
@@ -17,9 +19,60 @@ export interface Typing {
   insertTimeCombo: string | null
 }
 
-interface Opens {
-  onOpenLink: (target: string, wiki: boolean) => void
-  onOpenTag: (tag: string) => void
+type LineEditorProps = {
+  text: string
+  /** The box's classes, for the page's own layout; `line-edit` sets the editor in the row's type. */
+  className?: string
+  typing: Typing
+  autoFocus?: boolean
+  /** The tag the line is filed under without carrying it, for its properties' popup. */
+  tag?: string
+  placeholder?: string
+  onEnter: (text: string) => void
+  onEscape: () => void
+  onLeave?: (text: string) => void
+} & Opens
+
+/**
+ * A line already written, edited in place: written on Enter or on leaving when it
+ * changed, dropped on Escape. Emptied is not deleted: what is nested under it would
+ * lose its parent, and a line's removal is the note's to make.
+ */
+export function EditLine({
+  text,
+  onSave,
+  onDone,
+  ...line
+}: Omit<LineEditorProps, 'onEnter' | 'onLeave' | 'onEscape'> & { onSave: (text: string) => void; onDone: () => void }) {
+  const done = (typed: string) => {
+    onDone()
+    if (typed.trim() !== '' && typed.trim() !== text) onSave(typed)
+  }
+  return <LineEditor {...line} text={text} onEnter={done} onLeave={done} onEscape={onDone} />
+}
+
+/**
+ * The line a new one is typed in: Enter files what is typed and starts the next,
+ * Escape clears it, and leaving keeps the draft. Not focused on a phone, where the
+ * page is opened to read and the keyboard would cover it.
+ */
+export function NewLine({ onAdd, ...line }: Omit<LineEditorProps, 'text' | 'onEnter' | 'onEscape' | 'autoFocus'> & { onAdd: (text: string) => void }) {
+  // A new line each time: the editor reads its text at mount only.
+  const [round, setRound] = useState(0)
+  const next = () => setRound((was) => was + 1)
+  return (
+    <LineEditor
+      key={round}
+      {...line}
+      text=""
+      autoFocus={!onAndroid}
+      onEnter={(text) => {
+        if (text.trim() !== '') onAdd(text.trim())
+        next()
+      }}
+      onEscape={next}
+    />
+  )
 }
 
 /**
@@ -39,19 +92,7 @@ export function LineEditor({
   className = 'line-edit',
   onOpenLink,
   onOpenTag,
-}: {
-  text: string
-  /** The box's classes, for the page's own layout; `line-edit` sets the editor in the row's type. */
-  className?: string
-  typing: Typing
-  autoFocus?: boolean
-  /** The tag the line is filed under without carrying it, for its properties' popup. */
-  tag?: string
-  placeholder?: string
-  onEnter: (text: string) => void
-  onEscape: () => void
-  onLeave?: (text: string) => void
-} & Opens) {
+}: LineEditorProps) {
   const finished = useRef(false)
   const once = (then: () => void) => {
     if (finished.current) return

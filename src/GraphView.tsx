@@ -3,6 +3,7 @@ import type { RefObject } from 'react'
 import { around, boundsOf, clustersOf, connectionsOf, EDGE_KINDS, everything, polar, REGION_PAD, ringLayout } from './graph'
 import type { EdgeKind, GraphNode, NoteGraph, Placed, Region, Sector } from './graph'
 import { countOf } from './rows'
+import { EM_PER_CHARACTER } from './settings'
 
 /**
  * The note graph, drawn. It is given the graph already built, so
@@ -49,12 +50,6 @@ const LABEL_PX = 11
 const LABEL_HALO = 3
 /** A link held in a property is drawn dashed: dash and gap, on screen. */
 const PROPERTY_DASH = [4, 3]
-/**
- * A character's width as a share of the font size, for deciding which labels
- * fit. Labels are placed before layout, so this uses `settings.ts`'s
- * estimate; close is enough to tell whether two names overlap.
- */
-const EM_PER_CHARACTER = 0.516
 /** Space around a label before it counts as touching another. */
 const LABEL_GAP = 4
 /** The most of a name a label shows at rest. Hovering shows the rest. */
@@ -262,6 +257,8 @@ export function decluttered(
     // A day is named only when pointed at: dates were a fifth of all the text.
     if (!p || ((node.kind === 'day' || hubs.has(node.id)) && node.id !== currentId)) continue
     // In screen space, without the translation, which shifts every box equally.
+    // Placed before layout, so the settings' estimate of a character: close is enough
+    // to tell whether two names overlap.
     const width = Math.max(shortName(node.name).length * LABEL_PX * EM_PER_CHARACTER, LABEL_PX) + LABEL_GAP
     const x = p.x * k
     const y = p.y * k

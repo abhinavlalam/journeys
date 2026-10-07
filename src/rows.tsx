@@ -17,7 +17,6 @@ import { ChevronIcon, DEFAULT_NOTE_ICON, NoteIcon, PlusIcon } from './icons'
 import { linkLabelSpan, type VaultFile } from './vaultModel'
 import type { CollectedNote } from './useVaultTexts'
 
-
 /**
  * A depth as a length in the sheet's `--row-step`. A nested row's `paddingLeft`
  * and a folder's `--guide-x` both use it, so the rows and the guide agree.
@@ -331,6 +330,9 @@ export function GatheredNotes({
   ))
 }
 
-/** `1 line`, `3 lines`, `12 notes`: the count a page shows in its header. */
+/** `1 line`, `3 lines`, `12 notes`. */
 export const countOf = (n: number, one: string, many = `${one}s`) =>
   `${n} ${n === 1 ? one : many}`
+
+/** A page's count in its header, and nothing at none: the empty page says so itself. */
+export const statusCount = (n: number, one: string, many?: string) => (n > 0 ? countOf(n, one, many) : '')

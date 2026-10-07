@@ -1,6 +1,6 @@
 // The reading pane's header: what is open, whether it is saved, and for
-// a note its name as a field. The note and `.config/settings.json`
-// share it; the settings file adds a Save button in a slot.
+// a note its name as a field. Every page shares it; a page's controls go in
+// its slot: the settings file's Save, a page's view switch.
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { NameField } from './rows'
@@ -12,6 +12,19 @@ import { NameField } from './rows'
  * The name is the rename, when the caller passes one. The title field and
  * the tree's row share `NameField` and, through `App`, the same handler.
  */
+/** A page's ways of being drawn, one pressed, each shown as its name. */
+export function ViewSwitch<T extends string>({ views, view, onView }: { views: readonly T[]; view: T; onView: (next: T) => void }) {
+  return (
+    <span className="view-switch" role="group" aria-label="View">
+      {views.map((one) => (
+        <button key={one} className="header-action" aria-pressed={view === one} onClick={() => onView(one)}>
+          {one[0].toUpperCase() + one.slice(1)}
+        </button>
+      ))}
+    </span>
+  )
+}
+
 export function ViewerHeader({
   name,
   status,

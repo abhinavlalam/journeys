@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ViewerHeader } from './ViewerHeader'
-import { countOf, EmptyRow, NoteRow, READING, RowIcon, Section, stepIn } from './rows'
+import { EmptyRow, NoteRow, READING, RowIcon, Section, stepIn, statusCount } from './rows'
 import { ChevronIcon } from './icons'
 import { clockStart, dayDate, daysAfter, dayTitle, localDateStamp, longDay, monthName, relativeDay, shortWeekday } from './clock'
 import {
@@ -79,7 +79,7 @@ export function CalendarView({
   const ahead = events.filter((one) => one.day >= today && one.day <= shown[shown.length - 1])
   const due = dueReminders(events, now)
 
-  const status = syncing ? 'Syncing…' : feeds === 0 && onSync ? 'No feeds' : ahead.length > 0 ? countOf(ahead.length, 'event') : ''
+  const status = syncing ? 'Syncing…' : feeds === 0 && onSync ? 'No feeds' : statusCount(ahead.length, 'event')
   return (
     <>
       <ViewerHeader name="Calendar" status={status}>

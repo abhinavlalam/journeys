@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { localDateStamp, localTimeStamp } from './clock'
-import { countOf, EmptyRow, Section, stepIn } from './rows'
+import { EmptyRow, Section, stepIn, statusCount } from './rows'
 import type { LogItem } from './useLog'
 import { ViewerHeader } from './ViewerHeader'
 
@@ -13,7 +13,7 @@ export function LogView({ items }: { items: readonly LogItem[] }) {
   const today = localDateStamp()
   return (
     <>
-      <ViewerHeader name="Log" status={items.length > 0 ? countOf(items.length, 'message') : ''} />
+      <ViewerHeader name="Log" status={statusCount(items.length, 'message')} />
       <Section title="This window" count={items.length} startOpen>
         {items.length === 0 ? (
           <EmptyRow text="Nothing said yet." />

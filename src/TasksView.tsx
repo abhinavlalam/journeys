@@ -2,20 +2,14 @@ import { useState } from 'react'
 import { firstWeekday } from './calendar'
 import { dayDate, localDateStamp, relativeDay, shortDate, weekdayName } from './clock'
 import { CheckIcon, ChevronIcon } from './icons'
-import { LineEditor, type Typing } from './LineEditor'
-import { Live } from './Live'
-import { onAndroid } from './platform'
+import { EditLine, NewLine, type Typing } from './LineEditor'
+import { Live, type Opens } from './Live'
 import type { PropertyType } from './properties'
-import { countOf, EmptyRow, readable, READING, Section, stepIn } from './rows'
+import { EmptyRow, readable, READING, Section, stepIn, statusCount } from './rows'
 import { TASK, tasksByNote, tasksByWhen, taskWords, whenOf, type Task } from './tasks'
-import { ViewerHeader } from './ViewerHeader'
+import { TASK_VIEWS, type Settings } from './settings'
+import { ViewerHeader, ViewSwitch } from './ViewerHeader'
 import type { VaultFile } from './vaultModel'
-
-interface Opens {
-  onOpenLink: (target: string, wiki: boolean) => void
-  onOpenTag: (tag: string) => void
-}
-
 
 /** When a task is due, in words; by due date, Today's group already says so. */
 function dueWords(task: Task, today: string, firstDay: number, byDue: boolean): string {
@@ -53,8 +47,8 @@ export function TasksView({
   /** Each tag's colour (`coloursOf`), for its chips in a task's words. */
   colours: Readonly<Record<string, string>>
   /** By due date or by page; kept in the vault's settings. */
-  view: 'due' | 'page'
-  onView: (next: 'due' | 'page') => void
+  view: Settings['tasksView']
+  onView: (next: Settings['tasksView']) => void
   typeOf: (name: string) => PropertyType
   typing: Typing
   onDone: (task: Task, done: boolean) => void
@@ -91,14 +85,8 @@ export function TasksView({
   }
   return (
     <>
-      <ViewerHeader name="Tasks" status={open > 0 ? countOf(open, 'open task') : ''}>
-        <span className="view-switch" role="group" aria-label="Order">
-          {(['due', 'page'] as const).map((one) => (
-            <button key={one} className="header-action" aria-pressed={view === one} onClick={() => onView(one)}>
-              {one === 'due' ? 'Due' : 'Page'}
-            </button>
-          ))}
-        </span>
+      <ViewerHeader name="Tasks" status={statusCount(open, 'open task')}>
+        <ViewSwitch views={TASK_VIEWS} view={view} onView={onView} />
       </ViewerHeader>
       <ul className="file-list">
         <NewTask typing={typing} onAdd={onAdd} {...opens} />
@@ -159,11 +147,6 @@ function TaskRow({
 } & Opens) {
   const [open, setOpen] = useState(false)
   const label = readable(words)
-  const done = (text: string) => {
-    onEditing(false)
-    // Emptied is not deleted: a line's removal is the note's to make.
-    if (text.trim() !== '' && text.trim() !== task.text) onEdit(task, text)
-  }
   return (
     <li style={{ paddingLeft: stepIn(1) }}>
       <div className={task.done ? 'task-row done' : 'task-row'}>
@@ -180,7 +163,7 @@ function TaskRow({
         <span className="task-body">
           <span className="task-line">
             {editing ? (
-              <LineEditor className="task-what line-edit" text={task.text} typing={typing} onEnter={done} onLeave={done} onEscape={() => onEditing(false)} {...opens} />
+              <EditLine className="task-what line-edit" text={task.text} typing={typing} onSave={(text) => onEdit(task, text)} onDone={() => onEditing(false)} {...opens} />
             ) : (
               <span
                 className="task-what"
@@ -223,29 +206,21 @@ function TaskRow({
  * beside an empty box read as something left on the page.
  */
 function NewTask({ typing, onAdd, ...opens }: { typing: Typing; onAdd: (text: string) => void } & Opens) {
-  // A new line each time: the editor reads its text at mount only.
-  const [round, setRound] = useState(0)
-  const next = () => setRound((was) => was + 1)
   const tagged = new RegExp(`(^|\\s)#${TASK}(?![\\w/-])`, 'i')
   return (
     <li style={{ paddingLeft: stepIn(1) }}>
       <div className="task-row task-new">
         <span className="task-fold" aria-hidden />
         <span className="task-box" aria-hidden />
-        <LineEditor
-          key={round}
+        <NewLine
           className="task-what line-edit"
-          text=""
           tag={TASK}
           placeholder="New task"
           typing={typing}
-          // Not on a phone: the page is opened to read, and the keyboard would cover it.
-          autoFocus={!onAndroid}
-          onEnter={(text) => {
-            if (text.replace(tagged, ' ').trim()) onAdd(tagged.test(text) ? text.trim() : `#${TASK} ${text.trim()}`)
-            next()
+          onAdd={(text) => {
+            // The tag alone is no task.
+            if (text.replace(tagged, ' ').trim()) onAdd(tagged.test(text) ? text : `#${TASK} ${text}`)
           }}
-          onEscape={next}
           {...opens}
         />
       </div>

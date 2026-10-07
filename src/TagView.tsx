@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { LineTable } from './LineTable'
 import { blockProperties, PROPERTY_NAME, readBlock, type PropertyType } from './properties'
-import { ViewerHeader } from './ViewerHeader'
-import { AddButton, countOf, EmptyRow, GatheredNotes, NameField, NoteRow, readable, RowIcon, Section, stepIn } from './rows'
+import { ViewerHeader, ViewSwitch } from './ViewerHeader'
+import { AddButton, EmptyRow, GatheredNotes, NameField, NoteRow, readable, RowIcon, Section, stepIn, statusCount } from './rows'
 import { COMBINE_NAMES, COMBINES, LINE_VIEWS, lineWords, TAG_COLOURS, tagsOnly, TOTAL_PLACES, type Combine, type DayTotal, type LineView, type TagColour, type TotalPlace } from './tags'
 import type { CollectedNote } from './useVaultTexts'
 import type { VaultFile } from './vaultModel'
@@ -102,14 +102,8 @@ export function TagView({
     <>
       {/* `#travel`, not `travel`: the header shows the syntax,
           as `icon::` does on a property page. */}
-      <ViewerHeader name={`#${name}`} status={total > 0 ? countOf(total, 'line') : ''}>
-        <span className="view-switch" role="group" aria-label="View">
-          {LINE_VIEWS.map((one) => (
-            <button key={one} className="header-action" aria-pressed={view === one} onClick={() => onView(one)}>
-              {one === 'list' ? 'List' : 'Table'}
-            </button>
-          ))}
-        </span>
+      <ViewerHeader name={`#${name}`} status={statusCount(total, 'line')}>
+        <ViewSwitch views={LINE_VIEWS} view={view} onView={onView} />
       </ViewerHeader>
       <Section
         title="Properties"
