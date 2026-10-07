@@ -666,8 +666,15 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
     an element that shrinks its em divides by `--glyph-num`.
 - `--mark` is the one accent tone, chrome and prose alike. Glyphs state only their
   grid (`GRID_10/16/24`); `--icon-weight` turns into the stroke.
-- `--space-w` is the one measured value (`applySettings`), because a note's indent
-  is spaces in a proportional face.
+- `--space-w` and `--reading-width` are the measured values (`applySettings`): a
+  note's indent is spaces in a proportional face, and its measure is characters in it.
+- **Layout settings scale with the type** (the principle above): `lineLength` is
+  characters, `lineSpacing` and `rowSpacing` shares of a line and a row, resolved where
+  each is used (`calc(… * 1em)`, `var(--row-h)`). In pixels a size one step down
+  widened the measure from 85 characters to 91. Settings stored in pixels before
+  2026-10-07 are read once into the new names (`fromPixels`).
+- **The graph's left-out folders** (`graphHides`) are set under Graph in the panel,
+  offered from the vault's folders; until 2026-10-07 only by hand in the file.
 
 ## What will bite
 

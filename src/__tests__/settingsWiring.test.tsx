@@ -231,18 +231,18 @@ describe('settings reaching the app', () => {
   it('sends a gap change to the pane it belongs to', async () => {
     await openApp()
     const html = document.documentElement
-    expect(html.style.getPropertyValue('--line-gap')).toBe('0px')
+    expect(html.style.getPropertyValue('--line-gap')).toBe('calc(0 * var(--line-height-prose) * 1em)')
 
     fireEvent.click(gear())
     await waitFor(() => expect(dialog()).toBeTruthy())
     fireEvent.click(screen.getByRole('button', { name: 'Typography' }))
-    fireEvent.change(screen.getByLabelText('Lines'), { target: { value: '6' } })
+    fireEvent.change(screen.getByLabelText('Lines'), { target: { value: '0.25' } })
 
     // `--line-gap` is the note's, below each line; `--row-gap`
     // is the panes' rows. Moving one must not move the other.
-    await waitFor(() => expect(html.style.getPropertyValue('--line-gap')).toBe('6px'))
-    expect(html.style.getPropertyValue('--row-gap')).toBe('0px')
-    expect(JSON.parse(localStorage.getItem(SETTINGS_KEY)!).lineGap).toBe(6)
+    await waitFor(() => expect(html.style.getPropertyValue('--line-gap')).toBe('calc(0.25 * var(--line-height-prose) * 1em)'))
+    expect(html.style.getPropertyValue('--row-gap')).toBe('calc(0 * var(--row-h))')
+    expect(JSON.parse(localStorage.getItem(SETTINGS_KEY)!).lineSpacing).toBe(0.25)
   })
 
   it('sends a line-height change to the document, with no relaunch', async () => {

@@ -26,7 +26,6 @@ import {
   type Settings,
 } from './settings'
 import { ACTIONS, comboFromEvent, findConflict, formatCombo, type ActionId } from './shortcuts'
-import { characterWidth, COLUMN_PADDING } from './settings'
 import { syncWord, type Sync } from './useSync'
 import { agoWord, SECOND_MS } from './clock'
 import { numberText } from './properties'
@@ -40,6 +39,8 @@ interface SettingsProps {
   sync: Sync
   /** The section to open on. The Sync row under Applications opens Sync. */
   initialSection?: SectionId
+  /** The vault's folders, offered when leaving one out of the graph. */
+  folders?: readonly string[]
 }
 
 const SECTIONS = [
@@ -47,6 +48,7 @@ const SECTIONS = [
   { id: 'typography', label: 'Typography' },
   { id: 'shortcuts', label: 'Shortcuts' },
   { id: 'notes', label: 'Notes' },
+  { id: 'graph', label: 'Graph' },
   { id: 'calendar', label: 'Calendar' },
   { id: 'sync', label: 'Sync' },
 ] as const
@@ -102,27 +104,18 @@ const CATEGORY_LABELS: Record<FaceCategory, string> = {
 // ---------------------------------------------------------------------------
 
 /**
- * Characters on a line, and whether that is a comfortable number.
- *
- * Measured from the face (`characterWidth`), not a fixed ratio:
- * a fixed 0.516 said about 100 where a line held 105.
- *
- * Forty-five to eighty reads well. Past that the eye loses its
- * place when it goes back to the start of the next line, so the
- * readout says wide or narrow and not just a number.
+ * Characters on a line, and whether that is a comfortable number. The setting is
+ * the characters; `applySettings` measures the face (`characterWidth`) to make it a
+ * width. Forty-five to eighty reads well. Past that the eye loses its place when it
+ * goes back to the start of the next line, so the readout says wide or narrow.
  */
 const COMFORTABLE = { from: 45, to: 80 }
 
-function lineCharacters(readingWidth: number, settings: Settings): number {
-  return Math.floor((readingWidth - COLUMN_PADDING) / characterWidth(settings))
-}
+const measureReadout = (characters: number) =>
+  `${characters} characters${characters > COMFORTABLE.to ? ' — wide' : characters < COMFORTABLE.from ? ' — narrow' : ''}`
 
-function measureReadout(readingWidth: number, settings: Settings): string {
-  const characters = lineCharacters(readingWidth, settings)
-  const verdict =
-    characters > COMFORTABLE.to ? ' — wide' : characters < COMFORTABLE.from ? ' — narrow' : ''
-  return `${numberText(readingWidth)}px · ${characters} characters${verdict}`
-}
+/** A gap as a share of what it sits between. */
+const shareOf = (unit: string) => (value: number) => (value === 0 ? 'none' : `${numberText(value)} of a ${unit}`)
 
 /** One slider row: label, track, value. */
 function Slider({
@@ -225,7 +218,7 @@ function NameSetting({
 
 const FOCUSABLE = 'button, input, select, textarea, [href], [tabindex]:not([tabindex="-1"])'
 
-export function SettingsPanel({ settings, onChange, onClose, sync, initialSection = 'appearance' }: SettingsProps) {
+export function SettingsPanel({ settings, onChange, onClose, sync, initialSection = 'appearance', folders = [] }: SettingsProps) {
   const [section, setSection] = useState<SectionId>(initialSection)
   const [capturing, setCapturing] = useState<ActionId | null>(null)
   const [conflict, setConflict] = useState<string | null>(null)
@@ -233,6 +226,18 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
   // is never saved. `shownFeeds` are the saved addresses shown unmasked.
   const [feedDraft, setFeedDraft] = useState({ name: '', url: '' })
   const [feedError, setFeedError] = useState<string | null>(null)
+  // A folder being typed to leave out of the graph, and why it was refused.
+  const [hideDraft, setHideDraft] = useState('')
+  const [hideError, setHideError] = useState<string | null>(null)
+
+  /** A folder left out of the graph, as the tree names it: no slashes at its ends, and not twice. */
+  function addHide() {
+    const folder = hideDraft.trim().replace(/^\/+|\/+$/g, '')
+    if (!folder) return setHideError('Name a folder.')
+    if (settings.graphHides.some((one) => one.toLowerCase() === folder.toLowerCase())) return setHideError(`${folder} is left out already.`)
+    patch({ graphHides: [...settings.graphHides, folder] })
+    setHideDraft('')
+  }
   const [shownFeeds, setShownFeeds] = useState<ReadonlySet<string>>(new Set())
   // The repository's address and the identity as typed. They are saved on
   // Enter or blur, and seeded from the repository once it is read. The token
@@ -537,18 +542,15 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
                   onChange={(lineHeight) => patch({ lineHeight })}
                   format={numberText}
                 />
-                {/* The characters per line are in the readout, since
-                    they change with the size as well as the width. */}
+                {/* In characters, so the column keeps its measure at any size and face. */}
                 <Slider
                   uid={uid}
                   name="width"
                   label="Width"
-                  bounds={BOUNDS.readingWidth}
-                  value={settings.readingWidth}
-                  onChange={(readingWidth) => patch({ readingWidth })}
-                  format={(value) =>
-                    measureReadout(value, settings)
-                  }
+                  bounds={BOUNDS.lineLength}
+                  value={settings.lineLength}
+                  onChange={(lineLength) => patch({ lineLength })}
+                  format={measureReadout}
                 />
 
                 <p className="settings-group">Spacing</p>
@@ -559,19 +561,19 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
                   uid={uid}
                   name="gap"
                   label="Lines"
-                  bounds={BOUNDS.lineGap}
-                  value={settings.lineGap}
-                  onChange={(lineGap) => patch({ lineGap })}
-                  format={(value) => `${numberText(value)}px`}
+                  bounds={BOUNDS.lineSpacing}
+                  value={settings.lineSpacing}
+                  onChange={(lineSpacing) => patch({ lineSpacing })}
+                  format={shareOf('line')}
                 />
                 <Slider
                   uid={uid}
                   name="rowgap"
                   label="Rows"
-                  bounds={BOUNDS.rowGap}
-                  value={settings.rowGap}
-                  onChange={(rowGap) => patch({ rowGap })}
-                  format={(value) => `${numberText(value)}px`}
+                  bounds={BOUNDS.rowSpacing}
+                  value={settings.rowSpacing}
+                  onChange={(rowSpacing) => patch({ rowSpacing })}
+                  format={shareOf('row')}
                 />
                 <Slider
                   uid={uid}
@@ -671,6 +673,56 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
                   onChange={(value) => patch({ lockMinutes: value })}
                   format={(value) => `${value} ${value === 1 ? 'minute' : 'minutes'} unused`}
                 />
+              </section>
+            )}
+
+            {section === 'graph' && (
+              <section className="settings-section">
+                <h3>Graph</h3>
+                <p className="settings-field-hint">
+                  Folders the graph leaves out, with their notes and the lines to them: a folder of notes that every
+                  line links, like a list of places, crowds it.
+                </p>
+                {settings.graphHides.map((folder) => (
+                  <div className="settings-field" key={folder}>
+                    <div className="settings-inline">
+                      <input className="settings-text-input" type="text" value={folder} readOnly aria-label={`Left out: ${folder}`} />
+                      <button className="settings-action" onClick={() => patch({ graphHides: settings.graphHides.filter((one) => one !== folder) })}>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="settings-field">
+                  <label htmlFor={`${uid}-hide-new`}>Leave out a folder</label>
+                  <div className="settings-inline">
+                    <input
+                      id={`${uid}-hide-new`}
+                      className="settings-text-input"
+                      type="text"
+                      list={`${uid}-folders`}
+                      placeholder="Archive/Old"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      value={hideDraft}
+                      onChange={(e) => (setHideDraft(e.currentTarget.value), setHideError(null))}
+                      onKeyDown={(e) => e.key === 'Enter' && addHide()}
+                    />
+                    <button className="settings-action" onClick={addHide}>
+                      Add
+                    </button>
+                  </div>
+                  <datalist id={`${uid}-folders`}>
+                    {folders.map((one) => (
+                      <option key={one} value={one} />
+                    ))}
+                  </datalist>
+                  {hideError && (
+                    <p className="settings-conflict" role="alert">
+                      {hideError}
+                    </p>
+                  )}
+                </div>
               </section>
             )}
 

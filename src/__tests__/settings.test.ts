@@ -82,8 +82,8 @@ describe('the defaults', () => {
     expect(DEFAULT_SETTINGS.proseSize).toBeCloseTo(0.90625 * 16, 5)
     expect(DEFAULT_SETTINGS.lineHeight).toBe(1.85)
     // Zero, so notes and the tree are as tight as their leading; the sliders add space.
-    expect(DEFAULT_SETTINGS.lineGap).toBe(0)
-    expect(DEFAULT_SETTINGS.readingWidth).toBe(640)
+    expect(DEFAULT_SETTINGS.lineSpacing).toBe(0)
+    expect(DEFAULT_SETTINGS.lineLength).toBe(75)
     expect(DEFAULT_SETTINGS.mode).toBe('dark')
     expect(DEFAULT_SETTINGS.scheme).toBe('slate')
     // `--font-prose: var(--font-sans)` in the sheet, the System
@@ -101,7 +101,8 @@ describe('the defaults', () => {
     expect(DEFAULT_SETTINGS.proseSize).toBeGreaterThanOrEqual(BOUNDS.proseSize.min)
     expect(DEFAULT_SETTINGS.proseSize).toBeLessThanOrEqual(BOUNDS.proseSize.max)
     expect(DEFAULT_SETTINGS.lineHeight).toBeGreaterThanOrEqual(BOUNDS.lineHeight.min)
-    expect(DEFAULT_SETTINGS.readingWidth).toBeLessThanOrEqual(BOUNDS.readingWidth.max)
+    expect(DEFAULT_SETTINGS.lineLength).toBeGreaterThanOrEqual(BOUNDS.lineLength.min)
+    expect(DEFAULT_SETTINGS.lineLength).toBeLessThanOrEqual(BOUNDS.lineLength.max)
   })
 })
 
@@ -127,14 +128,14 @@ describe('reading what was stored', () => {
         fontFamily: 'georgia',
         proseSize: 'large', // not a number
         lineHeight: 1.8,
-        readingWidth: null,
+        lineLength: null,
         dailyFolder: null,
         // `shortcuts` missing entirely, an older stored shape.
       })
     )
     expect(parsed.scheme).toBe(DEFAULT_SETTINGS.scheme)
     expect(parsed.proseSize).toBe(DEFAULT_SETTINGS.proseSize)
-    expect(parsed.readingWidth).toBe(DEFAULT_SETTINGS.readingWidth)
+    expect(parsed.lineLength).toBe(DEFAULT_SETTINGS.lineLength)
     expect(parsed.dailyFolder).toBe(DEFAULT_SETTINGS.dailyFolder)
     expect(parsed.shortcuts).toEqual(DEFAULT_SETTINGS.shortcuts)
     // …and the good fields survived.
@@ -145,36 +146,37 @@ describe('reading what was stored', () => {
 
   it('clamps a number instead of rendering it', () => {
     const big = parseSettings(
-      JSON.stringify({ proseSize: 900, lineHeight: 40, readingWidth: 99999, lineGap: 99 })
+      JSON.stringify({ proseSize: 900, lineHeight: 40, lineLength: 99999, lineSpacing: 99 })
     )
     expect(big.proseSize).toBe(BOUNDS.proseSize.max)
     expect(big.lineHeight).toBe(BOUNDS.lineHeight.max)
-    expect(big.readingWidth).toBe(BOUNDS.readingWidth.max)
-    expect(big.lineGap).toBe(BOUNDS.lineGap.max)
+    expect(big.lineLength).toBe(BOUNDS.lineLength.max)
+    expect(big.lineSpacing).toBe(BOUNDS.lineSpacing.max)
 
     const small = parseSettings(
-      JSON.stringify({ proseSize: 0, lineHeight: -3, readingWidth: 10, lineGap: -4 })
+      JSON.stringify({ proseSize: 0, lineHeight: -3, lineLength: 10, lineSpacing: -4 })
     )
     expect(small.proseSize).toBe(BOUNDS.proseSize.min)
     expect(small.lineHeight).toBe(BOUNDS.lineHeight.min)
-    expect(small.readingWidth).toBe(BOUNDS.readingWidth.min)
-    expect(small.lineGap).toBe(BOUNDS.lineGap.min)
+    expect(small.lineLength).toBe(BOUNDS.lineLength.min)
+    expect(small.lineSpacing).toBe(BOUNDS.lineSpacing.min)
   })
 
   /**
-   * The note's gap and the panes' gap are two numbers. Settings written
-   * before the split have only `lineGap`, which was the row gap then, so it
-   * is read as both and the vault looks the same until the new slider moves.
+   * Until 2026-10-07 the width and the gaps were pixels beside a text size, so a bigger
+   * size changed the measure and shrank the gaps. Older settings read once into lines,
+   * rows and characters, and look as they did.
    */
-  it('gives the rows their own gap, inherited from the old one', () => {
-    expect(parseSettings(JSON.stringify({ lineGap: 6 })).rowGap).toBe(6)
-    // Written down, it wins.
-    expect(parseSettings(JSON.stringify({ lineGap: 6, rowGap: 2 })).rowGap).toBe(2)
-    expect(parseSettings('{}').rowGap).toBe(DEFAULT_SETTINGS.rowGap)
-    // Clamped like the rest; a bad value falls back.
-    expect(parseSettings(JSON.stringify({ rowGap: 99 })).rowGap).toBe(BOUNDS.rowGap.max)
-    expect(parseSettings(JSON.stringify({ rowGap: -4 })).rowGap).toBe(BOUNDS.rowGap.min)
-    expect(parseSettings(JSON.stringify({ rowGap: 'roomy', lineGap: 3 })).rowGap).toBe(3)
+  it('reads older pixel settings as characters, lines and rows', () => {
+    const old = parseSettings(JSON.stringify({ readingWidth: 840, lineGap: 6, rowGap: 6, proseSize: 13, lineHeight: 1.5 }))
+    // (840 − 80) / (0.516 × 13); 6 / (13 × 1.5) for both gaps.
+    expect([old.lineLength, old.lineSpacing, old.rowSpacing]).toEqual([113, 0.31, 0.31])
+    // Before the rows had their own gap, the one gap was both.
+    expect(parseSettings(JSON.stringify({ lineGap: 6 })).rowSpacing).toBe(0.25)
+    // The new names win, and are clamped like the rest; a bad value falls back.
+    expect(parseSettings(JSON.stringify({ lineSpacing: 0.1, lineGap: 6 })).lineSpacing).toBe(0.1)
+    expect(parseSettings(JSON.stringify({ rowSpacing: 9 })).rowSpacing).toBe(BOUNDS.rowSpacing.max)
+    expect(parseSettings(JSON.stringify({ rowSpacing: 'roomy' })).rowSpacing).toBe(DEFAULT_SETTINGS.rowSpacing)
   })
 
   /**
@@ -208,16 +210,17 @@ describe('reading what was stored', () => {
     expect(parseSettings('{}').iconWeight).toBe(0.088)
   })
 
+  /** Shares of a line, resolved where each is used: a note's line, a row's. */
   it('writes both gaps to the page, so the panes can differ', () => {
     const root = document.createElement('div')
-    applySettings({ ...DEFAULT_SETTINGS, lineGap: 7, rowGap: 2 }, root)
-    expect(root.style.getPropertyValue('--line-gap')).toBe('7px')
-    expect(root.style.getPropertyValue('--row-gap')).toBe('2px')
+    applySettings({ ...DEFAULT_SETTINGS, lineSpacing: 0.25, rowSpacing: 0.1 }, root)
+    expect(root.style.getPropertyValue('--line-gap')).toBe('calc(0.25 * var(--line-height-prose) * 1em)')
+    expect(root.style.getPropertyValue('--row-gap')).toBe('calc(0.1 * var(--row-h))')
   })
 
   it('rejects NaN and Infinity, which are numbers', () => {
     // They cannot come through `JSON.parse`, but can through a slider.
-    const parsed = parseSettings(JSON.stringify({ proseSize: null, readingWidth: null }))
+    const parsed = parseSettings(JSON.stringify({ proseSize: null, lineLength: null }))
     expect(Number.isFinite(parsed.proseSize)).toBe(true)
     expect(parseSettings('{"lineHeight":1e999}').lineHeight).toBe(DEFAULT_SETTINGS.lineHeight)
   })
@@ -363,16 +366,17 @@ describe('applying to the document', () => {
       fontFamily: 'sf-mono',
       proseSize: 16,
       lineHeight: 1.8,
-      readingWidth: 900,
-      lineGap: 6,
+      lineLength: 90,
+      lineSpacing: 0.2,
     })
     const el = document.documentElement
     expect(el.getAttribute('data-theme')).toBe('light')
     expect(el.getAttribute('data-scheme')).toBe('moss')
     expect(el.style.getPropertyValue('--fs-prose')).toBe('16px')
     expect(el.style.getPropertyValue('--line-height-prose')).toBe('1.8')
-    expect(el.style.getPropertyValue('--reading-width')).toBe('900px')
-    expect(el.style.getPropertyValue('--line-gap')).toBe('6px')
+    // jsdom measures no face, so the fallback ratio: 90 × 0.516 × 16 + 80.
+    expect(el.style.getPropertyValue('--reading-width')).toBe('823px')
+    expect(el.style.getPropertyValue('--line-gap')).toBe('calc(0.2 * var(--line-height-prose) * 1em)')
     expect(el.style.getPropertyValue('--font-prose')).toBe(
       "ui-monospace, 'SF Mono', var(--font-mono), monospace"
     )

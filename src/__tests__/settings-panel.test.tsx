@@ -169,28 +169,26 @@ describe('appearance', () => {
 
 describe('the measure, in characters', () => {
   /**
-   * This once shipped wrong: the prose size moved and the measure went from
-   * 85 characters to 91 with the width untouched. Both numbers are pinned.
+   * In pixels, a size one step down once widened the measure from 85 characters
+   * to 91 with the width untouched. The characters are the setting now.
    */
-  it('reads 85 at the defaults', () => {
-    render(<Harness settings={{ ...START, readingWidth: 720, proseSize: 14.5 }} />)
+  it('keeps its characters at any size', () => {
+    render(<Harness settings={{ ...START, lineLength: 85, proseSize: 14.5 }} />)
     fireEvent.click(rail('Typography'))
-    expect(screen.getByText('720px · 85 characters — wide')).toBeTruthy()
+    expect(screen.getByText('85 characters — wide')).toBeTruthy()
+    cleanup()
+    render(<Harness settings={{ ...START, lineLength: 85, proseSize: 13.5 }} />)
+    fireEvent.click(rail('Typography'))
+    expect(screen.getByText('85 characters — wide')).toBeTruthy()
   })
 
-  it('reads 91 at the same width one size down — the widening that shipped', () => {
-    render(<Harness settings={{ ...START, readingWidth: 720, proseSize: 13.5 }} />)
-    fireEvent.click(rail('Typography'))
-    expect(screen.getByText('720px · 91 characters — wide')).toBeTruthy()
-  })
-
-  it('moves when the width slider does', () => {
+  it('moves when the width slider does, and says when it reads comfortably', () => {
     render(<Harness />)
     fireEvent.click(rail('Typography'))
-    fireEvent.change(screen.getByLabelText('Width'), { target: { value: '1000' } })
-    // jsdom cannot measure a face, so the fallback ratio: (1000
-    // − 80) / (0.516 × 14.5) = 122.9
-    expect(screen.getByText('1000px · 122 characters — wide')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Width'), { target: { value: '60' } })
+    expect(screen.getByText('60 characters')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Width'), { target: { value: '42' } })
+    expect(screen.getByText('42 characters — narrow')).toBeTruthy()
   })
 })
 
@@ -256,17 +254,18 @@ describe('row spacing', () => {
     fireEvent.click(rail('Typography'))
 
     const rows = screen.getByLabelText('Rows')
-    expect(rows).toHaveProperty('max', String(BOUNDS.rowGap.max))
-    fireEvent.change(rows, { target: { value: '4' } })
+    expect(rows).toHaveProperty('max', String(BOUNDS.rowSpacing.max))
+    fireEvent.change(rows, { target: { value: '0.3' } })
     expect(onChange).toHaveBeenCalledTimes(1)
-    expect(rows).toHaveProperty('value', '4')
+    expect(rows).toHaveProperty('value', '0.3')
+    expect(screen.getByText('0.3 of a row')).toBeTruthy()
 
     // The other slider did not move: two numbers, two controls.
     const lines = screen.getByLabelText('Lines') as HTMLInputElement
-    expect(lines.value).toBe(String(START.lineGap))
-    fireEvent.change(lines, { target: { value: '8' } })
-    expect(lines).toHaveProperty('value', '8')
-    expect(rows).toHaveProperty('value', '4')
+    expect(lines.value).toBe(String(START.lineSpacing))
+    fireEvent.change(lines, { target: { value: '0.2' } })
+    expect(lines).toHaveProperty('value', '0.2')
+    expect(rows).toHaveProperty('value', '0.3')
   })
 
   it('reports the value the slider is dragged to', () => {
@@ -402,6 +401,27 @@ describe('the daily folder', () => {
       target: { value: 'Day/Book' },
     })
     expect(screen.getByText(/Saved as “Day-Book”/)).toBeTruthy()
+  })
+})
+
+/** Set only by hand in `settings.json` until it had a place here. */
+describe('the folders the graph leaves out', () => {
+  it('adds one as the tree names it, refuses one listed already, and removes one', () => {
+    const onChange = vi.fn()
+    render(<Harness onChange={onChange} />)
+    fireEvent.click(rail('Graph'))
+    const field = screen.getByLabelText('Leave out a folder')
+    fireEvent.change(field, { target: { value: ' Archive/Old/ ' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ graphHides: ['Archive/Old'] }))
+    expect(screen.getByLabelText('Left out: Archive/Old')).toBeTruthy()
+
+    fireEvent.change(field, { target: { value: 'archive/old' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    expect(screen.getByRole('alert').textContent).toBe('archive/old is left out already.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ graphHides: [] }))
   })
 })
 

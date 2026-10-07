@@ -935,6 +935,7 @@ export default function App() {
       onClose={() => setSettingsOpen(false)}
       sync={sync}
       initialSection={settingsSection}
+      folders={folderPaths}
     />
   )
 

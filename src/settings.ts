@@ -144,16 +144,15 @@ export interface Settings {
    * sheet turns it into a stroke width per grid (see `svg[data-grid]`).
    */
   iconWeight: number
-  /** px: space between a note's lines. */
-  lineGap: number
+  /** Space between a note's lines, as a share of a line, so it keeps its proportion at any size. */
+  lineSpacing: number
   /**
-   * px: space between the panes' rows. Separate from `lineGap`,
-   * because a list of names wants less air than paragraphs. Falls
-   * back to `lineGap` for settings written before it existed.
+   * Space between the panes' rows, as a share of a row. Separate from `lineSpacing`,
+   * because a list of names wants less air than paragraphs.
    */
-  rowGap: number
-  /** px: the note column's outer width, padding included. */
-  readingWidth: number
+  rowSpacing: number
+  /** The note column's measure: characters on a line, in the reading face at its size. */
+  lineLength: number
   /**
    * Whether setting a folder's icon also writes it into the notes inside that
    * have none. A note always shows its own icon (see `resolveNoteIcon`).
@@ -172,8 +171,7 @@ export interface Settings {
   shortcuts: Record<ActionId, string>
   /**
    * Folders the graph leaves out, as vault-relative paths (`Archive/Old`). Useful
-   * for notes that every line links, which crowd the graph. Set in `settings.json`;
-   * there is no control in the panel.
+   * for notes that every line links, which crowd the graph. Set under Graph in the panel.
    */
   graphHides: string[]
   /**
@@ -239,19 +237,18 @@ export const COLUMN_PADDING = 80
  *   at reading size; past 600 text is as heavy as a heading.
  * - `iconWeight` 0.06–0.13: below 0.06 a line disappears; past
  *   0.13 the graph's dots and the gear run together.
- * - `lineGap` and `rowGap` 0–12 px: past about 12 a list of rows
- *   stops reading as a list.
- * - `readingWidth` 480–1200 px: 480 leaves a 400 px measure,
- *   about 50 characters, below which prose breaks mid-phrase.
+ * - `lineSpacing` and `rowSpacing` 0–0.6 of a line: past about half a line a list of
+ *   rows stops reading as a list.
+ * - `lineLength` 40–160 characters: below about 40 prose breaks mid-phrase.
  */
 export const BOUNDS = {
   proseSize: { min: 12, max: 24, step: 0.5 },
   lineHeight: { min: 1.2, max: 2.2, step: 0.05 },
   proseWeight: { min: 300, max: 600, step: 25 },
   iconWeight: { min: 0.06, max: 0.13, step: 0.002 },
-  lineGap: { min: 0, max: 12, step: 1 },
-  rowGap: { min: 0, max: 12, step: 1 },
-  readingWidth: { min: 480, max: 1200, step: 10 },
+  lineSpacing: { min: 0, max: 0.6, step: 0.05 },
+  rowSpacing: { min: 0, max: 0.6, step: 0.05 },
+  lineLength: { min: 40, max: 160, step: 1 },
   indentWidth: { min: 2, max: 8, step: 1 },
   calendarDays: { min: 1, max: 60, step: 1 },
   calendarMinutes: { min: 1, max: 60, step: 1 },
@@ -273,11 +270,10 @@ export const DEFAULT_SETTINGS: Settings = {
   proseWeight: 400,
   // 0.088: about 1.14 px at a 13 px reading size.
   iconWeight: 0.088,
-  lineGap: 0,
-  rowGap: 0,
-  // 640, not 720: after the padding that is about 77 characters
-  // at the default size. Past about 80 the eye loses its line.
-  readingWidth: 640,
+  lineSpacing: 0,
+  rowSpacing: 0,
+  // Past about 80 the eye loses its line going back to the start of the next.
+  lineLength: 75,
   // Four spaces per level: two looks barely indented in a proportional face.
   indentWidth: 4,
   inheritIcons: true,
@@ -365,6 +361,7 @@ export function parseSettings(raw: unknown): Settings {
   // Malformed JSON is missing settings, not an error to throw into a render.
   const stored: Partial<Record<keyof Settings, unknown>> = (typeof raw === 'string' && asObject(raw)) || {}
 
+  const pixels = fromPixels(stored)
   const valid = <K extends keyof Settings>(key: K, check: (value: unknown) => NameCheck) => {
     const read = check(stored[key])
     return read.ok ? read.value : DEFAULT_SETTINGS[key]
@@ -378,11 +375,9 @@ export function parseSettings(raw: unknown): Settings {
     lineHeight: pickNumber(stored.lineHeight, BOUNDS.lineHeight, DEFAULT_SETTINGS.lineHeight),
     proseWeight: pickNumber(stored.proseWeight, BOUNDS.proseWeight, DEFAULT_SETTINGS.proseWeight),
     iconWeight: pickNumber(stored.iconWeight, BOUNDS.iconWeight, DEFAULT_SETTINGS.iconWeight),
-    lineGap: pickNumber(stored.lineGap, BOUNDS.lineGap, DEFAULT_SETTINGS.lineGap),
-    // Falls back to `lineGap`: a vault written before the two were
-    // separate used one number for both, and still looks the same.
-    rowGap: pickNumber(stored.rowGap, BOUNDS.rowGap, pickNumber(stored.lineGap, BOUNDS.lineGap, DEFAULT_SETTINGS.rowGap)),
-    readingWidth: pickNumber(stored.readingWidth, BOUNDS.readingWidth, DEFAULT_SETTINGS.readingWidth),
+    lineSpacing: pickNumber(stored.lineSpacing, BOUNDS.lineSpacing, pixels.lineSpacing),
+    rowSpacing: pickNumber(stored.rowSpacing, BOUNDS.rowSpacing, pixels.rowSpacing),
+    lineLength: pickNumber(stored.lineLength, BOUNDS.lineLength, pixels.lineLength),
     inheritIcons: typeof stored.inheritIcons === 'boolean' ? stored.inheritIcons : DEFAULT_SETTINGS.inheritIcons,
     indentWidth: pickNumber(stored.indentWidth, BOUNDS.indentWidth, DEFAULT_SETTINGS.indentWidth),
     dailyFolder: valid('dailyFolder', validateFolder),
@@ -402,6 +397,29 @@ export function parseSettings(raw: unknown): Settings {
     lockMinutes: pickNumber(stored.lockMinutes, BOUNDS.lockMinutes, DEFAULT_SETTINGS.lockMinutes),
   }
 }
+
+/**
+ * The three layout settings as they were stored until 2026-10-07, in pixels beside a
+ * text size, read once into lines, rows and characters; a file written after is in
+ * the new names. A row gap stored before it was its own setting was the line gap.
+ */
+function fromPixels(stored: Partial<Record<string, unknown>>): Pick<Settings, 'lineSpacing' | 'rowSpacing' | 'lineLength'> {
+  const size = pickNumber(stored.proseSize, BOUNDS.proseSize, DEFAULT_SETTINGS.proseSize)
+  const height = pickNumber(stored.lineHeight, BOUNDS.lineHeight, DEFAULT_SETTINGS.lineHeight)
+  const share = (px: unknown, per: number, bounds: { min: number; max: number }, fallback: number) =>
+    typeof px === 'number' && Number.isFinite(px) ? Math.round(clamp(px / per, bounds) * 100) / 100 : fallback
+  return {
+    lineSpacing: share(stored.lineGap, size * height, BOUNDS.lineSpacing, DEFAULT_SETTINGS.lineSpacing),
+    rowSpacing: share(stored.rowGap ?? stored.lineGap, CHROME_PX * height, BOUNDS.rowSpacing, DEFAULT_SETTINGS.rowSpacing),
+    lineLength:
+      typeof stored.readingWidth === 'number' && Number.isFinite(stored.readingWidth)
+        ? Math.round(clamp((stored.readingWidth - COLUMN_PADDING) / (size * EM_PER_CHARACTER), BOUNDS.lineLength))
+        : DEFAULT_SETTINGS.lineLength,
+  }
+}
+
+/** The chrome's type size, `--fs-chrome`, in px: what a row gap in pixels was a share of. */
+const CHROME_PX = 13
 
 /**
  * A feed is `{ name, url }`; a bare string is an address with no name, as
@@ -564,9 +582,11 @@ export function applySettings(settings: Settings, root?: HTMLElement): void {
   el.style.setProperty('--line-height-prose', String(settings.lineHeight))
   el.style.setProperty('--fw-prose', String(settings.proseWeight))
   el.style.setProperty('--icon-weight', String(settings.iconWeight))
-  el.style.setProperty('--line-gap', `${settings.lineGap}px`)
-  el.style.setProperty('--row-gap', `${settings.rowGap}px`)
-  el.style.setProperty('--reading-width', `${settings.readingWidth}px`)
+  // Shares of a line, resolved where they are used: a note's line, a row's line.
+  el.style.setProperty('--line-gap', `calc(${settings.lineSpacing} * var(--line-height-prose) * 1em)`)
+  el.style.setProperty('--row-gap', `calc(${settings.rowSpacing} * var(--row-h))`)
+  // Characters in the reading face at its size, measured, with the column's inset.
+  el.style.setProperty('--reading-width', `${Math.round(settings.lineLength * characterWidth(settings) + COLUMN_PADDING)}px`)
   // The column's inset on one side: half of what the panel's
   // character count takes off the width.
   el.style.setProperty('--column-pad', `${COLUMN_PADDING / 2}px`)
