@@ -510,7 +510,7 @@ function underNamedNote(written: string, index: NoteIndex): string | null {
  * name no note has may be in a note's `aliases::`.
  */
 export function resolveTarget(
-  link: string | NoteLink,
+  link: string | Pick<NoteLink, 'target' | 'wiki'>,
   fromPath: string,
   index: NoteIndex
 ): ResolvedTarget {

@@ -11,6 +11,10 @@ export type Entries = Record<string, Record<string, unknown>>
 /** `value` when it is one of `values`: a choice read from a file a hand may have edited. */
 export const oneOf = <T>(values: readonly T[], value: unknown): T | undefined => values.find((one) => one === value)
 
+/** The name an entry is kept under, matched in any case, or `name` when none is: a write keeps the file's spelling. */
+export const keyIn = (entries: Entries, name: string) =>
+  Object.keys(entries).find((one) => one.toLowerCase() === name.toLowerCase()) ?? name
+
 /** `value` when it is a plain object, else null. `JSON.parse('7')` and `'null'` both succeed. */
 const objectIn = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null

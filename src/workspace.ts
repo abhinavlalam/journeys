@@ -122,6 +122,17 @@ export function groups(layout: Layout): Group[] {
   return layout.kind === 'group' ? [layout.group] : [...groups(layout.first), ...groups(layout.second)]
 }
 
+/** The pages built from the notes, which follow typing while on screen (`liveVersion`). */
+const FROM_THE_NOTES: ReadonlySet<Tab['kind']> = new Set(['graph', 'property', 'tag', 'calendar', 'timeline', 'tasks'])
+
+/** Whether a page built from the notes is in front in any pane. */
+export function showsTheNotes(ws: Workspace): boolean {
+  return groups(ws.layout).some((group) => {
+    const kind = group.tabs[group.active]?.kind
+    return kind !== undefined && FROM_THE_NOTES.has(kind)
+  })
+}
+
 function groupById(ws: Workspace, id: number): Group | null {
   return groups(ws.layout).find((group) => group.id === id) ?? null
 }

@@ -1,10 +1,43 @@
 // Writing the feeds' events into the daily notes: the calendar's
 // one write, through `vault.ts`.
 
-import { EVENT, lineKey, readEvent, SOURCE, untouched, type EventFormat } from './calendar'
+import { EVENT, eventLine, lineKey, readEvent, SOURCE, untouched, type EventFormat } from './calendar'
+import { fetchFeed } from './calendarFeed'
+import { dayDate, daysAfter, localDateStamp } from './clock'
+import { occurrences, parseIcs } from './ics'
+import type { CalendarFeed } from './settings'
 import { collectTagLines } from './tags'
 import { ensureDailyNote, fileExists, readVaultFile, vaultFileRef, writeVaultFile } from './vault'
 import type { VaultFile } from './vaultModel'
+
+/**
+ * Each day's `#event` lines from every feed, for `days` days from `today`, and every name a
+ * feed goes by, its own included. Every day is listed, empty or not, so an event that is
+ * gone can be taken back. A body that is not a calendar is refused: a Wi-Fi sign-in page
+ * answers any address, and read as no events it took every synced line back out.
+ */
+export async function feedLines(
+  feeds: readonly CalendarFeed[],
+  today: string,
+  days: number,
+  properties: readonly string[]
+): Promise<{ byDay: Map<string, string[]>; sources: Set<string> }> {
+  const from = dayDate(today)
+  const to = dayDate(daysAfter(today, days))
+  const byDay = new Map(Array.from({ length: days }, (_, at) => [daysAfter(today, at), [] as string[]] as const))
+  const sources = new Set<string>()
+  for (const { name, url } of feeds) {
+    const body = await fetchFeed(url)
+    if (!/^BEGIN:VCALENDAR/m.test(body)) throw new Error(`${name || url} did not answer with a calendar.`)
+    const feed = parseIcs(body)
+    // Never an empty name: a line typed by hand with no `source::` belongs to no feed.
+    for (const one of [name, feed.name]) if (one) sources.add(one)
+    for (const one of occurrences(feed, from, to)) {
+      byDay.get(localDateStamp(one.start))?.push(eventLine(properties, one, name || feed.name))
+    }
+  }
+  return { byDay, sources }
+}
 
 export interface Synced {
   /** Every note written, with its new text. */

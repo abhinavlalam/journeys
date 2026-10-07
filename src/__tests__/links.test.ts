@@ -367,7 +367,7 @@ describe('resolveTarget', () => {
    * the head resolves by name and the rest hangs off its `knownPath`.
    */
   const wiki = (target: string, from = 'Index.md') =>
-    resolveTarget({ label: target, target, targetAt: 0, start: 0, end: 0, wiki: true }, from, index)
+    resolveTarget({ target, wiki: true }, from, index)
 
   it('creates a child under the note the head names, not at the root', () => {
     const found = wiki('Diet/Notes')

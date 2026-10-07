@@ -14,7 +14,7 @@
 // lacks). A line this does not understand is left exactly as it was.
 
 import { proseLines } from './prose'
-import { oneOf, type Entries } from './configEntries'
+import { keyIn, oneOf, type Entries } from './configEntries'
 
 /**
  * The app's own properties, named here and nowhere else: the row's icon, where the
@@ -53,8 +53,7 @@ const APP_TYPES: Record<string, PropertyType> = {
 export function typeOf(entries: Entries, name: string): PropertyType {
   const own = APP_TYPES[name.toLowerCase()]
   if (own) return own
-  const key = Object.keys(entries).find((one) => one.toLowerCase() === name.toLowerCase())
-  return oneOf(PROPERTY_TYPES, entries[key ?? '']?.type) ?? 'text'
+  return oneOf(PROPERTY_TYPES, entries[keyIn(entries, name)]?.type) ?? 'text'
 }
 
 /** A YAML block, and where one ends. */

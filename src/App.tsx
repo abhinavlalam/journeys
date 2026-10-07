@@ -36,7 +36,7 @@ import {
   type PropertyType,
 } from './properties'
 import { useConfigEntries } from './useConfigEntries'
-import { readEntries } from './configEntries'
+import { keyIn, readEntries } from './configEntries'
 import { coloursOf, dayTotalsOf, propertiesOf, tablesOf, TAG_NAME, TAGS_FILE, viewOf, type DayTotal } from './tags'
 import { withEditedEntry, withNewEntry } from './timeline'
 import { TimelineView } from './TimelineView'
@@ -48,11 +48,9 @@ import { GraphView } from './GraphView'
 import { PropertyView } from './PropertyView'
 import { TagView } from './TagView'
 import { CalendarView } from './CalendarView'
-import { EVENT, EVENT_PROPERTIES, eventLine } from './calendar'
-import { syncEvents } from './calendarSync'
-import { fetchFeed } from './calendarFeed'
-import { occurrences, parseIcs } from './ics'
-import { dayDate, daysAfter, localDateStamp } from './clock'
+import { EVENT, EVENT_PROPERTIES } from './calendar'
+import { feedLines, syncEvents } from './calendarSync'
+import { localDateStamp } from './clock'
 import { Resizer } from './Resizer'
 import { useContextMenu } from './useContextMenu'
 import { useFolderOpenState } from './useFolderOpenState'
@@ -64,7 +62,6 @@ import { isDailyNote } from './daily'
 import { WorkspaceView } from './WorkspaceView'
 import {
   activeTab,
-  groups,
   closeNotesUnder,
   emptyWorkspace,
   followFileTabs,
@@ -72,6 +69,7 @@ import {
   openAlone,
   openTab,
   openTerminal,
+  showsTheNotes,
   terminalName,
   toggleTab,
   type TabRequest,
@@ -156,20 +154,8 @@ export default function App() {
    */
   const lastNote = useRef<VaultFile | null>(null)
   if (focusedNote) lastNote.current = focusedNote
-  /**
-   * A view built from the notes is on screen in some pane, so it has to follow typing.
-   */
-  const viewVisible = groups(ws.layout).some((group) => {
-    const shown = group.tabs[group.active]
-    return (
-      shown?.kind === 'graph' ||
-      shown?.kind === 'property' ||
-      shown?.kind === 'tag' ||
-      shown?.kind === 'calendar' ||
-      shown?.kind === 'timeline' ||
-      shown?.kind === 'tasks'
-    )
-  })
+  /** A view built from the notes is on screen in some pane, so it has to follow typing. */
+  const viewVisible = showsTheNotes(ws)
   /**
    * Bumped by typing, at most a few times a second, while such a
    * view shows; `useVaultTexts` then takes the typed text again.
@@ -378,7 +364,6 @@ export default function App() {
     )
   }
 
-
   /**
    * Bumped when the app writes a kind's file, so the lists
    * update without waiting for window focus.
@@ -415,7 +400,6 @@ export default function App() {
     ]).map((head) => branchKey(kind, head)),
   ])
 
-
   /**
    * Search results, over `texts` rather than `corpus`: a hit that
    * flickers as you type in another pane is worse than one a second old.
@@ -429,12 +413,7 @@ export default function App() {
   const [namingAction, setNamingAction] = useState<string | null>(null)
   const [actionName, setActionName] = useState('')
 
-  /** Keeps the spelling the file already has for the property. */
-  const setPropertyType = (name: string, type: PropertyType) =>
-    propertyTypes.write(
-      Object.keys(propertyTypes.entries).find((one) => one.toLowerCase() === name.toLowerCase()) ?? name,
-      { type }
-    )
+  const setPropertyType = (name: string, type: PropertyType) => propertyTypes.write(keyIn(propertyTypes.entries, name), { type })
 
   /** The Terminal row's menu: a second shell, under the next free session name. */
   const [terminalMenu, openTerminalMenu] = useContextMenu(() => [
@@ -551,13 +530,10 @@ export default function App() {
   }, [sidebarWidth])
 
   /**
-   * ⌘⇧O: today's note, opened through `openNote` like any row,
-   * so the file is read before the switch.
-   */
-  /**
-   * A day's note, opened, and made first when the tree does not have it. Made or not,
-   * it went through a change: a check on disk, a walk of every folder and a read of
-   * the notes, all before the page showed, and behind whatever else was reading.
+   * A day's note (⌘⇧O's, today), opened through `openNote` like any row, so the file
+   * is read before the switch, and made first only when the tree does not have it.
+   * Made or not, it went through a change: a check on disk, a walk of every folder and
+   * a read of the notes, all before the page showed, and behind whatever else was reading.
    */
   const openDay = async (day?: string) => {
     if (!vault.vaultPath) return
@@ -601,28 +577,7 @@ export default function App() {
       properties: declared[EVENT] ? propertiesOf(declared, EVENT) : EVENT_PROPERTIES,
       typeOf: typeOfName,
     }
-    const today = localDateStamp()
-    const from = dayDate(today)
-    const to = dayDate(daysAfter(today, settings.calendarDays))
-    // Every day, empty or not, so an event that's gone can be
-    // removed, and every name a feed goes by, including its own.
-    const byDay = new Map(
-      Array.from({ length: settings.calendarDays }, (_, at) => [daysAfter(today, at), [] as string[]] as const)
-    )
-    const sources = new Set<string>()
-    for (const { name, url } of settings.calendarFeeds) {
-      const body = await fetchFeed(url)
-      // A Wi-Fi sign-in page answers any address. Read as a calendar with no
-      // events, it would take every synced line for these days back out.
-      if (!/^BEGIN:VCALENDAR/m.test(body)) throw new Error(`${name || url} did not answer with a calendar.`)
-      const feed = parseIcs(body)
-      // Never an empty name: a line typed by hand with no
-      // `source::` belongs to no feed.
-      for (const one of [name, feed.name]) if (one) sources.add(one)
-      for (const one of occurrences(feed, from, to)) {
-        byDay.get(localDateStamp(one.start))?.push(eventLine(format.properties, one, name || feed.name))
-      }
-    }
+    const { byDay, sources } = await feedLines(settings.calendarFeeds, localDateStamp(), settings.calendarDays, format.properties)
     await vault.mutate(
       (v) => syncEvents(v, settings.dailyFolder, format, byDay, sources),
       async ({ changed, created }) => {
@@ -662,11 +617,7 @@ export default function App() {
   const openLink = (target: string, wiki: boolean) => void openLinkTarget(target, wiki)
   async function openLinkTarget(target: string, wiki: boolean) {
     const from = focusedNote?.path ?? ''
-    const resolved = resolveTarget(
-      wiki ? { label: target, target, targetAt: 0, start: 0, end: 0, wiki: true } : target,
-      from,
-      noteIndex
-    )
+    const resolved = resolveTarget(wiki ? { target, wiki } : target, from, noteIndex)
     if (resolved.kind === 'note') {
       void openNote(resolved.note)
       return
@@ -683,16 +634,8 @@ export default function App() {
     if (!texts) return setError('The vault is still being read. Follow the link again in a moment.')
     const slash = resolved.path.lastIndexOf('/')
     const parent = slash === -1 ? '' : resolved.path.slice(0, slash)
-    const name = noteName(slash === -1 ? resolved.path : resolved.path.slice(slash + 1))
-    // Through `mutate`, so the new note is in the tree before it
-    // opens. Folders named in the target are created as nested notes.
-    await vault.mutate(
-      (v) => createNote(v, parent, name),
-      async (created) => {
-        await endowNote(created)
-        await openNote(created)
-      }
-    )
+    // Folders named in the target are created as nested notes.
+    await makeNote(parent, noteName(slash === -1 ? resolved.path : resolved.path.slice(slash + 1)))
   }
 
   /** A graph node was clicked. */
@@ -759,10 +702,10 @@ export default function App() {
   }
 
   /**
-   * Rewrites a timeline entry's line in place. Through `mutate`, so
-   * pending typing is saved first and open buffers are read again.
+   * A timeline entry's or a task's line written as `text`, in its note, refused if the
+   * line has changed. Through `mutate`, so pending typing is saved first and open
+   * buffers are read again.
    */
-  /** A timeline entry's or a task's line written as `text`, in its note, refused if the line has changed. */
   async function editEntry(entry: { note: VaultFile; at: number; text: string }, text: string) {
     await vault.mutate(
       async () => {
@@ -840,7 +783,10 @@ export default function App() {
       return [clock, caption, ...kept.map((path) => `[[${path}]]`)].filter(Boolean).join(' ')
     })
 
-  /** A note made with the phone's +, given what every new note is, and opened. */
+  /**
+   * A note made from a link or the phone's +, given what every new note is, and opened.
+   * Through `mutate`, so the new note is in the tree before it opens.
+   */
   const makeNote = (folder: string, name: string) =>
     vault.mutate(
       (v) => createNote(v, folder, name),
@@ -983,6 +929,30 @@ export default function App() {
     // Off while the settings are open, as in a note: the shortcut may be being changed.
     insertTimeCombo: settingsOpen ? null : settings.shortcuts.insertTime,
   }
+  /** What a page opens: a note, a link's target, a tag's page. */
+  const opens = { onOpen: (file: VaultFile) => void openNote(file), onOpenLink: openLink, onOpenTag: (tag: string) => view('tag', tag) }
+  /** A left pane section, open because its key is in the folders' set. */
+  const section = (key: (typeof SECTIONS)[number]) => ({ open: folders.open.has(key), onToggle: () => folders.toggle(key, folders.open.has(key)) })
+  /**
+   * A section's search. Already open: nothing to do. The field closes on blur, so
+   * `preventDefault` on mousedown keeps the keyboard in it.
+   */
+  const searchButton = (which: 'notes' | 'actions') => (
+    <button aria-label={`Search in ${which}`} aria-pressed={searching === which} onMouseDown={(event) => event.preventDefault()} onClick={() => searching !== which && openSearch(which)}>
+      <SearchIcon />
+    </button>
+  )
+  /** A section's Collapse all and Expand all, over the paths it folds. */
+  const foldButtons = (what: string, paths: string[]) => (
+    <>
+      <button aria-label={`Collapse all ${what}`} onClick={() => folders.setAll(paths, false)}>
+        <FoldAllIcon collapse />
+      </button>
+      <button aria-label={`Expand all ${what}`} onClick={() => folders.setAll(paths, true)}>
+        <FoldAllIcon collapse={false} />
+      </button>
+    </>
+  )
 
   // On the phone, one place at a time: Browse is the left pane at full
   // width, a page is the workspace's one tab, and the bar is below both.
@@ -1004,27 +974,12 @@ export default function App() {
         <div className="sidebar-body">
           <SidebarSection
             name="Notes"
-            open={folders.open.has('section:notes')}
-            onToggle={() => folders.toggle('section:notes', folders.open.has('section:notes'))}
+            {...section('section:notes')}
             list={{ ...rootDrop.handlers, className: rootDrop.over ? 'drag-over' : undefined }}
             actions={
               <>
-                {/* Already open: nothing to do. The field closes on blur,
-                    so preventDefault on mousedown keeps the keyboard in it. */}
-                <button
-                  aria-label="Search in notes"
-                  aria-pressed={searching === 'notes'}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => searching !== 'notes' && openSearch('notes')}
-                >
-                  <SearchIcon />
-                </button>
-                <button aria-label="Collapse all notes" onClick={() => folders.setAll(folderPaths, false)}>
-                  <FoldAllIcon collapse />
-                </button>
-                <button aria-label="Expand all notes" onClick={() => folders.setAll(folderPaths, true)}>
-                  <FoldAllIcon collapse={false} />
-                </button>
+                {searchButton('notes')}
+                {foldButtons('notes', folderPaths)}
                 <AddButton label="New note" onPress={() => creating.start('')} />
                 {/* A note is locked from the moment it is made or never, so this is the
                     only way in. The note is made at the top and can be moved after. */}
@@ -1056,24 +1011,11 @@ export default function App() {
           </SidebarSection>
           <SidebarSection
             name="Actions"
-            open={folders.open.has('section:actions')}
-            onToggle={() => folders.toggle('section:actions', folders.open.has('section:actions'))}
+            {...section('section:actions')}
             actions={
               <>
-                <button
-                  aria-label="Search in actions"
-                  aria-pressed={searching === 'actions'}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => searching !== 'actions' && openSearch('actions')}
-                >
-                  <SearchIcon />
-                </button>
-                <button aria-label="Collapse all actions" onClick={() => folders.setAll(groupPaths, false)}>
-                  <FoldAllIcon collapse />
-                </button>
-                <button aria-label="Expand all actions" onClick={() => folders.setAll(groupPaths, true)}>
-                  <FoldAllIcon collapse={false} />
-                </button>
+                {searchButton('actions')}
+                {foldButtons('actions', groupPaths)}
                 <AddButton label="New action" onPress={(event) => !namingAction && openActionMenu(event)} />
               </>
             }
@@ -1122,13 +1064,7 @@ export default function App() {
           </SidebarSection>
           {/* The app's own views. The Graph row toggles: pressed
               while the graph shows, it goes back to the note. */}
-          <SidebarSection
-            name="Applications"
-            open={folders.open.has('section:applications')}
-            onToggle={() =>
-              folders.toggle('section:applications', folders.open.has('section:applications'))
-            }
-          >
+          <SidebarSection name="Applications" {...section('section:applications')}>
             <li style={{ paddingLeft: stepIn(1) }}>
               <NoteRow
                 icon={<RowIcon><GraphIcon /></RowIcon>}
@@ -1247,9 +1183,7 @@ export default function App() {
                     icons={icons}
                     backlinks={backlinks}
                     treeProps={treeProps}
-                    onOpen={(file) => void openNote(file)}
-                    onOpenLink={openLink}
-                    onOpenTag={(tag) => view('tag', tag)}
+                    {...opens}
                     onRename={(file, name) => void renameNote(file, name)}
                     onLock={(file) => void locks.lockNotes([file.path])}
                     onTyped={typed}
@@ -1276,28 +1210,31 @@ export default function App() {
                     onOpenLink={(target) => void openLinkTarget(target, true)}
                   />
                 )
-              case 'tag':
+              case 'tag': {
+                // Tags are folded to lower case, and so are their entries in `tags.json`.
+                const tag = tab.name.toLowerCase()
                 return (
                   <TagView
                     name={tab.name}
                     collected={collectTag(tab.name)}
                     properties={propertiesOf(tagStructures.entries, tab.name)}
                     view={viewOf(tagStructures.entries, tab.name)}
-                    onView={(next) => void tagStructures.write(tab.name.toLowerCase(), { view: next })}
+                    onView={(next) => void tagStructures.write(tag, { view: next })}
                     typeOf={typeOfName}
                     icons={icons}
                     loading={reading}
-                    onProperties={(next) => void tagStructures.write(tab.name.toLowerCase(), { properties: next })}
-                    totals={dayTotals[tab.name.toLowerCase()] ?? []}
-                    onTotals={(next) => void tagStructures.write(tab.name.toLowerCase(), { totals: next.map(writtenTotal) })}
-                    colour={colours[tab.name.toLowerCase()]}
-                    onColour={(next) => void tagStructures.write(tab.name.toLowerCase(), { color: next })}
+                    onProperties={(next) => void tagStructures.write(tag, { properties: next })}
+                    totals={dayTotals[tag] ?? []}
+                    onTotals={(next) => void tagStructures.write(tag, { totals: next.map(writtenTotal) })}
+                    colour={colours[tag]}
+                    onColour={(next) => void tagStructures.write(tag, { color: next })}
                     onError={setError}
                     onOpenProperty={(property) => view('property', property)}
                     onOpen={(file) => void openNote(file)}
                     onOpenLink={openLink}
                   />
                 )
+              }
               case 'timeline':
                 return (
                   <TimelineView
@@ -1311,9 +1248,7 @@ export default function App() {
                     onView={(timelineView) => changeSettings({ ...settings, timelineView })}
                     onEdit={(entry, text) => void editEntry(entry, text)}
                     onAdd={(text) => void addEntry(text)}
-                    onOpen={(file) => void openNote(file)}
-                    onOpenLink={openLink}
-                    onOpenTag={(tag) => view('tag', tag)}
+                    {...opens}
                   />
                 )
               case 'tasks':
@@ -1328,9 +1263,7 @@ export default function App() {
                     onDone={(task, done) => void editEntry(task, withDone(task.text, done, typeOfName))}
                     onEdit={(task, text) => void editEntry(task, text)}
                     onAdd={(text) => void addEntry(text)}
-                    onOpen={(file) => void openNote(file)}
-                    onOpenLink={openLink}
-                    onOpenTag={(tag) => view('tag', tag)}
+                    {...opens}
                   />
                 )
               case 'log':
@@ -1392,8 +1325,7 @@ export default function App() {
             onLine={(day, text) => fileEntry(day, async () => text)}
             onFiles={fileUploads}
             onPage={makeNote}
-            onOpenLink={openLink}
-            onOpenTag={(tag) => view('tag', tag)}
+            {...opens}
           />
         </PhoneBar>
       )}
