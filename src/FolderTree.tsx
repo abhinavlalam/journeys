@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { isSelfOrDescendant } from './vault'
-import { fileKind, folderNoteRef, folderOf, isEncrypted, isNote, type FileKind } from './vaultModel'
+import { fileKind, folderNoteRef, folderOf, isEncrypted, isNote, isWithin, type FileKind } from './vaultModel'
 import { guideAt, NameField, NoteRow, stepIn, RowIcon } from './rows'
 import { pickMode, type PickMode } from './picking'
 import { onAndroid } from './platform'
@@ -534,7 +533,7 @@ function useNoteDropTarget(
     if (types.includes('Files')) return true
     if (types.includes(DRAG_MIME)) return markedPath(types, DRAG_MIME) !== file.path.toLowerCase()
     if (!types.includes(DRAG_MIME_FOLDER)) return false
-    return !isSelfOrDescendant(markedPath(types, DRAG_MIME_FOLDER), folderOf(file.path).toLowerCase())
+    return !isWithin(folderOf(file.path).toLowerCase(), markedPath(types, DRAG_MIME_FOLDER))
   }
   return {
     over,
@@ -557,7 +556,7 @@ function useNoteDropTarget(
         } else if (dropped?.file) {
           // The self check again at drop time, for a drag that carried no marker.
           if (dropped.file.path !== file.path) onAdoptFile(file, dropped.file)
-        } else if (dropped?.folder && !isSelfOrDescendant(dropped.folder.path, folderOf(file.path))) {
+        } else if (dropped?.folder && !isWithin(folderOf(file.path), dropped.folder.path)) {
           onAdoptFolder(file, dropped.folder)
         }
       },
@@ -588,7 +587,7 @@ export function useDropTarget(
     if (e.dataTransfer.types.includes('Files')) return true
     if (e.dataTransfer.types.includes(DRAG_MIME)) return true
     if (!e.dataTransfer.types.includes(DRAG_MIME_FOLDER)) return false
-    return !isSelfOrDescendant(markedPath(e.dataTransfer.types, DRAG_MIME_FOLDER), to.toLowerCase())
+    return !isWithin(to.toLowerCase(), markedPath(e.dataTransfer.types, DRAG_MIME_FOLDER))
   }
 
   return {
@@ -610,7 +609,7 @@ export function useDropTarget(
           if (dropped.files.length > 0) onImportFiles(dropped.files, to)
         } else if (dropped?.file) {
           onMoveFile(dropped.file, to)
-        } else if (dropped?.folder && !isSelfOrDescendant(dropped.folder.path, to)) {
+        } else if (dropped?.folder && !isWithin(to, dropped.folder.path)) {
           onMoveFolder(dropped.folder, to)
         }
       },

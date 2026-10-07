@@ -6,9 +6,9 @@
 // would need keeping in step on every key. Opening a tab that is
 // already open anywhere goes to it; other kinds follow the same rule.
 
-import { pathKey } from './links'
+import { followedFile, pathKey } from './links'
 import type { NoteMoves } from './links'
-import { SETTINGS_FILE, type VaultFile } from './vaultModel'
+import { isWithin, SETTINGS_FILE, type VaultFile } from './vaultModel'
 
 export type Tab =
   | { kind: 'note'; id: number; file: VaultFile }
@@ -430,18 +430,10 @@ export function followFolderTabs(
   moves: NoteMoves,
   vaultPath: string
 ): Workspace {
-  return mapFileTabs(ws, (file) => {
-    const moved = moves.get(pathKey(file.path))
-    if (moved) return moved
-    if (file.path !== oldPrefix && !file.path.startsWith(`${oldPrefix}/`)) return file
-    const path = newPrefix + file.path.slice(oldPrefix.length)
-    return { ...file, path, absolutePath: `${vaultPath}/${path}` }
-  })
+  return mapFileTabs(ws, (file) => followedFile(file, oldPrefix, newPrefix, moves, vaultPath))
 }
 
 /** After a delete: the note's tab, and every tab under a deleted folder, closes. */
 export function closeNotesUnder(ws: Workspace, prefix: string): Workspace {
-  return mapFileTabs(ws, (file) =>
-    file.path === prefix || file.path.startsWith(`${prefix}/`) ? null : file
-  )
+  return mapFileTabs(ws, (file) => (isWithin(file.path, prefix) ? null : file))
 }

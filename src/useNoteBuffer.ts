@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
 import { fileExists, keepOther, readVaultFile, writeVaultFile } from './vault'
 import { useWindowEvent } from './useWindowEvent'
-import type { VaultFile, VaultFolder } from './vaultModel'
-import { pathKey } from './links'
+import { isWithin, movedWith, type VaultFile, type VaultFolder } from './vaultModel'
+import { followedFile, pathKey } from './links'
 import type { NoteMoves } from './links'
 
 /** How long typing has to stop before the note is written. */
@@ -165,12 +165,6 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
     else if (ours && !('failed' in loaded)) seen.current = loaded.body
   }
 
-  /** Nothing open, nothing held: for a delete, and for changing vaults. */
-  function closeNote() {
-    setNote(null)
-    applyNoteBody({ body: '' }, null)
-  }
-
   /**
    * A save never writes over text it hasn't seen. Typing during a pull once
    * wrote the old text over the other device's edit, and the next sync pushed
@@ -237,10 +231,7 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
 
   /** Drops a queued save without writing it, for anything that deletes the file. */
   function discardPendingSave(pathOrPrefix: string) {
-    const pending = pendingSave.current
-    if (!pending) return
-    const path = pending.file.path
-    if (path !== pathOrPrefix && !path.startsWith(`${pathOrPrefix}/`)) return
+    if (!pendingSave.current || !isWithin(pendingSave.current.file.path, pathOrPrefix)) return
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = null
     pendingSave.current = null
@@ -323,52 +314,16 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
     setNote((current) => (current?.path === oldPath ? moved : current))
   }
 
-  /**
-   * After a folder rename or move, every path under it moves too. `moves` is
-   * checked first: a folder rename also renames its own note
-   * (`Plans/Plans.md` becomes `Roadmaps/Roadmaps.md`), which a prefix swap
-   * gets wrong, and the next keystroke then created an empty note under the
-   * old name. The prefix swap is the fallback, for notes in subfolders.
-   */
+  /** After a folder rename or move, every path under it moves too (`followedFile`). */
   function followFolder(oldPrefix: string, newPrefix: string, moves: NoteMoves) {
-    const swap = (path: string) =>
-      path === oldPrefix || path.startsWith(`${oldPrefix}/`)
-        ? newPrefix + path.slice(oldPrefix.length)
-        : path
+    if (!vaultPath) return
+    const follow = (file: VaultFile) => followedFile(file, oldPrefix, newPrefix, moves, vaultPath)
     if (loadedPath.current) {
-      loadedPath.current = moves.get(pathKey(loadedPath.current))?.path ?? swap(loadedPath.current)
+      loadedPath.current = moves.get(pathKey(loadedPath.current))?.path ?? movedWith(loadedPath.current, oldPrefix, newPrefix)
     }
     // The queued save too (see `followFile`).
-    const queued = pendingSave.current
-    if (queued) {
-      const moved = moves.get(pathKey(queued.file.path))
-      const path = moved?.path ?? swap(queued.file.path)
-      if (path !== queued.file.path && vaultPath) {
-        pendingSave.current = {
-          ...queued,
-          file: moved ?? { ...queued.file, path, absolutePath: `${vaultPath}/${path}` },
-        }
-      }
-    }
-    setNote((current) => {
-      if (!current || !vaultPath) return current
-      // The map carries the whole file (path, absolute path and name),
-      // which is what a rename changes and a prefix swap can't.
-      const moved = moves.get(pathKey(current.path))
-      if (moved) return moved
-      const path = swap(current.path)
-      if (path === current.path) return current
-      return { ...current, path, absolutePath: `${vaultPath}/${path}` }
-    })
-  }
-
-  /** Closes the editor when its note is deleted, or is inside what was. */
-  function closeIfDeleted(prefix: string) {
-    discardPendingSave(prefix)
-    const path = note?.path
-    if (!path) return
-    if (path !== prefix && !path.startsWith(`${prefix}/`)) return
-    closeNote()
+    if (pendingSave.current) pendingSave.current = { ...pendingSave.current, file: follow(pendingSave.current.file) }
+    setNote((current) => current && follow(current))
   }
 
   return {
@@ -380,13 +335,11 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
     /** The open note's text couldn't be read: mount no editor over it. */
     unreadable: note !== null && note.path === unreadablePath,
     openNote,
-    closeNote,
     handleEditorChange,
     flushPendingSave,
     discardPendingSave,
     followFile,
     reread,
     followFolder,
-    closeIfDeleted,
   }
 }

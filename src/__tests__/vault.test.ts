@@ -13,7 +13,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   remove: vi.fn(),
 }))
 
-const { safeName, isSelfOrDescendant } = await import('../vault')
+const { safeName } = await import('../vault')
 
 // Names are kept as typed; only characters a path cannot hold are replaced.
 describe('note and folder names', () => {
@@ -41,12 +41,3 @@ describe('note and folder names', () => {
   })
 })
 
-describe('containment', () => {
-  it('detects a folder inside itself', () => {
-    expect(isSelfOrDescendant('areas', 'areas')).toBe(true)
-    expect(isSelfOrDescendant('areas', 'areas/health')).toBe(true)
-    expect(isSelfOrDescendant('areas', 'other')).toBe(false)
-    // A prefix is not a parent: the separator must be there.
-    expect(isSelfOrDescendant('areas', 'areas-other')).toBe(false)
-  })
-})

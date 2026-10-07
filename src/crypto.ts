@@ -2,6 +2,8 @@
 // Drive and the `claude` CLI from reading a note; ignore files are only advice. PBKDF2
 // is not memory-hard like Argon2id, so the passphrase's strength does the work.
 
+import { isWithin, movedWith } from './vaultModel'
+
 const MAGIC = 'JOURNEYS-ENC-V1'
 const KDF = 'pbkdf2-sha256'
 const ITERATIONS = 600_000
@@ -201,9 +203,9 @@ export function passphraseFor(path: string): string | null {
  */
 export function followUnlocked(from: string, to: string) {
   for (const [path, held] of [...unlocked]) {
-    if (path !== from && !path.startsWith(`${from}/`)) continue
+    if (!isWithin(path, from)) continue
     unlocked.delete(path)
-    unlocked.set(to + path.slice(from.length), held)
+    unlocked.set(movedWith(path, from, to), held)
   }
 }
 

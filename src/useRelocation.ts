@@ -9,7 +9,7 @@ import {
   retargetVaultLinks,
   writePathProperty,
 } from './vault'
-import { baseName, folderNoteRef, isSamePath } from './vaultModel'
+import { folderNoteRef, folderNotePath, isSamePath, movedWith } from './vaultModel'
 import type { VaultFile, VaultFolder } from './vaultModel'
 import { existingNotesIn, folderAt, pathKey } from './links'
 import type { BufferSet } from './useBuffers'
@@ -79,22 +79,19 @@ export function useRelocation({
   }
 
   /**
-   * Where each note under a renamed or moved folder used to be. A
-   * prefix swap, except the folder's own note, whose name changed too
-   * (`Plans/Plans.md` became `Roadmaps/Roadmaps.md`). It is matched
-   * by name, `<folder>/<folder>.md`, as `renameFolder` moves it.
+   * Where each note under a renamed or moved folder used to be: re-rooted, except the
+   * folder's own note, whose name changed too (`Plans/Plans.md` became
+   * `Roadmaps/Roadmaps.md`). It is matched by name, as `renameFolder` moves it.
    */
   function folderMoves(was: string, now: VaultFolder): Map<string, VaultFile> {
-    const wasName = baseName(was)
     const moves = new Map<string, VaultFile>()
     for (const file of existingNotesIn(now)) {
-      const own = isSamePath(file.path, `${now.path}/${now.name}.md`)
-      const wasPath = own ? `${was}/${wasName}.md` : `${was}${file.path.slice(now.path.length)}`
-      moves.set(pathKey(wasPath), file)
+      const own = isSamePath(file.path, folderNotePath(now.path))
+      moves.set(pathKey(own ? folderNotePath(was) : movedWith(file.path, now.path, was)), file)
     }
     // The folder's own note, on disk or not: browsing a folder
     // does not write it, and the editor may hold it.
-    moves.set(pathKey(`${was}/${wasName}.md`), folderNoteRef(now))
+    moves.set(pathKey(folderNotePath(was)), folderNoteRef(now))
     return moves
   }
 

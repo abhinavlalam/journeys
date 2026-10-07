@@ -2,7 +2,7 @@
 // named for the day (what `ensureDailyNote` writes and ⌘⇧O opens), so
 // each has a note before and after it. Only this module knows that.
 
-import { baseName, isSamePath } from './vaultModel'
+import { baseName, folderOf, isSamePath } from './vaultModel'
 import type { VaultFile } from './vaultModel'
 
 /**
@@ -22,10 +22,7 @@ export function dayOf(path: string): string {
  * compared ignoring case, since it is a typed setting.
  */
 export function isDailyNote(path: string, folder: string): boolean {
-  if (!folder) return false
-  const at = path.lastIndexOf('/')
-  if (at === -1) return false
-  return path.slice(0, at).toLowerCase() === folder.toLowerCase() && dayOf(path) !== ''
+  return folder !== '' && isSamePath(folderOf(path), folder) && dayOf(path) !== ''
 }
 
 /**

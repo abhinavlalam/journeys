@@ -194,9 +194,9 @@ export function NotePane({
           This note could not be read, so it has not been opened for editing. Nothing has been
           written to it — its text is still on disk.
         </p>
-      ) : /* Keyed on the path *and* the epoch: the text is a value the editor takes
-           at mount, so the key is what makes a re-read — the focus sync, a property
-           written into the note, a tab coming back — replace what the pane holds.
+      ) : /* Keyed on the path *and* the epoch: the text is a value the editor takes at
+           mount, so opening a note, or one that could not be read, remounts it. A re-read
+           of the note it holds arrives as `incoming`, a change, keeping caret and undo.
 
            **Every editor autosaves**, through the same `handleEditorChange`: a JSON
            file, a CSV, a note — a file of the user's, kept as they type.

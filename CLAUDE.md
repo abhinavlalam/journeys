@@ -32,7 +32,7 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 | Where | What it owns |
 | --- | --- |
 | `vault.ts` | **The only module that touches the filesystem**, through `VaultFs` (nine calls; `writeBytes` is the one that is not text, `stat` the one that reads no contents). Reads decrypt and writes re-encrypt locked notes. |
-| `vaultModel.ts` | Pure path and name rules: `fileKind`, `isNote`, `isEncrypted`, `isTextFile`, `noteName`, `knownPath`, `baseName`, `folderNotePath`, `linkLabelSpan`. |
+| `vaultModel.ts` | Pure path and name rules: `fileKind`, `isNote`, `isEncrypted`, `isTextFile`, `noteName`, `knownPath`, `baseName`, `folderNotePath`, `fileAt`, `isWithin` and `movedWith` (a path in a folder, and where it goes when the folder moves), `linkLabelSpan`. |
 | `useVaultTexts.ts` | The one read of the vault and every cross-note answer as a memo over it. |
 | `links.ts` | Parsing, resolving and retargeting links; the note index; backlinks; `collectNotes`. |
 | `workspace.ts` / `WorkspaceView.tsx` | Tabs, groups and splits as a pure model / its flat rendering. |
@@ -167,8 +167,9 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   or `stay` when a write failed and it has said so. Unanswered, the app quits after
   three seconds. The Dock's Quit and a logout still terminate directly.
 - **A queued save follows a move** with the buffer's note and `loadedPath`.
-  `followFolder` takes the move map, not a prefix: a folder rename changes its own
-  note's basename, and a prefix swap names a file that does not exist.
+  A file under a moved folder is found by the move map first (`followedFile`, for
+  the buffers and the tabs alike): a folder rename changes its own note's basename,
+  and re-rooting the path names a file that does not exist.
 - **Links follow a rename by resolution, not by text.** `retargetLinks` takes the
   index and paths as they were; a link is rewritten because it resolves to the
   moved note, and its form (bare name, path, alias, anchor) survives.

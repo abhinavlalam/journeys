@@ -7,12 +7,14 @@
 
 import { maskCode } from './prose'
 import {
+  fileAt,
   folderNoteRef,
   folderOf,
   isNote,
   isSamePath,
   isTextFile,
   knownPath,
+  movedWith,
   noteName,
 } from './vaultModel'
 import type { VaultFile, VaultFolder } from './vaultModel'
@@ -586,6 +588,19 @@ export function resolveTarget(
  * was. A map, because a folder rename moves every note under it.
  */
 export type NoteMoves = ReadonlyMap<string, VaultFile>
+
+/**
+ * Where `file` is after the folder `from` moved to `to`. The move map comes first: a
+ * folder rename renames its own note too (`Plans/Plans.md` to `Roadmaps/Roadmaps.md`),
+ * which re-rooting the path gets wrong, and the next keystroke then made an empty note
+ * under the old name. Re-rooting is for what is in subfolders.
+ */
+export function followedFile(file: VaultFile, from: string, to: string, moves: NoteMoves, vaultPath: string): VaultFile {
+  const moved = moves.get(pathKey(file.path))
+  if (moved) return moved
+  const path = movedWith(file.path, from, to)
+  return path === file.path ? file : fileAt(vaultPath, path)
+}
 
 /**
  * The destination to write in place of `link`'s after its note moved. The form is kept:

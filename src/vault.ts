@@ -16,11 +16,13 @@ import type { NoteIndex, NoteMoves } from './links'
 import {
   baseName,
   extensionOf,
+  fileAt,
   folderNotePath,
   folderOf,
   isEncrypted,
   isNote,
   isSamePath,
+  isWithin,
   knownPath,
   noteName,
 } from './vaultModel'
@@ -214,11 +216,6 @@ async function walk(absoluteDir: string, relativeDir: string, name: string): Pro
 /** A name's path in a vault-relative folder, `''` being the top of the vault. */
 const inFolder = (folder: string, name: string) => (folder ? `${folder}/${name}` : name)
 
-/** The file at a vault-relative path, named as the tree names it. */
-function fileAt(vaultPath: string, path: string): VaultFile {
-  return { path, absolutePath: `${vaultPath}/${path}`, name: noteName(baseName(path)) }
-}
-
 /** The directory an *absolute* path sits in. */
 function parentOf(absolutePath: string): string {
   return absolutePath.slice(0, absolutePath.lastIndexOf('/'))
@@ -246,11 +243,6 @@ function resolveDots(absolutePath: string): string {
 function assertStaysPut(oldAbsolute: string, newAbsolute: string, name: string): void {
   if (isSamePath(parentOf(resolveDots(oldAbsolute)), parentOf(resolveDots(newAbsolute)))) return
   throw new Error(`"${name}" would move out of its folder — a rename only changes a name.`)
-}
-
-/** True when `candidateParent` is the folder itself or anywhere inside it. */
-export function isSelfOrDescendant(folderPath: string, candidateParent: string): boolean {
-  return candidateParent === folderPath || candidateParent.startsWith(`${folderPath}/`)
 }
 
 // ---------------------------------------------------------------------------
@@ -723,7 +715,7 @@ export async function moveFolder(
   newParentPath: string
 ): Promise<VaultFolder> {
   // A folder can't move into itself or into one of its children.
-  if (isSelfOrDescendant(folder.path, newParentPath)) {
+  if (isWithin(newParentPath, folder.path)) {
     throw new Error(`Can't move "${folder.name}" inside itself.`)
   }
 

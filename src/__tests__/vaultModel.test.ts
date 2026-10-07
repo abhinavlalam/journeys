@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { folderNoteRef, isSamePath, knownPath, linkLabelSpan } from '../vaultModel'
+import { folderNoteRef, isSamePath, isWithin, knownPath, linkLabelSpan, movedWith } from '../vaultModel'
 import type { VaultFolder } from '../vaultModel'
 
 /**
@@ -132,5 +132,20 @@ describe('linkLabelSpan', () => {
     expect(shown('Areas/Pingbird|!important')).toBe('!important')
     expect(shown('Areas/Pingbird|2')).toBe('2')
     expect(shown('Areas/Pingbird|!2 birds')).toBe('!2 birds')
+  })
+})
+
+describe('a path inside a folder', () => {
+  it('is the folder or under it, and a prefix is not a parent', () => {
+    expect(isWithin('areas', 'areas')).toBe(true)
+    expect(isWithin('areas/health', 'areas')).toBe(true)
+    expect(isWithin('other', 'areas')).toBe(false)
+    expect(isWithin('areas-other', 'areas')).toBe(false)
+  })
+
+  it('moves with its folder, and nothing else does', () => {
+    expect(movedWith('Areas/Health/Diet.md', 'Areas', 'Life')).toBe('Life/Health/Diet.md')
+    expect(movedWith('Areas', 'Areas', 'Life')).toBe('Life')
+    expect(movedWith('Areas-old/Plan.md', 'Areas', 'Life')).toBe('Areas-old/Plan.md')
   })
 })

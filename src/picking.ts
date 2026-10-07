@@ -6,6 +6,8 @@
 // Pure. A range runs in `visibleFiles` order, the order the tree draws, so it
 // covers what is on screen between the two clicks and nothing in a shut folder.
 
+import { isWithin } from './vaultModel'
+
 export interface Picked {
   paths: ReadonlySet<string>
   /** The row a range starts from: the last one picked by hand. */
@@ -54,7 +56,7 @@ export function pick(
  * folder. Every delete goes through here.
  */
 export function withoutUnder(current: Picked, prefix: string): Picked {
-  const gone = (path: string) => path === prefix || path.startsWith(`${prefix}/`)
+  const gone = (path: string) => isWithin(path, prefix)
   if (![...current.paths].some(gone)) return current
   const paths = new Set([...current.paths].filter((path) => !gone(path)))
   return { paths, anchor: current.anchor && gone(current.anchor) ? null : current.anchor }

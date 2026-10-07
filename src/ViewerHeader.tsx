@@ -87,14 +87,10 @@ export function ViewerHeader({
           {name}
         </button>
       )}
-      {children ? (
-        <span className="json-header-actions">
-          <span className="save-status">{status}</span>
-          {children}
-        </span>
-      ) : (
+      <span className="viewer-actions">
         <span className="save-status">{status}</span>
-      )}
+        {children}
+      </span>
     </div>
   )
 }

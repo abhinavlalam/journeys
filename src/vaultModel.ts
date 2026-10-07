@@ -44,6 +44,21 @@ export function isSamePath(a: string, b: string): boolean {
   return a === b || a.toLowerCase() === b.toLowerCase()
 }
 
+/** Whether `path` is `folder` itself or anything inside it. A prefix is not a parent: `areas-old` is not in `areas`. */
+export function isWithin(path: string, folder: string): boolean {
+  return path === folder || path.startsWith(`${folder}/`)
+}
+
+/** Where `path` is once the folder `from` is at `to`; as it was when it is not inside. */
+export function movedWith(path: string, from: string, to: string): string {
+  return isWithin(path, from) ? to + path.slice(from.length) : path
+}
+
+/** The file at a vault-relative path, named as the tree names it. */
+export function fileAt(vaultPath: string, path: string): VaultFile {
+  return { path, absolutePath: `${vaultPath}/${path}`, name: noteName(baseName(path)) }
+}
+
 /** The folder a vault-relative path is in, `''` at the root. */
 export function folderOf(relativePath: string): string {
   const cut = relativePath.lastIndexOf('/')
