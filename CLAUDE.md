@@ -246,7 +246,11 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   on right-press). A drop target's wash clears on the window's `dragend`/`drop`.
 - `dragDropEnabled` stays **false**: with it on, every HTML5 drag inside the app
   dies. The window swallows stray file drops, or the webview navigates to the
-  file. A dropped file is copied, never over an existing one.
+  file. A dropped file is copied, never over an existing one, and the files of a
+  drop together (a file dragged from Drive downloads first: six small PDFs took 27 s
+  in turn), said as the copy starts and when it is done, what was copied included: a
+  drop that said nothing until the end looked like it had not worked, and was made
+  again.
 - The `+` on a row appears through `visibility`, not animated opacity.
 
 ## The editor

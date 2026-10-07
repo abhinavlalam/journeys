@@ -1,10 +1,12 @@
-import { importFile, moveFile, moveFolder } from './vault'
+import { countOf } from './rows'
+import { ensureFolder, importFile, moveFile, moveFolder, safeNewName } from './vault'
 import { folderOf, type VaultFile, type VaultFolder } from './vaultModel'
 import type { useRelocation } from './useRelocation'
 import type { useVault } from './useVault'
 import { useWindowEvent } from './useWindowEvent'
 
 type Relocation = ReturnType<typeof useRelocation>
+type Copied = { copied: string[]; there: string[]; failed: string[] }
 
 /**
  * What is dropped onto the tree: files from outside, copied into a folder or
@@ -30,27 +32,52 @@ export function useDrops({
    * refresh and the report are the caller's.
    */
   async function copyInto(vaultPath: string, to: string, files: readonly File[]) {
-    /** Already there and left alone. Not a failure. */
-    const there: string[] = []
-    /**
-     * What went wrong, said as itself. These were once one list, so when
-     * every write was refused the app said the files were already there.
-     */
-    const failed: string[] = []
-    for (const file of files) {
-      try {
-        const made = await importFile(vaultPath, to, file.name, new Uint8Array(await file.arrayBuffer()))
-        if (!made) there.push(file.name)
-      } catch (err: unknown) {
-        failed.push(`${file.name} (${String(err)})`)
-      }
+    setError(`Copying ${countOf(files.length, 'file')}…`)
+    // The folder once, first: copies made together would each try to create it.
+    if (to) await ensureFolder(vaultPath, to)
+    const names = new Set<string>()
+    // Together, not in turn: a file dragged from Drive downloads before it can be
+    // read, and six small PDFs took 27 seconds one after another. Of two of one name
+    // in a drop the first is copied and the second is already here, as in turn.
+    const outcomes = await Promise.all(
+      files.map(async (file) => {
+        // As it is written: `a:b.pdf` and `a-b.pdf` are one file on disk.
+        const name = (() => {
+          try {
+            return safeNewName(file.name).toLowerCase()
+          } catch {
+            return file.name.toLowerCase()
+          }
+        })()
+        if (names.has(name)) return 'there'
+        names.add(name)
+        try {
+          return (await importFile(vaultPath, to, file.name, new Uint8Array(await file.arrayBuffer()))) ? 'copied' : 'there'
+        } catch (err: unknown) {
+          return `${file.name} (${String(err)})`
+        }
+      })
+    )
+    const named = (kind: string) => files.filter((_, at) => outcomes[at] === kind).map((file) => file.name)
+    return {
+      copied: named('copied'),
+      /** Already there and left alone. Not a failure. */
+      there: named('there'),
+      /**
+       * What went wrong, said as itself. These were once one list, so when
+       * every write was refused the app said the files were already there.
+       */
+      failed: outcomes.filter((one) => one !== 'copied' && one !== 'there'),
     }
-    return { there, failed }
   }
 
-  /** What the copy reports, once the tree is read again. */
-  function sayHowItWent({ there, failed }: { there: string[]; failed: string[] }) {
+  /**
+   * What the copy reports, once the tree is read again: what was copied too, since a
+   * drop that said nothing until it was done looked like one that had not worked.
+   */
+  function sayHowItWent({ copied, there, failed }: Copied, to: string) {
     const said: string[] = []
+    if (copied.length > 0) said.push(`Copied ${countOf(copied.length, 'file')} into ${to || 'the vault'}.`)
     if (there.length > 0) {
       const many = there.length > 1
       said.push(
@@ -63,12 +90,12 @@ export function useDrops({
 
   /** Files dropped on a folder, or on the tree itself. */
   async function importFiles(files: readonly File[], to: string) {
-    let outcome = { there: [] as string[], failed: [] as string[] }
+    let outcome: Copied = { copied: [], there: [], failed: [] }
     await vault.mutate(
       async (v) => {
         outcome = await copyInto(v, to, files)
       },
-      () => sayHowItWent(outcome)
+      () => sayHowItWent(outcome, to)
     )
   }
 
@@ -77,13 +104,13 @@ export function useDrops({
    * they go inside. One drop, one conversion, one refresh.
    */
   async function importFilesInside(note: VaultFile, files: readonly File[]) {
-    let outcome = { there: [] as string[], failed: [] as string[] }
+    let outcome: Copied = { copied: [], there: [], failed: [] }
     await vault.mutate(
       async (v) => {
         const moved = await convertNote(note, v)
         outcome = await copyInto(v, folderOf(moved.path), files)
       },
-      () => sayHowItWent(outcome)
+      () => sayHowItWent(outcome, note.name)
     )
   }
 

@@ -170,6 +170,26 @@ describe('a file dragged in from outside', () => {
   })
 
   /**
+   * Said as it starts and when it is done: a drop that said nothing until the end, and
+   * only of a failure, looked like one that had not worked, and was made again. Two of
+   * one name in a drop copy the first, and the second is already here.
+   */
+  it('says it is copying, then what it copied, and copies one name once', async () => {
+    await openApp()
+    fireEvent.drop(tree(), {
+      dataTransfer: dropping(
+        new File(['one'], 'a.png', { type: 'image/png' }),
+        new File(['two'], 'b.png', { type: 'image/png' }),
+        new File(['again'], 'A.png', { type: 'image/png' })
+      ),
+    })
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Copied 2 files into the vault.'))
+    expect(screen.getByRole('alert').textContent).toContain('A.png is already here')
+    expect(disk.read('/v/a.png')).toBe('one')
+    expect(disk.read('/v/b.png')).toBe('two')
+  })
+
+  /**
    * A failed copy is not one that was already there. When both were one list and every
    * write was refused, the app said "already in the vault" for files it never wrote.
    */
