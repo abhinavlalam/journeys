@@ -83,9 +83,12 @@ interface MarkdownEditorProps {
   onChange: (markdown: string) => void
   /**
    * An editor for one line (a timeline entry) instead of a note: no gutters, and Enter,
-   * Escape and leaving are the caller's. An open popup still takes its keys first.
+   * Escape and leaving are the caller's. An open popup still takes its keys first. `tag`
+   * is the one its line is filed under without being typed, for its properties' popup.
    */
-  line?: { onEnter: (text: string) => void; onEscape: () => void; onLeave?: (text: string) => void }
+  line?: { onEnter: (text: string) => void; onEscape: () => void; onLeave?: (text: string) => void; tag?: string }
+  /** What an empty editor says. Read at mount. */
+  placeholder?: string
   /** Takes the keyboard when it mounts: a line opened by a press does, unless told not to. */
   autoFocus?: boolean
   /** The file as now on disk, applied in place (see `EditorHost`). */
@@ -158,7 +161,7 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
         latest.current.line?.onLeave?.(view.state.sliceDoc())
       },
     }),
-    placeholder('Start writing…'),
+    placeholder(latest.current.placeholder ?? 'Start writing…'),
     completionAppearance,
     // Its keys are bound in the array below, not at the `Prec.highest` it would use.
     autocompletion({
@@ -166,7 +169,7 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
       override: [
         wikiLinkSource(() => latest.current.notes ?? []),
         slashSource(() => latest.current.dailyFolder ?? ''),
-        propertySource(() => latest.current.tagStructures ?? {}, getTypes),
+        propertySource(() => latest.current.tagStructures ?? {}, getTypes, () => latest.current.line?.tag),
       ],
     }),
     // Before everything else. The timestamp combo is read on

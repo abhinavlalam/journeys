@@ -4393,6 +4393,8 @@ button.task-fold {
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--on-accent);
+  font-size: inherit;
+  line-height: inherit;
   transition:
     background-color var(--motion),
     border-color var(--motion);
@@ -4415,6 +4417,11 @@ button.task-box:hover {
 
 .task-row.done .task-words {
   color: var(--text-dim);
+}
+
+/* The new task's line has no box: it holds the place, so the words line up. */
+.task-new .task-box {
+  visibility: hidden;
 }
 
 .task-body {

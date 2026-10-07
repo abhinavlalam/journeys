@@ -132,12 +132,13 @@ export function wikiLinkSource(getNotes: () => VaultFile[]) {
  * A tag's properties, offered on its line: all of them once `#expense `
  * is typed, then narrowed as a name is typed. Tab writes `currency:: `.
  * Only those the line does not have yet, and never inside a value
- * (after `name::`, or in quotes). The detail is the property's type.
+ * (after `name::`, or in quotes). The detail is the property's type. `getImplied` is
+ * the tag a line is written under without carrying it (a new task's).
  */
 const TYPING_NAME = new RegExp(`${PROPERTY_NAME}$`)
 const AFTER_TAG = new RegExp(String.raw`${TAG.source}\s$`)
 
-export function propertySource(getTags: () => Entries, getTypes: () => Entries) {
+export function propertySource(getTags: () => Entries, getTypes: () => Entries, getImplied: () => string | undefined) {
   return (context: CompletionContext): CompletionResult | null => {
     const line = context.state.doc.lineAt(context.pos)
     const before = line.text.slice(0, context.pos - line.from)
@@ -149,7 +150,8 @@ export function propertySource(getTags: () => Entries, getTypes: () => Entries) 
     if (!/\s$/.test(lead) || inValue || (!typed && !AFTER_TAG.test(before))) return null
     const typeOfName = (name: string) => typeOf(getTypes(), name)
     const carried = new Set(blockProperties(line.text, typeOfName).map((one) => one.name.toLowerCase()))
-    const names = [...new Set(tagNames(before).flatMap((tag) => propertiesOf(getTags(), tag)))]
+    const tags = [getImplied(), ...tagNames(before)].filter((tag): tag is string => !!tag)
+    const names = [...new Set(tags.flatMap((tag) => propertiesOf(getTags(), tag)))]
     const options: Completion[] = names
       .filter((name) => !carried.has(name.toLowerCase()))
       // `boost` keeps the structure's order: CodeMirror sorts a tie by label.

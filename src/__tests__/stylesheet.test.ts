@@ -129,6 +129,19 @@ describe('a control that takes the page’s font', () => {
       .map((rule) => rule.selector)
     expect(missing).toEqual([])
   })
+
+  /**
+   * `lh` is the element's own line height and `em` its own size: on a button, the UA's
+   * 13.3px and `normal`. The task's box, centred by `1lh` without either, sat 1.5px
+   * above its words and smaller than a note's checkbox.
+   */
+  it('states the font size and line height wherever `lh` measures', () => {
+    const missing = rules()
+      .filter((rule) => /\dlh\b/.test(rule.body))
+      .filter((rule) => !/font-size:/.test(rule.body) || !/line-height:/.test(rule.body))
+      .map((rule) => rule.selector)
+    expect(missing).toEqual([])
+  })
 })
 
 /**

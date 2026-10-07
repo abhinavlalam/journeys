@@ -31,6 +31,8 @@ export function LineEditor({
   onEscape,
   onLeave,
   autoFocus,
+  tag,
+  placeholder,
   className = 'line-edit',
   onOpenLink,
   onOpenTag,
@@ -40,6 +42,9 @@ export function LineEditor({
   className?: string
   typing: Typing
   autoFocus?: boolean
+  /** The tag the line is filed under without carrying it, for its properties' popup. */
+  tag?: string
+  placeholder?: string
   onEnter: (text: string) => void
   onEscape: () => void
   onLeave?: (text: string) => void
@@ -56,6 +61,7 @@ export function LineEditor({
         initialMarkdown={text}
         caretAtEnd
         autoFocus={autoFocus}
+        placeholder={placeholder}
         notes={typing.notes}
         propertyTypes={typing.propertyTypes}
         tagStructures={typing.tagStructures}
@@ -67,6 +73,7 @@ export function LineEditor({
           onEnter: (line) => once(() => onEnter(line)),
           onEscape: () => once(onEscape),
           onLeave: onLeave && ((line) => once(() => onLeave(line))),
+          tag,
         }}
       />
     </span>

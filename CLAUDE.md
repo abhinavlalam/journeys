@@ -472,10 +472,13 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   deleted. The note's name after the row opens the note (by page, the section does).
 - **Done is written into the task's own line** (`withDone`: `status:: done`, over any
   other status; taken back by removing the status) through `withEditedEntry`, refused if
-  the line has changed. The box is a note's checkbox, so a task looks the same in both.
+  the line has changed. The box is a note's checkbox, so a task looks the same in both;
+  as a button it takes the row's size and leading, or `1lh` is the UA's and it sits high.
 - **A task typed at the top goes into today's note**, filed as a timeline entry is
   (`withNewEntry`: a tag with a structure is a record at the day's top level). The line
-  starts as `#task `, so the tag's properties are offered; the tag alone is no task.
+  is empty, says New task, and has no box; `#task` is added unless typed, and its
+  properties are offered through the line's `tag` (typed in, the tag beside an empty box
+  read as something left on the page). The tag alone is no task.
 
 ## Sync
 

@@ -1773,9 +1773,9 @@ describe('a click on a link', () => {
 describe('the properties a tag’s line is offered', () => {
   const TAGS = { expense: { properties: ['currency', 'amount', 'merchant'] } }
   const TYPES = { amount: { type: 'number' }, merchant: { type: 'backlink' } }
-  const offered = (doc: string, at = doc.length) => {
+  const offered = (doc: string, at = doc.length, implied?: string) => {
     const state = stateOf(doc, at)
-    const result = propertySource(() => TAGS, () => TYPES)({ state, pos: at, explicit: false } as never)
+    const result = propertySource(() => TAGS, () => TYPES, () => implied)({ state, pos: at, explicit: false } as never)
     return result && { from: result.from, options: result.options.map((one) => [one.label, one.detail, one.apply]) }
   }
 
@@ -1808,6 +1808,13 @@ describe('the properties a tag’s line is offered', () => {
     expect(offered('08:40 #travel ')).toBeNull()
     // With nothing typed, only right after the tag, not after every space.
     expect(offered('08:40 #expense lunch ')).toBeNull()
+  })
+
+  it('offers a line the properties of the tag it is filed under without carrying it', () => {
+    const doc = 'lunch with Mira am'
+    // CodeMirror narrows them to what is typed.
+    expect(offered(doc, doc.length, 'expense')?.options.map(([name]) => name)).toEqual(['currency', 'amount', 'merchant'])
+    expect(offered(doc)).toBeNull()
   })
 
   /**

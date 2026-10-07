@@ -115,13 +115,18 @@ describe('the Tasks application', () => {
 
   it('files a task typed at the top in today’s note', async () => {
     await openTasks()
+    // Empty: typed into it, the tag beside an empty box read as left on the page.
     const line = viewer().getByTestId('line-editor') as HTMLInputElement
-    expect(line.value).toBe('#task ')
-    fireEvent.change(line, { target: { value: '#task order rope' } })
+    expect(line.value).toBe('')
+    fireEvent.change(line, { target: { value: 'order rope' } })
     fireEvent.keyDown(line, { key: 'Enter' })
     await waitFor(() => expect(disk.read(`/v/Daily/${today}.md`)).toContain('#task order rope'))
-    // The tag alone is no task.
+    // Typed by hand, the tag is not doubled; alone, it is no task.
+    fireEvent.change(viewer().getByTestId('line-editor'), { target: { value: 'sand the deck #task' } })
     fireEvent.keyDown(viewer().getByTestId('line-editor'), { key: 'Enter' })
-    expect(disk.read(`/v/Daily/${today}.md`)!.match(/#task/g)).toHaveLength(1)
+    await waitFor(() => expect(disk.read(`/v/Daily/${today}.md`)).toContain('sand the deck #task'))
+    fireEvent.change(viewer().getByTestId('line-editor'), { target: { value: '#task ' } })
+    fireEvent.keyDown(viewer().getByTestId('line-editor'), { key: 'Enter' })
+    expect(disk.read(`/v/Daily/${today}.md`)!.match(/#task/g)).toHaveLength(2)
   })
 })

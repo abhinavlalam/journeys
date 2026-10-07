@@ -219,7 +219,11 @@ function TaskRow({
   )
 }
 
-/** The line for a new task, `#task` typed, so its properties are offered as on any of its lines. */
+/**
+ * The line for a new task: empty, saying so, and a task without `#task` typed, which its
+ * properties are offered for and which is added on Enter. Typed into the line, the tag
+ * beside an empty box read as something left on the page.
+ */
 function NewTask({ typing, onAdd, ...opens }: { typing: Typing; onAdd: (text: string) => void } & Opens) {
   // A new line each time: the editor reads its text at mount only.
   const [round, setRound] = useState(0)
@@ -233,12 +237,13 @@ function NewTask({ typing, onAdd, ...opens }: { typing: Typing; onAdd: (text: st
         <LineEditor
           key={round}
           className="task-what line-edit"
-          text={`#${TASK} `}
+          text=""
+          tag={TASK}
+          placeholder="New task"
           typing={typing}
           // Not on a phone: the page is opened to read, and the keyboard would cover it.
           autoFocus={!onAndroid}
           onEnter={(text) => {
-            // Only words make a task; the tag, if taken out, is put back.
             if (text.replace(tagged, ' ').trim()) onAdd(tagged.test(text) ? text.trim() : `#${TASK} ${text.trim()}`)
             next()
           }}
