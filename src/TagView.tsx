@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { LineTable } from './LineTable'
-import { PlusIcon } from './icons'
 import { blockProperties, PROPERTY_NAME, readBlock, type PropertyType } from './properties'
 import { ViewerHeader } from './ViewerHeader'
-import { countOf, GatheredNotes, NameField, NoteRow, readable, RowIcon, Section, stepIn } from './rows'
+import { AddButton, countOf, EmptyRow, GatheredNotes, NameField, NoteRow, readable, RowIcon, Section, stepIn } from './rows'
 import { COMBINE_NAMES, COMBINES, LINE_VIEWS, lineWords, TAG_COLOURS, tagsOnly, TOTAL_PLACES, type Combine, type DayTotal, type LineView, type TagColour, type TotalPlace } from './tags'
 import type { CollectedNote } from './useVaultTexts'
 import type { VaultFile } from './vaultModel'
@@ -117,13 +116,7 @@ export function TagView({
         count={properties.length}
         startOpen
         actions={
-          <button
-            aria-label="Add a property"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => setAdding((current) => current ?? '')}
-          >
-            <PlusIcon />
-          </button>
+          <AddButton label="Add a property" onPress={() => setAdding((current) => current ?? '')} />
         }
       >
         {properties.map((one) => (
@@ -154,9 +147,7 @@ export function TagView({
           </li>
         )}
         {properties.length === 0 && adding === null && (
-          <li style={{ paddingLeft: stepIn(1) }}>
-            <NoteRow icon={<RowIcon />} name="No properties yet: + adds one." disabled />
-          </li>
+          <EmptyRow text="No properties yet: + adds one." />
         )}
       </Section>
       {/* The tag's colour on the timeline: its entries' dots, rows and chips. */}

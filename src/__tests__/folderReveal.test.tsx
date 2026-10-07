@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { FolderTree } from '../FolderTree'
 import { collectFolders, existingNotesIn } from '../links'
-import { claimsIcon, resolveNoteIcon } from '../icons'
+import { claimsIcon } from '../icons'
 import { useEffect } from 'react'
 import { useFolderOpenState } from '../useFolderOpenState'
 import { knownPath } from '../vaultModel'
@@ -411,8 +411,11 @@ describe('the icon on a nested note', () => {
  */
 describe('an icon passing down a folder', () => {
   it('draws only what the note itself carries', () => {
-    expect(resolveNoteIcon('Notes/Projects', { 'Notes/Notes.md': 'book' })).toBeUndefined()
-    expect(resolveNoteIcon('Notes/Projects', { 'Notes/Projects/Projects.md': 'book' })).toBe('book')
+    render(<Tree selectedPath={null} icons={{ 'Notes/Notes.md': '📚' }} />)
+    expect(screen.getByLabelText('Icon for Projects').textContent).not.toBe('📚')
+    cleanup()
+    render(<Tree selectedPath={null} icons={{ 'Notes/Projects/Projects.md': '📚' }} />)
+    expect(screen.getByLabelText('Icon for Projects').textContent).toBe('📚')
   })
 
   it('claims a note with no icon, and one still carrying the folder’s old one', () => {

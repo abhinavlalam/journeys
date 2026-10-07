@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { fileKind, folderNoteRef, folderOf, isEncrypted, isNote, isWithin, type FileKind } from './vaultModel'
-import { guideAt, NameField, NoteRow, stepIn, RowIcon } from './rows'
+import { AddButton, guideAt, NameField, NoteRow, stepIn, RowIcon } from './rows'
 import { pickMode, type PickMode } from './picking'
 import { onAndroid } from './platform'
 import type { VaultFolder, VaultFile } from './vaultModel'
@@ -11,8 +11,6 @@ import {
   NOTE_ICONS,
   NoteIcon,
   BracesIcon,
-  PlusIcon,
-  resolveNoteIcon,
 } from './icons'
 
 const DRAG_MIME = 'application/x-journeys-file'
@@ -129,19 +127,40 @@ interface FolderTreeProps {
 }
 
 /**
- * The icon picker, the same for a note and a nested note. `own` is the note's own
- * icon, not an inherited one: it marks the chosen icon and is what Remove removes.
+ * The icon picker, the same for a note and a nested note: `icon` is the note's own, written
+ * in it, which the picker marks and Remove removes. Icons spread only by being written.
  */
-function useIconMenu(own: string | undefined, onSet: (icon: string | null) => void) {
+function useIconMenu(icon: string | undefined, onSet: (icon: string | null) => void) {
   return useContextMenu(
-    () => (own ? [{ label: 'Remove icon', onSelect: () => onSet(null), danger: true }] : []),
+    () => (icon ? [{ label: 'Remove icon', onSelect: () => onSet(null), danger: true }] : []),
     () =>
       NOTE_ICONS.map((choice) => ({
         label: choice.label,
         icon: <NoteIcon icon={choice.key} />,
-        selected: choice.key === own,
+        selected: choice.key === icon,
         onSelect: () => onSet(choice.key),
       }))
+  )
+}
+
+/**
+ * A note's icon as its own button, inside the row's: pressing it picks an icon, and
+ * pressing the name opens the note, kept apart by `stopPropagation`.
+ */
+function IconButton({ name, icon, onPress }: { name: string; icon: string | undefined; onPress: (e: React.MouseEvent) => void }) {
+  return (
+    <span
+      role="button"
+      tabIndex={-1}
+      className="folder-icon"
+      aria-label={`Icon for ${name}`}
+      onClick={(e) => {
+        e.stopPropagation()
+        onPress(e)
+      }}
+    >
+      <NoteIcon icon={icon ?? DEFAULT_NOTE_ICON} />
+    </span>
   )
 }
 
@@ -209,7 +228,6 @@ export function FolderTree(props: FolderTreeProps) {
           pickedCount={props.picked.size}
           onDeletePicked={props.onDeletePicked}
           icon={props.icons[file.path]}
-          own={props.icons[file.path]}
           onImportFilesInside={props.onImportFilesInside}
           onAdoptFile={props.onAdoptFile}
           onAdoptFolder={props.onAdoptFolder}
@@ -317,7 +335,6 @@ function FileRow({
   pickedCount,
   onDeletePicked,
   icon,
-  own,
   onSetIcon,
   onSelectFile,
   onRenameFile,
@@ -337,10 +354,7 @@ function FileRow({
   picked: boolean
   pickedCount: number
   onDeletePicked: () => void
-  /** Its own or inherited: what is drawn. */
   icon: string | undefined
-  /** Only its own: what Remove can act on. */
-  own: string | undefined
   onSetIcon: (file: VaultFile, icon: string | null) => void
   onSelectFile: (file: VaultFile, mode: PickMode) => void
   onRenameFile: (file: VaultFile, newName: string) => void
@@ -364,7 +378,7 @@ function FileRow({
       ? { label: `Delete ${pickedCount} notes`, onSelect: onDeletePicked, danger: true }
       : { label: 'Delete', onSelect: () => onDeleteFile(file), danger: true },
   ])
-  const [iconMenu, openIconMenu] = useIconMenu(own, (icon) => onSetIcon(file, icon))
+  const [iconMenu, openIconMenu] = useIconMenu(icon, (next) => onSetIcon(file, next))
 
   if (rename.renaming) {
     return <li style={{ paddingLeft: stepIn(depth) }}>{rename.input()}</li>
@@ -384,18 +398,7 @@ function FileRow({
         {...drop.handlers}
         icon={
           isNote(file.path) ? (
-            <span
-              role="button"
-              tabIndex={-1}
-              className="folder-icon"
-              aria-label={`Icon for ${file.name}`}
-              onClick={(e) => {
-                e.stopPropagation()
-                openIconMenu(e)
-              }}
-            >
-              <NoteIcon icon={icon ?? DEFAULT_NOTE_ICON} />
-            </span>
+            <IconButton name={file.name} icon={icon} onPress={openIconMenu} />
           ) : (
             <RowIcon>{glyphFor(file.path)}</RowIcon>
           )
@@ -425,23 +428,11 @@ function FileRow({
         }}
         onContextMenu={openMenu}
       />
-      {/* Every note takes a note inside it. This one has no folder yet, so the
-          handler makes one: `Ideas.md` becomes `Ideas/Ideas.md` with the new note
-          beside it. Same cluster as a folder row's, so the `+` buttons line up. */}
-      {/* Only a note takes a note inside it; there is no such move for
-          `data.json`. The empty cluster stays so the `+` column lines up. */}
+      {/* A note takes a note inside it, and has no folder yet, so the handler makes
+          one: `Ideas.md` becomes `Ideas/Ideas.md` with the new note beside it. Not a
+          file that is not a note, whose empty cluster keeps the `+` column in line. */}
       <span className="folder-actions">
-        {isNote(file.path) && (
-          <button
-            aria-label={`New note in ${file.name}`}
-            // Keep the focus where it is: a create field closes on blur, so
-            // pressing this while one is open would throw away what was typed.
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => onNewNoteInside(file)}
-          >
-            <PlusIcon />
-          </button>
-        )}
+        {isNote(file.path) && <AddButton label={`New note in ${file.name}`} onPress={() => onNewNoteInside(file)} />}
       </span>
       {menu}
       {iconMenu}
@@ -497,13 +488,15 @@ function useClearOnDragEnd(over: boolean, clear: () => void) {
 const markedPath = (types: readonly string[], mime: string) =>
   types.find((t) => t.startsWith(`${mime}+`))?.slice(mime.length + 1) ?? ''
 
+/** What a drop carries: files from outside, a note, or a folder. */
+type Dropped = { files?: File[]; file?: VaultFile; folder?: VaultFolder }
+
 /**
  * What a drop carries, read the same way for both kinds of target: files
  * from outside first, then a note, then a folder. Each target decides what
- * to do and what to refuse. A refused drop on a folder row must be swallowed
- * there, or it bubbles to the root and moves the folder to the top.
+ * to do and what to refuse.
  */
-function payloadOf(e: React.DragEvent): { files?: File[]; file?: VaultFile; folder?: VaultFolder } | null {
+function payloadOf(e: React.DragEvent): Dropped | null {
   if (e.dataTransfer.types.includes('Files')) return { files: [...(e.dataTransfer.files ?? [])] }
   const file = e.dataTransfer.getData(DRAG_MIME)
   if (file) return { file: JSON.parse(file) as VaultFile }
@@ -519,14 +512,44 @@ function payloadOf(e: React.DragEvent): { files?: File[]; file?: VaultFile; fold
  * Two refusals, both at `dragover` so the row doesn't light up: a note can't
  * be dropped on itself, and a folder can't be dropped on a note inside it.
  */
+/**
+ * A row that takes drops: lit while something it accepts is over it, until the drag
+ * ends. `swallow` takes a refused drop too: refused on a folder row, one bubbled to the
+ * root and moved the folder to the top.
+ */
+function useDropZone(accepts: (e: React.DragEvent) => boolean, take: (dropped: Dropped) => void, swallow: boolean) {
+  const [over, setOver] = useState(false)
+  useClearOnDragEnd(over, () => setOver(false))
+  const claim = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+  return {
+    over,
+    handlers: {
+      onDragOver: (e: React.DragEvent) => {
+        if (!accepts(e)) return
+        claim(e)
+        setOver(true)
+      },
+      onDragLeave: () => setOver(false),
+      onDrop: (e: React.DragEvent) => {
+        if (!swallow && !accepts(e)) return
+        claim(e)
+        setOver(false)
+        const dropped = payloadOf(e)
+        if (dropped) take(dropped)
+      },
+    },
+  }
+}
+
 function useNoteDropTarget(
   file: VaultFile,
   onImportFilesInside: (note: VaultFile, files: readonly File[]) => void,
   onAdoptFile: (note: VaultFile, dragged: VaultFile) => void,
   onAdoptFolder: (note: VaultFile, dragged: VaultFolder) => void
 ) {
-  const [over, setOver] = useState(false)
-  useClearOnDragEnd(over, () => setOver(false))
   const accepts = (e: React.DragEvent) => {
     if (!isNote(file.path)) return false
     const types = e.dataTransfer.types
@@ -535,33 +558,21 @@ function useNoteDropTarget(
     if (!types.includes(DRAG_MIME_FOLDER)) return false
     return !isWithin(folderOf(file.path).toLowerCase(), markedPath(types, DRAG_MIME_FOLDER))
   }
-  return {
-    over,
-    handlers: {
-      onDragOver: (e: React.DragEvent) => {
-        if (!accepts(e)) return
-        e.preventDefault()
-        e.stopPropagation()
-        setOver(true)
-      },
-      onDragLeave: () => setOver(false),
-      onDrop: (e: React.DragEvent) => {
-        if (!accepts(e)) return
-        e.preventDefault()
-        e.stopPropagation()
-        setOver(false)
-        const dropped = payloadOf(e)
-        if (dropped?.files) {
-          if (dropped.files.length > 0) onImportFilesInside(file, dropped.files)
-        } else if (dropped?.file) {
-          // The self check again at drop time, for a drag that carried no marker.
-          if (dropped.file.path !== file.path) onAdoptFile(file, dropped.file)
-        } else if (dropped?.folder && !isWithin(folderOf(file.path), dropped.folder.path)) {
-          onAdoptFolder(file, dropped.folder)
-        }
-      },
+  return useDropZone(
+    accepts,
+    (dropped) => {
+      if (dropped.files) {
+        if (dropped.files.length > 0) onImportFilesInside(file, dropped.files)
+      } else if (dropped.file) {
+        // The self check again at drop time, for a drag that carried no marker.
+        if (dropped.file.path !== file.path) onAdoptFile(file, dropped.file)
+      } else if (dropped.folder && !isWithin(folderOf(file.path), dropped.folder.path)) {
+        onAdoptFolder(file, dropped.folder)
+      }
     },
-  }
+    // Anything else falls through to the folder or the vault.
+    false
+  )
 }
 
 /**
@@ -575,10 +586,6 @@ export function useDropTarget(
   /** Files dragged in from outside the app (see `onImportFiles`). */
   onImportFiles: (files: readonly File[], to: string) => void
 ) {
-  const [over, setOver] = useState(false)
-
-  useClearOnDragEnd(over, () => setOver(false))
-
   // A folder can't be dropped into itself or its own subtree;
   // refusing the dragover keeps the highlight off.
   function canAccept(e: React.DragEvent): boolean {
@@ -590,31 +597,19 @@ export function useDropTarget(
     return !isWithin(to.toLowerCase(), markedPath(e.dataTransfer.types, DRAG_MIME_FOLDER))
   }
 
-  return {
-    over,
-    handlers: {
-      onDragOver: (e: React.DragEvent) => {
-        if (!canAccept(e)) return
-        e.preventDefault()
-        e.stopPropagation()
-        setOver(true)
-      },
-      onDragLeave: () => setOver(false),
-      onDrop: (e: React.DragEvent) => {
-        e.preventDefault()
-        e.stopPropagation()
-        setOver(false)
-        const dropped = payloadOf(e)
-        if (dropped?.files) {
-          if (dropped.files.length > 0) onImportFiles(dropped.files, to)
-        } else if (dropped?.file) {
-          onMoveFile(dropped.file, to)
-        } else if (dropped?.folder && !isWithin(to, dropped.folder.path)) {
-          onMoveFolder(dropped.folder, to)
-        }
-      },
+  return useDropZone(
+    canAccept,
+    (dropped) => {
+      if (dropped.files) {
+        if (dropped.files.length > 0) onImportFiles(dropped.files, to)
+      } else if (dropped.file) {
+        onMoveFile(dropped.file, to)
+      } else if (dropped.folder && !isWithin(to, dropped.folder.path)) {
+        onMoveFolder(dropped.folder, to)
+      }
     },
-  }
+    true
+  )
 }
 
 function FolderRow(props: FolderTreeProps) {
@@ -646,14 +641,14 @@ function FolderRow(props: FolderTreeProps) {
     onToggleFolder(folder.path, expanded)
   }
 
-  // Compared with the path `folderNoteRef` would produce, since a folder note is
-  // written lazily; otherwise a folder with no note file could never show as selected.
   /**
    * Whether anything is inside this note. `files` excludes the folder's
    * own note, so an empty folder note isn't drawn as having children.
    */
   const hasNotesInside = folder.folders.length > 0 || folder.files.length > 0
 
+  // Compared with the path `folderNoteRef` would produce, since a folder note is
+  // written lazily; otherwise a folder with no note file could never show as selected.
   const isSelected = folderNoteRef(folder).path === selectedPath
   const creatingHere = create?.parentPath === folder.path
   const showChildren = expanded || creatingHere
@@ -668,13 +663,8 @@ function FolderRow(props: FolderTreeProps) {
     ...(onAndroid ? [] : [{ label: 'Reveal in Finder', onSelect: () => onReveal(folder.absolutePath) }]),
     { label: 'Delete', onSelect: () => onDeleteFolder(folder), danger: true },
   ])
-  /** Its own icon: what is written in the note, which is what the row draws. */
-  const shownIcon = resolveNoteIcon(folder.path, icons)
-  /** Only its own: what the menu's Remove removes. */
-  const ownIcon = icons[folderNoteRef(folder).path]
-  const [iconMenu, openIconMenu] = useIconMenu(ownIcon, (icon) =>
-    onSetFolderIcon(folder, icon)
-  )
+  const icon = icons[folderNoteRef(folder).path]
+  const [iconMenu, openIconMenu] = useIconMenu(icon, (next) => onSetFolderIcon(folder, next))
 
   return (
     <li className="folder-row">
@@ -690,7 +680,7 @@ function FolderRow(props: FolderTreeProps) {
           e.dataTransfer.setData(DRAG_MIME_FOLDER, JSON.stringify(folder))
           // A type-list marker, so drop targets can refuse their own
           // subtree during dragover, when the payload can't be read.
-          e.dataTransfer.setData(`${DRAG_MIME_FOLDER}+${folder.path}`, '')
+          e.dataTransfer.setData(`${DRAG_MIME_FOLDER}+${folder.path.toLowerCase()}`, '')
           setCustomDragImage(e, folder.name)
           setDragging(true)
         }}
@@ -734,34 +724,14 @@ function FolderRow(props: FolderTreeProps) {
               }}
               onContextMenu={openMenu}
             >
-              {/* The icon is its own button: clicking it picks an icon, and
-                  clicking the name opens the note. `stopPropagation` keeps
-                  them apart, since the icon is inside the name's button. */}
-              <span
-                role="button"
-                tabIndex={-1}
-                className="folder-icon"
-                aria-label={`Icon for ${folder.name}`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  openIconMenu(e)
-                }}
-              >
-                <NoteIcon icon={shownIcon ?? DEFAULT_NOTE_ICON} />
-              </span>
+              <IconButton name={folder.name} icon={icon} onPress={openIconMenu} />
               <span className="row-name">{folder.name}</span>
             </button>
           </>
         )}
         {/* A note inside this one. No menu: there is one kind of note. */}
         <span className="folder-actions">
-          <button
-            aria-label={`New note in ${folder.name}`}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => onNewNote(folder.path)}
-          >
-            <PlusIcon />
-          </button>
+          <AddButton label={`New note in ${folder.name}`} onPress={() => onNewNote(folder.path)} />
         </span>
         {menu}
         {iconMenu}

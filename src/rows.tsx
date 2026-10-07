@@ -13,7 +13,7 @@ import {
   type ButtonHTMLAttributes,
   type ReactNode,
 } from 'react'
-import { ChevronIcon, DEFAULT_NOTE_ICON, NoteIcon } from './icons'
+import { ChevronIcon, DEFAULT_NOTE_ICON, NoteIcon, PlusIcon } from './icons'
 import { linkLabelSpan, type VaultFile } from './vaultModel'
 import type { CollectedNote } from './useVaultTexts'
 
@@ -203,6 +203,30 @@ export function GroupRow({ name, open, onToggle, icon, trailing, actions, onOpen
 }
 
 /**
+ * A `+` that opens a name field. Its press keeps the focus where it is: a field closes
+ * on blur, so pressing it while one was open threw away what was typed.
+ */
+export function AddButton({ label, onPress }: { label: string; onPress: (event: React.MouseEvent) => void }) {
+  return (
+    <button aria-label={label} onMouseDown={(event) => event.preventDefault()} onClick={onPress}>
+      <PlusIcon />
+    </button>
+  )
+}
+
+/**
+ * A section's one line when it has no rows: a row, not a line of text, so its words
+ * line up with every other row's, and disabled, since nothing opens.
+ */
+export function EmptyRow({ text }: { text: string }) {
+  return (
+    <li style={{ paddingLeft: stepIn(1) }}>
+      <NoteRow icon={<RowIcon />} name={text} disabled />
+    </li>
+  )
+}
+
+/**
  * A folding section of rows in the reading pane: a labelled heading and a list
  * under it. The end of a note (Inside, Backlinks) and a tag's page use it.
  *
@@ -284,17 +308,7 @@ export function GatheredNotes({
   onOpen: (file: VaultFile) => void
   head: (line: string) => ReactNode
 }) {
-  if (!notes?.length) {
-    return (
-      <li style={{ paddingLeft: stepIn(1) }}>
-        <NoteRow
-          icon={<RowIcon />}
-          name={loading || notes === null ? READING : 'No line carries this yet.'}
-          disabled
-        />
-      </li>
-    )
-  }
+  if (!notes?.length) return <EmptyRow text={loading || notes === null ? READING : 'No line carries this yet.'} />
   return notes.map(({ note, lines }) => (
     <li key={note.path} style={{ paddingLeft: stepIn(1) }}>
       <NoteRow

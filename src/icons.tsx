@@ -1,5 +1,3 @@
-import { folderNotePath } from './vaultModel'
-
 /**
  * Glyph weight is a setting, set in the sheet. A `stroke-width` is in
  * viewBox units, so the same number looks different on each grid. Each
@@ -321,19 +319,6 @@ export function NoteIcon({ icon }: { icon: string }) {
       />
     </svg>
   )
-}
-
-/**
- * A folder note's icon. A row shows only the note's own icon, so the tree
- * shows what is written in the file. Icons spread down a folder only by
- * being written, when the folder's icon is set (`claimsIcon`) or a note is
- * made in it (`endowNote`). The note's path comes from `folderNotePath`.
- */
-export function resolveNoteIcon(
-  folderPath: string,
-  icons: Record<string, string>
-): string | undefined {
-  return icons[folderNotePath(folderPath)]
 }
 
 /**

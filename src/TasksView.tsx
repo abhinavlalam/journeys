@@ -6,7 +6,7 @@ import { LineEditor, type Typing } from './LineEditor'
 import { Live } from './Live'
 import { onAndroid } from './platform'
 import type { PropertyType } from './properties'
-import { countOf, NoteRow, READING, readable, RowIcon, Section, stepIn } from './rows'
+import { countOf, EmptyRow, readable, READING, Section, stepIn } from './rows'
 import { TASK, tasksByNote, tasksByWhen, taskWords, whenOf, type Task } from './tasks'
 import { ViewerHeader } from './ViewerHeader'
 import type { VaultFile } from './vaultModel'
@@ -105,9 +105,7 @@ export function TasksView({
       </ul>
       {!tasks ? (
         <Section title="Tasks" count={0} startOpen>
-          <li style={{ paddingLeft: stepIn(1) }}>
-            <NoteRow icon={<RowIcon />} name={READING} disabled />
-          </li>
+          <EmptyRow text={READING} />
         </Section>
       ) : view === 'due' ? (
         [...tasksByWhen(tasks, today, firstDay)]

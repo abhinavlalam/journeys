@@ -155,7 +155,7 @@ export interface Settings {
   lineLength: number
   /**
    * Whether setting a folder's icon also writes it into the notes inside that
-   * have none. A note always shows its own icon (see `resolveNoteIcon`).
+   * have none. A row shows only its note's own icon: icons spread by being written.
    */
   inheritIcons: boolean
   /** Spaces per indent level: what Tab inserts, and what Enter steps back by. */

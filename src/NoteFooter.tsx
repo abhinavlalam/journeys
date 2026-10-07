@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { DEFAULT_NOTE_ICON } from './icons'
-import { guideAt, NoteRow, opensNote, readable, stepIn, RowIcon, Section } from './rows'
+import { EmptyRow, guideAt, NoteRow, opensNote, readable, RowIcon, Section, stepIn } from './rows'
 import type { Backlink } from './links'
 import { folderNoteRef, type VaultFile, type VaultFolder } from './vaultModel'
 
@@ -45,9 +45,7 @@ export function NoteFooter({
           The vault itself is not a step. A note at the root says so in one row. */}
       <Section title="Path" count={trail.length} startOpen={trail.length > 0}>
         {trail.length === 0 ? (
-          <li style={{ paddingLeft: stepIn(1) }}>
-            <NoteRow icon={<RowIcon />} name="At the top of the vault." disabled />
-          </li>
+          <EmptyRow text="At the top of the vault." />
         ) : (
           trail.map((folder, depth) => {
             const note = folderNoteRef(folder)
@@ -72,10 +70,7 @@ export function NoteFooter({
           in the same place. Shut when empty, so it takes one row. */}
       <Section title="Backlinks" count={backlinks.length} startOpen={backlinks.length > 0}>
         {backlinks.length === 0 ? (
-          // A row, not a line of text, so its words line up with every other row's.
-          <li style={{ paddingLeft: stepIn(1) }}>
-            <NoteRow icon={<RowIcon />} name="Nothing links here yet." disabled />
-          </li>
+          <EmptyRow text="Nothing links here yet." />
         ) : (
           backlinks.map(({ note, count, mentions }) => (
             <Row

@@ -3,7 +3,7 @@ import { clockText, dayDate, lengthOf, localDateStamp, monthName, nearDay, weekd
 import { LineEditor, type Typing } from './LineEditor'
 import { onAndroid } from './platform'
 import type { PropertyType } from './properties'
-import { countOf, NoteRow, READING, RowIcon, Section, stepIn } from './rows'
+import { countOf, EmptyRow, READING, Section } from './rows'
 import { ChevronIcon } from './icons'
 import { DayTotals } from './DayTotals'
 import { dayGrid, QUIET_EM } from './dayGrid'
@@ -104,9 +104,7 @@ export function TimelineView({
       </ViewerHeader>
       {!read && (
         <Section title="Days" count={0} startOpen>
-          <li style={{ paddingLeft: stepIn(1) }}>
-            <NoteRow icon={<RowIcon />} name={READING} disabled />
-          </li>
+          <EmptyRow text={READING} />
         </Section>
       )}
       {shown.map(({ note, ...day }) => (

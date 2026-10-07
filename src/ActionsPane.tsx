@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { listVaultDir, listVaultEntries, vaultFileRef } from './vault'
 import { noteName } from './vaultModel'
 import type { VaultFile } from './vaultModel'
-import { GroupRow, guideAt, NameField, NoteRow, stepIn, RowIcon } from './rows'
+import { AddButton, GroupRow, guideAt, NameField, NoteRow, stepIn, RowIcon } from './rows'
 import {
   creatable,
   createAction,
@@ -13,7 +13,6 @@ import {
   type ActionKind,
   type ViewKind,
 } from './actionKinds'
-import { PlusIcon } from './icons'
 
 /** One row of a kind: a file it holds, or a name the notes use. */
 interface Row {
@@ -336,16 +335,7 @@ export function ActionsPane({
                 // `actions`, not `trailing`, because a button cannot hold a button.
                 creatable(kind) ? (
                   <span className="folder-actions">
-                    <button
-                      aria-label={`New ${kind.singular.toLowerCase()}`}
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        onNew(kind.key)
-                      }}
-                    >
-                      <PlusIcon />
-                    </button>
+                    <AddButton label={`New ${kind.singular.toLowerCase()}`} onPress={() => onNew(kind.key)} />
                   </span>
                 ) : undefined
               }

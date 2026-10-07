@@ -251,7 +251,8 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   indent is on its header, never on the `li` holding its list, or every row under
   it counts it twice (`rowShape.test.tsx`).
 - **One row shape everywhere** (`rows.tsx`: `NoteRow`, `RowIcon`, `GroupRow`,
-  `NameField`, `stepIn`, `guideAt`, `GatheredNotes`, `Section`); `rowShape.test.tsx` compares
+  `NameField`, `stepIn`, `guideAt`, `GatheredNotes`, `Section`, `EmptyRow` for a section
+  with nothing in it, `AddButton` for every `+`); `rowShape.test.tsx` compares
   the boxes in the tree, the Actions pane and a note's footer.
 - **One field at a time, and leaving it means what the caller says**: a rename
   commits on blur, a create or search abandons. Buttons that open a field

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ViewerHeader } from './ViewerHeader'
-import { countOf, NoteRow, READING, RowIcon, Section, stepIn } from './rows'
+import { countOf, EmptyRow, NoteRow, READING, RowIcon, Section, stepIn } from './rows'
 import { ChevronIcon } from './icons'
 import { clockStart, dayDate, daysAfter, dayTitle, localDateStamp, longDay, monthName, relativeDay, shortWeekday } from './clock'
 import {
@@ -127,13 +127,7 @@ export function CalendarView({
             return (
               <Section key={day} title={dayTitle(day, today)} count={on.length} startOpen>
                 {on.length === 0 ? (
-                  <li style={{ paddingLeft: stepIn(1) }}>
-                    <NoteRow
-                      icon={<RowIcon />}
-                      name={loading || collected === null ? READING : 'Nothing on.'}
-                      disabled
-                    />
-                  </li>
+                  <EmptyRow text={loading || collected === null ? READING : 'Nothing on.'} />
                 ) : (
                   on.map((one) => <EventRow key={rowKey(one)} event={one} onOpen={onOpen} />)
                 )}

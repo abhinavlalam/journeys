@@ -103,9 +103,9 @@ import {
 } from './links'
 import { nothingPicked, pick, withoutUnder, type PickMode } from './picking'
 import type { GraphNode } from './graph'
-import { claimsIcon, FoldAllIcon, GraphIcon, NoteIcon, SearchIcon, PlusIcon, SettingsIcon, TerminalIcon } from './icons'
+import { claimsIcon, FoldAllIcon, GraphIcon, NoteIcon, SearchIcon, SettingsIcon, TerminalIcon } from './icons'
 import { SidebarSection } from './SidebarSection'
-import { stepIn, NoteRow, RowIcon } from './rows'
+import { AddButton, stepIn, NoteRow, RowIcon } from './rows'
 /**
  * Loaded only when a terminal opens: xterm is large and touches `window` as it loads.
  */
@@ -1025,13 +1025,7 @@ export default function App() {
                 <button aria-label="Expand all notes" onClick={() => folders.setAll(folderPaths, true)}>
                   <FoldAllIcon collapse={false} />
                 </button>
-                <button
-                  aria-label="New note"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => creating.start('')}
-                >
-                  <PlusIcon />
-                </button>
+                <AddButton label="New note" onPress={() => creating.start('')} />
                 {/* A note is locked from the moment it is made or never, so this is the
                     only way in. The note is made at the top and can be moved after. */}
                 <button
@@ -1080,13 +1074,7 @@ export default function App() {
                 <button aria-label="Expand all actions" onClick={() => folders.setAll(groupPaths, true)}>
                   <FoldAllIcon collapse={false} />
                 </button>
-                <button
-                  aria-label="New action"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={(event) => !namingAction && openActionMenu(event)}
-                >
-                  <PlusIcon />
-                </button>
+                <AddButton label="New action" onPress={(event) => !namingAction && openActionMenu(event)} />
               </>
             }
           >

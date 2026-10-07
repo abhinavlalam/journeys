@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { Live } from './Live'
 import { useColumnWidths } from './columnWidths'
 import { ViewerHeader } from './ViewerHeader'
-import { countOf, NoteRow, READING, stepIn, RowIcon, Section } from './rows'
+import { countOf, EmptyRow, READING, RowIcon, Section } from './rows'
 import type { VaultFile } from './vaultModel'
 import { PROPERTY_TYPES, type PropertyType } from './properties'
 
@@ -67,13 +67,7 @@ export function PropertyView({
       </ViewerHeader>
       <Section title="Values" count={values.length} startOpen>
         {values.length === 0 ? (
-          <li style={{ paddingLeft: stepIn(1) }}>
-            <NoteRow
-              icon={<RowIcon />}
-              name={loading ? READING : 'No note carries this yet.'}
-              disabled
-            />
-          </li>
+          <EmptyRow text={loading ? READING : 'No note carries this yet.'} />
         ) : (
           <li className="line-table-box">
             <table className="line-table" ref={table} data-sized={widths ? '' : undefined}>
