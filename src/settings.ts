@@ -183,6 +183,8 @@ export interface Settings {
   graphShows: { text: boolean; property: boolean; tag: boolean }
   /** How the timeline draws a day: a list by clock, or a grid where height is time. */
   timelineView: 'list' | 'day'
+  /** How the Tasks page groups tasks: by when they are due, or by the page they are on. */
+  tasksView: 'due' | 'page'
   /**
    * The calendars Sync reads: each a private iCal address (Google's secret
    * address in iCal format) and a name, which is what `source::` says on
@@ -288,6 +290,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphHides: [],
   graphShows: { text: true, property: true, tag: true },
   timelineView: 'list',
+  tasksView: 'due',
   calendarFeeds: [],
   calendarDays: 7,
   calendarMinutes: 5,
@@ -403,6 +406,7 @@ export function parseSettings(raw: unknown): Settings {
     graphHides: pickStrings(stored.graphHides).map((one) => one.replace(/\/+$/, '')),
     graphShows: pickShows(stored.graphShows),
     timelineView: stored.timelineView === 'day' ? 'day' : 'list',
+    tasksView: stored.tasksView === 'page' ? 'page' : 'due',
     calendarFeeds: pickFeeds(stored.calendarFeeds),
     calendarDays: pickNumber(stored.calendarDays, BOUNDS.calendarDays, DEFAULT_SETTINGS.calendarDays),
     calendarMinutes: pickNumber(stored.calendarMinutes, BOUNDS.calendarMinutes, DEFAULT_SETTINGS.calendarMinutes),

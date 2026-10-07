@@ -4409,6 +4409,20 @@ button.folder-toggle {
   color: var(--text-dim);
 }
 
+/* The note a task is in, after it, opening the note: the row itself edits the task. */
+.file-list .task-row > .task-note {
+  display: inline;
+  flex: none;
+  width: auto;
+  padding: 0;
+  color: var(--text-faint);
+}
+
+.file-list .task-row > .task-note:hover {
+  background: transparent;
+  color: var(--mark);
+}
+
 /* A line being edited (a timeline entry, a new task): the note's editor on one
    line, in the row's type and space, with no inset, paragraph gap or pane
    padding. Four classes, over the editor's three. */

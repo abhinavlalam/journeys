@@ -1321,9 +1321,12 @@ export default function App() {
                 return (
                   <TasksView
                     tasks={tasks}
+                    view={settings.tasksView}
+                    onView={(tasksView) => changeSettings({ ...settings, tasksView })}
                     typeOf={typeOfName}
                     typing={typing}
                     onDone={(task, done) => void editEntry(task, withDone(task.text, done, typeOfName))}
+                    onEdit={(task, text) => void editEntry(task, text)}
                     onAdd={(text) => void addEntry(text)}
                     onOpen={(file) => void openNote(file)}
                     onOpenLink={openLink}

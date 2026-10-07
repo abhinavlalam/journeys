@@ -69,6 +69,29 @@ describe('the Tasks application', () => {
     await waitFor(() => expect(disk.read('/v/Harbour.md')).toBe(plan))
   })
 
+  it('edits a task in its own line when it is pressed', async () => {
+    await openTasks()
+    fireEvent.click(viewer().getByText('sort the photos'))
+    // The new-task line is the first; the task's own editor holds its whole line.
+    const editor = viewer().getAllByTestId('line-editor').find((one) => (one as HTMLInputElement).value.includes('sort the photos')) as HTMLInputElement
+    expect(editor.value).toBe('- #task sort the photos')
+    fireEvent.change(editor, { target: { value: '- #task sort the photos by year' } })
+    fireEvent.keyDown(editor, { key: 'Enter' })
+    await waitFor(() => expect(disk.read('/v/Harbour.md')).toBe(plan.replace('sort the photos', 'sort the photos by year')))
+  })
+
+  it('groups them by the page they are on, as they are written there, when asked, and keeps the choice', async () => {
+    disk.write('/v/Northwind.md', `Crates.\n- #task ship the crate due:: ${today}\n`)
+    await openTasks()
+    fireEvent.click(viewer().getByRole('button', { name: 'Page' }))
+    await waitFor(() => expect(viewer().getByText('Northwind')).toBeTruthy())
+    const names = [...document.querySelectorAll('.viewer:not([hidden]) .task-row .row-name')].map((one) => one.textContent)
+    expect(names).toEqual(['call Mira about the slip', 'book the survey', 'paint the hull', 'sort the photos', 'send the invoice', 'ship the crate'])
+    // By page, the section is the note: a row names when it is due, and not its note.
+    expect(viewer().queryByRole('button', { name: 'Harbour' })).toBeNull()
+    await waitFor(() => expect(JSON.parse(disk.read('/v/.config/settings.json')!).tasksView).toBe('page'))
+  })
+
   it('files a task typed at the top in today’s note', async () => {
     await openTasks()
     const line = viewer().getByTestId('line-editor') as HTMLInputElement

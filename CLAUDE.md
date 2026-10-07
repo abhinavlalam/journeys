@@ -455,7 +455,12 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   `collectTag`, so it is one more memo over the one read and follows typing.
 - **By when it is due** (`tasksByWhen`): Overdue, Today, This week (to the end of the
   locale's week, `firstWeekday`), Later, No date, and Done folded. A row says only what
-  its group does not: an overdue task's age, a weekday this week, a date later.
+  its group does not: an overdue task's age, a weekday this week, a date later. **Or by
+  page** (`tasksByNote`, the header's switch, `tasksView` in settings): each note a
+  section that opens it, its tasks as written there, each row saying when it is due.
+- **A press on a task edits its line** (`LineEditor`), as a timeline entry's does: Enter
+  or leaving writes it through `withEditedEntry`, Escape drops it, emptied is not
+  deleted. The note's name after the row opens the note (by page, the section does).
 - **Done is written into the task's own line** (`withDone`: `status:: done`, over any
   other status; taken back by removing the status) through `withEditedEntry`, refused if
   the line has changed. The box is a note's checkbox, so a task looks the same in both.

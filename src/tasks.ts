@@ -62,6 +62,19 @@ export function tasksByWhen(tasks: readonly Task[], today: string, firstDay: num
   return groups
 }
 
+/** The tasks of each note, notes by name and each note's tasks as they are written in it. */
+export function tasksByNote(tasks: readonly Task[]): { note: VaultFile; tasks: Task[] }[] {
+  const byPath = new Map<string, { note: VaultFile; tasks: Task[] }>()
+  for (const task of tasks) {
+    const group = byPath.get(task.note.path) ?? { note: task.note, tasks: [] }
+    group.tasks.push(task)
+    byPath.set(task.note.path, group)
+  }
+  return [...byPath.values()]
+    .sort((a, b) => a.note.name.localeCompare(b.note.name))
+    .map((group) => ({ ...group, tasks: group.tasks.sort((a, b) => a.at - b.at) }))
+}
+
 /**
  * A task's line marked done or not. Done sets `status:: done`, over any other status;
  * not done takes the status off, so the line reads as it did before it was marked.
