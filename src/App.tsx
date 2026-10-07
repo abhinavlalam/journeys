@@ -553,8 +553,16 @@ export default function App() {
    * ⌘⇧O: today's note, opened through `openNote` like any row,
    * so the file is read before the switch.
    */
-  const openDay = (day?: string) =>
-    vault.mutate(
+  /**
+   * A day's note, opened, and made first when the tree does not have it. Made or not,
+   * it went through a change: a check on disk, a walk of every folder and a read of
+   * the notes, all before the page showed, and behind whatever else was reading.
+   */
+  const openDay = async (day?: string) => {
+    if (!vault.vaultPath) return
+    const file = dailyNoteFile(vault.vaultPath, settings.dailyFolder, day)
+    if (noteIndex.byKey.has(pathKey(file.path))) return openNote(file)
+    await vault.mutate(
       (v) => ensureDailyNote(v, settings.dailyFolder, day),
       async ({ file, created }) => {
         // A new note is given its icon once, when it is made.
@@ -562,6 +570,7 @@ export default function App() {
         await openNote(file)
       }
     )
+  }
   const openToday = () => openDay()
   /**
    * The phone's Today: the note opened without being made, so a look at the

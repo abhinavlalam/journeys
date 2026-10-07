@@ -165,6 +165,9 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   moved note, and its form (bare name, path, alias, anchor) survives.
   `retargetVaultLinks` is the loop; it skips non-notes and notes not on disk, and
   reports only notes that exist and still could not be read.
+- **A day's note already in the tree opens directly** (`openDay`): no change, so no
+  check on disk, walk of every folder or read of the notes first. Only a day not yet
+  made goes through `ensureDailyNote` and `mutate`.
 - **A case-only rename is not a collision** (`moveUnlessTaken`): macOS says the
   destination exists.
 - **`mutate` hands `after` the tree the operation produced**; read the folder back
@@ -514,6 +517,10 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   id, and a spawn that lands after its tab closed is detached as it arrives.
 - `.config/tmux.conf` is written once, then the user's: `status off`, `mouse off`
   (the wheel stays xterm's), `prefix None` with `C-b` unbound (readline's back).
+  **Only for a server about to start** (`tmux_conf`, in the spawn, from the page's
+  `TMUX_CONF`; `end_orphans` says whether this vault's server answered): tmux reads it
+  then and never after, and the page used to read the whole file through Drive before
+  every first open, 2.3 seconds of blank pane. Never written over one the vault has.
 - `link_memory` makes `<vault>/.claude/memory` Claude Code's project memory, so it
   moves and syncs with the vault.
 - xterm is themed from computed tokens; `monoFace` finds a family the canvas and

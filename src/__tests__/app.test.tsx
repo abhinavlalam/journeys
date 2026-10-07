@@ -305,6 +305,20 @@ describe('the shell', () => {
     expect(editor().value).toBe('')
   })
 
+  /** Made already, it opens as it is: no write, and no walk of the folders first. */
+  it('opens a page already made without writing or walking the vault', async () => {
+    disk.write(`/v/Daily/${today()}.md`, 'written earlier today\n')
+    await openApp()
+    await waitFor(() => expect(row('roadmap')).toBeTruthy())
+    const fs = fsModule()
+    fs.readDir.mockClear()
+    fs.writeTextFile.mockClear()
+    fireEvent.keyDown(window, { key: 'O', metaKey: true, shiftKey: true })
+    await waitFor(() => expect(editor().value).toBe('written earlier today\n'))
+    expect(fs.readDir).not.toHaveBeenCalled()
+    expect(fs.writeTextFile).not.toHaveBeenCalled()
+  })
+
   it('opens today’s page as it stands, and flushes the edit it was called over', async () => {
     disk.write(`/v/Daily/${today()}.md`, 'written earlier today\n')
     await openApp()

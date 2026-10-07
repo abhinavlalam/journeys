@@ -2,7 +2,6 @@ import { DEFAULT_SETTINGS } from './settings'
 import { useEffect, useRef, useState } from 'react'
 import { Terminal, type FontWeight } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
-import { ensureTmuxConfig } from './vault'
 import '@xterm/xterm/css/xterm.css'
 import {
   ANSI,
@@ -11,6 +10,7 @@ import {
   onTerminalOutput,
   resizeTerminal,
   spawnTerminal,
+  TMUX_CONF,
   writeTerminal,
 } from './terminal'
 
@@ -166,12 +166,10 @@ export function TerminalPane({ session, cwd, shown = true }: { session: string; 
     let unlistenOutput: (() => void) | undefined
     let unlistenExit: (() => void) | undefined
 
-    // The config must be on disk before the tmux server starts with the first session,
-    // so it is written on the way in. Skipped when the vault already has one.
+    // The tmux config goes with it, written by the spawn when the server is about to
+    // start and the vault has none (`tmux_conf`); a running server needs no look at it.
     const start = () =>
-      ensureTmuxConfig(cwd)
-        .catch(() => {})
-        .then(() => spawnTerminal(id, session, cwd, terminal.cols, terminal.rows))
+      spawnTerminal(id, session, cwd, terminal.cols, terminal.rows, TMUX_CONF)
         .then((persistent) => {
           if (disposed) return void killTerminal(id).catch(() => {})
           exited = false

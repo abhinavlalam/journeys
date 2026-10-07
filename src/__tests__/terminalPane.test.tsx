@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 
 /**
@@ -32,11 +32,11 @@ vi.mock('@xterm/xterm', () => ({
 }))
 vi.mock('@xterm/addon-fit', () => ({ FitAddon: class { fit() {} } }))
 vi.mock('@xterm/xterm/css/xterm.css', () => ({}))
-vi.mock('../vault', async (real) => ({ ...(await real<object>()), ensureTmuxConfig: async () => {} }))
 
 const pending = vi.hoisted(() => ({ spawns: [] as ((persists: boolean) => void)[] }))
 const bridge = vi.hoisted(() => ({
   ANSI: { dark: {}, light: {} },
+  TMUX_CONF: '# the default',
   spawnTerminal: vi.fn(
     (_id: string, _name: string) => new Promise<boolean>((resolve) => pending.spawns.push(resolve))
   ),
@@ -54,6 +54,11 @@ globalThis.ResizeObserver = class {
 } as unknown as typeof ResizeObserver
 
 afterEach(cleanup)
+// Each test counts its own spawns: the spawn starts as the pane mounts.
+beforeEach(() => {
+  bridge.spawnTerminal.mockClear()
+  pending.spawns.length = 0
+})
 
 describe('a Terminal tab', () => {
   /** Only the first mount took the keyboard, so keys typed after a tab switch went to the note. */

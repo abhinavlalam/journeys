@@ -96,11 +96,13 @@ pub(crate) fn socket_for(vault: &str) -> String {
 /// a moved or deleted folder, writing a stray copy back by absolute
 /// path. One whose every session folder no longer exists is killed. A
 /// server that cannot answer (a socket left by a crash) is skipped.
-fn end_orphans(tmux: &str) {
-    let Ok(uid) = std::process::Command::new("/usr/bin/id").arg("-u").output() else { return };
+/// Says whether `ours` answered: a server that is running.
+fn end_orphans(tmux: &str, ours: &str) -> bool {
+    let mut running = false;
+    let Ok(uid) = std::process::Command::new("/usr/bin/id").arg("-u").output() else { return false };
     let uid = String::from_utf8_lossy(&uid.stdout).trim().to_string();
     let base = std::env::var("TMUX_TMPDIR").unwrap_or_else(|_| "/tmp".to_string());
-    let Ok(sockets) = std::fs::read_dir(format!("{base}/tmux-{uid}")) else { return };
+    let Ok(sockets) = std::fs::read_dir(format!("{base}/tmux-{uid}")) else { return false };
     for socket in sockets.flatten() {
         let name = socket.file_name().to_string_lossy().to_string();
         if !name.starts_with(SOCKET_PREFIX) {
@@ -116,8 +118,24 @@ fn end_orphans(tmux: &str) {
         let starts: Vec<&str> = paths.lines().filter(|p| !p.is_empty()).collect();
         if out.status.success() && !starts.is_empty() && starts.iter().all(|p| !std::path::Path::new(p).exists()) {
             let _ = std::process::Command::new(tmux).args(["-L", &name, "kill-server"]).output();
+        } else if name == ours && out.status.success() {
+            running = true;
         }
     }
+    running
+}
+
+/// The vault's tmux config, written from `default` when it has none and never over
+/// one it has, edited or unreadable. Only for a server about to start, which is when
+/// tmux reads it: a running one has. Quiet: the terminal reports its own problems.
+fn tmux_conf(cwd: &str, default: &str) -> Option<std::path::PathBuf> {
+    let path = std::path::Path::new(cwd).join(".config").join("tmux.conf");
+    if !path.exists() {
+        let _ = std::fs::create_dir_all(path.parent()?);
+        let written = std::fs::OpenOptions::new().write(true).create_new(true).open(&path);
+        let _ = written.and_then(|mut file| std::io::Write::write_all(&mut file, default.as_bytes()));
+    }
+    path.is_file().then_some(path)
 }
 
 // ---------------------------------------------------------------------------
@@ -212,11 +230,12 @@ pub async fn spawn_terminal(
     cwd: String,
     cols: u16,
     rows: u16,
+    conf: String,
 ) -> Result<bool, String> {
-    blocking(move || spawn(app, id, name, cwd, cols, rows)).await
+    blocking(move || spawn(app, id, name, cwd, cols, rows, conf)).await
 }
 
-fn spawn(app: AppHandle, id: String, name: String, cwd: String, cols: u16, rows: u16) -> Result<bool, String> {
+fn spawn(app: AppHandle, id: String, name: String, cwd: String, cols: u16, rows: u16, conf: String) -> Result<bool, String> {
     let pair = native_pty_system()
         .openpty(size(cols.max(2), rows.max(1)))
         .map_err(|e| e.to_string())?;
@@ -231,15 +250,16 @@ fn spawn(app: AppHandle, id: String, name: String, cwd: String, cols: u16, rows:
     let mut cmd = match &tmux {
         Some(bin) => {
             let mut cmd = CommandBuilder::new(bin);
-            end_orphans(bin);
+            let socket = socket_for(&cwd);
+            let running = end_orphans(bin, &socket);
             cmd.arg("-L");
-            cmd.arg(socket_for(&cwd));
-            // Read only when this server starts, and it is our
-            // own server, thanks to the private socket.
-            let conf = std::path::Path::new(&cwd).join(".config/tmux.conf");
-            if conf.is_file() {
+            cmd.arg(&socket);
+            // Read only when this server starts, and it is our own server, thanks to
+            // the private socket. Running, it attaches with no look at the vault: the
+            // page read the whole config through Drive first, 2.3 seconds blank.
+            if let Some(path) = (!running).then(|| tmux_conf(&cwd, &conf)).flatten() {
                 cmd.arg("-f");
-                cmd.arg(&conf);
+                cmd.arg(&path);
             }
             // `-A` attaches to `name` if the server has it and creates
             // it if not, so a name that is the same across launches
@@ -402,6 +422,18 @@ mod tests {
         ));
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    /// Written for a server about to start when the vault has none, and never over the owner's.
+    #[test]
+    fn a_tmux_config_is_written_only_where_there_is_none() {
+        let vault = temp("tmux");
+        let path = tmux_conf(vault.to_str().unwrap(), "# default").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "# default");
+        std::fs::write(&path, "# mine").unwrap();
+        assert_eq!(tmux_conf(vault.to_str().unwrap(), "# default"), Some(path.clone()));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "# mine");
+        std::fs::remove_dir_all(&vault).unwrap();
     }
 
     #[test]

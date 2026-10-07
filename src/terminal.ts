@@ -15,9 +15,11 @@ export function spawnTerminal(
   name: string,
   cwd: string,
   cols: number,
-  rows: number
+  rows: number,
+  /** The tmux config written when the vault has none and the server is about to start. */
+  conf: string
 ): Promise<boolean> {
-  return invoke('spawn_terminal', { id, name, cwd, cols, rows })
+  return invoke('spawn_terminal', { id, name, cwd, cols, rows, conf })
 }
 
 export function writeTerminal(id: string, data: string): Promise<void> {
@@ -71,3 +73,42 @@ export const ANSI = {
     brightMagenta: '#9358cc', brightCyan: '#1f97a3', brightWhite: '#2a2a30',
   },
 } as const
+
+/**
+ * The tmux config for the terminal's server. Written once, then the user's to edit.
+ *
+ * - `status off`: no status bar, so the pane looks like a terminal, not tmux.
+ * - `mouse off`: the wheel and scrollback stay xterm's; tmux's
+ *   copy mode would take them.
+ * - `prefix None`, `C-b` unbound: `C-b` is back one character in
+ *   readline, and the app drives the session, so no prefix is needed.
+ * - `destroy-unattached off`: a session with no client stays alive, which is the point.
+ * - `default-terminal` and `Tc`: the same truecolour the pane gives the PTY.
+ */
+export const TMUX_CONF = `# Written by Journeys when a Terminal tab first opened.
+# Yours to edit: this file is read once, when the session server starts, and is
+# never rewritten. It applies only to Journeys' own tmux server for this vault,
+# on a socket of its own, and never to tmux you run yourself.
+
+# Read as a terminal in this app, not as a multiplexer someone opened.
+set -g status off
+
+# The wheel and the scrollback are the pane's (xterm.js). With the mouse on, tmux
+# takes the wheel into its copy mode and the pane's own scrolling is bypassed.
+set -g mouse off
+
+# C-b is "back one character" to every readline shell. Nothing here needs a key of
+# its own, so there is no prefix at all.
+unbind C-b
+set -g prefix None
+
+# The feature, stated: a session with no client is a session that is still there.
+set -g destroy-unattached off
+
+# The same truecolour the pane sets on the PTY, or a TUI takes its no-colour path.
+set -g default-terminal "xterm-256color"
+set -ga terminal-overrides ",xterm-256color:Tc"
+
+set -g history-limit 50000
+set -g escape-time 10
+`
