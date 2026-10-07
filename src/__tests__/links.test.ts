@@ -631,6 +631,50 @@ describe('resolveTarget, for a wikilink', () => {
 // wikilinks were parsed it had no edges at all. //
 // ---------------------------------------------------------------------------
 
+/**
+ * A name in a note's `aliases::` reaches the note, as Obsidian's do: `[[Captain]]` is
+ * Mira Vance's page and its backlink, while no page of that name sits in the tree.
+ */
+describe('a name in a note’s aliases::', () => {
+  const mira = note('People/Mira Vance.md')
+  const crew = note('Crew/Harbour Master.md')
+  const aliased = buildNoteIndex(
+    [...notes, mira, crew],
+    [
+      { name: 'Captain', note: mira },
+      { name: 'Roadmap', note: mira },
+      // A name two notes claim is the first's by path.
+      { name: 'Skipper', note: mira },
+      { name: 'Skipper', note: crew },
+    ]
+  )
+  const at = (text: string) => wikiPath(text, 'Index.md', aliased)
+
+  it('resolves a wikilink by it, in any case and with an anchor or a label', () => {
+    expect(at('[[Captain]]')).toBe('People/Mira Vance.md')
+    expect(at('[[captain#Boats|her]]')).toBe('People/Mira Vance.md')
+    expect(at('[[Skipper]]')).toBe('Crew/Harbour Master.md')
+    // A note's own name comes first, and a markdown path is no name.
+    expect(at('[[Roadmap]]')).toBe('Notes/Roadmap.md')
+    expect(resolveTarget('Captain', 'Index.md', aliased)).toEqual({ kind: 'new', path: 'Captain.md' })
+  })
+
+  it('counts a link by it as a backlink to the note', () => {
+    const backlinks = buildBacklinkIndex([{ note: note('Index.md'), text: 'Ask the [[Captain]].' }], aliased)
+    expect(backlinksTo(backlinks, mira.path).map((one) => one.note.path)).toEqual(['Index.md'])
+  })
+
+  it('leaves a link by it as written when the note is renamed', () => {
+    const moves = new Map([[pathKey(mira.path), note('People/Mira Hale.md')]])
+    expect(retargetLinks('[[Captain]] is [[Mira Vance]].', 'Index.md', moves, aliased)).toBe('[[Captain]] is [[Mira Hale]].')
+  })
+
+  it('offers it in the picker as itself, for its note', () => {
+    const [first] = matchNotes('capt', notes, [{ name: 'Captain', note: mira }])
+    expect([first.alias, first.note.path]).toEqual(['Captain', 'People/Mira Vance.md'])
+  })
+})
+
 describe('the graph a wikilink-only vault makes', () => {
   const flat = [note('Index.md'), note('Roadmap.md'), note('Diet.md'), note('Sleep.md')]
   const texts = [
@@ -799,12 +843,12 @@ describe('matchNotes', () => {
   })
 
   it('lists the vault in tree order for an empty query, and honours the limit', () => {
-    expect(matchNotes('', notes, 3).map((m) => m.note.path)).toEqual([
+    expect(matchNotes('', notes, [], 3).map((m) => m.note.path)).toEqual([
       'Index.md',
       'Sleep.md',
       'Areas/Areas.md',
     ])
-    expect(matchNotes('road', pick, 2)).toHaveLength(2)
+    expect(matchNotes('road', pick, [], 2)).toHaveLength(2)
   })
 })
 

@@ -47,7 +47,7 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 | `calendar.ts`, `ics.ts`, `calendarSync.ts`, `useCalendarSync.ts`, `CalendarView.tsx` | The calendar. |
 | `timeline.ts` / `TimelineView.tsx` | The daily notes as each day happened / its page. |
 | `tasks.ts` / `TasksView.tsx` | Every `#task` line by when it is due / its page. |
-| `LineEditor.tsx` | One line in the note's own editor, for a page that takes typing (an entry, a task). |
+| `LineEditor.tsx` | One line in the note's own editor, for a page that takes typing (an entry, a task); `Typing`, what every editor types with. |
 | `useLog.ts` / `LogView.tsx` | What the app says: shown a while, kept in the Log / its page. |
 | `crypto.ts`, `useLocks.ts`, `useAutoLock.ts` | Locked notes: the format and the passphrases held / asking and locking / the clock. |
 | `sync.ts`, `useSync.ts`, `src-tauri/src/sync.rs` | Git sync. |
@@ -106,8 +106,9 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   line in `--alert`, so nothing vanishes unread; there is no fallback to text.
   `noteProperties` is every property a note carries, and the Properties pages are
   made of it. A page property takes its whole line. A property's type is chosen
-  from a menu on its page, into `.config/properties.json`; `icon` and `path` are
-  the app's, typed `icon` and `path`, and no entry retypes them. Every pattern for
+  from a menu on its page, into `.config/properties.json`; `icon`, `path` and
+  `aliases` are the app's, typed `icon`, `path` and `text`, and no entry retypes
+  them. Every pattern for
   a name is built from `PROPERTY_NAME`.
 - **The note carries what the app knows about it**: `icon::` and `path::`, the
   app's own properties (`APP_PROPERTIES`, the one place they are named). `path::` is
@@ -115,6 +116,14 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   note is given is one funnel, `endowNote`: its `path::` and the icon of its
   folder's own note, read from disk. Today's page takes the icon and not the
   `path::`, and only on the day it is made.
+- **A note's other names are its `aliases::`** (`readAliases`: a page property,
+  `aliases:: Captain, The Skipper` or YAML's list), as Obsidian's are, the owner's
+  choice over a page that redirects: no second page in the tree. A wikilink by one
+  resolves to the note (`byAlias`, after every note's own name), so it is a backlink
+  and an edge; the `[[` popup offers it as itself, search finds the note by it, and a
+  rename leaves it as written (`aliased`). The index reads them from the corpus, so a
+  name typed a moment ago resolves; a link is not made into a note before the first
+  read, when no alias is known and the made note would come first.
 - **A setting that measures layout is in the app's own units** (steps, `em`, the
   leading), never pixels beside values derived from the type.
 - **Judge a feature by whether it is the right design**, not by how often it is

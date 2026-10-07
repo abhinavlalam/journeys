@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { blockProperties, noteProperties, readProperty, splitPageProperties, typeOf as typeIn, withProperty } from '../properties'
+import { blockProperties, noteProperties, readAliases, readProperty, splitPageProperties, typeOf as typeIn, withProperty } from '../properties'
 
 const untyped = () => 'text' as const
 const propertyKeys = (raw: string) => noteProperties(raw, untyped).map((one) => one.name)
@@ -10,6 +10,17 @@ const propertyKeys = (raw: string) => noteProperties(raw, untyped).map((one) => 
  * changes one line, and every other line, the order, the spacing and
  * the line endings come back unchanged. Most of these check that.
  */
+describe('readAliases', () => {
+  it('reads the other names a note carries, in either form, quoted or not', () => {
+    expect(readAliases('aliases:: Captain, The Skipper\n\nbody')).toEqual(['Captain', 'The Skipper'])
+    expect(readAliases('---\naliases: [Captain, "The Skipper"]\n---\nbody')).toEqual(['Captain', 'The Skipper'])
+    expect(readAliases('---\nAliases: Captain\n---\nbody')).toEqual(['Captain'])
+    // Only the page's: a line in the body is not the note's name.
+    expect(readAliases('# Mira Vance\n\naliases:: Captain')).toEqual([])
+    expect(readAliases('aliases::\n\nbody')).toEqual([])
+  })
+})
+
 describe('readProperty', () => {
   it('reads a value, with or without quotes', () => {
     expect(readProperty('---\nicon: 📚\n---\nbody\n', 'icon')).toBe('📚')

@@ -1,14 +1,17 @@
 import { useRef } from 'react'
 import type { Entries } from './configEntries'
+import type { Alias } from './links'
 import { MarkdownEditor } from './MarkdownEditor'
 import type { VaultFile } from './vaultModel'
 
 /**
- * What a line's editor types with, as a note's does: the `[[` popup's
- * notes, the property popup's structures and types, and the time key.
+ * What every editor of the vault's text types with, a note's, a page's line and the
+ * phone's: the `[[` popup's notes and their other names, the property popup's
+ * structures and types, and the time key.
  */
 export interface Typing {
   notes: VaultFile[]
+  aliases: readonly Alias[]
   propertyTypes: Entries
   tagStructures: Entries
   insertTimeCombo: string | null
@@ -62,10 +65,7 @@ export function LineEditor({
         caretAtEnd
         autoFocus={autoFocus}
         placeholder={placeholder}
-        notes={typing.notes}
-        propertyTypes={typing.propertyTypes}
-        tagStructures={typing.tagStructures}
-        insertTimeCombo={typing.insertTimeCombo}
+        {...typing}
         onOpenLink={onOpenLink}
         onOpenTag={onOpenTag}
         onChange={() => {}}

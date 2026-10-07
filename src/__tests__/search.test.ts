@@ -27,6 +27,11 @@ describe('searchNotes', () => {
     ])
   })
 
+  it('finds a note by a name in its aliases, and says which', () => {
+    const crew = [{ note: note('People/Mira Vance.md'), text: 'aliases:: Captain, The Skipper\n\nRuns the harbour boats.\n' }]
+    expect(searchNotes(crew, 'skipper')).toEqual([{ note: crew[0].note, line: 'The Skipper' }])
+  })
+
   it('puts names before contents', () => {
     // `standup` names one note and is in no note's text; `tree`
     // is in two notes' text. Both come back, names first.

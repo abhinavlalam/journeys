@@ -418,6 +418,21 @@ describe('the backlinks at the end of a note', () => {
     await waitFor(() => expect(editor().value).toContain('# Plans'))
   })
 
+  /** A name in a note's `aliases::` is a link to it, with no page of that name in the tree. */
+  it('counts a link by a name in its aliases, and follows it to the note', async () => {
+    disk.write('/v/Mira Vance.md', 'aliases:: Captain\n\n# Mira Vance\n')
+    disk.write('/v/plans.md', '# Plans\n\n- #task ask the [[Captain]]\n')
+    await openApp()
+    await openTheNote('Mira Vance')
+    await waitFor(() => expect(within(backlinks()!).getByText('plans')).toBeTruthy())
+
+    // Followed from a page that draws a line's links: the note opens, and none is made.
+    fireEvent.click(screen.getByLabelText('Tasks'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Captain' }))
+    await waitFor(() => expect(editor().value).toContain('# Mira Vance'))
+    expect(disk.read('/v/Captain.md')).toBeUndefined()
+  })
+
   /**
    * A path is not a name here either: a quoted `[[Ideas/kites]]`
    * reads as `kites`, and `|!2` asks for the page above.

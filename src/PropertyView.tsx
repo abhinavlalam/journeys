@@ -32,7 +32,7 @@ export function PropertyView({
   icons: Record<string, string>
   loading: boolean
   type: PropertyType
-  /** `icon` or `path`: typed by the app, so the type is shown, not chosen. */
+  /** One of `APP_PROPERTIES`: typed by the app, so the type is shown, not chosen. */
   appOwned: boolean
   onType: (type: PropertyType) => void
   onOpen: (file: VaultFile) => void

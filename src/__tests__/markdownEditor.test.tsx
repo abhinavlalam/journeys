@@ -43,6 +43,7 @@ import {
 } from '../editorCommands'
 import { localDateStamp, localTimeStamp } from '../clock'
 import { propertySource, slashSource, wikiLinkSource } from '../editorComplete'
+import type { Alias } from '../links'
 import { completionStatus, startCompletion } from '@codemirror/autocomplete'
 import { foldMarkerFor, indentRange } from '../editorFold'
 import {
@@ -1111,9 +1112,9 @@ describe('`[` over a selection', () => {
 })
 
 describe('the `[[` picker', () => {
-  const complete = (doc: string, at: number, notes = NOTES) => {
+  const complete = (doc: string, at: number, notes = NOTES, aliases: Alias[] = []) => {
     const state = stateOf(doc, at)
-    return wikiLinkSource(() => notes)({
+    return wikiLinkSource(() => notes, () => aliases)({
       state,
       pos: at,
       explicit: false,
@@ -1162,6 +1163,15 @@ describe('the `[[` picker', () => {
       detail: 'Areas/Northwind',
       apply: '[[Northwind]]',
     })
+  })
+
+  it('offers a name in a note’s aliases as itself, with the note’s path, and no new page for it', () => {
+    const aliases = [{ name: 'Captain', note: note('People/Mira Vance.md') }]
+    expect(complete('see [[capt', 10, NOTES, aliases)?.options).toMatchObject([
+      { label: 'Captain', detail: 'People/Mira Vance', apply: '[[Captain]]' },
+      { label: 'capt', detail: 'new page' },
+    ])
+    expect(complete('see [[captain', 13, NOTES, aliases)?.options.map((one) => one.label)).toEqual(['Captain'])
   })
 
   it('offers nothing when the caret is not after a `[[`', () => {

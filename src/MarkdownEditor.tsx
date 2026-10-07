@@ -34,6 +34,7 @@ import {
   livePreview,
 } from './editorPreview'
 import { splitPageProperties } from './properties'
+import type { Alias } from './links'
 import type { VaultFile } from './vaultModel'
 import type { Entries } from './configEntries'
 
@@ -54,6 +55,8 @@ interface MarkdownEditorProps {
    * ref, so notes made after mount are offered too.
    */
   notes?: VaultFile[]
+  /** The other names notes carry, offered beside them. Read through the same ref. */
+  aliases?: readonly Alias[]
   /** Each property's type, to know where a block property's value ends. */
   propertyTypes?: Entries
   /** Each tag's structure, for the properties its line is offered. */
@@ -167,7 +170,7 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
     autocompletion({
       defaultKeymap: false,
       override: [
-        wikiLinkSource(() => latest.current.notes ?? []),
+        wikiLinkSource(() => latest.current.notes ?? [], () => latest.current.aliases ?? []),
         slashSource(() => latest.current.dailyFolder ?? ''),
         propertySource(() => latest.current.tagStructures ?? {}, getTypes, () => latest.current.line?.tag),
       ],

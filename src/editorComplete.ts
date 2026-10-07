@@ -5,7 +5,7 @@
 import { EditorView } from '@codemirror/view'
 import type { Completion, CompletionContext, CompletionResult } from '@codemirror/autocomplete'
 import { localDateStamp, localTimeStamp } from './clock'
-import { matchNotes } from './links'
+import { matchNotes, type Alias } from './links'
 import { knownPath, noteName } from './vaultModel'
 import { blockProperties, PROPERTY_NAME, typeOf } from './properties'
 import { propertiesOf, TAG, tagNames } from './tags'
@@ -89,21 +89,22 @@ export function slashSource(getDailyFolder: () => string) {
  *
  * The last option is a note that does not exist yet, whenever the
  * typed text is not a note's name, so a link can be written before
- * its note. Following it makes the note (`openLinkTarget`).
+ * its note. Following it makes the note (`openLinkTarget`). A name a
+ * note carries (`aliases::`) is offered as itself, with the note's path.
  */
-export function wikiLinkSource(getNotes: () => VaultFile[]) {
+export function wikiLinkSource(getNotes: () => VaultFile[], getAliases: () => readonly Alias[]) {
   return (context: CompletionContext): CompletionResult | null => {
     const before = context.matchBefore(/\[\[[^\]\n]*/)
     if (!before) return null
     const query = before.text.slice(2)
     // The limit is `matchNotes`'s own.
-    const matches = matchNotes(query, getNotes())
+    const matches = matchNotes(query, getNotes(), getAliases())
     const options = matches.map((match) => ({
-      label: match.note.name,
+      label: match.alias ?? match.note.name,
       // The path the tree shows, not the file's: a nested note's file is
       // `Areas/Northwind/Northwind.md`. No `.md`; a link never carries one.
       detail: knownPath(match.note.path),
-      apply: `[[${match.note.name}]]`,
+      apply: `[[${match.alias ?? match.note.name}]]`,
     }))
     // Not offered when a note already has that name, or that
     // path for a name with a `/`.
@@ -111,7 +112,7 @@ export function wikiLinkSource(getNotes: () => VaultFile[]) {
     const lower = typed.toLowerCase()
     const known = matches.some(
       (match) =>
-        match.note.name.toLowerCase() === lower ||
+        (match.alias ?? match.note.name).toLowerCase() === lower ||
         knownPath(match.note.path).toLowerCase() === lower ||
         noteName(match.note.path).toLowerCase() === lower
     )

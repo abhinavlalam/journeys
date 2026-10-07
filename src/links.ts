@@ -401,9 +401,17 @@ export interface NoteIndex {
    * pick depends on where the link was written (see `resolveTarget`).
    */
   byName: Map<string, VaultFile[]>
+  /** Each name in a note's `aliases::`, to the note; the first by path keeps a name two claim. */
+  byAlias: Map<string, VaultFile>
 }
 
-export function buildNoteIndex(notes: VaultFile[]): NoteIndex {
+/** A name in a note's `aliases::` (`readAliases`). Not a link's `|alias`, which is its label. */
+export interface Alias {
+  name: string
+  note: VaultFile
+}
+
+export function buildNoteIndex(notes: VaultFile[], aliases: readonly Alias[] = []): NoteIndex {
   const byKey = new Map<string, VaultFile>()
   for (const note of notes) byKey.set(pathKey(note.path), note)
   // `Ideas` and `Ideas/Ideas.md` are one note, or a folder note's backlinks
@@ -436,7 +444,12 @@ export function buildNoteIndex(notes: VaultFile[]): NoteIndex {
     }
   }
 
-  return { notes, byKey, byName }
+  const byAlias = new Map<string, VaultFile>()
+  for (const { name, note } of [...aliases].sort((a, b) => a.note.path.localeCompare(b.note.path))) {
+    if (!byAlias.has(nameKey(name))) byAlias.set(nameKey(name), note)
+  }
+
+  return { notes, byKey, byName, byAlias }
 }
 
 /**
@@ -455,7 +468,8 @@ type ResolvedTarget =
    * to the OS or say why it can't open it.
    */
   | { kind: 'external'; target: string }
-  | { kind: 'note'; note: VaultFile }
+  /** `aliased`: reached by a name in its `aliases::`, which a move leaves as written. */
+  | { kind: 'note'; note: VaultFile; aliased?: true }
   | { kind: 'new'; path: string }
 
 /**
@@ -492,7 +506,8 @@ function underNamedNote(written: string, index: NoteIndex): string | null {
  *
  * A wikilink's target is a name, looked up across the vault. A target with a `/`
  * is a path and follows the path rule. When a name matches two notes, the one in
- * the linking note's folder wins, then the shortest path (see `buildNoteIndex`).
+ * the linking note's folder wins, then the shortest path (see `buildNoteIndex`). A
+ * name no note has may be in a note's `aliases::`.
  */
 export function resolveTarget(
   link: string | NoteLink,
@@ -519,6 +534,8 @@ export function resolveTarget(
     if (found) {
       return { kind: 'note', note: found.find((n) => isSamePath(folderOf(n.path), dir)) ?? found[0] }
     }
+    const aliased = index.byAlias.get(nameKey(written))
+    if (aliased) return { kind: 'note', note: aliased, aliased: true }
     // No note of that name. A path lookup can't find one either, so this only
     // gets classified, as the root-relative `new` the picker would create.
   }
@@ -602,7 +619,9 @@ function retarget(link: NoteLink, to: VaultFile): string {
  *
  * A link is rewritten because it resolves to a moved note, not because its
  * text matches a name. Only the destination changes; alias, label, anchor
- * and brackets stay. Works right to left, so earlier offsets stay valid.
+ * and brackets stay. A link by a name in the note's `aliases::` stays as it is,
+ * since the name moved with the note. Works right to left, so earlier offsets
+ * stay valid.
  */
 export function retargetLinks(
   text: string,
@@ -613,7 +632,7 @@ export function retargetLinks(
   let out = text
   for (const link of parseNoteLinks(text).reverse()) {
     const resolved = resolveTarget(link, fromPath, index)
-    if (resolved.kind !== 'note') continue
+    if (resolved.kind !== 'note' || resolved.aliased) continue
     const to = moves.get(pathKey(resolved.note.path))
     if (!to) continue
     out = out.slice(0, link.targetAt) + retarget(link, to) + out.slice(link.targetAt + link.target.length)
@@ -764,6 +783,8 @@ function lineFinder(text: string): (at: number) => string {
 
 interface NoteMatch {
   note: VaultFile
+  /** The name in its `aliases::` it matched by, when it was one. */
+  alias?: string
   score: number
 }
 
@@ -783,19 +804,23 @@ function tier(haystack: string, query: string): number {
  * The score is `tier(name) * 5 + tier(path)`, where a tier is exact 4,
  * prefix 3, word start 2, anywhere 1, none 0. So any hit on the name
  * beats a hit on the path alone, and the path term lets `notes/road` find
- * a note by its folder. Ties go to the shorter name, then the path. No
- * fuzzy matching: it is harder to predict than typing one more letter.
+ * a note by its folder. A name in a note's `aliases::` is scored as a name, with
+ * no path. Ties go to the shorter name, then the path. No fuzzy matching: it is
+ * harder to predict than typing one more letter.
  */
-export function matchNotes(query: string, notes: VaultFile[], limit = 20): NoteMatch[] {
+export function matchNotes(query: string, notes: VaultFile[], aliases: readonly Alias[] = [], limit = 20): NoteMatch[] {
   const q = query.trim().toLowerCase()
   if (!q) return notes.slice(0, limit).map((note) => ({ note, score: 0 }))
-  return notes
-    .map((note) => ({ note, score: tier(note.name, q) * 5 + tier(pathKey(note.path), q) }))
+  const named = (match: NoteMatch) => match.alias ?? match.note.name
+  return [
+    ...notes.map((note) => ({ note, score: tier(note.name, q) * 5 + tier(pathKey(note.path), q) })),
+    ...aliases.map(({ name, note }) => ({ note, alias: name, score: tier(name, q) * 5 })),
+  ]
     .filter((match) => match.score > 0)
     .sort(
       (a, b) =>
         b.score - a.score ||
-        a.note.name.length - b.note.name.length ||
+        named(a).length - named(b).length ||
         a.note.path.localeCompare(b.note.path)
     )
     .slice(0, limit)

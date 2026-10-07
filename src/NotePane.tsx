@@ -13,7 +13,7 @@ import { fileKind, isEncrypted, isNote } from './vaultModel'
 import type { VaultFile, VaultFolder } from './vaultModel'
 import type { Settings } from './settings'
 import type { useVaultTexts } from './useVaultTexts'
-import type { Entries } from './configEntries'
+import type { Typing } from './LineEditor'
 import { DayTotals } from './DayTotals'
 import { typeOf } from './properties'
 import { coloursOf, type DayTotal } from './tags'
@@ -34,12 +34,7 @@ interface NotePaneProps {
   /** The open note's text as the editor has it; see `App`. */
   liveText: MutableRefObject<{ path: string; text: string } | null>
   settings: Settings
-  settingsOpen: boolean
-  notes: ComponentProps<typeof MarkdownEditor>['notes']
-  /** Each property's type, to know where a block property's value ends. */
-  propertyTypes: Entries
-  /** Each tag's structure, for the properties its line is offered. */
-  tagStructures: Entries
+  typing: Typing
   root: VaultFolder | null
   icons: Record<string, string>
   backlinks: ReturnType<typeof useVaultTexts>['backlinks']
@@ -79,10 +74,7 @@ export function NotePane({
   buffers,
   liveText,
   settings,
-  settingsOpen,
-  notes,
-  propertyTypes,
-  tagStructures,
+  typing,
   root,
   icons,
   backlinks,
@@ -139,8 +131,8 @@ export function NotePane({
   const trail = useMemo(() => trailTo(root, file.path), [root, file.path])
   /** The days either side, for a note in the daily folder. */
   const steps = useMemo(
-    () => dailyNeighbours(notes ?? [], settings.dailyFolder, file.path),
-    [notes, settings.dailyFolder, file.path]
+    () => dailyNeighbours(typing.notes, settings.dailyFolder, file.path),
+    [typing.notes, settings.dailyFolder, file.path]
   )
 
   // Bound first: a `const` narrows inside the handler, where
@@ -230,10 +222,7 @@ export function NotePane({
           initialMarkdown={buffer.body}
           incoming={buffer.incoming}
           onChange={handleEditorChange}
-          insertTimeCombo={settingsOpen ? null : settings.shortcuts.insertTime}
-          notes={notes}
-          propertyTypes={propertyTypes}
-          tagStructures={tagStructures}
+          {...typing}
           dailyFolder={settings.dailyFolder}
           caretAtEnd={isDailyNote(file.path, settings.dailyFolder)}
           indentWidth={settings.indentWidth}
@@ -247,8 +236,8 @@ export function NotePane({
         <DayTotals
           text={liveText.current?.path === file.path ? liveText.current.text : buffer.body}
           totals={dayTotals}
-          colours={coloursOf(tagStructures)}
-          typeOf={(name) => typeOf(propertyTypes, name)}
+          colours={coloursOf(typing.tagStructures)}
+          typeOf={(name) => typeOf(typing.propertyTypes, name)}
           place="note"
         />
       )}

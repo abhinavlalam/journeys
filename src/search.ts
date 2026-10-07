@@ -7,14 +7,14 @@
 // scores, no index. `includes` over a vault takes microseconds, and each
 // addition would need explaining when a visible note does not come back.
 
-import { splitPageProperties } from './properties'
+import { readAliases, splitPageProperties } from './properties'
 import type { VaultFile } from './vaultModel'
 
 export interface SearchHit {
   note: VaultFile
   /**
-   * The first line the words are on, trimmed. Absent when the
-   * name matched, since the row already shows the name.
+   * The first line the words are on, trimmed, or the other name that matched
+   * (`aliases::`). Absent when the name matched, since the row shows the name.
    */
   line?: string
 }
@@ -23,7 +23,8 @@ export interface SearchHit {
  * Every note containing `query`, name matches before text matches,
  * each sorted by name. Only the body is searched: a `path:: Plans/Q3`
  * would make every note under `Plans/` a hit for "plans". A name match
- * is enough for that note; a second row for its text would be noise.
+ * is enough for that note; a second row for its text would be noise. A
+ * name the note carries (`aliases::`) is a name.
  */
 export function searchNotes(
   notes: Iterable<{ note: VaultFile; text: string }>,
@@ -38,6 +39,11 @@ export function searchNotes(
   for (const { note, text } of notes) {
     if (note.name.toLowerCase().includes(needle)) {
       named.push({ note })
+      continue
+    }
+    const alias = readAliases(text).find((one) => one.toLowerCase().includes(needle))
+    if (alias) {
+      named.push({ note, line: alias })
       continue
     }
     const { body } = splitPageProperties(text)

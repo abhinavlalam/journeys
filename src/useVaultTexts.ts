@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { readVaultFile, vaultFileStamp, type FileStamp } from './vault'
 import { isEncrypted, isNote, type VaultFile, type VaultFolder } from './vaultModel'
-import { buildNoteIndex, collectFiles, collectNotes } from './links'
+import { buildNoteIndex, collectFiles, collectNotes, type Alias } from './links'
 import { buildBacklinkIndex } from './links'
 import type { BacklinkIndex } from './links'
 import { buildNoteGraph, type NoteGraph, type NoteText } from './graph'
-import { APP_PROPERTIES, noteProperties, readProperty, typeOf } from './properties'
+import { APP_PROPERTIES, noteProperties, readAliases, readProperty, typeOf } from './properties'
 import type { Entries } from './configEntries'
 import { collectTagLines, tagNames, type CollectedLine } from './tags'
 import { timelineDays, type TimelineDay } from './timeline'
@@ -33,6 +33,8 @@ interface VaultTexts {
    * clicked graph node back into its note.
    */
   noteIndex: ReturnType<typeof buildNoteIndex>
+  /** The other names notes carry (`aliases::`), for the `[[` popup. */
+  aliases: Alias[]
   /** `icon::` per note path. */
   icons: Record<string, string>
   /**
@@ -198,7 +200,6 @@ export function useVaultTexts({
   }, [root])
 
   const notes = useMemo(() => (root ? collectNotes(root) : []), [root])
-  const noteIndex = useMemo(() => buildNoteIndex(root ? collectFiles(root) : []), [root])
 
   /**
    * The notes among the texts, which every cross-note answer is built from.
@@ -284,6 +285,17 @@ export function useVaultTexts({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteTexts, openPath, viewOpen, liveVersion])
 
+  /**
+   * From the corpus, so a name typed into `aliases::` resolves as soon as the note is
+   * left: from the last read, a link followed by it made a note of that name, which
+   * then came first.
+   */
+  const aliases = useMemo(
+    () => (corpus ?? []).flatMap(({ note, text }) => readAliases(text).map((name) => ({ name, note }))),
+    [corpus]
+  )
+  const noteIndex = useMemo(() => buildNoteIndex(root ? collectFiles(root) : [], aliases), [root, aliases])
+
   const graph = useMemo(
     () => (corpus ? buildNoteGraph(corpus, noteIndex, graphHides, { typeOf: typed, dailyFolder }) : null),
     [corpus, noteIndex, graphHides, typed, dailyFolder]
@@ -308,6 +320,7 @@ export function useVaultTexts({
   return {
     notes,
     noteIndex,
+    aliases,
     icons,
     properties,
     propertyValues,

@@ -290,6 +290,7 @@ export default function App() {
   const {
     notes,
     noteIndex,
+    aliases,
     icons,
     properties,
     propertyValues,
@@ -678,6 +679,8 @@ export default function App() {
     }
     // A link to a note that doesn't exist yet creates it, as in Obsidian.
     if (resolved.kind !== 'new' || !vault.vaultPath) return
+    // Before the first read the index has no `aliases::`, and a note made for one comes first.
+    if (!texts) return setError('The vault is still being read. Follow the link again in a moment.')
     const slash = resolved.path.lastIndexOf('/')
     const parent = slash === -1 ? '' : resolved.path.slice(0, slash)
     const name = noteName(slash === -1 ? resolved.path : resolved.path.slice(slash + 1))
@@ -971,9 +974,10 @@ export default function App() {
     </div>
   )
   const onPage = (kind: TabRequest['kind']) => !phone.browsing && active?.kind === kind
-  /** What a line's editor types with on a page (an entry, a task), as a note's does. */
+  /** What every editor types with: a note's, a page's line (an entry, a task) and the phone's. */
   const typing = {
     notes,
+    aliases,
     propertyTypes: propertyTypes.entries,
     tagStructures: tagStructures.entries,
     // Off while the settings are open, as in a note: the shortcut may be being changed.
@@ -1250,10 +1254,7 @@ export default function App() {
                     buffers={buffers}
                     liveText={liveText}
                     settings={settings}
-                    settingsOpen={settingsOpen}
-                    notes={notes}
-                    propertyTypes={propertyTypes.entries}
-                    tagStructures={tagStructures.entries}
+                    typing={typing}
                     root={vault.root}
                     icons={icons}
                     backlinks={backlinks}
@@ -1396,10 +1397,8 @@ export default function App() {
           <Capture
             adding={adding}
             onAdding={setAdding}
-            notes={notes}
+            typing={typing}
             folders={folderPaths}
-            propertyTypes={propertyTypes.entries}
-            tagStructures={tagStructures.entries}
             typeOf={typeOfName}
             draft={captureDraft}
             onLine={(day, text) => fileEntry(day, async () => text)}

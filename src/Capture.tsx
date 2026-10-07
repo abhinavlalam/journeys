@@ -2,13 +2,12 @@ import { useRef, useState, type MutableRefObject, type ReactNode } from 'react'
 import { EditorView } from '@codemirror/view'
 import { LEADING_CLOCK, localDateStamp, localTimeStamp } from './clock'
 import { EVENT, EVENT_PROPERTIES, eventText, SOURCE } from './calendar'
-import type { Entries } from './configEntries'
 import { PlusIcon } from './icons'
+import type { Typing } from './LineEditor'
 import { MarkdownEditor } from './MarkdownEditor'
 import type { PropertyType } from './properties'
 import { NoteRow, RowIcon, stepIn } from './rows'
 import { propertiesOf, tagLine } from './tags'
-import type { VaultFile } from './vaultModel'
 
 /** What the phone's + is adding, or its menu. */
 export type Adding = 'menu' | 'note' | 'tags' | { tag: string } | 'file' | 'event' | 'page'
@@ -25,11 +24,9 @@ const CHOICES = [
 interface CaptureProps {
   adding: Adding | null
   onAdding: (next: Adding | null) => void
-  notes: VaultFile[]
+  typing: Typing
   /** Every folder, for where a new note goes. */
   folders: string[]
-  propertyTypes: Entries
-  tagStructures: Entries
   typeOf: (name: string) => PropertyType
   /** What is typed in the note's line, kept while the sheet is closed. */
   draft: MutableRefObject<string>
@@ -87,7 +84,7 @@ export function Capture(props: CaptureProps) {
             )}
             {adding === 'tags' && (
               <ul className="file-list capture-list">
-                {Object.keys(props.tagStructures)
+                {Object.keys(props.typing.tagStructures)
                   .filter((tag) => tag !== EVENT)
                   .sort()
                   .map((tag) => (
@@ -95,7 +92,7 @@ export function Capture(props: CaptureProps) {
                       <NoteRow
                         icon={<RowIcon icon="tag" />}
                         name={`#${tag}`}
-                        trailing={<span className="row-count">{propertiesOf(props.tagStructures, tag).join(', ')}</span>}
+                        trailing={<span className="row-count">{propertiesOf(props.typing.tagStructures, tag).join(', ')}</span>}
                         onClick={() => onAdding({ tag })}
                       />
                     </li>
@@ -154,7 +151,7 @@ function When({ value, onChange }: { value: string; onChange: (clock: string) =>
  * A line in today, typed as a note's line is ([[ and tag popups). Now starts it with
  * the time and leaves the caret where it was; the button keeps the keyboard.
  */
-function NoteForm({ draft, notes, propertyTypes, tagStructures, onOpenLink, onOpenTag, onLine }: Omit<CaptureProps, 'onLine'> & { onLine: (text: string) => Promise<unknown> }) {
+function NoteForm({ draft, typing, onOpenLink, onOpenTag, onLine }: Omit<CaptureProps, 'onLine'> & { onLine: (text: string) => Promise<unknown> }) {
   const box = useRef<HTMLDivElement>(null)
   const view = () => {
     const dom = box.current?.querySelector<HTMLElement>('.cm-editor')
@@ -180,9 +177,7 @@ function NoteForm({ draft, notes, propertyTypes, tagStructures, onOpenLink, onOp
         <MarkdownEditor
           initialMarkdown={draft.current}
           caretAtEnd
-          notes={notes}
-          propertyTypes={propertyTypes}
-          tagStructures={tagStructures}
+          {...typing}
           onOpenLink={onOpenLink}
           onOpenTag={onOpenTag}
           onChange={(text) => (draft.current = text)}
@@ -210,26 +205,26 @@ function ValueInput({ type, value, onChange, list }: { type: PropertyType; value
   return <input {...common} type="text" list={type === 'backlink' ? list : undefined} autoCapitalize="off" />
 }
 
-/** The notes' names, for a backlink's suggestions. */
-function NoteNames({ id, notes }: { id: string; notes: VaultFile[] }) {
+/** The notes' names and other names, for a backlink's suggestions. */
+function NoteNames({ id, typing }: { id: string; typing: Typing }) {
   return (
     <datalist id={id}>
-      {notes.map((one) => (
-        <option key={one.path} value={one.name} />
+      {[...new Set([...typing.notes.map((one) => one.name), ...typing.aliases.map((one) => one.name)])].map((name) => (
+        <option key={name} value={name} />
       ))}
     </datalist>
   )
 }
 
 /** One of the vault's tags as a form: its words and each property of its structure. */
-function TagForm({ tag, tagStructures, typeOf, notes, onLine }: Omit<CaptureProps, 'onLine'> & { tag: string; onLine: (text: string) => Promise<unknown> }) {
-  const properties = propertiesOf(tagStructures, tag)
+function TagForm({ tag, typing, typeOf, onLine }: Omit<CaptureProps, 'onLine'> & { tag: string; onLine: (text: string) => Promise<unknown> }) {
+  const properties = propertiesOf(typing.tagStructures, tag)
   const [clock, setClock] = useState('')
   const [what, setWhat] = useState('')
   const [fields, setFields] = useState<Record<string, string>>({})
   return (
     <form className="capture-form" onSubmit={(event) => (event.preventDefault(), void onLine(tagLine(tag, properties, { clock, what, fields }, typeOf)))}>
-      <NoteNames id="capture-notes" notes={notes} />
+      <NoteNames id="capture-notes" typing={typing} />
       <When value={clock} onChange={setClock} />
       <Field name="What">
         <input type="text" value={what} onChange={(event) => setWhat(event.currentTarget.value)} autoFocus />
@@ -245,8 +240,8 @@ function TagForm({ tag, tagStructures, typeOf, notes, onLine }: Omit<CaptureProp
 }
 
 /** An event, written into its day's note as the calendar writes one, so the calendar shows it. */
-function EventForm({ tagStructures, onLine }: Omit<CaptureProps, 'onLine'> & { onLine: (day: string, text: string) => Promise<unknown> }) {
-  const declared = propertiesOf(tagStructures, EVENT)
+function EventForm({ typing, onLine }: Omit<CaptureProps, 'onLine'> & { onLine: (day: string, text: string) => Promise<unknown> }) {
+  const declared = propertiesOf(typing.tagStructures, EVENT)
   const properties = (declared.length > 0 ? declared : EVENT_PROPERTIES).filter((name) => name.toLowerCase() !== SOURCE)
   const [what, setWhat] = useState('')
   const [day, setDay] = useState(localDateStamp())

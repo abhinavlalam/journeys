@@ -17,10 +17,10 @@ import { proseLines } from './prose'
 import type { Entries } from './configEntries'
 
 /**
- * The app's own properties, named here and nowhere else: the
- * row's icon, and where the note sits (`knownPath`).
+ * The app's own properties, named here and nowhere else: the row's icon, where the
+ * note sits (`knownPath`), and the other names a link reaches it by (`readAliases`).
  */
-export const APP_PROPERTIES = { icon: 'icon', path: 'path' } as const
+export const APP_PROPERTIES = { icon: 'icon', path: 'path', aliases: 'aliases' } as const
 
 /** Whether a name is one of the app's own properties, which the vault does not type. */
 export function isAppProperty(name: string): boolean {
@@ -40,7 +40,11 @@ export type PropertyType = (typeof PROPERTY_TYPES)[number]
 export const PROPERTIES_FILE = 'properties.json'
 
 /** The types of the app's own properties. The vault cannot change them. */
-const APP_TYPES: Record<string, PropertyType> = { [APP_PROPERTIES.icon]: 'icon', [APP_PROPERTIES.path]: 'path' }
+const APP_TYPES: Record<string, PropertyType> = {
+  [APP_PROPERTIES.icon]: 'icon',
+  [APP_PROPERTIES.path]: 'path',
+  [APP_PROPERTIES.aliases]: 'text',
+}
 
 /**
  * A property's type: the app's for its own, else the vault's,
@@ -126,6 +130,19 @@ function line(key: string, value: string, block: PageBlock | null): string {
 /** The value of page property `key`, named in any case, or null when it is missing or empty. */
 export function readProperty(raw: string, key: string): string | null {
   return pageEntries(pageBlock(raw)).find((one) => one.name.toLowerCase() === key.toLowerCase())?.value || null
+}
+
+/**
+ * A note's other names, from its page property: `aliases:: Captain, The Skipper`, or
+ * YAML's `aliases: [Captain, "The Skipper"]`. A wikilink by one of them is a link to it.
+ */
+export function readAliases(raw: string): string[] {
+  const value = readProperty(raw, APP_PROPERTIES.aliases) ?? ''
+  return value
+    .replace(/^\[(.*)\]$/, '$1')
+    .split(',')
+    .map((one) => one.trim().replace(/^["'“”](.*)["'“”]$/, '$1'))
+    .filter(Boolean)
 }
 
 /**
