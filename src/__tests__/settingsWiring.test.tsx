@@ -260,6 +260,24 @@ describe('settings reaching the app', () => {
     expect(JSON.parse(localStorage.getItem(SETTINGS_KEY)!).lineHeight).toBe(1.5)
   })
 
+  /** The vault's agent edits `settings.json` too; read only at open, its change waited for a relaunch. */
+  it('takes a change made to settings.json outside the app on a return to the window', async () => {
+    await openApp()
+    const html = document.documentElement
+    await waitFor(() => expect(disk.read('/v/.config/settings.json')).toBeTruthy())
+    expect(html.style.getPropertyValue('--line-height-prose')).toBe('1.85')
+    const file = JSON.parse(disk.read('/v/.config/settings.json')!)
+    disk.write('/v/.config/settings.json', JSON.stringify({ ...file, lineHeight: 1.5 }))
+    fireEvent(window, new Event('focus'))
+    await waitFor(() => expect(html.style.getPropertyValue('--line-height-prose')).toBe('1.5'))
+    // A file broken outside is said once, however often the window comes back.
+    disk.write('/v/.config/settings.json', '{ not json')
+    fireEvent(window, new Event('focus'))
+    fireEvent(window, new Event('focus'))
+    await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(1))
+    expect(html.style.getPropertyValue('--line-height-prose')).toBe('1.5')
+  })
+
   /**
    * `applySettingsLive` returns a teardown because `mode: 'system'` listens
    * to the OS. Dropping it (`useEffect(() => { applySettingsLive(s) },

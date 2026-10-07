@@ -381,22 +381,10 @@ export function parseSettings(raw: unknown): Settings {
     lineGap: pickNumber(stored.lineGap, BOUNDS.lineGap, DEFAULT_SETTINGS.lineGap),
     // Falls back to `lineGap`: a vault written before the two were
     // separate used one number for both, and still looks the same.
-    rowGap: pickNumber(
-      stored.rowGap,
-      BOUNDS.rowGap,
-      pickNumber(stored.lineGap, BOUNDS.lineGap, DEFAULT_SETTINGS.rowGap)
-    ),
-    readingWidth: pickNumber(
-      stored.readingWidth,
-      BOUNDS.readingWidth,
-      DEFAULT_SETTINGS.readingWidth
-    ),
-    inheritIcons: typeof stored.inheritIcons === 'boolean' ? stored.inheritIcons : true,
-    indentWidth: pickNumber(
-      stored.indentWidth,
-      BOUNDS.indentWidth,
-      DEFAULT_SETTINGS.indentWidth
-    ),
+    rowGap: pickNumber(stored.rowGap, BOUNDS.rowGap, pickNumber(stored.lineGap, BOUNDS.lineGap, DEFAULT_SETTINGS.rowGap)),
+    readingWidth: pickNumber(stored.readingWidth, BOUNDS.readingWidth, DEFAULT_SETTINGS.readingWidth),
+    inheritIcons: typeof stored.inheritIcons === 'boolean' ? stored.inheritIcons : DEFAULT_SETTINGS.inheritIcons,
+    indentWidth: pickNumber(stored.indentWidth, BOUNDS.indentWidth, DEFAULT_SETTINGS.indentWidth),
     dailyFolder: valid('dailyFolder', validateFolder),
     filesFolder: valid('filesFolder', validateFolder),
     shareTag: valid('shareTag', validateTag),
@@ -405,8 +393,8 @@ export function parseSettings(raw: unknown): Settings {
     // Trailing slashes off: a folder is named as the tree spells it.
     graphHides: pickStrings(stored.graphHides).map((one) => one.replace(/\/+$/, '')),
     graphShows: pickShows(stored.graphShows),
-    timelineView: stored.timelineView === 'day' ? 'day' : 'list',
-    tasksView: stored.tasksView === 'page' ? 'page' : 'due',
+    timelineView: pick(stored.timelineView, ['list', 'day'] as const, DEFAULT_SETTINGS.timelineView),
+    tasksView: pick(stored.tasksView, ['due', 'page'] as const, DEFAULT_SETTINGS.tasksView),
     calendarFeeds: pickFeeds(stored.calendarFeeds),
     calendarDays: pickNumber(stored.calendarDays, BOUNDS.calendarDays, DEFAULT_SETTINGS.calendarDays),
     calendarMinutes: pickNumber(stored.calendarMinutes, BOUNDS.calendarMinutes, DEFAULT_SETTINGS.calendarMinutes),

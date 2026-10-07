@@ -639,7 +639,9 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 ## Settings and the sheet
 
 - `.config/settings.json` dresses the vault; each value parses on its own and
-  falls back to its default. A file that is not JSON is said, not handed out and
+  falls back to its default. It is read again on every return to the window, as
+  `tags.json` is (the vault's agent edits it too), but not over a change still
+  waiting to be written, and a file left broken is said once. A file that is not JSON is said, not handed out and
   not written over: read as the defaults, a panel change wrote them over a hand
   edit, calendars and all. `tags.json` and `properties.json` are said once too.
   `readConfigFile`/`writeConfigFile` take a file name — do not add a second pair.

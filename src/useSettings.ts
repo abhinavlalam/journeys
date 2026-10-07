@@ -6,6 +6,7 @@ import {
   portable,
   saveSettings,
   saveVaultSettings,
+  settingsJson,
   type Settings,
 } from './settings'
 import { SETTINGS_FILE } from './vaultModel'
@@ -53,6 +54,11 @@ export function useSettings(vaultPath: string | null, setError: (message: string
    */
   const current = useRef(settings)
   current.current = settings
+  /** What is held, and from which vault: a return to the window reads against it. */
+  const heldNow = useRef(held)
+  heldNow.current = held
+  /** A read failure said already, so a file left broken is said once, not on every return. */
+  const said = useRef<string | null>(null)
 
   /**
    * Said, not swallowed. `.config` starts with a dot, and the fs
@@ -93,6 +99,37 @@ export function useSettings(vaultPath: string | null, setError: (message: string
   }, [vaultPath])
 
   const pending = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  /**
+   * Read again on every return to the window: the vault's agent edits this file too,
+   * and the app went on with what it read when the vault opened. Not before that read
+   * has landed, and not over a change still waiting to be written, which it would undo.
+   */
+  useEffect(() => {
+    if (!vaultPath) return
+    let live = true
+    const again = () => {
+      if (pending.current || heldNow.current.vault !== vaultPath) return
+      loadVaultSettings(vaultPath).then(
+        (found) => {
+          said.current = null
+          if (!live || !found || settingsJson(found) === settingsJson(heldNow.current.settings)) return
+          setHeld({ settings: found, vault: vaultPath })
+          saveSettings(found)
+        },
+        (err: unknown) => {
+          const message = `Could not read ${CONFIG_DIR}/${SETTINGS_FILE}: ${err instanceof Error ? err.message : String(err)}`
+          if (live && said.current !== message) setError((said.current = message))
+        }
+      )
+    }
+    window.addEventListener('focus', again)
+    return () => {
+      live = false
+      window.removeEventListener('focus', again)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vaultPath])
 
   /**
    * A whole new set of settings, from the panel. `localStorage` takes every

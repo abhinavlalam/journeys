@@ -14,6 +14,7 @@ import { APP_PROPERTIES, readProperty, withProperty } from './properties'
 import { pathKey, retargetLinks } from './links'
 import type { NoteIndex, NoteMoves } from './links'
 import {
+  baseName,
   extensionOf,
   folderNotePath,
   folderOf,
@@ -174,7 +175,7 @@ async function walk(absoluteDir: string, relativeDir: string, name: string): Pro
     // Dot-prefixed entries are skipped, so `safeNewName` refuses a
     // leading dot: a `.plan.md` would be written and never shown.
     if (entry.name.startsWith('.')) continue
-    const relativePath = relativeDir ? `${relativeDir}/${entry.name}` : entry.name
+    const relativePath = inFolder(relativeDir, entry.name)
     const absolutePath = `${absoluteDir}/${entry.name}`
 
     if (entry.isFile) {
@@ -209,6 +210,14 @@ async function walk(absoluteDir: string, relativeDir: string, name: string): Pro
 // ---------------------------------------------------------------------------
 // Paths
 // ---------------------------------------------------------------------------
+
+/** A name's path in a vault-relative folder, `''` being the top of the vault. */
+const inFolder = (folder: string, name: string) => (folder ? `${folder}/${name}` : name)
+
+/** The file at a vault-relative path, named as the tree names it. */
+function fileAt(vaultPath: string, path: string): VaultFile {
+  return { path, absolutePath: `${vaultPath}/${path}`, name: noteName(baseName(path)) }
+}
 
 /** The directory an *absolute* path sits in. */
 function parentOf(absolutePath: string): string {
@@ -248,13 +257,13 @@ export function isSelfOrDescendant(folderPath: string, candidateParent: string):
 // Reading and writing one note
 // ---------------------------------------------------------------------------
 
+/** A file's stamp, for telling whether it changed since it was read (`useVaultTexts`). */
+export const vaultFileStamp = (file: VaultFile) => vaultFs.stat(file.absolutePath)
+
 /**
  * A file's text, decrypted if it is locked. Everything above this sees plain text. A
  * file nobody has unlocked throws `LockedFileError`, and `App` asks for the passphrase.
  */
-/** A file's stamp, for telling whether it changed since it was read (`useVaultTexts`). */
-export const vaultFileStamp = (file: VaultFile) => vaultFs.stat(file.absolutePath)
-
 export async function readVaultFile(file: VaultFile): Promise<string> {
   const raw = await vaultFs.readText(file.absolutePath)
   if (!isEncrypted(file.path)) return raw
@@ -290,8 +299,8 @@ export async function keepOther(file: VaultFile): Promise<VaultFile> {
   const root = file.absolutePath.slice(0, file.absolutePath.length - file.path.length - 1)
   const ext = extensionOf(file.path)
   const stem = file.path.slice(0, file.path.length - ext.length)
-  let other = vaultFileRef(root, `${stem} (other)${ext}`)
-  for (let n = 2; await vaultFs.exists(other.absolutePath); n++) other = vaultFileRef(root, `${stem} (other ${n})${ext}`)
+  let other = fileAt(root, `${stem} (other)${ext}`)
+  for (let n = 2; await vaultFs.exists(other.absolutePath); n++) other = fileAt(root, `${stem} (other ${n})${ext}`)
   await vaultFs.writeText(other.absolutePath, await vaultFs.readText(file.absolutePath))
   return other
 }
@@ -466,14 +475,9 @@ export async function listVaultEntries(
  * is named after its folder, because every one is called `SKILL.md`.
  */
 export function vaultFileRef(vaultPath: string, path: string): VaultFile {
-  const parts = path.split('/')
-  const base = parts[parts.length - 1]
-  const shown = base.toUpperCase() === SKILL_FILE.toUpperCase() && parts.length > 1 ? parts[parts.length - 2] : base
-  return {
-    path,
-    absolutePath: `${vaultPath}/${path}`,
-    name: noteName(shown),
-  }
+  const file = fileAt(vaultPath, path)
+  const folder = folderOf(path)
+  return baseName(path).toUpperCase() === SKILL_FILE.toUpperCase() && folder ? { ...file, name: baseName(folder) } : file
 }
 
 // ---------------------------------------------------------------------------
@@ -513,7 +517,7 @@ export function safeNewName(name: string): string {
 export async function ensureFolder(vaultPath: string, relativePath: string): Promise<string> {
   let at = ''
   for (const segment of relativePath.split('/').filter(Boolean)) {
-    at = at ? `${at}/${safeNewName(segment)}` : safeNewName(segment)
+    at = inFolder(at, safeNewName(segment))
     const absolute = `${vaultPath}/${at}`
     if (!(await vaultFs.exists(absolute))) await vaultFs.makeFolder(absolute)
   }
@@ -533,13 +537,10 @@ export async function importFile(
   bytes: Uint8Array
 ): Promise<VaultFile | null> {
   const fileName = safeNewName(name)
-  if (!fileName) return null
-  const parent = parentPath ? await ensureFolder(vaultPath, parentPath) : ''
-  const relativePath = parent ? `${parent}/${fileName}` : fileName
-  const absolutePath = `${vaultPath}/${relativePath}`
-  if (await vaultFs.exists(absolutePath)) return null
-  await vaultFs.writeBytes(absolutePath, bytes)
-  return { path: relativePath, absolutePath, name: noteName(fileName) }
+  const file = fileAt(vaultPath, inFolder(await ensureFolder(vaultPath, parentPath), fileName))
+  if (await vaultFs.exists(file.absolutePath)) return null
+  await vaultFs.writeBytes(file.absolutePath, bytes)
+  return file
 }
 
 /** Where a file from the phone is kept when the settings don't say (`filesFolder`). */
@@ -555,9 +556,8 @@ async function freeFile(vaultPath: string, folder: string, name: string): Promis
   const base = safeName(name).replace(/^\.+/, '') || 'shared'
   const extension = extensionOf(base)
   for (let n = 1; ; n++) {
-    const fileName = n === 1 ? base : `${base.slice(0, base.length - extension.length)} ${n}${extension}`
-    const path = `${parent}/${fileName}`
-    if (!(await vaultFs.exists(`${vaultPath}/${path}`))) return { path, absolutePath: `${vaultPath}/${path}`, name: noteName(fileName) }
+    const file = fileAt(vaultPath, inFolder(parent, n === 1 ? base : `${base.slice(0, base.length - extension.length)} ${n}${extension}`))
+    if (!(await vaultFs.exists(file.absolutePath))) return file
   }
 }
 
@@ -589,14 +589,10 @@ export async function createNote(
   name: string
 ): Promise<VaultFile> {
   const fileName = `${safeNewName(noteName(name))}.md`
-  const parent = parentPath ? await ensureFolder(vaultPath, parentPath) : ''
-  const relativePath = parent ? `${parent}/${fileName}` : fileName
-  const absolutePath = `${vaultPath}/${relativePath}`
-
-  if (await vaultFs.exists(absolutePath)) throw new Error(`"${fileName}" already exists.`)
-
-  await vaultFs.writeText(absolutePath, '')
-  return { path: relativePath, absolutePath, name: noteName(fileName) }
+  const file = fileAt(vaultPath, inFolder(await ensureFolder(vaultPath, parentPath), fileName))
+  if (await vaultFs.exists(file.absolutePath)) throw new Error(`"${fileName}" already exists.`)
+  await vaultFs.writeText(file.absolutePath, '')
+  return file
 }
 
 /**
@@ -614,7 +610,7 @@ export async function createLockedNote(
   for (const taken of [`${base}.enc`, `${base}.enc.md`, `${base}.md`]) {
     if (await vaultFs.exists(`${vaultPath}/${taken}`)) throw new Error(`"${taken}" already exists.`)
   }
-  const file = { path: `${base}.enc`, absolutePath: `${vaultPath}/${base}.enc`, name: base }
+  const file = fileAt(vaultPath, `${base}.enc`)
   await vaultFs.writeText(file.absolutePath, await encryptNote('', passphrase))
   remember(file.path, passphrase)
   return file
@@ -650,8 +646,7 @@ export async function ensureDailyNote(
 
 /** A day's note, whether or not it is written yet. */
 export function dailyNoteFile(vaultPath: string, folder: string, day = localDateStamp()): VaultFile {
-  const path = `${folder}/${day}.md`
-  return { path, absolutePath: `${vaultPath}/${path}`, name: day }
+  return fileAt(vaultPath, inFolder(folder, `${day}.md`))
 }
 
 // ---------------------------------------------------------------------------
@@ -687,7 +682,7 @@ export async function moveFile(
   newParentPath: string
 ): Promise<VaultFile> {
   const fileName = file.absolutePath.split('/').pop() ?? ''
-  const newRelativePath = newParentPath ? `${newParentPath}/${fileName}` : fileName
+  const newRelativePath = inFolder(newParentPath, fileName)
   const newAbsolutePath = `${vaultPath}/${newRelativePath}`
 
   const moved = await moveUnlessTaken(
@@ -709,7 +704,7 @@ export async function convertToNested(file: VaultFile, vaultPath: string): Promi
   const fileName = file.absolutePath.split('/').pop() ?? ''
   const name = noteName(fileName)
   const parent = folderOf(file.path)
-  const folderRelative = parent ? `${parent}/${name}` : name
+  const folderRelative = inFolder(parent, name)
 
   if (await vaultFs.exists(`${vaultPath}/${folderRelative}`)) {
     throw new Error(`"${name}" is already a nested note.`)
@@ -735,7 +730,7 @@ export async function moveFolder(
   const currentParent = folderOf(folder.path)
   if (currentParent === newParentPath) return folder
 
-  const newRelativePath = newParentPath ? `${newParentPath}/${folder.name}` : folder.name
+  const newRelativePath = inFolder(newParentPath, folder.name)
   const newAbsolutePath = `${vaultPath}/${newRelativePath}`
 
   const moved = await moveUnlessTaken(
@@ -759,8 +754,7 @@ export async function renameFile(file: VaultFile, newName: string): Promise<Vaul
   const fileName = trimmed.toLowerCase().endsWith(extension.toLowerCase())
     ? trimmed
     : `${trimmed}${extension}`
-  const parentDir = folderOf(file.path)
-  const newRelativePath = parentDir ? `${parentDir}/${fileName}` : fileName
+  const newRelativePath = inFolder(folderOf(file.path), fileName)
   const newAbsolutePath = `${parentOf(file.absolutePath)}/${fileName}`
   assertStaysPut(file.absolutePath, newAbsolutePath, fileName)
 
@@ -781,8 +775,7 @@ export async function renameFile(file: VaultFile, newName: string): Promise<Vaul
 export async function renameFolder(folder: VaultFolder, newName: string): Promise<VaultFolder> {
   const trimmed = renamedTo(folder.name, newName)
   if (trimmed === null) return folder
-  const parentDir = folderOf(folder.path)
-  const newRelativePath = parentDir ? `${parentDir}/${trimmed}` : trimmed
+  const newRelativePath = inFolder(folderOf(folder.path), trimmed)
   const newAbsolutePath = `${parentOf(folder.absolutePath)}/${trimmed}`
   assertStaysPut(folder.absolutePath, newAbsolutePath, trimmed)
 
