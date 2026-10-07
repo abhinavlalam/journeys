@@ -23,42 +23,37 @@ pub(crate) async fn blocking<T: Send + 'static>(
         .map_err(|e| format!("the work did not finish: {e}"))?
 }
 
-/// Selects a path in Finder with `open -R`. Arguments go to the binary directly,
-/// never through a shell, so a quote or semicolon in a path is just part of the
-/// path. `open` refuses a path that is not there, and the caller shows that.
-#[tauri::command]
-fn reveal(path: String) -> Result<(), String> {
+/// Runs `open` with these arguments, given to the binary directly and never through a
+/// shell, so a quote or semicolon in a path is just part of it. `failed` is what is said
+/// when `open` refuses, as it does a path that is not there.
+fn run_open(args: &[&str], failed: String) -> Result<(), String> {
     let status = std::process::Command::new(OPEN)
-        .arg("-R")
-        .arg(&path)
+        .args(args)
         .status()
         .map_err(|err| format!("could not run open: {err}"))?;
     if status.success() {
         Ok(())
     } else {
-        Err(format!("could not reveal {path}"))
+        Err(failed)
     }
+}
+
+/// Selects a path in Finder with `open -R`.
+#[tauri::command]
+fn reveal(path: String) -> Result<(), String> {
+    run_open(&["-R", &path], format!("could not reveal {path}"))
 }
 
 /// Opens a note's link in the system's app for it. The scheme is checked here,
 /// not in the webview: `open` can launch apps, mount volumes or run `file://`
 /// paths, so only `http`, `https` and `mailto` pass. `--` ends the options, so
-/// a target starting with a dash is not a flag. Never through a shell.
+/// a target starting with a dash is not a flag.
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
     if !has_scheme(&url, &["http", "https", "mailto"]) {
         return Err(format!("not a link this app opens: {url}"));
     }
-    let status = std::process::Command::new(OPEN)
-        .arg("--")
-        .arg(&url)
-        .status()
-        .map_err(|err| format!("could not run open: {err}"))?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!("could not open {url}"))
-    }
+    run_open(&["--", &url], format!("could not open {url}"))
 }
 
 fn has_scheme(url: &str, allowed: &[&str]) -> bool {

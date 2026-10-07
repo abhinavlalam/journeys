@@ -2131,8 +2131,9 @@ button.folder-toggle {
   background: color-mix(in srgb, var(--accent-soft) 28%, transparent);
 }
 
-/* The header is a drag region, so anything clickable in it opts
-   out, or pressing Save moves the window. */
+/* The header's status and controls (a Save, a view switch and Sync), on the title's
+   baseline. The header is a drag region, so anything clickable in it opts out, or
+   pressing Save moves the window. */
 .viewer-actions {
   flex-shrink: 0;
   display: flex;
@@ -2166,15 +2167,6 @@ button.folder-toggle {
 .header-action:disabled {
   color: var(--text-faint);
   cursor: default;
-}
-
-/* The header's controls when there are several, like the
-   calendar's view switch and Sync, on the title's baseline. */
-.viewer-actions {
-  display: flex;
-  flex: none;
-  align-items: baseline;
-  gap: 0.4rem;
 }
 
 /* A segmented pair in one outline. The pressed half is marked by

@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { agoWord, SECOND_MS } from './clock'
+import { countOf } from './rows'
 import { useWindowEvent } from './useWindowEvent'
 import {
   syncCommit,
@@ -225,7 +226,7 @@ export function syncWord(sync: Sync): string {
   if (!status.hasToken) return 'Needs the token'
   if (phase === 'offline') {
     const waiting = status.ahead + (status.dirty > 0 ? 1 : 0)
-    return waiting > 0 ? `Offline, ${waiting} ${waiting === 1 ? 'change' : 'changes'} waiting` : 'Offline'
+    return waiting > 0 ? `Offline, ${countOf(waiting, 'change')} waiting` : 'Offline'
   }
   return sync.syncedAt ? `Synced ${agoWord(sync.syncedAt)}` : 'Synced'
 }

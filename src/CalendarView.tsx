@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ViewerHeader } from './ViewerHeader'
+import { ViewerHeader, ViewSwitch } from './ViewerHeader'
 import { EmptyRow, NoteRow, READING, RowIcon, Section, stepIn, statusCount } from './rows'
 import { ChevronIcon } from './icons'
 import { clockStart, dayDate, daysAfter, dayTitle, localDateStamp, longDay, monthName, relativeDay, shortWeekday } from './clock'
@@ -20,11 +20,8 @@ import type { VaultFile } from './vaultModel'
 /**
  * Two ways to read the same lines: the days ahead as a list, and the month as a page.
  */
-type View = 'agenda' | 'month'
-const VIEWS: readonly { key: View; label: string }[] = [
-  { key: 'agenda', label: 'Agenda' },
-  { key: 'month', label: 'Month' },
-]
+const VIEWS = ['agenda', 'month'] as const
+type View = (typeof VIEWS)[number]
 
 /**
  * The calendar: every `#event` line in the daily notes, synced or typed, read two
@@ -83,25 +80,12 @@ export function CalendarView({
   return (
     <>
       <ViewerHeader name="Calendar" status={status}>
-        <span className="viewer-actions">
-          <span className="view-switch" role="group" aria-label="View">
-            {VIEWS.map((one) => (
-              <button
-                key={one.key}
-                className="header-action"
-                aria-pressed={view === one.key}
-                onClick={() => setView(one.key)}
-              >
-                {one.label}
-              </button>
-            ))}
-          </span>
-          {onSync && (
-            <button className="header-action" onClick={onSync} disabled={syncing || feeds === 0}>
-              Sync
-            </button>
-          )}
-        </span>
+        <ViewSwitch views={VIEWS} view={view} onView={setView} />
+        {onSync && (
+          <button className="header-action" onClick={onSync} disabled={syncing || feeds === 0}>
+            Sync
+          </button>
+        )}
       </ViewerHeader>
       {view === 'month' ? (
         <MonthPage
