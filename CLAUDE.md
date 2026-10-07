@@ -458,6 +458,12 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   its group does not: an overdue task's age, a weekday this week, a date later. **Or by
   page** (`tasksByNote`, the header's switch, `tasksView` in settings): each note a
   section that opens it, its tasks as written there, each row saying when it is due.
+- **A task reads as its note shows it, whole** (`taskWords` through `Live`: links,
+  other tags as chips, emphasis, other properties by value), less what its row says
+  itself (the list mark, `#task`, `due`, `status`, `project`), and wraps. As plain
+  text it read as raw line and ellipsis. What is nested under it folds behind a
+  chevron in the tree's column. The row's parts sit in a `div`, not as the list item's
+  own buttons, which `.file-list li > button` makes full-width rows.
 - **A press on a task edits its line** (`LineEditor`), as a timeline entry's does: Enter
   or leaving writes it through `withEditedEntry`, Escape drops it, emptied is not
   deleted. The note's name after the row opens the note (by page, the section does).

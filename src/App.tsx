@@ -1322,6 +1322,7 @@ export default function App() {
                   <TasksView
                     tasks={tasks}
                     view={settings.tasksView}
+                    colours={colours}
                     onView={(tasksView) => changeSettings({ ...settings, tasksView })}
                     typeOf={typeOfName}
                     typing={typing}

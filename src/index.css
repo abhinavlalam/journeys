@@ -4350,34 +4350,43 @@ button.folder-toggle {
 
 /* ---- Tasks ---- */
 
-/* A task: its box, then the row that opens its note. The box is a note's checkbox
-   (`.cm-md-task-box`), so a task looks the same on its page as in its note. It
-   takes the chevron's column, which a task has no use for. Under `.file-list` with
-   two classes: `.file-list li > button` makes every list button a full-width,
-   borderless row, and the box was a bar across the page with the words squeezed out. */
+/* A task: the fold of what is under it, its box, then its words, which wrap, and the
+   note it is in. The box is a note's checkbox (`.cm-md-task-box`), so a task looks the
+   same on its page as in its note. Each mark sits on the first line of the words. */
 .task-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--icon-gap);
+  padding: 0.15rem 0;
 }
 
-.task-row > .file-row,
-.task-row > .task-what {
-  flex: 1;
-  min-width: 0;
+.task-fold {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--control);
+  height: 1lh;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--mark);
+  font-size: inherit;
+  line-height: inherit;
 }
 
-.task-row .folder-chevron {
-  display: none;
+button.task-fold {
+  cursor: pointer;
 }
 
-.file-list .task-row > .task-box {
+.task-box {
   display: inline-flex;
   flex: none;
   align-items: center;
   justify-content: center;
   width: var(--glyph);
   height: var(--glyph);
+  margin-top: calc((1lh - var(--glyph)) / 2);
   padding: 0;
   box-sizing: border-box;
   border: 1px solid var(--text-faint);
@@ -4389,38 +4398,71 @@ button.folder-toggle {
     border-color var(--motion);
 }
 
-.file-list .task-row > button.task-box {
+button.task-box {
   cursor: pointer;
 }
 
-.file-list .task-row > button.task-box:hover {
+button.task-box:hover {
   border-color: var(--mark);
-  background: transparent;
 }
 
-/* Done takes the mark as a ground, with the tick in `--on-accent`, and its words
-   step back, as a done item's do in a note. */
-.file-list .task-row.done > .task-box {
+/* Done takes the mark as a ground, with the tick in `--on-accent`, and its words step
+   back, as a done item's do in a note. */
+.task-row.done .task-box {
   border-color: var(--mark);
   background: var(--mark);
 }
 
-.task-row.done .row-name {
+.task-row.done .task-words {
   color: var(--text-dim);
 }
 
-/* The note a task is in, after it, opening the note: the row itself edits the task. */
-.file-list .task-row > .task-note {
-  display: inline;
-  flex: none;
-  width: auto;
-  padding: 0;
-  color: var(--text-faint);
+.task-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
 }
 
-.file-list .task-row > .task-note:hover {
+.task-line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--icon-gap);
+}
+
+/* The words, whole: a long task wraps rather than ending in an ellipsis. */
+.task-what {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+
+/* The note a task is in, after it, opening the note: the words edit the task. */
+.task-note {
+  flex: none;
+  padding: 0;
+  border: none;
   background: transparent;
+  color: var(--text-faint);
+  font-size: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.task-note:hover {
   color: var(--mark);
+}
+
+/* What is nested under a task, opened: each line as written, its indent kept. */
+.task-below {
+  display: block;
+  color: var(--text-dim);
+}
+
+.task-below-line {
+  display: block;
+  white-space: pre-wrap;
 }
 
 /* A line being edited (a timeline entry, a new task): the note's editor on one

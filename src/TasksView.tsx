@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { firstWeekday } from './calendar'
 import { dayDate, localDateStamp, relativeDay } from './clock'
-import { CheckIcon } from './icons'
+import { CheckIcon, ChevronIcon } from './icons'
 import { LineEditor, type Typing } from './LineEditor'
+import { Live } from './Live'
 import { onAndroid } from './platform'
 import type { PropertyType } from './properties'
 import { countOf, NoteRow, READING, readable, RowIcon, Section, stepIn } from './rows'
-import { lineWords } from './tags'
-import { TASK, tasksByNote, tasksByWhen, whenOf, type Task } from './tasks'
+import { TASK, tasksByNote, tasksByWhen, taskWords, whenOf, type Task } from './tasks'
 import { ViewerHeader } from './ViewerHeader'
 import type { VaultFile } from './vaultModel'
 
@@ -47,10 +47,13 @@ export function TasksView({
   onEdit,
   onAdd,
   onOpen,
+  colours,
   ...opens
 }: {
   /** Null while the vault is still being read. */
   tasks: Task[] | null
+  /** Each tag's colour (`coloursOf`), for its chips in a task's words. */
+  colours: Readonly<Record<string, string>>
   /** By due date or by page; kept in the vault's settings. */
   view: 'due' | 'page'
   onView: (next: 'due' | 'page') => void
@@ -74,7 +77,7 @@ export function TasksView({
       <TaskRow
         key={key}
         task={task}
-        words={lineWords(task.text, typeOf) || readable(task.text)}
+        words={taskWords(task.text, typeOf)}
         meta={[dueWords(task, today, firstDay, view === 'due'), task.project && readable(task.project)].filter(Boolean).join(' · ')}
         editing={editing === key}
         onEditing={(on) => setEditing(on ? key : null)}
@@ -83,6 +86,7 @@ export function TasksView({
         typing={typing}
         onDone={onDone}
         onEdit={onEdit}
+        colours={colours}
         {...opens}
       />
     )
@@ -127,8 +131,11 @@ export function TasksView({
 }
 
 /**
- * One task: its box, then its words and when it is due, which a press edits in place,
- * then the note it is in, when its section is not that note.
+ * One task: the fold of what is under it, when anything is; its box; its words, read as
+ * the note shows them and wrapped, and when it is due, which a press edits in place;
+ * then the note it is in, when its section is not that note. A link or a tag in the
+ * words opens what it names instead. Its parts sit in a `div`: as a list item's own
+ * buttons, `.file-list li > button` made each a full-width row.
  */
 function TaskRow({
   task,
@@ -137,6 +144,7 @@ function TaskRow({
   editing,
   onEditing,
   onOpen,
+  colours,
   typing,
   onDone,
   onEdit,
@@ -148,30 +156,67 @@ function TaskRow({
   editing: boolean
   onEditing: (on: boolean) => void
   onOpen?: (file: VaultFile) => void
+  colours: Readonly<Record<string, string>>
   typing: Typing
   onDone: (task: Task, done: boolean) => void
   onEdit: (task: Task, text: string) => void
 } & Opens) {
+  const [open, setOpen] = useState(false)
+  const label = readable(words)
   const done = (text: string) => {
     onEditing(false)
     // Emptied is not deleted: a line's removal is the note's to make.
     if (text.trim() !== '' && text.trim() !== task.text) onEdit(task, text)
   }
   return (
-    <li className={task.done ? 'task-row done' : 'task-row'} style={{ paddingLeft: stepIn(1) }}>
-      <button className="task-box" role="checkbox" aria-checked={task.done} aria-label={`${words}: done`} onClick={() => onDone(task, !task.done)}>
-        {task.done && <CheckIcon />}
-      </button>
-      {editing ? (
-        <LineEditor className="task-what line-edit" text={task.text} typing={typing} onEnter={done} onLeave={done} onEscape={() => onEditing(false)} {...opens} />
-      ) : (
-        <NoteRow icon={null} name={words} title={task.text} trailing={meta && <span className="row-count">{meta}</span>} onClick={() => onEditing(true)} />
-      )}
-      {onOpen && (
-        <button className="task-note" onClick={() => onOpen(task.note)}>
-          {task.note.name}
+    <li style={{ paddingLeft: stepIn(1) }}>
+      <div className={task.done ? 'task-row done' : 'task-row'}>
+        {task.below.some((line) => line.trim() !== '') ? (
+          <button className="task-fold" aria-expanded={open} aria-label={`What is under ${label}`} onClick={() => setOpen((was) => !was)}>
+            <ChevronIcon open={open} />
+          </button>
+        ) : (
+          <span className="task-fold" aria-hidden />
+        )}
+        <button className="task-box" role="checkbox" aria-checked={task.done} aria-label={`${label}: done`} onClick={() => onDone(task, !task.done)}>
+          {task.done && <CheckIcon />}
         </button>
-      )}
+        <span className="task-body">
+          <span className="task-line">
+            {editing ? (
+              <LineEditor className="task-what line-edit" text={task.text} typing={typing} onEnter={done} onLeave={done} onEscape={() => onEditing(false)} {...opens} />
+            ) : (
+              <span
+                className="task-what"
+                role="button"
+                tabIndex={0}
+                title={task.text}
+                onClick={() => onEditing(true)}
+                onKeyDown={(event) => event.key === 'Enter' && (event.preventDefault(), onEditing(true))}
+              >
+                <span className="task-words">
+                  <Live text={words} colours={colours} {...opens} />
+                </span>
+                {meta && <span className="row-count">{meta}</span>}
+              </span>
+            )}
+            {onOpen && (
+              <button className="task-note" onClick={() => onOpen(task.note)}>
+                {task.note.name}
+              </button>
+            )}
+          </span>
+          {open && (
+            <span className="task-below">
+              {task.below.map((line, at) => (
+                <span key={at} className="task-below-line">
+                  <Live text={line} colours={colours} {...opens} />
+                </span>
+              ))}
+            </span>
+          )}
+        </span>
+      </div>
     </li>
   )
 }
@@ -183,23 +228,26 @@ function NewTask({ typing, onAdd, ...opens }: { typing: Typing; onAdd: (text: st
   const next = () => setRound((was) => was + 1)
   const tagged = new RegExp(`(^|\\s)#${TASK}(?![\\w/-])`, 'i')
   return (
-    <li className="task-row task-new" style={{ paddingLeft: stepIn(1) }}>
-      <span className="task-box" aria-hidden />
-      <LineEditor
-        key={round}
-        className="task-what line-edit"
-        text={`#${TASK} `}
-        typing={typing}
-        // Not on a phone: the page is opened to read, and the keyboard would cover it.
-        autoFocus={!onAndroid}
-        onEnter={(text) => {
-          // Only words make a task; the tag, if taken out, is put back.
-          if (text.replace(tagged, ' ').trim()) onAdd(tagged.test(text) ? text.trim() : `#${TASK} ${text.trim()}`)
-          next()
-        }}
-        onEscape={next}
-        {...opens}
-      />
+    <li style={{ paddingLeft: stepIn(1) }}>
+      <div className="task-row task-new">
+        <span className="task-fold" aria-hidden />
+        <span className="task-box" aria-hidden />
+        <LineEditor
+          key={round}
+          className="task-what line-edit"
+          text={`#${TASK} `}
+          typing={typing}
+          // Not on a phone: the page is opened to read, and the keyboard would cover it.
+          autoFocus={!onAndroid}
+          onEnter={(text) => {
+            // Only words make a task; the tag, if taken out, is put back.
+            if (text.replace(tagged, ' ').trim()) onAdd(tagged.test(text) ? text.trim() : `#${TASK} ${text.trim()}`)
+            next()
+          }}
+          onEscape={next}
+          {...opens}
+        />
+      </div>
     </li>
   )
 }

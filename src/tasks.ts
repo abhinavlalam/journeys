@@ -3,7 +3,7 @@
 // Done is `status:: done` on the line, which the Tasks page writes and takes back.
 
 import { dayDate, daysBetween } from './clock'
-import { blockProperties, type PropertyType } from './properties'
+import { blockProperties, readBlock, type PropertyType } from './properties'
 import type { CollectedNote } from './useVaultTexts'
 import type { VaultFile } from './vaultModel'
 
@@ -22,6 +22,8 @@ export interface Task {
   /** `project::` as written, a `[[link]]` to the project's note, or null. */
   project: string | null
   done: boolean
+  /** The lines nested under it, as written less its own indent: its detail. */
+  below: string[]
 }
 
 /** The groups the page draws, in order. */
@@ -33,9 +35,40 @@ export function readTasks(collected: readonly CollectedNote[], typeOf: (name: st
   return collected.flatMap(({ note, lines }) =>
     lines.map((line) => {
       const value = (name: string) => blockProperties(line.text, typeOf).find((one) => one.name.toLowerCase() === name)?.value || null
-      return { note, at: line.at, text: line.text, due: value('due'), project: value('project'), done: value(STATUS)?.toLowerCase() === DONE }
+      return {
+        note,
+        at: line.at,
+        text: line.text,
+        due: value('due'),
+        project: value('project'),
+        done: value(STATUS)?.toLowerCase() === DONE,
+        below: line.below,
+      }
     })
   )
+}
+
+/** What the row says beside a task's words, so the words leave it out. */
+const SHOWN = new Set(['due', STATUS, 'project'])
+
+/**
+ * A task's line as the note shows it (links, other tags, emphasis, other properties by
+ * value), less what its row shows itself: the list mark, `#task`, its box's status, and
+ * its due day and project, said after it.
+ */
+export function taskWords(text: string, typeOf: (name: string) => PropertyType): string {
+  let out = ''
+  let at = 0
+  for (const one of blockProperties(text, typeOf)) {
+    if (!SHOWN.has(one.name.toLowerCase())) continue
+    out += text.slice(at, one.from)
+    at = one.to
+  }
+  return readBlock(out + text.slice(at), typeOf)
+    .replace(/^\s*(?:[-*+]|\d+[.)])\s+/, '')
+    .replace(new RegExp(`(^|\\s)#${TASK}(?![\\w/-])`, 'gi'), '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 /**

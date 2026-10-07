@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { collectTagLines } from '../tags'
-import { readTasks, tasksByWhen, withDone } from '../tasks'
+import { readTasks, tasksByWhen, taskWords, withDone } from '../tasks'
 
 /** Every `#task` line, by when it is due, and done written into the line itself. */
 
@@ -43,6 +43,14 @@ describe('tasks', () => {
     expect(words('Done')).toEqual(['send the'])
     // On Sunday the week is over: Monday is later, not this week.
     expect(tasksByWhen(tasks, '2026-10-11', 1).get('This week')).toEqual([])
+  })
+
+  it('reads as the note shows it, less what the row says beside it', () => {
+    expect(taskWords('- #task book the survey for [[Mira Vance]] due:: 2026-10-07 project:: [[Harbour]] status:: doing', typeOf)).toBe(
+      'book the survey for [[Mira Vance]]'
+    )
+    // Another property reads as its value, as in the note; another tag stays.
+    expect(taskWords('#task #boat sand the deck size:: large', typeOf)).toBe('#boat sand the deck large')
   })
 
   it('marks a line done, over any status, and takes it back, leaving the rest as written', () => {

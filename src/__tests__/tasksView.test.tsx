@@ -85,11 +85,32 @@ describe('the Tasks application', () => {
     await openTasks()
     fireEvent.click(viewer().getByRole('button', { name: 'Page' }))
     await waitFor(() => expect(viewer().getByText('Northwind')).toBeTruthy())
-    const names = [...document.querySelectorAll('.viewer:not([hidden]) .task-row .row-name')].map((one) => one.textContent)
+    const names = [...document.querySelectorAll('.viewer:not([hidden]) .task-words')].map((one) => one.textContent)
     expect(names).toEqual(['call Mira about the slip', 'book the survey', 'paint the hull', 'sort the photos', 'send the invoice', 'ship the crate'])
     // By page, the section is the note: a row names when it is due, and not its note.
     expect(viewer().queryByRole('button', { name: 'Harbour' })).toBeNull()
     await waitFor(() => expect(JSON.parse(disk.read('/v/.config/settings.json')!).tasksView).toBe('page'))
+  })
+
+  /**
+   * As the note shows it, whole: as written, a task read as its raw text, its links and
+   * tags inert, and what was nested under it out of sight.
+   */
+  it('reads a task as its note shows it, and folds what is nested under it', async () => {
+    disk.write('/v/Northwind.md', '- #task ship the crate to **Lakeside Terminal** for [[Mira Vance]] #urgent\n    - check the manifest\n')
+    await openTasks()
+    const words = await waitFor(() => viewer().getByText('ship the crate to', { exact: false }).closest('.task-words') as HTMLElement)
+    expect(words.textContent).toBe('ship the crate to Lakeside Terminal for Mira Vance #urgent')
+    expect(within(words).getByRole('button', { name: 'Mira Vance' })).toBeTruthy()
+    expect(within(words).getByRole('button', { name: '#urgent' })).toBeTruthy()
+    // A tag opens its page, and does not start an edit.
+    fireEvent.click(within(words).getByRole('button', { name: '#urgent' }))
+    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('#urgent'))
+    fireEvent.click(screen.getByLabelText('Tasks'))
+    // What is under it is folded until asked for.
+    expect(viewer().queryByText('- check the manifest')).toBeNull()
+    fireEvent.click(await waitFor(() => viewer().getByRole('button', { name: /What is under ship the crate/ })))
+    expect(viewer().getByText('- check the manifest')).toBeTruthy()
   })
 
   it('files a task typed at the top in today’s note', async () => {
