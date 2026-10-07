@@ -4352,7 +4352,9 @@ button.folder-toggle {
 
 /* A task: its box, then the row that opens its note. The box is a note's checkbox
    (`.cm-md-task-box`), so a task looks the same on its page as in its note. It
-   takes the chevron's column, which a task has no use for. */
+   takes the chevron's column, which a task has no use for. Under `.file-list` with
+   two classes: `.file-list li > button` makes every list button a full-width,
+   borderless row, and the box was a bar across the page with the words squeezed out. */
 .task-row {
   display: flex;
   align-items: center;
@@ -4369,7 +4371,7 @@ button.folder-toggle {
   display: none;
 }
 
-.task-box {
+.file-list .task-row > .task-box {
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -4387,17 +4389,18 @@ button.folder-toggle {
     border-color var(--motion);
 }
 
-button.task-box {
+.file-list .task-row > button.task-box {
   cursor: pointer;
 }
 
-button.task-box:hover {
+.file-list .task-row > button.task-box:hover {
   border-color: var(--mark);
+  background: transparent;
 }
 
 /* Done takes the mark as a ground, with the tick in `--on-accent`, and its words
    step back, as a done item's do in a note. */
-.task-row.done .task-box {
+.file-list .task-row.done > .task-box {
   border-color: var(--mark);
   background: var(--mark);
 }
