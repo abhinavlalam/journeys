@@ -237,6 +237,8 @@
      Dark mode uses `--bg-viewer`, the darkest ground; light mode
      mixes from `--text`, since a near-white veil dims nothing. */
   --scrim: color-mix(in srgb, var(--bg-viewer) 72%, transparent);
+  /* A code span's and a fenced block's ground, read on each scheme's own text and page. */
+  --code-ground: color-mix(in srgb, var(--text) 6%, var(--bg-viewer));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4177,7 +4179,7 @@ button.folder-toggle {
 
 .markdown-editor .cm-md-code {
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--text) 6%, var(--bg-viewer));
+  background: var(--code-ground);
   font-family: var(--font-mono);
   font-size: 0.92em;
 }
@@ -4269,6 +4271,21 @@ button.folder-toggle {
 .markdown-editor .cm-editor .cm-line.cm-md-hang {
   padding-left: calc(var(--column-pad) + var(--hang));
   text-indent: calc(-1 * var(--hang));
+}
+
+/* A fenced block: the code face, one step down as a code span is, on a code span's
+   ground. The ground is sized to the text column, since the column's inset is the
+   line's own padding; the text sits a step inside it. */
+.markdown-editor .cm-editor .cm-line.cm-md-codeblock {
+  padding-right: calc(var(--column-pad) + 0.75em);
+  padding-left: calc(var(--column-pad) + 0.75em);
+  background: linear-gradient(var(--code-ground), var(--code-ground)) no-repeat var(--column-pad) 0 / calc(100% - 2 * var(--column-pad)) 100%;
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.markdown-editor .cm-md-codeinfo {
+  color: var(--text-faint);
 }
 
 /* A quote reads as a quote by its bar, since its `>` hides away from the caret. An

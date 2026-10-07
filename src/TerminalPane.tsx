@@ -116,7 +116,7 @@ let mounts = 0
  * spawn runs off the main thread, so a tab closed before it lands is detached
  * on arrival, and by id, so it cannot reach a newer tab on the same session.
  */
-export function TerminalPane({ session, cwd }: { session: string; cwd: string }) {
+export function TerminalPane({ session, cwd, shown = true }: { session: string; cwd: string; shown?: boolean }) {
   const container = useRef<HTMLDivElement>(null)
   const term = useRef<Terminal | null>(null)
   /** Null until the first spawn answers. False is the one case worth saying. */
@@ -233,6 +233,15 @@ export function TerminalPane({ session, cwd }: { session: string; cwd: string })
       killTerminal(id).catch(() => {})
     }
   }, [session, cwd])
+
+  // Shown again, it takes the keyboard, as a note's editor does: only the first mount
+  // and a press inside it did, so keys typed after a tab switch went to the note.
+  // After the press that switched tabs, which would otherwise take the focus back.
+  useEffect(() => {
+    if (!shown) return
+    const later = setTimeout(() => term.current?.focus())
+    return () => clearTimeout(later)
+  }, [shown])
 
   /**
    * The pane pads; the box xterm opens in does not. `FitAddon`

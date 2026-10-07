@@ -1324,7 +1324,7 @@ export default function App() {
               case 'terminal':
                 return (
                   <Suspense fallback={null}>
-                    <TerminalPane session={tab.session} cwd={vault.vaultPath!} />
+                    <TerminalPane session={tab.session} cwd={vault.vaultPath!} shown={isActive} />
                   </Suspense>
                 )
               case 'graph':

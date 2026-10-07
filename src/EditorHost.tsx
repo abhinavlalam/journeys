@@ -75,6 +75,9 @@ interface EditorHostProps {
 }
 
 const indentSize = new Compartment()
+const editable = new Compartment()
+/** Shown, an editor as usual; hidden, one no key, cut or paste can change. */
+const hiddenGuard = (shown: boolean) => [EditorView.editable.of(shown), EditorState.readOnly.of(!shown)]
 
 /**
  * `drawSelection` instead of the native caret, which is as tall as
@@ -231,6 +234,7 @@ export function EditorHost({
         selection: { anchor: head },
         extensions: [
           EditorState.lineSeparator.of(lineBreak),
+          editable.of(hiddenGuard(shown)),
           ...extensions,
           ...shared((text) => onChangeRef.current(text), ariaLabel, indentWidth, gutters),
         ],
@@ -262,6 +266,16 @@ export function EditorHost({
     if (now === incoming.text) return
     view.dispatch({ changes: smallestChange(now, incoming.text), annotations: Transaction.addToHistory.of(false) })
   }, [incoming])
+
+  // Hidden, it takes no keys. A tab's press does not move the focus in WebKit, so the
+  // keyboard stayed in a note when the terminal's tab showed, and select-all and
+  // delete meant for the terminal emptied the note out of sight.
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    view.dispatch({ effects: editable.reconfigure(hiddenGuard(shown)) })
+    if (!shown && view.hasFocus) view.contentDOM.blur()
+  }, [shown])
 
   // After the event that showed it: a tab switches on mousedown,
   // and that press then clears the focus the editor had just taken.

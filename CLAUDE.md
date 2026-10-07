@@ -12,7 +12,7 @@ are changing before you change it.
 ## Commands
 
 ```sh
-npm ci            # never `npm install` for a restore
+npm ci            # in ~/.cargo-target/journeys, never here (see below)
 npm run build     # tsc --noEmit && vite build — the real type check
 npm test          # vitest
 npx tauri dev     # run the app
@@ -21,7 +21,11 @@ cd src-tauri && cargo test
 ```
 
 `~/.zprofile` should export `CARGO_TARGET_DIR="$HOME/.cargo-target"`: the project
-may live in a synced folder, and a debug build is ~2.7 GB.
+may live in a synced folder, and a debug build is ~2.7 GB. For the same reason
+**`node_modules` is a symlink to `~/.cargo-target/journeys/node_modules`**: Drive's
+stream mode made most of it online-only, and tests then timed out starting their
+workers. To restore it, copy `package.json` and `package-lock.json` there and run
+`npm ci` in that folder; `npm ci` here would replace the link with a real folder.
 
 ## The map
 
@@ -196,7 +200,11 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   registered with `useBuffers`, the one door every vault operation reaches every
   open note through. Inactive note tabs stay mounted, **editor and all**, hidden as a terminal is, so a
   tab keeps its undo (`shown`: the editor takes the keyboard back when it shows, and
-  a hidden title field renames nothing). The editor mounts once, over the bytes
+  a hidden title field renames nothing). **A hidden editor takes no keys**
+  (`hiddenGuard`: read-only and blurred): a tab's press does not move the focus in
+  WebKit, so the keyboard stayed in a note when the terminal's tab showed, and
+  select-all and Backspace meant for the terminal emptied the note out of sight. A
+  terminal takes the keyboard each time its tab shows, not only on its first mount. The editor mounts once, over the bytes
   (never over `''` then re-keyed). Tests ask for `.viewer:not([hidden])`.
 - **The DOM is flat.** `WorkspaceView` measures the tree into boxes and renders
   every viewer keyed by id over its group's box. Nested, a split re-parented the
@@ -292,6 +300,11 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   only where a block can begin. `[` over a selection makes a link. Backspace
   inside a fresh `[[]]` takes all four characters.
 - JSON and CSV are coloured by scans, not grammars (`jsonPreview`, `csvPreview`).
+- **A fenced block reads as one** (`cm-md-codeblock`): each line in the code face on
+  a code span's ground (`--code-ground`), inside the text column, the backticks hidden
+  away from the caret and the info string kept as a caption. Drawn as prose, the
+  vault agent's fenced transcripts ran on as the note's own lines. No info string is
+  special: the app names none of the vault's formats.
   `.config/settings.json` is the one file with a Save; everything else autosaves.
 - A note opens focused with the caret below its page properties; a daily note
   opens at its end (`caretAtEnd`), where the day's next line goes, scrolled into
@@ -615,8 +628,9 @@ may live in a synced folder, and a debug build is ~2.7 GB.
   running app only focuses it. Compare the process start time with the binary's
   mtime.
 - **Google Drive replays old versions over edits.** Edit, type-check and commit as
-  one command, then check `git show HEAD:<file>`. A synced `node_modules` is
-  unusable: `npm ci`.
+  one command, then check `git show HEAD:<file>`. Stream mode also makes files
+  online-only, including most of the vault's `.git`; a read after the Mac sleeps then
+  waits on Google's servers (22 s for the vault, once).
 - **Never name a `.tsx` like a `.ts` but for case.** macOS keeps one; `tsc` then
   silently skips the other (hence `SettingsPanel.tsx`, `WorkspaceView.tsx`).
 - **A `**` capability scope does not reach a dot folder** (`requireLiteralLeadingDot`).

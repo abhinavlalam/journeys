@@ -256,6 +256,10 @@ function indentBelow(state: EditorState, line: number): number {
 }
 const markerMark = Decoration.mark({ class: 'cm-md-marker' })
 
+/** A fenced block's line, and its info string (`journeys-transcript`, `js`) as a caption. */
+const codeLine = Decoration.line({ class: 'cm-md-codeblock' })
+const codeInfo = Decoration.mark({ class: 'cm-md-codeinfo' })
+
 /** A done task's words. */
 const taskDone = Decoration.mark({ class: 'cm-md-task-done' })
 
@@ -479,6 +483,23 @@ export function livePreviewDecorations(
         return
       }
 
+      /**
+       * A fenced block reads as one: every line in the code face on a tinted ground,
+       * its backticks hidden while the caret is elsewhere and its info string left as
+       * a caption. Drawn as prose, a transcript ran on as the note's own lines.
+       */
+      if (node.name === 'FencedCode') {
+        const first = Math.max(state.doc.lineAt(node.from).number, firstLine)
+        const last = Math.min(state.doc.lineAt(node.to).number, lastLine)
+        for (let n = first; n <= last; n++) found.push(codeLine.range(state.doc.line(n).from))
+        const reveal = touched(state, node.from, node.to)
+        for (let child = node.node.firstChild; child; child = child.nextSibling) {
+          if (child.name === 'CodeMark') found.push((reveal ? markerMark : hidden).range(child.from, child.to))
+          if (child.name === 'CodeInfo') found.push(codeInfo.range(child.from, child.to))
+        }
+        return false
+      }
+
       const heading = HEADING.exec(node.name)
       const rendered = heading ? `cm-md-h${heading[1]}` : (INLINE[node.name] ?? BLOCK[node.name])
       if (!rendered) return
@@ -502,9 +523,11 @@ export function livePreviewDecorations(
   for (let n = firstLine; n <= lastLine; n++) {
     const line = state.doc.line(n)
     const spaces = line.text.search(/\S/)
-    if (spaces > 0) found.push(hangingLine(spaceHang(spaces)).range(line.from))
+    // Not in a fence: code keeps its own indent, and the block's inset is its own.
+    const fenced = inFence(state, line.from)
+    if (spaces > 0 && !fenced) found.push(hangingLine(spaceHang(spaces)).range(line.from))
     const task = TASK_LINE.exec(line.text)
-    if (!task || inFence(state, line.from)) continue
+    if (!task || fenced) continue
     const boxFrom = line.from + task[1].length
     let boxTo = boxFrom + 3
     while (boxTo < line.to && state.doc.sliceString(boxTo, boxTo + 1) === ' ') boxTo++

@@ -491,6 +491,42 @@ describe('Live Preview', () => {
     expect(all(stateOf('> quoted\n\nbody', 3))).toEqual(['cm-md-quote@0-8', 'cm-md-marker@0-2'])
   })
 
+  /**
+   * Hidden, it takes no keys. A tab's press does not move the focus in WebKit, so the
+   * keyboard stayed in a note when the terminal's tab showed, and select-all and
+   * Backspace meant for the terminal emptied the note, unseen.
+   */
+  it('takes no keys while its tab is hidden, and lets go of the keyboard', () => {
+    const doc = 'eighteen lines\nof the morning\n'
+    const { container, rerender } = render(<MarkdownEditor initialMarkdown={doc} onChange={() => {}} />)
+    const view = EditorView.findFromDOM(container.querySelector('.cm-editor') as HTMLElement)!
+    view.focus()
+    rerender(<MarkdownEditor initialMarkdown={doc} onChange={() => {}} shown={false} />)
+    expect(view.contentDOM.getAttribute('contenteditable')).toBe('false')
+    expect(document.activeElement).not.toBe(view.contentDOM)
+    view.dispatch({ selection: { anchor: 0, head: view.state.doc.length } })
+    fireEvent.keyDown(view.contentDOM, { key: 'Backspace' })
+    expect(view.state.doc.toString()).toBe(doc)
+    // Shown again, it is an editor again.
+    rerender(<MarkdownEditor initialMarkdown={doc} onChange={() => {}} shown />)
+    fireEvent.keyDown(view.contentDOM, { key: 'Backspace' })
+    expect(view.state.doc.toString()).toBe('')
+  })
+
+  /** An agent's transcript is fenced; drawn as prose, it ran on as the note's own lines. */
+  it('draws a fenced block as one: each line marked, the backticks hidden away from the caret, the label kept', () => {
+    const doc = 'intro\n```journeys-transcript\n[00:00:01] hello #tag\n```\nafter'
+    expect(all(stateOf(doc, 0))).toEqual([
+      'hidden@6-9',
+      'cm-md-codeblock@6-6',
+      'cm-md-codeinfo@9-28',
+      'cm-md-codeblock@29-29',
+      'hidden@51-54',
+      'cm-md-codeblock@51-51',
+    ])
+    expect(all(stateOf(doc, 30)).filter((span) => span.startsWith('cm-md-marker'))).toEqual(['cm-md-marker@6-9', 'cm-md-marker@51-54'])
+  })
+
   it('decorates only the span it is given', () => {
     const state = stateOf('**one**\n\n**two**\n', 0)
     expect(spans(livePreviewDecorations(state, 9, 16))).toEqual([

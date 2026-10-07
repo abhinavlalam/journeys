@@ -10,6 +10,8 @@ import { cleanup, render } from '@testing-library/react'
  * xterm and the bridge are stand-ins; this tests the pane's side.
  */
 
+const focused = vi.hoisted(() => ({ count: 0 }))
+
 vi.mock('@xterm/xterm', () => ({
   Terminal: class {
     cols = 80
@@ -19,7 +21,9 @@ vi.mock('@xterm/xterm', () => ({
     open() {}
     write() {}
     writeln() {}
-    focus() {}
+    focus() {
+      focused.count++
+    }
     dispose() {}
     onData() {
       return { dispose() {} }
@@ -52,6 +56,17 @@ globalThis.ResizeObserver = class {
 afterEach(cleanup)
 
 describe('a Terminal tab', () => {
+  /** Only the first mount took the keyboard, so keys typed after a tab switch went to the note. */
+  it('takes the keyboard each time its tab shows', async () => {
+    const { TerminalPane } = await import('../TerminalPane')
+    const { rerender } = render(<TerminalPane session="journeys-1" cwd="/v" />)
+    rerender(<TerminalPane session="journeys-1" cwd="/v" shown={false} />)
+    focused.count = 0
+    rerender(<TerminalPane session="journeys-1" cwd="/v" shown />)
+    await new Promise((done) => setTimeout(done, 10))
+    expect(focused.count).toBe(1)
+  })
+
   it('detaches a shell that finished starting after the tab closed', async () => {
     const { TerminalPane } = await import('../TerminalPane')
     const { unmount } = render(<TerminalPane session="journeys-1" cwd="/v" />)
