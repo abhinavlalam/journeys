@@ -4,7 +4,7 @@
  * nothing in the panel changes nothing on screen; if they ever disagree,
  * the stylesheet is right. No React: pure functions and one DOM write.
  */
-import { asObject } from './configEntries'
+import { asObject, oneOf } from './configEntries'
 import { DAILY_FOLDER, FILES_FOLDER, readConfigFile, safeNewName, writeConfigFile } from './vault'
 import { TAG_NAME } from './tags'
 import { SETTINGS_FILE } from './vaultModel'
@@ -301,10 +301,6 @@ export const DEFAULT_SETTINGS: Settings = {
 /** Matches `journeys:vault` and `journeys:sidebar-width`. */
 export const SETTINGS_KEY = 'journeys:settings'
 
-function pick<T>(value: unknown, allowed: readonly T[], fallback: T): T {
-  return allowed.includes(value as T) ? (value as T) : fallback
-}
-
 function clamp(value: number, bounds: { min: number; max: number }): number {
   return Math.min(bounds.max, Math.max(bounds.min, value))
 }
@@ -349,7 +345,7 @@ const LEGACY_FACES = new Map<string, FaceId>([
 
 function pickFace(value: unknown): FaceId {
   const legacy = typeof value === 'string' ? LEGACY_FACES.get(value) : undefined
-  return legacy ?? pick(value, FACE_IDS, DEFAULT_SETTINGS.fontFamily)
+  return legacy ?? oneOf(FACE_IDS, value) ?? DEFAULT_SETTINGS.fontFamily
 }
 
 /**
@@ -368,8 +364,8 @@ export function parseSettings(raw: unknown): Settings {
   }
 
   return {
-    mode: pick(stored.mode, MODES, DEFAULT_SETTINGS.mode),
-    scheme: pick(stored.scheme, SCHEMES, DEFAULT_SETTINGS.scheme),
+    mode: oneOf(MODES, stored.mode) ?? DEFAULT_SETTINGS.mode,
+    scheme: oneOf(SCHEMES, stored.scheme) ?? DEFAULT_SETTINGS.scheme,
     fontFamily: pickFace(stored.fontFamily),
     proseSize: pickNumber(stored.proseSize, BOUNDS.proseSize, DEFAULT_SETTINGS.proseSize),
     lineHeight: pickNumber(stored.lineHeight, BOUNDS.lineHeight, DEFAULT_SETTINGS.lineHeight),
@@ -388,8 +384,8 @@ export function parseSettings(raw: unknown): Settings {
     // Trailing slashes off: a folder is named as the tree spells it.
     graphHides: pickStrings(stored.graphHides).map((one) => one.replace(/\/+$/, '')),
     graphShows: pickShows(stored.graphShows),
-    timelineView: pick(stored.timelineView, ['list', 'day'] as const, DEFAULT_SETTINGS.timelineView),
-    tasksView: pick(stored.tasksView, ['due', 'page'] as const, DEFAULT_SETTINGS.tasksView),
+    timelineView: oneOf(['list', 'day'] as const, stored.timelineView) ?? DEFAULT_SETTINGS.timelineView,
+    tasksView: oneOf(['due', 'page'] as const, stored.tasksView) ?? DEFAULT_SETTINGS.tasksView,
     calendarFeeds: pickFeeds(stored.calendarFeeds),
     calendarDays: pickNumber(stored.calendarDays, BOUNDS.calendarDays, DEFAULT_SETTINGS.calendarDays),
     calendarMinutes: pickNumber(stored.calendarMinutes, BOUNDS.calendarMinutes, DEFAULT_SETTINGS.calendarMinutes),

@@ -14,7 +14,7 @@
 // lacks). A line this does not understand is left exactly as it was.
 
 import { proseLines } from './prose'
-import type { Entries } from './configEntries'
+import { oneOf, type Entries } from './configEntries'
 
 /**
  * The app's own properties, named here and nowhere else: the row's icon, where the
@@ -54,7 +54,7 @@ export function typeOf(entries: Entries, name: string): PropertyType {
   const own = APP_TYPES[name.toLowerCase()]
   if (own) return own
   const key = Object.keys(entries).find((one) => one.toLowerCase() === name.toLowerCase())
-  return PROPERTY_TYPES.find((one) => one === entries[key ?? '']?.type) ?? 'text'
+  return oneOf(PROPERTY_TYPES, entries[key ?? '']?.type) ?? 'text'
 }
 
 /** A YAML block, and where one ends. */
@@ -90,8 +90,10 @@ interface PageBlock {
   eol: string
 }
 
+const eolOf = (raw: string) => (raw.includes('\r\n') ? '\r\n' : '\n')
+
 function pageBlock(raw: string): PageBlock | null {
-  const eol = raw.includes('\r\n') ? '\r\n' : '\n'
+  const eol = eolOf(raw)
   const yaml = YAML.exec(raw)
   if (yaml) return { end: yaml[0].length, lines: yaml[1].split(/\r?\n/), yaml: { after: yaml[2] }, eol }
   const lines: string[] = []
@@ -107,24 +109,21 @@ function pageBlock(raw: string): PageBlock | null {
   return lines.length > 0 ? { end, lines, yaml: null, eol } : null
 }
 
-/** A block's lines as names and values, with quotes taken off. */
-function pageEntries(block: PageBlock | null): { name: string; value: string }[] {
-  const entry = new RegExp(`^([A-Za-z][\\w-]*)\\s*${block?.yaml ? ':' : '::'}\\s*(.*)$`)
-  return (block?.lines ?? []).flatMap((one) => {
-    const found = entry.exec(one)
-    return found ? [{ name: found[1], value: found[2].trim().replace(/^["'](.*)["']$/, '$1') }] : []
-  })
+/** What follows a page property's name: YAML's `:`, else `::`. */
+const separator = (block: PageBlock | null) => (block?.yaml ? ':' : '::')
+
+/** A block line's name and value, quotes taken off, or null for a line that is not a property. */
+function entryOf(line: string, block: PageBlock | null): { name: string; value: string } | null {
+  const found = new RegExp(`^(${PROPERTY_NAME})\\s*${separator(block)}\\s*(.*)$`).exec(line)
+  return found && { name: found[1], value: found[2].trim().replace(/^["'](.*)["']$/, '$1') }
 }
 
-/** A top-level property line in this block's form, its name in any case. */
-function lineFor(key: string, block: PageBlock | null): RegExp {
-  return new RegExp(`^${key}\\s*${block?.yaml ? ':' : '::'}\\s*(.*)$`, 'i')
-}
+/** A block's lines as names and values. */
+const pageEntries = (block: PageBlock | null) => (block?.lines ?? []).flatMap((one) => entryOf(one, block) ?? [])
 
 /** `key:: value`, or `key::` when empty, with no trailing space. */
 function line(key: string, value: string, block: PageBlock | null): string {
-  const sep = block?.yaml ? ':' : '::'
-  return value === '' ? `${key}${sep}` : `${key}${sep} ${value}`
+  return `${key}${separator(block)}${value === '' ? '' : ` ${value}`}`
 }
 
 /** The value of page property `key`, named in any case, or null when it is missing or empty. */
@@ -158,13 +157,13 @@ export function withProperty(raw: string, key: string, value: string | null): st
   const block = pageBlock(raw)
   if (!block) {
     if (value === null) return raw
-    const eol = raw.includes('\r\n') ? '\r\n' : '\n'
+    const eol = eolOf(raw)
     return `${line(key, value, null)}${eol}${eol}${raw}`
   }
 
   const rest = raw.slice(block.end)
   const lines = [...block.lines]
-  const at = lines.findIndex((one) => lineFor(key, block).test(one))
+  const at = lines.findIndex((one) => entryOf(one, block)?.name.toLowerCase() === key.toLowerCase())
   if (value === null) {
     if (at === -1) return raw
     lines.splice(at, 1)

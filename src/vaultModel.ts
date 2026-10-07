@@ -55,12 +55,7 @@ export function folderOf(relativePath: string): string {
  * browsing would fill the vault with blank files; it is written on the first edit.
  */
 export function folderNoteRef(folder: VaultFolder): VaultFile {
-  if (folder.note) return folder.note
-  return {
-    path: `${folder.path}/${folder.name}.md`,
-    absolutePath: `${folder.absolutePath}/${folder.name}.md`,
-    name: folder.name,
-  }
+  return folder.note ?? { path: folderNotePath(folder.path), absolutePath: folderNotePath(folder.absolutePath), name: folder.name }
 }
 
 /** The file in the vault's `.config` that holds its settings. */

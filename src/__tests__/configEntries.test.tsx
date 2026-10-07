@@ -43,4 +43,28 @@ describe('reading one in the app', () => {
     expect(onError).toHaveBeenCalledTimes(1)
     expect(result.current.entries).toEqual({})
   })
+
+  /** New entries for the same text rebuilt the graph and the property lists on every return. */
+  it('keeps the same entries over a focus that finds the file as it was, and takes a change', async () => {
+    const { useConfigEntries } = await import('../useConfigEntries')
+    disk.write('/v/.config/properties.json', '{ "water": { "type": "number" } }')
+    const { result } = renderHook(() => useConfigEntries('/v', 'properties.json', () => {}))
+    await waitFor(() => expect(result.current.entries).toEqual({ water: { type: 'number' } }))
+    const before = result.current.entries
+    act(() => void window.dispatchEvent(new Event('focus')))
+    await new Promise((settle) => setTimeout(settle, 50))
+    expect(result.current.entries).toBe(before)
+
+    disk.write('/v/.config/properties.json', '{ "water": { "type": "date" } }')
+    act(() => void window.dispatchEvent(new Event('focus')))
+    await waitFor(() => expect(result.current.entries).toEqual({ water: { type: 'date' } }))
+
+    // After a write of its own, a pull putting the text it had before back is a change.
+    const unwritten = disk.read('/v/.config/properties.json')!
+    await act(() => result.current.write('water', { type: 'url' }))
+    expect(result.current.entries).toEqual({ water: { type: 'url' } })
+    disk.write('/v/.config/properties.json', unwritten)
+    act(() => void window.dispatchEvent(new Event('focus')))
+    await waitFor(() => expect(result.current.entries).toEqual({ water: { type: 'date' } }))
+  })
 })

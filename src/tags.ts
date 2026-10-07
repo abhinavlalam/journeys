@@ -2,7 +2,7 @@
 // note carries it; it has no file. Its structure, if any, is an entry in `tags.json`.
 
 import { indentOf, proseLines } from './prose'
-import type { Entries } from './configEntries'
+import { oneOf, type Entries } from './configEntries'
 import { leadingClock } from './clock'
 import { blockProperties, propertyText, type PropertyType } from './properties'
 
@@ -161,7 +161,7 @@ export type LineView = (typeof LINE_VIEWS)[number]
 /** The tag's chosen view. Unchosen: a table for a tag with properties, else a list. */
 export function viewOf(entries: Entries, tag: string): LineView {
   const chosen = entries[tag.toLowerCase()]?.view
-  return LINE_VIEWS.find((one) => one === chosen) ?? (propertiesOf(entries, tag).length > 0 ? 'table' : 'list')
+  return oneOf(LINE_VIEWS, chosen) ?? (propertiesOf(entries, tag).length > 0 ? 'table' : 'list')
 }
 
 /**
@@ -186,7 +186,7 @@ export type TagColour = (typeof TAG_COLOURS)[number]
 export function coloursOf(entries: Entries): Record<string, TagColour> {
   return Object.fromEntries(
     Object.entries(entries).flatMap(([tag, entry]) => {
-      const colour = TAG_COLOURS.find((one) => one === entry?.color)
+      const colour = oneOf(TAG_COLOURS, entry?.color)
       return colour ? [[tag.toLowerCase(), colour]] : []
     })
   )
@@ -211,9 +211,6 @@ export interface DayTotal {
   show: TotalPlace
 }
 
-const oneOf = <T extends string>(values: readonly T[], value: unknown, fallback: T): T =>
-  values.find((one) => one === value) ?? fallback
-
 /**
  * Each tag's daily totals: `totals` in its `tags.json` entry, set on its page, each a
  * property and how it is combined, labelled and shown. Unset, the tag's `number`
@@ -233,9 +230,9 @@ export function dayTotalsOf(entries: Entries, typeOf: (name: string) => Property
         if (!property || typeOf(property) !== 'number') return []
         return [{
           property,
-          by: oneOf(COMBINES, given.by, 'sum'),
+          by: oneOf(COMBINES, given.by) ?? 'sum',
           label: typeof given.label === 'string' ? given.label : '',
-          show: oneOf(TOTAL_PLACES, given.show, 'both'),
+          show: oneOf(TOTAL_PLACES, given.show) ?? 'both',
         }]
       })
       return totals.length > 0 ? [[tag.toLowerCase(), totals]] : []

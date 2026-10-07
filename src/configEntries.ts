@@ -8,6 +8,9 @@
  */
 export type Entries = Record<string, Record<string, unknown>>
 
+/** `value` when it is one of `values`: a choice read from a file a hand may have edited. */
+export const oneOf = <T>(values: readonly T[], value: unknown): T | undefined => values.find((one) => one === value)
+
 /** `value` when it is a plain object, else null. `JSON.parse('7')` and `'null'` both succeed. */
 const objectIn = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null

@@ -10,16 +10,23 @@ export function useConfigEntries(vaultPath: string | null, file: string, onError
   const [entries, setEntries] = useState<Entries>({})
   /** The text last found not to be JSON, so it is said once and not on every focus. */
   const broken = useRef<string | null>(null)
+  /**
+   * The text last read: the same text keeps the same entries, or every return to the
+   * window built the graph and the property lists again from types that had not changed.
+   */
+  const last = useRef<string | null | undefined>(undefined)
 
   useEffect(() => {
     // Another vault's entries are not this one's.
     setEntries({})
+    last.current = undefined
     if (!vaultPath) return
     let live = true
     const load = () =>
       void readConfigFile(vaultPath, file).then(
         (text) => {
-          if (!live) return
+          if (!live || text === last.current) return
+          last.current = text
           const read = text === null ? {} : readEntries(text)
           // Said, not shown as no entries at all.
           if (!read && text !== broken.current) onError(`${file} could not be read as JSON, so it was left alone.`)
@@ -60,6 +67,8 @@ export function useConfigEntries(vaultPath: string | null, file: string, onError
       onError(`Could not write ${file}: ${String(err)}`)
       return
     }
+    // What is on disk now, so a pull that puts the old text back is read.
+    last.current = next
     setEntries((current) => ({ ...current, [name]: { ...current[name], ...fields } }))
   }
 

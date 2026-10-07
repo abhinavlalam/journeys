@@ -309,7 +309,7 @@ function decodeTarget(target: string): string {
   }
 }
 
-/** Every note in the vault, folder notes included, in tree order. */
+/** Every file read as text, in tree order: the notes, folder notes included, and JSON, CSV and plain text. */
 export function collectNotes(root: VaultFolder): VaultFile[] {
   return collectFiles(root).filter((file) => isTextFile(file.path))
 }
@@ -392,8 +392,6 @@ export function collectFolders(root: VaultFolder): string[] {
 
 /** Notes in lookup form. Build it once per vault read, not once per link. */
 export interface NoteIndex {
-  /** As given: tree order, which the picker lists when nothing is typed. */
-  notes: VaultFile[]
   byKey: Map<string, VaultFile>
   /**
    * Every note with one `nameKey`, best candidate first. Only a
@@ -449,7 +447,7 @@ export function buildNoteIndex(notes: VaultFile[], aliases: readonly Alias[] = [
     if (!byAlias.has(nameKey(name))) byAlias.set(nameKey(name), note)
   }
 
-  return { notes, byKey, byName, byAlias }
+  return { byKey, byName, byAlias }
 }
 
 /**

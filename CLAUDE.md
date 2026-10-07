@@ -43,7 +43,7 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 | `FolderTree.tsx`, `rows.tsx`, `SidebarSection.tsx`, `useDrops.ts` | The left pane; `rows.tsx` is the one row shape everything lists with; `useDrops` is what is dropped onto the tree. |
 | `tags.ts`, `properties.ts`, `actionKinds.ts`, `TagView.tsx`, `PropertyView.tsx`, `LineTable.tsx` | Tags and their structures, properties and their types, the Actions pane's kinds, and their pages. |
 | `prose.ts` | The one rule for what in a note is code (`maskCode`, `proseLines`), for everything that reads a note for meaning, and for a line's indent (`indentOf`). |
-| `configEntries.ts`, `useConfigEntries.ts` | A `.config` file of entries keyed by name (`properties.json`): merged on write, never written over when unreadable. |
+| `configEntries.ts`, `useConfigEntries.ts` | A `.config` file of entries keyed by name (`properties.json`): merged on write, never written over when unreadable, read again on focus with the same text keeping the same entries (new ones rebuilt the graph on every return); `oneOf`, a value read from a file as one of a set. |
 | `calendar.ts`, `ics.ts`, `calendarSync.ts`, `useCalendarSync.ts`, `CalendarView.tsx` | The calendar. |
 | `timeline.ts` / `TimelineView.tsx` | The daily notes as each day happened / its page. |
 | `tasks.ts` / `TasksView.tsx` | Every `#task` line by when it is due / its page. |
