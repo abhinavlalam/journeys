@@ -110,6 +110,26 @@
       ]
     },
     {
+      "identifier": "fs:allow-stat",
+      "allow": [
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.config"
+        },
+        {
+          "path": "**/.config/**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/**"
+        }
+      ]
+    },
+    {
       "identifier": "fs:allow-mkdir",
       "allow": [
         {

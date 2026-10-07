@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { readVaultFile } from './vault'
+import { readVaultFile, vaultFileStamp, type FileStamp } from './vault'
 import { isEncrypted, isNote, type VaultFile, type VaultFolder } from './vaultModel'
 import { buildNoteIndex, collectFiles, collectNotes } from './links'
 import { buildBacklinkIndex } from './links'
@@ -128,12 +128,21 @@ export function useVaultTexts({
   const generation = useRef(0)
 
   /**
+   * Each file's text as it was read, by its path, with its stamp then. A read takes a
+   * file again only when its stamp has changed. Every return to the window and every
+   * change to the tree read all of them, and after the Mac slept, with Drive slow to
+   * answer, that took 22 seconds and held up opening today's page.
+   */
+  const known = useRef(new Map<string, { stamp: FileStamp; text: string }>())
+
+  /**
    * A new vault clears the old one's notes, and moves the
    * generation so a read in flight can't land. Declared before
    * the read below, so that read's generation is newer.
    */
   useEffect(() => {
     generation.current += 1
+    known.current.clear()
     setTexts(null)
   }, [vaultPath])
 
@@ -153,14 +162,26 @@ export function useVaultTexts({
       setReading(true)
       try {
         const rows = await Promise.all(
-          all.map(async (note) => ({
-            note,
-            // A folder note is written lazily, so not being on
-            // disk is normal here: it is a note with no text yet.
-            text: await readVaultFile(note).catch(() => ''),
-          }))
+          all.map(async (note) => {
+            const stamp = await vaultFileStamp(note).catch(() => null)
+            const was = known.current.get(note.absolutePath)
+            if (stamp && was && sameStamp(stamp, was.stamp)) return { note, text: was.text }
+            // Only what was read is kept: a note that could not be read is tried again
+            // next time, not held as empty while its stamp stays the same.
+            known.current.delete(note.absolutePath)
+            try {
+              const text = await readVaultFile(note)
+              if (stamp) known.current.set(note.absolutePath, { stamp, text })
+              return { note, text }
+            } catch {
+              // A folder note is written lazily, so not being on
+              // disk is normal here: it is a note with no text yet.
+              return { note, text: '' }
+            }
+          })
         )
-        if (generation.current === mine) setTexts(rows)
+        // Nothing changed: the same rows, so no view is built again.
+        if (generation.current === mine) setTexts((was) => (sameRows(was, rows) ? was : rows))
       } catch (err: unknown) {
         onError(String(err))
       } finally {
@@ -320,4 +341,12 @@ function tagLines(corpus: readonly { note: VaultFile; text: string }[] | null): 
     cache.set(key, found)
     return found
   }
+}
+
+/** The same file as when it was read, as far as the system says: a stamp without a time is never trusted. */
+const sameStamp = (now: FileStamp, then: FileStamp) =>
+  now.modified !== null && now.modified === then.modified && now.size === then.size
+
+function sameRows(was: readonly NoteText[] | null, rows: readonly NoteText[]): boolean {
+  return was !== null && was.length === rows.length && rows.every((row, at) => row.note.path === was[at].note.path && row.text === was[at].text)
 }

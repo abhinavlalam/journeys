@@ -7,6 +7,7 @@ import {
   mkdir,
   rename,
   remove,
+  stat,
 } from '@tauri-apps/plugin-fs'
 import { localDateStamp } from './clock'
 import { APP_PROPERTIES, readProperty, withProperty } from './properties'
@@ -37,6 +38,12 @@ import type { VaultFile, VaultFolder } from './vaultModel'
 // The filesystem surface
 // ---------------------------------------------------------------------------
 
+/** What a file was when it was read: a later stamp that differs means it changed. */
+export interface FileStamp {
+  size: number
+  modified: number | null
+}
+
 /**
  * One entry of a folder listing. `plugin-fs`'s `DirEntry` also has
  * `isSymlink`, which nothing reads, so its entries pass straight through.
@@ -48,13 +55,18 @@ interface VaultDirEntry {
 }
 
 /**
- * The app's filesystem: the eight calls everything above it makes.
+ * The app's filesystem: the nine calls everything above it makes.
  *
  * `vault.ts` is the only module that imports `@tauri-apps/plugin-fs`, so a
  * test's `vi.mock` of it reaches everything. Another backend (mobile, sync)
- * implements these eight calls and nothing else. Every path is absolute.
+ * implements these nine calls and nothing else. Every path is absolute.
  */
 export interface VaultFs {
+  /**
+   * A file's size and when it was last written, null when the system does not
+   * say. Read without the contents, so a file Drive holds online-only stays so.
+   */
+  stat(path: string): Promise<FileStamp>
   /** True for a file or a folder. Both volumes are case-insensitive, so this is too. */
   exists(path: string): Promise<boolean>
   /**
@@ -82,9 +94,13 @@ export interface VaultFs {
 /**
  * The surface over the real disk, and the only place `plugin-fs`
  * is called. Everything below goes through `vaultFs`, so a
- * function that needs a ninth call has to widen the interface.
+ * function that needs a tenth call has to widen the interface.
  */
 const vaultFs: VaultFs = {
+  stat: async (path) => {
+    const info = await stat(path)
+    return { size: info.size, modified: info.mtime?.getTime() ?? null }
+  },
   exists,
   readText: readTextFile,
   writeText: writeTextFile,
@@ -236,6 +252,9 @@ export function isSelfOrDescendant(folderPath: string, candidateParent: string):
  * A file's text, decrypted if it is locked. Everything above this sees plain text. A
  * file nobody has unlocked throws `LockedFileError`, and `App` asks for the passphrase.
  */
+/** A file's stamp, for telling whether it changed since it was read (`useVaultTexts`). */
+export const vaultFileStamp = (file: VaultFile) => vaultFs.stat(file.absolutePath)
+
 export async function readVaultFile(file: VaultFile): Promise<string> {
   const raw = await vaultFs.readText(file.absolutePath)
   if (!isEncrypted(file.path)) return raw

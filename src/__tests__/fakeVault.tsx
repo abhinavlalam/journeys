@@ -34,7 +34,7 @@ interface FakeDir {
 }
 
 const dirs = new Map<string, FakeDir>()
-const files = new Map<string, { path: string; text: string }>()
+const files = new Map<string, { path: string; text: string; modified: number }>()
 
 /** Paths that are listed but cannot be read. See `disk.corrupt`. */
 const corrupted = new Set<string>()
@@ -62,12 +62,15 @@ function ensureDir(path: string): FakeDir {
   return dir
 }
 
+/** A disk's clock: each write stamps its file, as a modified time does. */
+let tick = 0
+
 function writeFile(path: string, text: string) {
   ensureDir(parentOf(path)).files.set(key(baseOf(path)), baseOf(path))
   // Case-preserving: a write through a differently cased path
   // lands on the existing file without renaming it, as APFS does.
   const already = files.get(key(path))
-  files.set(key(path), { path: already?.path ?? path, text })
+  files.set(key(path), { path: already?.path ?? path, text, modified: ++tick })
 }
 
 function removeFile(path: string) {
@@ -172,6 +175,12 @@ function enoent(path: string): Error {
 }
 
 const fsSpies = {
+  stat: vi.fn(async (path: string) => {
+    const found = files.get(key(path))
+    if (found) return { size: new TextEncoder().encode(found.text).length, mtime: new Date(found.modified), isFile: true, isDirectory: false }
+    if (dirs.has(key(path))) return { size: 0, mtime: null, isFile: false, isDirectory: true }
+    throw enoent(path)
+  }),
   readDir: vi.fn(async (path: string) => {
     const dir = dirs.get(key(path))
     if (!dir) throw enoent(path)

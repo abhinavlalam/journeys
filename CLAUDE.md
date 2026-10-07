@@ -31,7 +31,7 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 
 | Where | What it owns |
 | --- | --- |
-| `vault.ts` | **The only module that touches the filesystem**, through `VaultFs` (eight calls; `writeBytes` is the one that is not text). Reads decrypt and writes re-encrypt locked notes. |
+| `vault.ts` | **The only module that touches the filesystem**, through `VaultFs` (nine calls; `writeBytes` is the one that is not text, `stat` the one that reads no contents). Reads decrypt and writes re-encrypt locked notes. |
 | `vaultModel.ts` | Pure path and name rules: `fileKind`, `isNote`, `isEncrypted`, `isTextFile`, `noteName`, `knownPath`, `baseName`, `folderNotePath`, `linkLabelSpan`. |
 | `useVaultTexts.ts` | The one read of the vault and every cross-note answer as a memo over it. |
 | `links.ts` | Parsing, resolving and retargeting links; the note index; backlinks; `collectNotes`. |
@@ -66,8 +66,12 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   nothing parses and regenerates a note. (v1's WYSIWYG escaped `[[links]]` and
   rewrote lists.)
 - **One read of the vault.** `useVaultTexts` reads every text note on vault change
-  and on window focus; the index, icons, graph, backlinks, search, tags and
-  properties are memos over it. A new cross-note fact is a memo, never a
+  and on window focus, **taking a note again only when its stamp changed**
+  (`vaultFileStamp`: size and modified time, read without the contents, so a file
+  Drive holds online-only stays so). Unchanged, the rows are the same rows and no view
+  is built again; read in full, a return after the Mac slept took 22 seconds. A note
+  that could not be read is not kept, so it is tried again. The index, icons, graph,
+  backlinks, search, tags and properties are memos over it. A new cross-note fact is a memo, never a
   second pass. `patch` changes a text without a read (an icon write changes no
   tree). The open note's editor text replaces its row through `liveText`;
   `liveVersion` re-takes it while a derived view is on screen beside the note.
