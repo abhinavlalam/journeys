@@ -13,16 +13,16 @@ import type { Entries } from './configEntries'
 import type { VaultFile } from './vaultModel'
 
 /** The block commands `/` offers, and the markdown each writes. */
-const BLOCKS: readonly { label: string; detail: string; insert: string }[] = [
-  { label: 'Heading 1', detail: '#', insert: '# ' },
-  { label: 'Heading 2', detail: '##', insert: '## ' },
-  { label: 'Heading 3', detail: '###', insert: '### ' },
-  { label: 'Bullet list', detail: '-', insert: '- ' },
-  { label: 'Numbered list', detail: '1.', insert: '1. ' },
-  { label: 'Task', detail: '- [ ]', insert: '- [ ] ' },
-  { label: 'Quote', detail: '>', insert: '> ' },
-  { label: 'Code block', detail: '```', insert: '```\n\n```' },
-  { label: 'Divider', detail: '---', insert: '---\n' },
+const BLOCKS: readonly Completion[] = [
+  { label: 'Heading 1', detail: '#', apply: '# ' },
+  { label: 'Heading 2', detail: '##', apply: '## ' },
+  { label: 'Heading 3', detail: '###', apply: '### ' },
+  { label: 'Bullet list', detail: '-', apply: '- ' },
+  { label: 'Numbered list', detail: '1.', apply: '1. ' },
+  { label: 'Task', detail: '- [ ]', apply: '- [ ] ' },
+  { label: 'Quote', detail: '>', apply: '> ' },
+  { label: 'Code block', detail: '```', apply: '```\n\n```' },
+  { label: 'Divider', detail: '---', apply: '---\n' },
 ]
 
 /**
@@ -65,16 +65,7 @@ export function slashSource(getDailyFolder: () => string) {
     if (ahead !== '' && !/\s$/.test(ahead)) return null
 
     const query = before.text.slice(1).toLowerCase()
-    const offered: Completion[] = [
-      ...(ahead.trim() === ''
-        ? BLOCKS.map((block) => ({
-            label: block.label,
-            detail: block.detail,
-            apply: block.insert,
-          }))
-        : []),
-      ...inlineOptions(getDailyFolder()),
-    ]
+    const offered = [...(ahead.trim() === '' ? BLOCKS : []), ...inlineOptions(getDailyFolder())]
     const options = offered.filter((one) => one.label.toLowerCase().includes(query))
     return options.length ? { from: before.from, filter: false, options } : null
   }
@@ -213,6 +204,5 @@ export const completionAppearance = EditorView.theme({
   },
   // No icon column; the detail says the type.
   '.cm-completionIcon': { display: 'none' },
-
 })
 

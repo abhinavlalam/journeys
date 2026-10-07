@@ -3,17 +3,16 @@
 import { EditorState } from '@codemirror/state'
 import { GutterMarker, gutter } from '@codemirror/view'
 import { foldEffect, foldService, foldedRanges, unfoldEffect } from '@codemirror/language'
+import { LIST_ITEM } from './editorCommands'
 import { chevronMarkup } from './icons'
+
+const isListItem = (text: string) => LIST_ITEM.test(text)
 
 /**
  * The range under `lineEnd` indented further than this line, or
  * null. By indent, since that is what nests here. A blank line
  * does not end a block, or one gap would split a list.
  */
-function isListItem(text: string): boolean {
-  return /^\s*([-*+]|\d+[.)])\s/.test(text)
-}
-
 export function indentRange(
   state: EditorState,
   lineStart: number,

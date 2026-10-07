@@ -5,7 +5,7 @@
 // what the bytes mean (grammar, popups, decorations) is passed in by the caller.
 
 import { useEffect, useRef } from 'react'
-import { Compartment, EditorState, Transaction, type Extension } from '@codemirror/state'
+import { Compartment, EditorState, Text, Transaction, type Extension } from '@codemirror/state'
 import {
   Decoration,
   EditorView,
@@ -262,9 +262,13 @@ export function EditorHost({
     const view = viewRef.current
     if (!view || !incoming || incoming.n === taken.current) return
     taken.current = incoming.n
+    // In the document's terms, where a break is one character whatever the file uses:
+    // in the file's, a CRLF note's change took a `\r` into the line, and the save wrote it.
     const now = view.state.doc.toString()
-    if (now === incoming.text) return
-    view.dispatch({ changes: smallestChange(now, incoming.text), annotations: Transaction.addToHistory.of(false) })
+    const next = incoming.text.split(view.state.lineBreak).join('\n')
+    if (now === next) return
+    const { from, to, insert } = smallestChange(now, next)
+    view.dispatch({ changes: { from, to, insert: Text.of(insert.split('\n')) }, annotations: Transaction.addToHistory.of(false) })
   }, [incoming])
 
   // Hidden, it takes no keys. A tab's press does not move the focus in WebKit, so the

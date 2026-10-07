@@ -60,29 +60,6 @@ export function toggleMarker(marker: string): Command {
   }
 }
 
-/** A `KeyboardEvent` in the same form `cmKey` gives, so the two can be compared. */
-function keyNameOf(event: KeyboardEvent): string {
-  const mods: string[] = []
-  if (event.metaKey) mods.push('Mod')
-  if (event.ctrlKey) mods.push('Ctrl')
-  if (event.altKey) mods.push('Alt')
-  if (event.shiftKey) mods.push('Shift')
-  return [...mods, event.key.toLowerCase()].join('-')
-}
-
-/**
- * The app's combo form to CodeMirror's: `mod+shift+t` to
- * `Mod-Shift-t`, modifiers in that order.
- */
-function cmKey(combo: string): string | null {
-  const parts = combo.toLowerCase().split('+')
-  const key = parts.pop()
-  if (!key) return null
-  const order = ['mod', 'ctrl', 'alt', 'shift']
-  const mods = order.filter((m) => parts.includes(m)).map((m) => (m === 'mod' ? 'Mod' : m[0].toUpperCase() + m.slice(1)))
-  return [...mods, key].join('-')
-}
-
 /**
  * Tab on a line with lines nested under it: the whole block moves in one indent width.
  */
@@ -157,7 +134,7 @@ const shift = (
  * A list line: its indent, a bullet or a number with `.` or `)`,
  * the space after it, and a task box if it has one.
  */
-const LIST_ITEM = /^([ \t]*)(?:([-*+])|(\d{1,9})([.)]))([ \t]+)(\[.\][ \t]+)?/
+export const LIST_ITEM = /^([ \t]*)(?:([-*+])|(\d{1,9})([.)]))([ \t]+)(\[.\][ \t]+)?/
 
 /**
  * Enter on plain indented lines and list lines:
@@ -220,24 +197,51 @@ export const formatKeymap = [
 ]
 
 /**
- * Wrap the selection in `mark` and keep it selected, so a second press
+ * A `KeyboardEvent` in the same form `cmKey` gives, so the two can be compared. Not
+ * `matchesCombo`: `shortcuts.ts` reads `formatKeymap` from here, and importing back
+ * left that list undefined as the modules loaded.
+ */
+function keyNameOf(event: KeyboardEvent): string {
+  const mods: string[] = []
+  if (event.metaKey) mods.push('Mod')
+  if (event.ctrlKey) mods.push('Ctrl')
+  if (event.altKey) mods.push('Alt')
+  if (event.shiftKey) mods.push('Shift')
+  return [...mods, event.key.toLowerCase()].join('-')
+}
+
+/**
+ * The app's combo form to CodeMirror's: `mod+shift+t` to
+ * `Mod-Shift-t`, modifiers in that order.
+ */
+function cmKey(combo: string): string | null {
+  const parts = combo.toLowerCase().split('+')
+  const key = parts.pop()
+  if (!key) return null
+  const order = ['mod', 'ctrl', 'alt', 'shift']
+  const mods = order.filter((m) => parts.includes(m)).map((m) => (m === 'mod' ? 'Mod' : m[0].toUpperCase() + m.slice(1)))
+  return [...mods, key].join('-')
+}
+
+/**
+ * Wrap the selection in `open` and `close` and keep it selected, so a second press
  * wraps again: `*` twice gives `**bold**`, `~` twice gives
  * `~~struck~~`. ⌘B, ⌘I and ⌘E toggle, as in Obsidian.
  *
  * With no selection it does nothing and the key types normally.
  * Only then may a command take a bare key.
  */
-export function wrapWith(mark: string): Command {
+export function wrapWith(open: string, close = open): Command {
   return (view) => {
     const { from, to } = view.state.selection.main
     if (from === to) return false
     view.dispatch(
       view.state.update({
         changes: [
-          { from, to: from, insert: mark },
-          { from: to, to, insert: mark },
+          { from, insert: open },
+          { from: to, insert: close },
         ],
-        selection: { anchor: from + mark.length, head: to + mark.length },
+        selection: { anchor: from + open.length, head: to + open.length },
         scrollIntoView: true,
       })
     )
@@ -257,13 +261,7 @@ export function deleteWikiLinkPair(view: EditorView): boolean {
   if (from !== to) return false
   if (view.state.sliceDoc(from - 2, from) !== '[[') return false
   if (view.state.sliceDoc(to, to + 2) !== ']]') return false
-  view.dispatch(
-    view.state.update({
-      changes: { from: from - 2, to: to + 2 },
-      selection: { anchor: from - 2 },
-      scrollIntoView: true,
-    })
-  )
+  view.dispatch(view.state.update({ changes: { from: from - 2, to: to + 2 }, selection: { anchor: from - 2 }, scrollIntoView: true }))
   return true
 }
 
@@ -274,13 +272,7 @@ export function wrapInWikiLink(view: EditorView): boolean {
   // in the middle, so the popup opens. A single `[` is ordinary punctuation.
   if (from === to) {
     if (from === 0 || view.state.sliceDoc(from - 1, from) !== '[') return false
-    view.dispatch(
-      view.state.update({
-        changes: { from, insert: '[]]' },
-        selection: { anchor: from + 1 },
-        scrollIntoView: true,
-      })
-    )
+    view.dispatch(view.state.update({ changes: { from, insert: '[]]' }, selection: { anchor: from + 1 }, scrollIntoView: true }))
     return true
   }
 
@@ -306,17 +298,7 @@ export function wrapInWikiLink(view: EditorView): boolean {
 
   // The first bracket wraps and keeps the selection, so a second
   // press can make the link.
-  view.dispatch(
-    view.state.update({
-      changes: [
-        { from, to: from, insert: '[' },
-        { from: to, to, insert: ']' },
-      ],
-      selection: { anchor: from + 1, head: to + 1 },
-      scrollIntoView: true,
-    })
-  )
-  return true
+  return wrapWith('[', ']')(view)
 }
 
 /**
@@ -327,8 +309,7 @@ export function insertTimeKeymap(insertTime: () => string | null) {
   return {
     any: (view: EditorView, event: KeyboardEvent) => {
       const combo = insertTime()
-      if (!combo) return false
-      const want = cmKey(combo)
+      const want = combo && cmKey(combo)
       if (!want || keyNameOf(event) !== want) return false
       const at = view.state.selection.main
       // The space is part of the stamp. `LEADING_CLOCK` needs a space or the

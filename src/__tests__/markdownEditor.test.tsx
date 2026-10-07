@@ -933,6 +933,32 @@ describe('the mounted editor', () => {
     expect(state.selection.main.head).toBe(state.doc.line(4).from)
   })
 
+  /**
+   * The file as written elsewhere reaches the open editor as a change, with the caret
+   * kept and out of the undo history, so ⌘Z does not take back an agent's write.
+   */
+  it('takes a write made elsewhere as a change, keeping the caret, and not as an undo step', () => {
+    const changed = vi.fn()
+    const props = { initialMarkdown: 'one\ntwo\nthree', onChange: changed }
+    const { container, rerender } = render(<MarkdownEditor {...props} />)
+    const view = viewOf(container)
+    view.dispatch({ selection: { anchor: 2 } })
+    rerender(<MarkdownEditor {...props} incoming={{ text: 'one\nTWO, as written\nthree', n: 1 }} />)
+    expect(view.state.sliceDoc()).toBe('one\nTWO, as written\nthree')
+    expect(view.state.selection.main.head).toBe(2)
+    fireEvent.keyDown(view.contentDOM, { key: 'z', metaKey: true })
+    expect(view.state.sliceDoc()).toBe('one\nTWO, as written\nthree')
+  })
+
+  // Compared in the file's characters, where `\r\n` is two, the change took a `\r`
+  // into the line, and the next save wrote it.
+  it('takes a write made elsewhere into a CRLF note as just that change', () => {
+    const props = { initialMarkdown: 'one\r\ntwo\r\nthree', onChange: () => {} }
+    const { container, rerender } = render(<MarkdownEditor {...props} />)
+    rerender(<MarkdownEditor {...props} incoming={{ text: 'one\r\nTWO\r\nthree', n: 1 }} />)
+    expect(viewOf(container).state.sliceDoc()).toBe('one\r\nTWO\r\nthree')
+  })
+
   it('does not fire for a selection move', () => {
     const changed = vi.fn()
     const { container } = render(<MarkdownEditor initialMarkdown="one two" onChange={changed} />)

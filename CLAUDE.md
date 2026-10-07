@@ -150,7 +150,9 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   history, and only with no typing queued. Rebuilt, the editor put the caret at a
   daily note's end and lost its folds and undo after every agent write, and keys
   pressed during the re-read went into an editor about to be replaced. A change that
-  leaves the text as it is on disk queues no save.
+  leaves the text as it is on disk queues no save. The change is worked out in the
+  document's terms, where a line break is one character: in the file's, a CRLF note
+  took a `\r` into the changed line, and the save wrote it.
 - **A key never deletes what a fold hides** (`keepFolded`): the fold opens and the
   key does nothing. A fold is atomic to the cursor, so Backspace after `#diet …` took
   the heading's five hidden lines, unseen, and the next round committed it.

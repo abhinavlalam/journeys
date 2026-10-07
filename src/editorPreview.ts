@@ -111,13 +111,18 @@ export function taskAt(
   return hit ? { from: line.from + hit[1].length, mark: hit[2] } : null
 }
 
-/** Whether `pos` is in a fenced code block, where `[ ]` is only text. */
-function inFence(state: EditorState, pos: number): boolean {
+/** Whether `pos` is inside a node of one of these kinds. */
+function inside(state: EditorState, pos: number, kinds: readonly string[]): boolean {
   for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, 1); node; node = node.parent) {
-    if (node.name === 'FencedCode') return true
+    if (kinds.includes(node.name)) return true
   }
   return false
 }
+
+/** A fenced block, where `[ ]` is only text and an indent is the code's own. */
+const FENCE = ['FencedCode']
+/** Code: a fence, an indented block, or a backtick span. */
+const CODE = ['FencedCode', 'CodeBlock', 'InlineCode']
 
 /** A press checks an open task and clears any other state. */
 export function toggledTask(mark: string): string {
@@ -280,6 +285,9 @@ const spaceHang = (spaces: number) => `calc(${spaces} * var(--space-w))`
 
 /** A property's name, in the timestamp's colour. */
 const propertyKey = Decoration.mark({ class: 'cm-md-property' })
+const linkMark = Decoration.mark({ class: 'cm-md-link' })
+const tagMark = Decoration.mark({ class: 'cm-md-tag' })
+const stampMark = Decoration.mark({ class: 'cm-md-stamp' })
 
 /**
  * True when the selection reaches `[from, to]`, ends included,
@@ -287,14 +295,6 @@ const propertyKey = Decoration.mark({ class: 'cm-md-property' })
  */
 function touched(state: EditorState, from: number, to: number): boolean {
   return state.selection.ranges.some((range) => range.from <= to && range.to >= from)
-}
-
-/** Whether `pos` is in code: a fence, an indented block, or a backtick span. */
-function inCode(state: EditorState, pos: number): boolean {
-  for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, 1); node; node = node.parent) {
-    if (node.name === 'FencedCode' || node.name === 'CodeBlock' || node.name === 'InlineCode') return true
-  }
-  return false
 }
 
 /**
@@ -342,11 +342,7 @@ export function livePreviewDecorations(
   for (let n = firstLine; n <= lastLine; n++) {
     const line = state.doc.line(n)
     const stamp = LEADING_CLOCK.exec(line.text)
-    if (stamp) {
-      found.push(
-        Decoration.mark({ class: 'cm-md-stamp' }).range(line.from, line.from + stamp[1].length)
-      )
-    }
+    if (stamp) found.push(stampMark.range(line.from, line.from + stamp[1].length))
 
     const editing = touched(state, line.from, line.to)
     // A block property's name is syntax: `amount:: 480` reads `480`, and a
@@ -356,7 +352,7 @@ export function livePreviewDecorations(
     if (line.from >= propertiesEnd) {
       const types = state.facet(propertyTypes)()
       for (const one of blockProperties(line.text, (name) => typeOf(types, name))) {
-        if (inCode(state, line.from + one.from)) continue
+        if (inside(state, line.from + one.from, CODE)) continue
         const label = { from: line.from + one.from, to: line.from + one.valueFrom }
         if (!one.valid) {
           found.push(invalidProperty.range(label.from, label.to))
@@ -394,9 +390,9 @@ export function livePreviewDecorations(
   // Neither in code, which reads as written.
   for (const hit of text.matchAll(WIKILINK)) {
     const at = from + (hit.index ?? 0)
-    if (inCode(state, at)) continue
+    if (inside(state, at, CODE)) continue
     const end = at + hit[0].length
-    found.push(Decoration.mark({ class: 'cm-md-link' }).range(at, end))
+    found.push(linkMark.range(at, end))
     if (touched(state, at, end)) continue
     // A path is not a name: with no alias, only the last segment shows (`noteName`).
     // `|!2` shows the last two, and the whole target shows with the caret on it.
@@ -412,24 +408,22 @@ export function livePreviewDecorations(
    */
   for (const hit of text.matchAll(TAG)) {
     const at = from + (hit.index ?? 0) + hit[1].length
-    if (inCode(state, at)) continue
-    found.push(Decoration.mark({ class: 'cm-md-tag' }).range(at, at + hit[2].length + 1))
+    if (inside(state, at, CODE)) continue
+    found.push(tagMark.range(at, at + hit[2].length + 1))
   }
+
+  // `---` is drawn as a rule when the caret is elsewhere, and shown as text when it is
+  // on it. The page block's own pair is drawn too, as a fence.
+  const rule = (at: number, end: number) =>
+    found.push(touched(state, at, end) ? markerMark.range(at, end) : (at < propertiesEnd ? fenceDeco : ruleDeco).range(at, end))
 
   syntaxTree(state).iterate({
     from,
     to,
     enter: (node) => {
-      // `---` is drawn as a rule when the caret is elsewhere, and shown as
-      // text when it is on it. The page block's own pair is drawn too; the
-      // parser sees the closing one as a setext underline, handled below.
+      // The parser sees the page block's closing `---` as a setext underline, handled below.
       if (node.name === 'HorizontalRule') {
-        if (!fillsItsLine(state, node.from, node.to)) return
-        found.push(
-          touched(state, node.from, node.to)
-            ? markerMark.range(node.from, node.to)
-            : (node.from < propertiesEnd ? fenceDeco : ruleDeco).range(node.from, node.to)
-        )
+        if (fillsItsLine(state, node.from, node.to)) rule(node.from, node.to)
         return
       }
 
@@ -441,12 +435,7 @@ export function livePreviewDecorations(
         if (!mark || !fillsItsLine(state, mark.from, mark.to)) return
         // At least three dashes: a setext underline can be one,
         // and a lone `-` starts a list item.
-        if (mark.to - mark.from < MIN_RULE) return
-        found.push(
-          touched(state, mark.from, mark.to)
-            ? markerMark.range(mark.from, mark.to)
-            : (mark.from < propertiesEnd ? fenceDeco : ruleDeco).range(mark.from, mark.to)
-        )
+        if (mark.to - mark.from >= MIN_RULE) rule(mark.from, mark.to)
         return
       }
 
@@ -465,7 +454,7 @@ export function livePreviewDecorations(
         // CommonMark also reads the inner `[x]` of a `[[wikilink]]` as a
         // `Link`; requiring a `URL` child keeps it from being marked twice.
         if (node.name === 'Link' && !node.node.getChild('URL')) return
-        found.push(Decoration.mark({ class: 'cm-md-link' }).range(node.from, node.to))
+        found.push(linkMark.range(node.from, node.to))
         if (touched(state, node.from, node.to)) return
         for (let child = node.node.firstChild; child; child = child.nextSibling) {
           // The label is what is left after the brackets and the
@@ -479,7 +468,7 @@ export function livePreviewDecorations(
       if (node.name === 'URL') {
         const parent = node.node.parent
         if (parent && (parent.name === 'Link' || parent.name === 'Autolink')) return
-        found.push(Decoration.mark({ class: 'cm-md-link' }).range(node.from, node.to))
+        found.push(linkMark.range(node.from, node.to))
         return
       }
 
@@ -524,7 +513,7 @@ export function livePreviewDecorations(
     const line = state.doc.line(n)
     const spaces = line.text.search(/\S/)
     // Not in a fence: code keeps its own indent, and the block's inset is its own.
-    const fenced = inFence(state, line.from)
+    const fenced = inside(state, line.from, FENCE)
     if (spaces > 0 && !fenced) found.push(hangingLine(spaceHang(spaces)).range(line.from))
     const task = TASK_LINE.exec(line.text)
     if (!task || fenced) continue
