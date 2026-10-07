@@ -19,6 +19,8 @@ export type Tab =
   | { kind: 'calendar'; id: number }
   /** The daily notes as each day happened. */
   | { kind: 'timeline'; id: number }
+  /** Every `#task` line, by when it is due. */
+  | { kind: 'tasks'; id: number }
   /** Everything the app has said in this window. */
   | { kind: 'log'; id: number }
   | { kind: 'settingsFile'; id: number }
@@ -104,6 +106,8 @@ export function tabLabel(tab: Tab): string {
       return 'Calendar'
     case 'timeline':
       return 'Timeline'
+    case 'tasks':
+      return 'Tasks'
     case 'log':
       return 'Log'
     case 'settingsFile':

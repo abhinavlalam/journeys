@@ -47,6 +47,15 @@ export function chevronMarkup(open: boolean): string {
   }" ${CHEVRON.stroke}/></svg>`
 }
 
+/** The tick in a done task, as `checkMarkup` draws it in a note. */
+export function CheckIcon() {
+  return (
+    <svg {...GRID_10} fill="none" aria-hidden="true">
+      <path d={CHECK.path} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg {...GRID_10} fill="none" aria-hidden="true">

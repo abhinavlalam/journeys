@@ -4348,16 +4348,74 @@ button.folder-toggle {
   font-weight: var(--fw-prose);
 }
 
-/* A timeline entry being edited: the note's editor on one line,
-   in the row's type and space, with no inset, paragraph gap or
-   pane padding. Four classes, over the editor's three. */
-.timeline-edit .code-editor .cm-editor .cm-scroller {
+/* ---- Tasks ---- */
+
+/* A task: its box, then the row that opens its note. The box is a note's checkbox
+   (`.cm-md-task-box`), so a task looks the same on its page as in its note. It
+   takes the chevron's column, which a task has no use for. */
+.task-row {
+  display: flex;
+  align-items: center;
+  gap: var(--icon-gap);
+}
+
+.task-row > .file-row,
+.task-row > .task-what {
+  flex: 1;
+  min-width: 0;
+}
+
+.task-row .folder-chevron {
+  display: none;
+}
+
+.task-box {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--glyph);
+  height: var(--glyph);
+  padding: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--text-faint);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--on-accent);
+  transition:
+    background-color var(--motion),
+    border-color var(--motion);
+}
+
+button.task-box {
+  cursor: pointer;
+}
+
+button.task-box:hover {
+  border-color: var(--mark);
+}
+
+/* Done takes the mark as a ground, with the tick in `--on-accent`, and its words
+   step back, as a done item's do in a note. */
+.task-row.done .task-box {
+  border-color: var(--mark);
+  background: var(--mark);
+}
+
+.task-row.done .row-name {
+  color: var(--text-dim);
+}
+
+/* A line being edited (a timeline entry, a new task): the note's editor on one
+   line, in the row's type and space, with no inset, paragraph gap or pane
+   padding. Four classes, over the editor's three. */
+.line-edit .code-editor .cm-editor .cm-scroller {
   font-size: inherit;
   line-height: inherit;
 }
 
-.timeline-edit .code-editor .cm-editor .cm-content,
-.timeline-edit .code-editor .cm-editor .cm-line {
+.line-edit .code-editor .cm-editor .cm-content,
+.line-edit .code-editor .cm-editor .cm-line {
   padding: 0;
 }
 

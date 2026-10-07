@@ -46,6 +46,8 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 | `configEntries.ts`, `useConfigEntries.ts` | A `.config` file of entries keyed by name (`properties.json`): merged on write, never written over when unreadable. |
 | `calendar.ts`, `ics.ts`, `calendarSync.ts`, `useCalendarSync.ts`, `CalendarView.tsx` | The calendar. |
 | `timeline.ts` / `TimelineView.tsx` | The daily notes as each day happened / its page. |
+| `tasks.ts` / `TasksView.tsx` | Every `#task` line by when it is due / its page. |
+| `LineEditor.tsx` | One line in the note's own editor, for a page that takes typing (an entry, a task). |
 | `useLog.ts` / `LogView.tsx` | What the app says: shown a while, kept in the Log / its page. |
 | `crypto.ts`, `useLocks.ts`, `useAutoLock.ts` | Locked notes: the format and the passphrases held / asking and locking / the clock. |
 | `sync.ts`, `useSync.ts`, `src-tauri/src/sync.rs` | Git sync. |
@@ -445,6 +447,21 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   (`#timeline` unset), made at the end if missing — indented as the lines beside it are. It is filed as typed: with no clock it is a line of the note,
   not on the timeline (it was stamped with the time, and the owner asked for it
   not to be). Today's note is made then, with the icon only, as ⌘⇧O makes it.
+
+## Tasks
+
+- **An application over `#task` lines** (the owner's choice: the tag the vault already
+  declares, with `project`, `due` and `status`; checkboxes are not tasks here). Read from
+  `collectTag`, so it is one more memo over the one read and follows typing.
+- **By when it is due** (`tasksByWhen`): Overdue, Today, This week (to the end of the
+  locale's week, `firstWeekday`), Later, No date, and Done folded. A row says only what
+  its group does not: an overdue task's age, a weekday this week, a date later.
+- **Done is written into the task's own line** (`withDone`: `status:: done`, over any
+  other status; taken back by removing the status) through `withEditedEntry`, refused if
+  the line has changed. The box is a note's checkbox, so a task looks the same in both.
+- **A task typed at the top goes into today's note**, filed as a timeline entry is
+  (`withNewEntry`: a tag with a structure is a record at the day's top level). The line
+  starts as `#task `, so the tag's properties are offered; the tag alone is no task.
 
 ## Sync
 

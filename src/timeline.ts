@@ -167,7 +167,7 @@ function runEnd(lines: readonly string[], at: number): number {
  * indent and line ending. Null when that line is no longer the
  * entry, because the note changed since it was read.
  */
-export function withEditedEntry(raw: string, entry: TimelineEntry, text: string): string | null {
+export function withEditedEntry(raw: string, entry: { at: number; text: string }, text: string): string | null {
   const lines = raw.split('\n')
   const line = lines[entry.at]
   if (line === undefined || line.trim() !== entry.text) return null

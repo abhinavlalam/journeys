@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { clockText, dayDate, lengthOf, localDateStamp, nearDay } from './clock'
-import type { Entries } from './configEntries'
-import { MarkdownEditor } from './MarkdownEditor'
+import { LineEditor, type Typing } from './LineEditor'
 import { onAndroid } from './platform'
 import type { PropertyType } from './properties'
 import { countOf, NoteRow, READING, RowIcon, Section, stepIn } from './rows'
@@ -20,17 +19,6 @@ interface Opens {
   /** A link's target, and whether it was a `[[wikilink]]` rather than a markdown link or an address. */
   onOpenLink: (target: string, wiki: boolean) => void
   onOpenTag: (tag: string) => void
-}
-
-/**
- * What an entry's editor types with, as a note's does: the `[[` popup's
- * notes, the property popup's structures and types, and the time key.
- */
-interface Typing {
-  notes: VaultFile[]
-  propertyTypes: Entries
-  tagStructures: Entries
-  insertTimeCombo: string | null
 }
 
 /**
@@ -99,7 +87,7 @@ export function TimelineView({
       // Emptied is not deleted: the lines nested under it would lose their parent.
       if (text.trim() !== '' && text.trim() !== entry.text) onEdit(entry, text)
     }
-    return <EntryEditor text={entry.text} typing={typing} onEnter={done} onLeave={done} onEscape={() => setEditing(null)} {...opens} />
+    return <LineEditor className="timeline-what line-edit" text={entry.text} typing={typing} onEnter={done} onLeave={done} onEscape={() => setEditing(null)} {...opens} />
   }
   const newEntry = <NewEntry typing={typing} onAdd={onAdd} rowRef={end} {...opens} />
 
@@ -329,57 +317,6 @@ function Detail({ lines, ...opens }: { lines: readonly string[] } & Opens) {
 }
 
 /**
- * One line in the note's own editor (its syntax, popups, Tab), ended once,
- * by whichever of Enter, Escape or leaving comes first. The press that ends
- * it can also blur it, and a second write would find its line changed.
- */
-function EntryEditor({
-  text,
-  typing,
-  onEnter,
-  onEscape,
-  onLeave,
-  autoFocus,
-  onOpenLink,
-  onOpenTag,
-}: {
-  text: string
-  typing: Typing
-  autoFocus?: boolean
-  onEnter: (text: string) => void
-  onEscape: () => void
-  onLeave?: (text: string) => void
-} & Opens) {
-  const finished = useRef(false)
-  const once = (then: () => void) => {
-    if (finished.current) return
-    finished.current = true
-    then()
-  }
-  return (
-    <span className="timeline-what timeline-edit">
-      <MarkdownEditor
-        initialMarkdown={text}
-        caretAtEnd
-        autoFocus={autoFocus}
-        notes={typing.notes}
-        propertyTypes={typing.propertyTypes}
-        tagStructures={typing.tagStructures}
-        insertTimeCombo={typing.insertTimeCombo}
-        onOpenLink={onOpenLink}
-        onOpenTag={onOpenTag}
-        onChange={() => {}}
-        line={{
-          onEnter: (line) => once(() => onEnter(line)),
-          onEscape: () => once(onEscape),
-          onLeave: onLeave && ((line) => once(() => onLeave(line))),
-        }}
-      />
-    </span>
-  )
-}
-
-/**
  * The line for a new entry at the bottom of today. Enter files it and starts
  * the next; Escape clears it; leaving keeps the draft until it is filed.
  */
@@ -396,8 +333,9 @@ function NewEntry({
     <li className="timeline-entry timeline-new" ref={rowRef}>
       <span className="timeline-when" />
       <span className="timeline-rail" aria-hidden />
-      <EntryEditor
+      <LineEditor
         key={round}
+        className="timeline-what line-edit"
         text=""
         typing={typing}
         // Not on a phone: the page is opened to read, and the keyboard would cover it.

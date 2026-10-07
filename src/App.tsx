@@ -38,8 +38,10 @@ import {
 import { useConfigEntries } from './useConfigEntries'
 import { readEntries } from './configEntries'
 import { coloursOf, dayTotalsOf, propertiesOf, tablesOf, TAG_NAME, TAGS_FILE, viewOf, type DayTotal } from './tags'
-import { withEditedEntry, withNewEntry, type TimelineEntry } from './timeline'
+import { withEditedEntry, withNewEntry } from './timeline'
 import { TimelineView } from './TimelineView'
+import { TasksView } from './TasksView'
+import { readTasks, TASK, withDone } from './tasks'
 import { LogView } from './LogView'
 import { useLog } from './useLog'
 import { GraphView } from './GraphView'
@@ -164,7 +166,8 @@ export default function App() {
       shown?.kind === 'property' ||
       shown?.kind === 'tag' ||
       shown?.kind === 'calendar' ||
-      shown?.kind === 'timeline'
+      shown?.kind === 'timeline' ||
+      shown?.kind === 'tasks'
     )
   })
   /**
@@ -319,6 +322,12 @@ export default function App() {
   const typeOfName = (name: string) => typeOf(propertyTypes.entries, name)
   /** Each tag's daily totals and colour, as set on its page. */
   const dayTotals = useMemo(() => dayTotalsOf(tagStructures.entries, typeOfName), [tagStructures.entries, propertyTypes.entries])
+  /** Every `#task` line, for the Tasks page and its count. */
+  const tasks = useMemo(() => {
+    const collected = collectTag(TASK)
+    return collected && readTasks(collected, typeOfName)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collectTag, propertyTypes.entries])
   const colours = useMemo(() => coloursOf(tagStructures.entries), [tagStructures.entries])
   /** The phone's one place at a time, and where its back gesture goes. */
   const phone = usePhoneNav({
@@ -741,11 +750,12 @@ export default function App() {
    * Rewrites a timeline entry's line in place. Through `mutate`, so
    * pending typing is saved first and open buffers are read again.
    */
-  async function editEntry(entry: TimelineEntry, text: string) {
+  /** A timeline entry's or a task's line written as `text`, in its note, refused if the line has changed. */
+  async function editEntry(entry: { note: VaultFile; at: number; text: string }, text: string) {
     await vault.mutate(
       async () => {
         const next = withEditedEntry(await readVaultFile(entry.note), entry, text)
-        if (next === null) throw new Error(`${entry.note.name} changed since the timeline read it; the entry was not written.`)
+        if (next === null) throw new Error(`${entry.note.name} changed since it was read; the line was not written.`)
         await writeVaultFile(entry.note, next)
         return next
       },
@@ -951,6 +961,14 @@ export default function App() {
     </div>
   )
   const onPage = (kind: TabRequest['kind']) => !phone.browsing && active?.kind === kind
+  /** What a line's editor types with on a page (an entry, a task), as a note's does. */
+  const typing = {
+    notes,
+    propertyTypes: propertyTypes.entries,
+    tagStructures: tagStructures.entries,
+    // Off while the settings are open, as in a note: the shortcut may be being changed.
+    insertTimeCombo: settingsOpen ? null : settings.shortcuts.insertTime,
+  }
 
   // On the phone, one place at a time: Browse is the left pane at full
   // width, a page is the workspace's one tab, and the bar is below both.
@@ -1125,6 +1143,8 @@ export default function App() {
                 { kind: 'calendar', name: 'Calendar', icon: 'calendar', count: 0 },
                 // The daily notes by time, today at the bottom.
                 { kind: 'timeline', name: 'Timeline', icon: 'clock', count: 0 },
+                // Every `#task` line, by when it is due; counted while open.
+                { kind: 'tasks', name: 'Tasks', icon: 'check', count: tasks?.filter((one) => !one.done).length ?? 0 },
                 // Every message the app has shown in this window.
                 { kind: 'log', name: 'Log', icon: 'inbox', count: log.items.length },
               ] as const
@@ -1287,17 +1307,23 @@ export default function App() {
                     totals={dayTotals}
                     colours={colours}
                     typeOf={typeOfName}
-                    typing={{
-                      notes,
-                      propertyTypes: propertyTypes.entries,
-                      tagStructures: tagStructures.entries,
-                      // Off while the settings are open, as in a
-                      // note: the shortcut may be being changed.
-                      insertTimeCombo: settingsOpen ? null : settings.shortcuts.insertTime,
-                    }}
+                    typing={typing}
                     view={settings.timelineView}
                     onView={(timelineView) => changeSettings({ ...settings, timelineView })}
                     onEdit={(entry, text) => void editEntry(entry, text)}
+                    onAdd={(text) => void addEntry(text)}
+                    onOpen={(file) => void openNote(file)}
+                    onOpenLink={openLink}
+                    onOpenTag={(tag) => view('tag', tag)}
+                  />
+                )
+              case 'tasks':
+                return (
+                  <TasksView
+                    tasks={tasks}
+                    typeOf={typeOfName}
+                    typing={typing}
+                    onDone={(task, done) => void editEntry(task, withDone(task.text, done, typeOfName))}
                     onAdd={(text) => void addEntry(text)}
                     onOpen={(file) => void openNote(file)}
                     onOpenLink={openLink}

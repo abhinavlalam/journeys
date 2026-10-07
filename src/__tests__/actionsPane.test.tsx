@@ -87,6 +87,7 @@ describe('where the buttons are', () => {
       'Open the note graph',
       'Calendar',
       'Timeline',
+      'Tasks',
       'Log',
       'Sync',
       'Terminal',
