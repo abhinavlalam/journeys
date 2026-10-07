@@ -411,7 +411,9 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   owner's settings, not rules in the code** (`dayTotalsOf`, `totals` in a tag's
   `tags.json` entry, set under Daily totals on its page): for each `number` property,
   how it is combined (`COMBINES`), its label and where it shows (the timeline's card,
-  the day's note, both). Unset, a table tag's `number` properties, summed. `totalsOf`
+  the day's note, both). Unset, the tag's `number` properties, summed, whatever its
+  view (tied to the table view, switching `#food` to a list took its calories off
+  every day). `totalsOf`
   reads every line of the day carrying the tag, timed or not, and only plain numbers:
   a built-in `~` for estimates was taken out as hardcoding the owner's notation.
 - **A tag's colour is its setting** (`color`, one of `TAG_COLOURS`, the palette's

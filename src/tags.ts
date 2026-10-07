@@ -216,15 +216,17 @@ const oneOf = <T extends string>(values: readonly T[], value: unknown, fallback:
 
 /**
  * Each tag's daily totals: `totals` in its `tags.json` entry, set on its page, each a
- * property and how it is combined, labelled and shown. Unset, a table tag's `number`
- * properties, summed. A property no longer a `number` drops out. Nothing is read from
+ * property and how it is combined, labelled and shown. Unset, the tag's `number`
+ * properties, summed, however its lines are drawn: tied to the table view, switching
+ * `#food` to a list took its calories off every day. A property no longer a `number`
+ * drops out. Nothing is read from
  * a value but its digits: what a value means is the owner's to say here.
  */
 export function dayTotalsOf(entries: Entries, typeOf: (name: string) => PropertyType): Record<string, DayTotal[]> {
   return Object.fromEntries(
     Object.keys(entries).flatMap((tag) => {
       const chosen = entries[tag]?.totals
-      const listed: unknown[] = Array.isArray(chosen) ? chosen : viewOf(entries, tag) === 'table' ? propertiesOf(entries, tag) : []
+      const listed: unknown[] = Array.isArray(chosen) ? chosen : propertiesOf(entries, tag)
       const totals = listed.flatMap((one): DayTotal[] => {
         const given = typeof one === 'string' ? { property: one } : one && typeof one === 'object' ? (one as Record<string, unknown>) : {}
         const property = typeof given.property === 'string' ? given.property : ''

@@ -182,16 +182,18 @@ describe('a day’s totals', () => {
   const typeOf = (name: string) => (['amount', 'calories', 'dose'].includes(name) ? ('number' as const) : ('text' as const))
   const sum = (property: string) => ({ property, by: 'sum', label: '', show: 'both' })
 
-  it('are a table tag’s number properties, summed, until set, and then exactly what is set', () => {
+  it('are a tag’s number properties, summed, until set, and then exactly what is set', () => {
     const entries = {
       expense: { properties: ['amount', 'merchant'] },
       food: { properties: ['item', 'calories'], totals: [{ property: 'calories', by: 'average', label: 'eaten', show: 'note' }] },
       supplement: { properties: ['dose'], view: 'list' },
       walk: { properties: [] },
     }
+    // A list is totalled as a table is: how a tag's lines are drawn is not what it adds up.
     expect(dayTotalsOf(entries, typeOf)).toEqual({
       expense: [sum('amount')],
       food: [{ property: 'calories', by: 'average', label: 'eaten', show: 'note' }],
+      supplement: [sum('dose')],
     })
     expect(dayTotalsOf({ expense: { properties: ['amount'], totals: [] } }, typeOf)).toEqual({})
   })
