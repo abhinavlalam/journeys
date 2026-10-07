@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { ViewerHeader } from './ViewerHeader'
 import { countOf, NoteRow, READING, RowIcon, Section, stepIn } from './rows'
 import { ChevronIcon } from './icons'
-import { clockStart, dayDate, dayTitle, daysAfter, localDateStamp, longDay, relativeDay } from './clock'
+import { clockStart, dayDate, daysAfter, dayTitle, localDateStamp, longDay, monthName, relativeDay, shortWeekday } from './clock'
 import {
   dueReminders,
   firstWeekday,
@@ -224,7 +224,7 @@ function MonthPage({
       <div className="calendar-grid">
         {grid.slice(0, 7).map((day) => (
           <span key={day} className="calendar-weekday">
-            {weekdayName.format(dayDate(day))}
+            {shortWeekday.format(dayDate(day))}
           </span>
         ))}
         {grid.map((day) => {
@@ -265,6 +265,4 @@ function MonthPage({
   )
 }
 
-const weekdayName = new Intl.DateTimeFormat(undefined, { weekday: 'short' })
-const monthName = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' })
 

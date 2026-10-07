@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
-import { clockText, dayDate, lengthOf, localDateStamp, nearDay } from './clock'
+import { clockText, dayDate, lengthOf, localDateStamp, monthName, nearDay, weekdayName } from './clock'
 import { LineEditor, type Typing } from './LineEditor'
 import { onAndroid } from './platform'
 import type { PropertyType } from './properties'
@@ -212,8 +212,6 @@ function Grid({
   )
 }
 
-const weekday = new Intl.DateTimeFormat(undefined, { weekday: 'long' })
-const month = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' })
 
 /**
  * A day's head, as a journal's page opens: the day's number large, its weekday
@@ -228,8 +226,8 @@ function DayHead({ day, today, count, onOpen }: { day: string; today: string; co
       <button className="journal-date" onClick={onOpen} disabled={!onOpen}>
         <span className="journal-number">{date.getDate()}</span>
         <span className="journal-names">
-          <span className="journal-weekday">{near ? `${near} · ${weekday.format(date)}` : weekday.format(date)}</span>
-          <span className="journal-month">{month.format(date)}</span>
+          <span className="journal-weekday">{near ? `${near} · ${weekdayName.format(date)}` : weekdayName.format(date)}</span>
+          <span className="journal-month">{monthName.format(date)}</span>
         </span>
       </button>
       {count > 0 && <span className="journal-count">{countOf(count, 'entry', 'entries')}</span>}

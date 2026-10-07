@@ -93,8 +93,17 @@ export function agoWord(then: number, now = Date.now()): string {
   return relative.format(Math.round(ms / DAY_MS), 'day')
 }
 
+// The words for a day, in the locale's own. One of each, so every page says a day the same way.
 /** A day as a heading: `Wednesday 24 Sept`. */
 export const longDay = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'short' })
+/** `Wednesday`. */
+export const weekdayName = new Intl.DateTimeFormat(undefined, { weekday: 'long' })
+/** `Wed`, for a calendar's columns. */
+export const shortWeekday = new Intl.DateTimeFormat(undefined, { weekday: 'short' })
+/** `24 Sept`. */
+export const shortDate = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
+/** `September 2026`. */
+export const monthName = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' })
 
 /** `Today`, `Yesterday` or `Tomorrow` for a day within one of today, else null: what a day's heading leads with. */
 export function nearDay(day: string, today: string): string | null {

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { firstWeekday } from './calendar'
-import { dayDate, localDateStamp, relativeDay } from './clock'
+import { dayDate, localDateStamp, relativeDay, shortDate, weekdayName } from './clock'
 import { CheckIcon, ChevronIcon } from './icons'
 import { LineEditor, type Typing } from './LineEditor'
 import { Live } from './Live'
@@ -16,8 +16,6 @@ interface Opens {
   onOpenTag: (tag: string) => void
 }
 
-const weekday = new Intl.DateTimeFormat(undefined, { weekday: 'long' })
-const shortDate = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
 
 /** When a task is due, in words; by due date, Today's group already says so. */
 function dueWords(task: Task, today: string, firstDay: number, byDue: boolean): string {
@@ -25,7 +23,7 @@ function dueWords(task: Task, today: string, firstDay: number, byDue: boolean): 
   if (!task.due || when === 'Done') return ''
   if (when === 'Today') return byDue ? '' : 'today'
   if (when === 'Overdue') return relativeDay(task.due, today)
-  if (when === 'This week') return weekday.format(dayDate(task.due))
+  if (when === 'This week') return weekdayName.format(dayDate(task.due))
   return shortDate.format(dayDate(task.due))
 }
 

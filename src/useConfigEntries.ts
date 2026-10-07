@@ -57,7 +57,7 @@ export function useConfigEntries(vaultPath: string | null, file: string, onError
     try {
       await writeConfigFile(vaultPath, file, next)
     } catch (err) {
-      onError(String(err))
+      onError(`Could not write ${file}: ${String(err)}`)
       return
     }
     setEntries((current) => ({ ...current, [name]: { ...current[name], ...fields } }))
