@@ -161,12 +161,12 @@ describe('a tag’s line from a form', () => {
 
 /** What a tag's table shows as a line's own words: the calendar's reading of an event's title. */
 describe('a line’s own words', () => {
-  const typeOf = (name: string) => (name === 'dose' || name === 'amount' ? ('number' as const) : ('text' as const))
+  const typeOf = (name: string) => (name === 'water' || name === 'amount' ? ('number' as const) : ('text' as const))
 
   it('leaves out the clock, the tags, the values and a leading list mark', () => {
-    expect(lineWords('08:45 #supplement [[Supplements/Fish Oil]] dose:: 2', typeOf)).toBe('[[Supplements/Fish Oil]]')
+    expect(lineWords('08:45 #plant [[Plants/Fern]] water:: 2', typeOf)).toBe('[[Plants/Fern]]')
     expect(lineWords('09:15 - #youtube [[Tide tables]] link:: https://example.com/tides', typeOf)).toBe('[[Tide tables]]')
-    expect(lineWords('- #task Book the retest: vitamin D due:: 2026-12-20', typeOf)).toBe('Book the retest: vitamin D')
+    expect(lineWords('- #task Book the survey: slip 4 due:: 2026-12-20', typeOf)).toBe('Book the survey: slip 4')
     expect(lineWords('- [ ] #task call the harbour', typeOf)).toBe('call the harbour')
     expect(lineWords('#quote Without a goal, you can’t score. by:: [[Mira Vance]]', typeOf)).toBe('Without a goal, you can’t score.')
   })
@@ -179,28 +179,28 @@ describe('a line’s own words', () => {
 
 /** What a day totals, and how, set per tag on its page. */
 describe('a day’s totals', () => {
-  const typeOf = (name: string) => (['amount', 'calories', 'dose'].includes(name) ? ('number' as const) : ('text' as const))
+  const typeOf = (name: string) => (['amount', 'calories', 'water'].includes(name) ? ('number' as const) : ('text' as const))
   const sum = (property: string) => ({ property, by: 'sum', label: '', show: 'both' })
 
   it('are a tag’s number properties, summed, until set, and then exactly what is set', () => {
     const entries = {
       expense: { properties: ['amount', 'merchant'] },
       food: { properties: ['item', 'calories'], totals: [{ property: 'calories', by: 'average', label: 'eaten', show: 'note' }] },
-      supplement: { properties: ['dose'], view: 'list' },
+      plant: { properties: ['water'], view: 'list' },
       walk: { properties: [] },
     }
     // A list is totalled as a table is: how a tag's lines are drawn is not what it adds up.
     expect(dayTotalsOf(entries, typeOf)).toEqual({
       expense: [sum('amount')],
       food: [{ property: 'calories', by: 'average', label: 'eaten', show: 'note' }],
-      supplement: [sum('dose')],
+      plant: [sum('water')],
     })
     expect(dayTotalsOf({ expense: { properties: ['amount'], totals: [] } }, typeOf)).toEqual({})
   })
 
   it('read a bare name as a sum shown in both places, and an unknown setting as its default', () => {
-    expect(dayTotalsOf({ expense: { totals: ['amount', { property: 'dose', by: 'median', show: 'everywhere' }] } }, typeOf)).toEqual({
-      expense: [sum('amount'), sum('dose')],
+    expect(dayTotalsOf({ expense: { totals: ['amount', { property: 'water', by: 'median', show: 'everywhere' }] } }, typeOf)).toEqual({
+      expense: [sum('amount'), sum('water')],
     })
   })
 

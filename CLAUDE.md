@@ -351,7 +351,7 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 - `LineTable` is read-only (a cell edit is a write through a partial parse), takes
   its columns and a reader of a line's values, leads with the note, adds `when` and
   `what` (`lineWords`: the line without clock, tags and values; on a prose tag the
-  table had doses and no supplement), reads every cell by `Live`, as a property's page
+  table had amounts and not what they were for), reads every cell by `Live`, as a property's page
   reads its values (a `[[link]]` or an address opens), drops a column no line fills,
   sums a tag's `number` columns, and resizes columns (`useColumnWidths`: auto until
   the first drag, then fixed).

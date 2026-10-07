@@ -67,21 +67,21 @@ describe('a tag’s page', () => {
     expect(sum).toEqual(['sum', '', '', '485', '', ''])
   })
 
-  /** A tag whose subject is prose: without its words, the table listed doses and not what was taken. */
+  /** A tag whose subject is prose: without its words, the table listed amounts and not what they were for. */
   it('shows each line’s own words, its links by their names, and no column for a tag that has none', async () => {
-    disk.write('/v/.config/tags.json', JSON.stringify({ expense: { properties: ['amount'] }, supplement: { properties: ['dose'] } }))
+    disk.write('/v/.config/tags.json', JSON.stringify({ expense: { properties: ['amount'] }, plant: { properties: ['water'] } }))
     disk.write(
       '/v/Daily/2026-09-24.md',
-      ['08:45 #supplement [[Fish Oil|fish oil]] dose:: "2 tablets"', '- #supplement Vitamin D, with breakfast dose:: 1', '09:00 #expense amount:: 5', ''].join('\n')
+      ['08:45 #plant [[Fern|the fern]] water:: "2 cups"', '- #plant Basil, by the window water:: 1', '09:00 #expense amount:: 5', ''].join('\n')
     )
     const { default: App } = await import('../App')
     render(<App />)
     await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
     fireEvent.click(screen.getByLabelText('Expand all actions'))
-    fireEvent.click(await waitFor(() => pane().getByText('supplement')))
+    fireEvent.click(await waitFor(() => pane().getByText('plant')))
     const cells = () => [...document.querySelectorAll('.line-table tbody tr')].map((tr) => tr.querySelectorAll('td')[2]?.textContent)
-    await waitFor(() => expect(cells()).toEqual(['fish oil', 'Vitamin D, with breakfast']))
-    expect(viewer().getByRole('button', { name: 'fish oil' })).toBeTruthy()
+    await waitFor(() => expect(cells()).toEqual(['the fern', 'Basil, by the window']))
+    expect(viewer().getByRole('button', { name: 'the fern' })).toBeTruthy()
 
     // `#expense` lines are all properties, and their table is as it was.
     fireEvent.click(pane().getByText('expense'))

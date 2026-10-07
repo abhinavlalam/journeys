@@ -60,8 +60,8 @@ export function tagLine(
 /**
  * A line's own words, for a tag's table: the line without its clock, its tags, its
  * `name:: value`s and a leading list mark, as the calendar reads an event's title.
- * Without them, `#supplement` listed doses and not what was taken, and `#task` due
- * dates and not the task. A line that is all properties has none.
+ * Without them, a tag of measured things listed its amounts and not what they were
+ * for, and `#task` its due dates and not the task. A line that is all properties has none.
  */
 export function lineWords(line: string, typeOf: (name: string) => PropertyType): string {
   let words = ''

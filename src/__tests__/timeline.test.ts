@@ -63,10 +63,10 @@ describe('a day’s entries', () => {
   })
 
   it('files an entry under the innermost of nested groups, and reads no code', () => {
-    const nested = ['#diet', '     #supplement', '          08:00 omega', '     09:00 #food toast', '```', '10:00 not an entry', '```'].join('\n')
+    const nested = ['#garden', '     #plant', '          08:00 fern', '     09:00 weeded the beds', '```', '10:00 not an entry', '```'].join('\n')
     expect(summary(nested)).toEqual([
-      ['08:00', 'supplement', '08:00 omega'],
-      ['09:00', 'diet', '09:00 #food toast'],
+      ['08:00', 'plant', '08:00 fern'],
+      ['09:00', 'garden', '09:00 weeded the beds'],
     ])
   })
 })
