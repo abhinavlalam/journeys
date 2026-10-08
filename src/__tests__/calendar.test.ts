@@ -70,11 +70,17 @@ describe('eventLine', () => {
     expect(eventLine(EVENT_PROPERTIES, one, 'Work')).toBe('09:30 to 10:00 #event Standup source:: Work')
   })
 
-  it('has no clock for an all-day event, and only a start for one that runs past midnight', () => {
-    const day = first('BEGIN:VEVENT\nUID:b\nDTSTART;VALUE=DATE:20260924\nSUMMARY:Offsite\nLOCATION:Goa\nEND:VEVENT')
+  /** With only its start, a flight past midnight was a moment at 23:00, and an offsite over three days was on its first. */
+  it('has no clock for an all-day event, keeps a late one’s end, and says the day one over days ends', () => {
+    const day = first('BEGIN:VEVENT\nUID:b\nDTSTART;VALUE=DATE:20260924\nDTEND;VALUE=DATE:20260925\nSUMMARY:Offsite\nLOCATION:Goa\nEND:VEVENT')
     expect(eventLine(EVENT_PROPERTIES, day, '')).toBe('#event Offsite at:: Goa')
+    const days = first('BEGIN:VEVENT\nUID:e\nDTSTART;VALUE=DATE:20260924\nDTEND;VALUE=DATE:20260927\nSUMMARY:Offsite\nEND:VEVENT')
+    expect(eventLine(EVENT_PROPERTIES, days, '')).toBe('#event Offsite ends:: 2026-09-26')
     const late = first('BEGIN:VEVENT\nUID:c\nDTSTART:20260924T230000\nDTEND:20260925T010000\nSUMMARY:Flight\nEND:VEVENT')
-    expect(eventLine(EVENT_PROPERTIES, late, '')).toBe('23:00 #event Flight')
+    expect(eventLine(EVENT_PROPERTIES, late, '')).toBe('23:00 to 01:00 #event Flight ends:: 2026-09-25')
+    // Ending at midnight is ending on the day it started.
+    const evening = first('BEGIN:VEVENT\nUID:f\nDTSTART:20260924T220000\nDTEND:20260925T000000\nSUMMARY:Gig\nEND:VEVENT')
+    expect(eventLine(EVENT_PROPERTIES, evening, '')).toBe('22:00 to 00:00 #event Gig')
   })
 
   it('carries the people and the reminder, and not the rule', () => {

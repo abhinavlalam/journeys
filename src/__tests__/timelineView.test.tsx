@@ -111,6 +111,31 @@ describe('the timeline', () => {
     expect(lineIn(days()[1])).toBeNull()
   })
 
+  /**
+   * An entry past midnight is on the day it was written, going on, and on the next day,
+   * come from the day before: the same line, which a press there edits where it is.
+   */
+  it('shows an entry past midnight on both days, and edits its line from either', async () => {
+    disk.write('/v/Daily/2026-09-20.md', '08:00 #walk by the river\n23:30 to 07:00 night train\n')
+    await openTimeline()
+    const [first, second] = days()
+    expect(entries(first).at(-1)).toEqual(['23:30–until tomorrow, 07:00', 'night train', 'block'])
+    expect(entries(second)[0]).toEqual(['–07:00since yesterday, 23:30', 'night train', 'block'])
+    expect(second.querySelector('.timeline-entry')!.classList.contains('from-before')).toBe(true)
+    // The day's own entries are what it counts.
+    expect(second.querySelector('.journal-count')!.textContent).toBe('5 entries')
+
+    fireEvent.click(within(second as HTMLElement).getByText('night train'))
+    const field = await waitFor(() => lineIn(days()[1])!)
+    fireEvent.change(field, { target: { value: '23:30 to 06:40 night train' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    await waitFor(() => expect(disk.read('/v/Daily/2026-09-20.md')).toBe('08:00 #walk by the river\n23:30 to 06:40 night train\n'))
+
+    // In Day, behind the next day's entries, from the top.
+    fireEvent.click(viewer().getByRole('button', { name: 'Day' }))
+    await waitFor(() => expect(days()[1].querySelector('.day-across.from-before')!.textContent).toContain('night train'))
+  })
+
   it('leaves the note as it was on Escape', async () => {
     await openTimeline()
     const before = disk.read('/v/Daily/2026-09-21.md')

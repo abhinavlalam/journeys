@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { clockText, lengthOf } from '../clock'
-import { dayEntries, fieldsOf, timelineDays, totalsOf, withEditedEntry, withNewEntry, wordsOf } from '../timeline'
+import { dayEntries, fieldsOf, reachOf, timelineDays, totalsOf, withCarried, withEditedEntry, withNewEntry, wordsOf, type ShownDay } from '../timeline'
 import type { Combine, TotalPlace } from '../tags'
 import type { PropertyType } from '../properties'
 import { vaultFile as note } from './fakeVault'
@@ -68,6 +68,44 @@ describe('a day’s entries', () => {
       ['08:00', 'plant', '08:00 fern'],
       ['09:00', 'garden', '09:00 weeded the beds'],
     ])
+  })
+})
+
+/**
+ * An entry over days: a range past midnight ends the next day, and one that `ends::`
+ * on a later day ends there. Each later day shown carries its part, as the same line.
+ */
+describe('an entry over days', () => {
+  const DAY = 24 * 60
+  const [late, trip, timed, wrong] = dayEntries(
+    day,
+    ['23:30 to 07:00 flight', '08:00 #trip Lakeside ends:: 2026-09-23', '09:00 to 19:00 #trip Harbour ends:: 2026-09-23', '10:00 deck ends:: 2026-09-20'].join('\n')
+  ).sort((a, b) => a.at - b.at)
+
+  it('ends where its range says, past midnight, or on the day it ends, at its range’s end or that day’s', () => {
+    expect([late.end, trip.end, timed.end]).toEqual([DAY + 7 * 60, 3 * DAY, 2 * DAY + 19 * 60])
+    // An `ends::` that is not later is not read.
+    expect(wrong.end).toBeNull()
+    expect(wordsOf(trip, text, false)).toBe('#trip Lakeside')
+  })
+
+  it('is carried into each later day shown that it reaches, from that day’s start, and says where it reaches', () => {
+    const shown = (date: string, entries = dayEntries(note(`Daily/${date}.md`), '')): ShownDay => ({ day: date, note: null, entries, text: '' })
+    const [, next, , after] = withCarried([
+      { ...shown('2026-09-21'), entries: [late, trip] },
+      shown('2026-09-22', dayEntries(note('Daily/2026-09-22.md'), '06:00 coffee')),
+      shown('2026-09-23'),
+      shown('2026-09-24'),
+    ])
+    expect(next.entries.map((one) => [one.text.split(' ').at(-1), one.start, one.end])).toEqual([
+      ['2026-09-23', 8 * 60 - DAY, 2 * DAY],
+      ['flight', -30, 7 * 60],
+      ['coffee', 6 * 60, null],
+    ])
+    expect(after.entries).toEqual([])
+    expect(reachOf(late)).toEqual({ since: null, until: { days: 1, minute: 7 * 60 } })
+    expect(reachOf(next.entries[0])).toEqual({ since: { days: -1, minute: 8 * 60 }, until: { days: 1, minute: null } })
+    expect(reachOf(next.entries[1])).toEqual({ since: { days: -1, minute: 23 * 60 + 30 }, until: null })
   })
 })
 

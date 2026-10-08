@@ -107,9 +107,9 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   line in `--alert`, so nothing vanishes unread; there is no fallback to text.
   `noteProperties` is every property a note carries, and the Properties pages are
   made of it. A page property takes its whole line. A property's type is chosen
-  from a menu on its page, into `.config/properties.json`; `icon`, `path` and
-  `aliases` are the app's, typed `icon`, `path` and `text`, and no entry retypes
-  them. Every pattern for
+  from a menu on its page, into `.config/properties.json`; `icon`, `path`, `aliases`
+  and `ends` are the app's, typed `icon`, `path`, `text` and `date`, and no entry
+  retypes them. Every pattern for
   a name is built from `PROPERTY_NAME`.
 - **The note carries what the app knows about it**: `icon::` and `path::`, the
   app's own properties (`APP_PROPERTIES`, the one place they are named). `path::` is
@@ -382,7 +382,10 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   by `readEvent`): the title is the words before the first property, so words added
   after one leave it the same event; the properties are the `#event` structure's,
   in its order (`EVENT_PROPERTIES` until the vault has one), a value of more than
-  one word quoted (`textProperty`).
+  one word quoted (`textProperty`). One over days carries `ends::` and a timed one
+  its end's clock: with only its start, a flight from 23:00 to 01:00 was a moment, and
+  an offsite over three days was on its first. A feed's all-day end is the day after
+  its last, and an end at midnight is the day before's.
 - **Sync takes back only what is wholly the calendar's**: its `source::` names a
   feed, the feed no longer has it, nothing is nested under it, and it is exactly
   its values (`untouched`). An empty name is never a source.
@@ -430,6 +433,18 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 - **A moment and a block read apart**: one clock is a dot on the rail, a range
   (`to`, `-`, `–`, `—`) a bar with its length, and one that ends before it starts
   ran past midnight.
+- **An entry over days is written once, on the day it starts** (the owner's choice:
+  `ends::`, a date, the app's): `23:30 to 07:00` runs past midnight, and `08:00
+  #trip Lakeside ends:: 2026-10-14` ends on that day, at the range's end or the day's.
+  `end` counts on in minutes past its day. It is shown on each later day here that it
+  reaches (`withCarried`; a long `ends::` makes no day of its own) as the same entry,
+  so a press edits the line where it is written, its start before 0 there. A part
+  says where it comes from and goes (`reachOf`: `23:30–` and `until tomorrow, 07:00`;
+  `–07:00` and `since yesterday, 23:30`), its bar running out of the entry, faded
+  where it goes on. In Day view it is drawn behind the rest at full width (`across`),
+  the moments in it over it, square where it came from and faded where it goes on;
+  only its own start and end are on the axis, since drawn to scale a trip from 08:00
+  made the day's grid sixteen hours tall.
 - **An entry and what is nested under it read as the note shows them** (`Live`): a
   link as its name (a wikilink, a markdown link, a bare address), a tag as a button,
   emphasis without its marks. As typed, a markdown link was its whole address. A tag
@@ -668,8 +683,8 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 - **The vault's names are its owner's settings**: the daily folder, the files folder,
   the share tag and the timeline's group (`dailyFolder`, `filesFolder`, `shareTag`,
   `timelineGroup`), each checked as it is typed (`validateFolder`, `validateTag`). The
-  app's own names stay fixed: `.config`, `icon::`, `path::`, and the calendar's
-  `#event` and `source::`.
+  app's own names stay fixed: `.config`, `icon::`, `path::`, `aliases::`, `ends::`,
+  and the calendar's `#event` and `source::`.
 - **A vault's calendars and hidden folders are its own** (`portable`): not carried
   into a new vault, not kept in `localStorage`, and not handed out until that
   vault's file is read. Carried, a secret feed reached another vault's remote, and

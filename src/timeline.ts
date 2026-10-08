@@ -4,9 +4,9 @@
 // entry of the day, from every group, in order. An entry carries its line number,
 // which an edit writes back to.
 
-import { leadingClock, minutesOf } from './clock'
+import { daysBetween, leadingClock, minutesOf } from './clock'
 import { dayOf, isDailyNote } from './daily'
-import { blockProperties, numberText, readBlock, splitPageProperties, type PropertyType } from './properties'
+import { blockProperties, endsIn, numberText, readBlock, splitPageProperties, type PropertyType } from './properties'
 import { indentOf, proseLines } from './prose'
 import { collectTagLines, COMBINE_NAMES, tagNames, tagsOnly, type Combine, type DayTotal, type TotalPlace } from './tags'
 import type { VaultFile } from './vaultModel'
@@ -20,8 +20,10 @@ export interface TimelineEntry {
   /** The line's leading clock. A line without one is not an entry. */
   clock: string
   /**
-   * Minutes into the day it starts and, for a stretch of time,
-   * ends. Past 24 hours for one that crosses midnight.
+   * Minutes into the day it is shown on, where it starts and, for a stretch of time,
+   * ends: past a day for one that runs past midnight (a range ending before it starts,
+   * or one that `ends::` on a later day), and before 0 on a day it was carried into
+   * (`withCarried`).
    */
   start: number
   end: number | null
@@ -59,6 +61,7 @@ interface Group {
  * A heading's lines belong to its group at any depth. Code is never an entry.
  */
 function readDay(note: VaultFile, raw: string): { entries: TimelineEntry[]; groups: Group[] } {
+  const day = dayOf(note.path)
   const lines = raw.split(/\r?\n/)
   const prose = proseLines(raw)
   const first = splitPageProperties(raw).prefix.split('\n').length - 1
@@ -89,13 +92,16 @@ function readDay(note: VaultFile, raw: string): { entries: TimelineEntry[]; grou
     const clock = leadingClock(text)
     if (!clock) continue
     const [start, stop = null] = minutesOf(clock)
+    // `ends::` a later day: there, at the range's end, or at the end of that day.
+    const ends = endsIn(text)?.value
+    const later = day && ends ? daysBetween(day, ends) : 0
     const one: TimelineEntry = {
       note,
       at,
       text,
       clock,
       start,
-      end: stop === null ? null : stop < start ? stop + DAY_MINUTES : stop,
+      end: later > 0 ? later * DAY_MINUTES + (stop ?? DAY_MINUTES) : stop === null ? null : stop < start ? stop + DAY_MINUTES : stop,
       group: heads[heads.length - 1]?.name ?? null,
       below: [],
     }
@@ -178,10 +184,13 @@ export function withEditedEntry(raw: string, entry: { at: number; text: string }
 
 /**
  * What an entry says after its clock. Properties read as the note shows them
- * (names and quotes out), or are left out when drawn as fields beside it.
+ * (names and quotes out), or are left out when drawn as fields beside it. Its
+ * `ends::` is left out too: where it reaches is said beside its clock.
  */
 export function wordsOf(entry: TimelineEntry, typeOf: (name: string) => PropertyType, asFields: boolean): string {
-  const line = entry.text.slice(entry.clock.length)
+  const after = entry.text.slice(entry.clock.length)
+  const ends = endsIn(after)
+  const line = ends ? after.slice(0, ends.from) + after.slice(ends.to) : after
   if (!asFields) return readBlock(line, typeOf).trim()
   let out = ''
   let at = 0
@@ -190,6 +199,49 @@ export function wordsOf(entry: TimelineEntry, typeOf: (name: string) => Property
     at = one.to
   }
   return (out + line.slice(at)).replace(/\s+/g, ' ').trim()
+}
+
+/** A day as the timeline shows it: a written one, or today, which may have no note yet. */
+export interface ShownDay {
+  day: string
+  note: VaultFile | null
+  entries: TimelineEntry[]
+  text: string
+}
+
+/**
+ * The days with what runs into them from an earlier one: an entry going past its day's
+ * midnight is shown again on each later day here that it reaches, as the same entry
+ * (its note and line, so a press edits the line where it is written), its minutes
+ * counted from that day. Only onto days already shown: a long `ends::` made no day.
+ */
+export function withCarried(days: readonly ShownDay[]): ShownDay[] {
+  const carried = days.map((one) => ({ ...one, entries: [...one.entries] }))
+  for (const { day, entries } of days) {
+    for (const entry of entries) {
+      if (entry.end === null || entry.end <= DAY_MINUTES) continue
+      for (const into of carried) {
+        const shift = daysBetween(day, into.day) * DAY_MINUTES
+        if (shift > 0 && shift < entry.end) into.entries.push({ ...entry, start: entry.start - shift, end: entry.end - shift })
+      }
+    }
+  }
+  return carried.map((one) => ({ ...one, entries: one.entries.sort((a, b) => a.start - b.start) }))
+}
+
+/** A day an entry reaches beyond the one it is shown on, in days from it, and the clock there if it has one. */
+export interface Reach {
+  days: number
+  minute: number | null
+}
+
+/** Where an entry shown on a day came from and goes to, when that is another day. */
+export function reachOf(entry: TimelineEntry): { since: Reach | null; until: Reach | null } {
+  const since = entry.start < 0 ? { days: Math.floor(entry.start / DAY_MINUTES), minute: ((entry.start % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES } : null
+  const end = entry.end ?? 0
+  // Ending at a midnight is the end of the day before, said with no clock.
+  const until = end > DAY_MINUTES ? { days: Math.ceil(end / DAY_MINUTES) - 1, minute: end % DAY_MINUTES === 0 ? null : end % DAY_MINUTES } : null
+  return { since, until }
 }
 
 /** Every daily note with anything in it, oldest first, down to today. */

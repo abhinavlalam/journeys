@@ -2876,6 +2876,20 @@ button.folder-toggle {
   background: var(--mark);
 }
 
+/* Part of a span over days: its bar runs out of the entry where it goes on, from the
+   top when it came from the day before, and fading out past the bottom when it goes
+   on to the next, as it does not end there. */
+.timeline-entry.from-before .timeline-rail::after {
+  top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.timeline-entry.goes-on .timeline-rail::after {
+  bottom: 0;
+  mask-image: linear-gradient(to bottom, var(--text) 50%, transparent);
+}
+
 .timeline-what {
   min-width: 0;
   color: var(--text);
@@ -3167,6 +3181,32 @@ button.folder-toggle {
 .day-box-when {
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
+}
+
+/* An entry running into or out of the day, behind the rest at full width: a lighter
+   wash, so the moments drawn over it read first. Its edge is square where it came
+   from the day before, and fades out where it goes on, since it does not end there. */
+.day-box.day-across {
+  background:
+    linear-gradient(var(--tint, var(--mark)), var(--tint, var(--mark))) left / 2px 100% no-repeat,
+    color-mix(in srgb, var(--tint, var(--mark)) 7%, var(--bg-raised));
+}
+
+.day-box.day-across.from-before {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.day-box.day-across.goes-on {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  mask-image: linear-gradient(to bottom, var(--text) calc(100% - 2em), transparent);
+}
+
+/* Where it came from and goes, after its words, a tone back. */
+.day-across-reach {
+  margin-left: 0.5em;
+  color: var(--text-faint);
 }
 
 /* ---- Lines under a row ---- */

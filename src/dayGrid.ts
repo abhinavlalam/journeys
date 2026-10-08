@@ -10,6 +10,7 @@ export const HOUR_EM = 4.8
 const MOMENT = 20
 /** A stretch with nothing in it longer than this folds to a band, in minutes. */
 const QUIET = 60
+const DAY_MINUTES = 24 * 60
 /** A folded stretch's band. */
 export const QUIET_EM = 1.6
 
@@ -23,8 +24,19 @@ interface Placed {
   columns: number
 }
 
+/**
+ * An entry running into or out of the day, drawn behind the rest across the grid's
+ * width, from where it starts (or the top) to where it ends (or the bottom).
+ */
+interface Across {
+  entry: TimelineEntry
+  top: number
+  height: number
+}
+
 interface DayGrid {
   placed: Placed[]
+  across: Across[]
   /** Each whole hour drawn, by its minutes into the day. */
   hours: { top: number; minutes: number }[]
   /** Each folded stretch, by how long it was. */
@@ -44,16 +56,27 @@ interface Run {
  * hour to its last; a gap of more than an hour between runs folds to a band. In
  * a run, entries that overlap (each held open for at least a moment's slot) form a
  * cluster and share its width: each takes the first column free when it starts.
+ *
+ * An entry running into or out of the day (`across`) is not in a cluster: it is drawn
+ * behind the rest, the moments in it over it. Only where it starts or ends within the
+ * day is on the axis: drawn to scale, a trip from 08:00 made the grid sixteen hours tall.
  */
 export function dayGrid(entries: readonly TimelineEntry[]): DayGrid {
+  const crosses = (entry: TimelineEntry) => entry.start < 0 || (entry.end ?? 0) > DAY_MINUTES
   const spans = entries
+    .filter((entry) => !crosses(entry))
     .map((entry) => ({ entry, from: entry.start, to: Math.max(entry.end ?? entry.start, entry.start + MOMENT) }))
     .sort((a, b) => a.from - b.from || b.to - a.to)
-  if (spans.length === 0) return { placed: [], hours: [], quiet: [], height: 0 }
+  const across = entries.filter(crosses)
+  const edges = across.flatMap((entry) => [
+    ...(entry.start >= 0 ? [{ from: entry.start, to: entry.start + MOMENT }] : []),
+    ...(entry.end !== null && entry.end <= DAY_MINUTES ? [{ from: entry.end - MOMENT, to: entry.end }] : []),
+  ])
+  if (spans.length === 0 && across.length === 0) return { placed: [], across: [], hours: [], quiet: [], height: 0 }
 
   // The axis: runs of whole hours, folded where nothing happens for more than an hour.
   const runs: Run[] = []
-  for (const span of spans) {
+  for (const span of [...spans, ...edges].sort((a, b) => a.from - b.from)) {
     const from = Math.floor(span.from / 60) * 60
     const to = Math.ceil(span.to / 60) * 60
     const last = runs[runs.length - 1]
@@ -74,6 +97,13 @@ export function dayGrid(entries: readonly TimelineEntry[]): DayGrid {
     const run = runs.find((one) => minute >= one.from && minute <= one.to) ?? runs[runs.length - 1]
     return run.top + ((minute - run.from) / 60) * HOUR_EM
   }
+  // With nothing else in the day, an entry across it is one moment's slot.
+  if (runs.length === 0) height = (MOMENT / 60) * HOUR_EM
+  const placedAcross = across.map((entry) => {
+    const top = entry.start < 0 ? 0 : y(entry.start)
+    const bottom = (entry.end ?? 0) > DAY_MINUTES ? height : y(entry.end!)
+    return { entry, top, height: Math.max(bottom - top, (MOMENT / 60) * HOUR_EM) }
+  })
   const hours = runs.flatMap((run) =>
     Array.from({ length: (run.to - run.from) / 60 + 1 }, (_, n) => ({ top: y(run.from + n * 60), minutes: run.from + n * 60 }))
   )
@@ -99,5 +129,5 @@ export function dayGrid(entries: readonly TimelineEntry[]): DayGrid {
     placed.push(one)
   }
   close()
-  return { placed, hours, quiet, height }
+  return { placed, across: placedAcross, hours, quiet, height }
 }

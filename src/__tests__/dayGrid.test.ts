@@ -44,7 +44,26 @@ describe('a day as a grid', () => {
     expect(grid('08:00 walk', '10:00 tea').quiet).toEqual([])
   })
 
+  /**
+   * What runs into or out of the day is drawn behind the rest, the moments over it at
+   * their full width. Only its own start or end is on the axis: drawn to scale, a trip
+   * from 08:00 made the day's grid sixteen hours tall.
+   */
+  it('draws an entry running out of the day behind the rest, to the grid’s end', () => {
+    const drawn = grid('08:00 #trip Lakeside ends:: 2026-09-23', '08:30 coffee')
+    expect(drawn.across.map(({ entry, top, height }) => [entry.text.split(' ')[1], round(top), round(height)])).toEqual([['#trip', 0, round(drawn.height)]])
+    expect(boxes('08:00 #trip Lakeside ends:: 2026-09-23', '08:30 coffee')).toEqual([['coffee', round(HOUR_EM / 2), round(HOUR_EM / 3), 0, 1]])
+    expect(drawn.height).toBe(HOUR_EM)
+  })
+
+  it('draws an entry come from the day before from the top, to where it ends', () => {
+    const [flight] = dayEntries(day, '23:30 to 07:00 flight')
+    const carried = { ...flight, start: flight.start - 24 * 60, end: flight.end! - 24 * 60 }
+    const drawn = dayGrid([carried])
+    expect(drawn.across.map(({ top, height }) => [round(top), round(height)])).toEqual([[0, round(HOUR_EM)]])
+  })
+
   it('draws nothing for a day with no entries', () => {
-    expect(grid()).toEqual({ placed: [], hours: [], quiet: [], height: 0 })
+    expect(grid()).toEqual({ placed: [], across: [], hours: [], quiet: [], height: 0 })
   })
 })

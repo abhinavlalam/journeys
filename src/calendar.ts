@@ -3,10 +3,10 @@
 // lines back, typed or synced. So the notes are complete on their own, and the
 // calendar keeps nothing. `source::` names the calendar a line came from.
 
-import { clockStart, DAY_MS, dayDate, daysAfter, HOUR_MS, leadingClock, localDateStamp, localTimeStamp, MINUTE_MS } from './clock'
+import { clockStart, DAY_MS, dayDate, daysAfter, daysBetween, HOUR_MS, leadingClock, localDateStamp, localTimeStamp, MINUTE_MS } from './clock'
 import { dayOf, isDailyNote } from './daily'
 import { recurrences, WEEK_START, WEEKDAY_NAMES, type Frequency, type Occurrence, type Recurrence } from './ics'
-import { blockProperties, textProperty, type PropertyType } from './properties'
+import { APP_PROPERTIES, blockProperties, textProperty, type PropertyType } from './properties'
 import { TAG } from './tags'
 import type { CollectedNote } from './useVaultTexts'
 import type { VaultFile } from './vaultModel'
@@ -74,11 +74,12 @@ export function readEvent(line: string, typeOf: (name: string) => PropertyType):
 }
 
 /**
- * The line an event is written as, read back by `readEvent`: clock,
- * tag, title, then each property of the structure that has a value.
+ * The line an event is written as, read back by `readEvent`: clock, tag, title, then
+ * each property of the structure that has a value, and `ends::` for one over days.
  */
 export function eventText(properties: readonly string[], { clock, what, fields }: EventParts): string {
-  const carried = properties.filter((name) => fields[name.toLowerCase()])
+  const ends = properties.some((name) => name.toLowerCase() === APP_PROPERTIES.ends) ? [] : [APP_PROPERTIES.ends]
+  const carried = [...properties, ...ends].filter((name) => fields[name.toLowerCase()])
   return [clock, `#${EVENT}`, what, ...carried.map((name) => textProperty(name, fields[name.toLowerCase()]))]
     .filter(Boolean)
     .join(' ')
@@ -207,16 +208,22 @@ export function dueReminders(events: readonly CalendarEvent[], now: number): Cal
 // ---------------------------------------------------------------------------
 
 /**
- * An occurrence as the line the sync writes (`eventText`), in the vault's
- * structure. An event over several days is written once, on its first day.
+ * An occurrence as the line the sync writes (`eventText`), in the vault's structure.
+ * An event over several days is written once, on its first day, with the day it
+ * `ends::` on; a timed one keeps its end's clock, so a flight from 22:00 to 06:00
+ * reads as one (with only its start, it was a moment at 22:00).
  *
  * No `repeats::`: the feed already gives every occurrence, and the
  * sync writes each on its day. A `repeats::` would carry a series past
  * the day the feed ends it. `repeats::` is for lines typed by hand.
  */
 export function eventLine(properties: readonly string[], { event, start, end }: Occurrence, source: string): string {
-  const sameDay = end && end.getTime() > start.getTime() && localDateStamp(end) === localDateStamp(start)
-  const clock = event.allDay ? '' : sameDay ? `${localTimeStamp(start)} to ${localTimeStamp(end)}` : localTimeStamp(start)
+  const lasts = end !== null && end.getTime() > start.getTime()
+  const clock = event.allDay ? '' : lasts ? `${localTimeStamp(start)} to ${localTimeStamp(end)}` : localTimeStamp(start)
+  // A moment before its end: an all-day event's is the day after its last, and one
+  // ending at midnight ends on the day it started.
+  const last = lasts ? localDateStamp(new Date(end.getTime() - 1)) : ''
+  const ends = last && daysBetween(localDateStamp(start), last) > 0 ? last : ''
   const oneLine = (text: string) => text.replace(/\s*\n\s*/g, ' ').trim()
   return eventText(properties, {
     clock,
@@ -225,6 +232,7 @@ export function eventLine(properties: readonly string[], { event, start, end }: 
       with: event.attendees.map(oneLine).join(', '),
       at: oneLine(event.location),
       [SOURCE]: oneLine(source),
+      [APP_PROPERTIES.ends]: ends,
       reminder: event.reminder,
     },
   })

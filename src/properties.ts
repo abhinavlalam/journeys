@@ -18,9 +18,10 @@ import { keyIn, oneOf, type Entries } from './configEntries'
 
 /**
  * The app's own properties, named here and nowhere else: the row's icon, where the
- * note sits (`knownPath`), and the other names a link reaches it by (`readAliases`).
+ * note sits (`knownPath`), the other names a link reaches it by (`readAliases`), and
+ * the day an entry that runs over days ends on (`endsIn`).
  */
-export const APP_PROPERTIES = { icon: 'icon', path: 'path', aliases: 'aliases' } as const
+export const APP_PROPERTIES = { icon: 'icon', path: 'path', aliases: 'aliases', ends: 'ends' } as const
 
 /** Whether a name is one of the app's own properties, which the vault does not type. */
 export function isAppProperty(name: string): boolean {
@@ -44,6 +45,7 @@ const APP_TYPES: Record<string, PropertyType> = {
   [APP_PROPERTIES.icon]: 'icon',
   [APP_PROPERTIES.path]: 'path',
   [APP_PROPERTIES.aliases]: 'text',
+  [APP_PROPERTIES.ends]: 'date',
 }
 
 /**
@@ -290,6 +292,15 @@ export function blockProperties(
     if (at.to > start) label.lastIndex = at.to
   }
   return found
+}
+
+/**
+ * A line's `ends::`, the day an entry running over days ends on, when it holds a
+ * date: `08:00 #trip Lisbon ends:: 2026-10-14`. The vault's types are not needed to
+ * find it, since the app types it.
+ */
+export function endsIn(line: string): BlockProperty | undefined {
+  return blockProperties(line, (name) => typeOf({}, name)).find((one) => one.valid && one.name.toLowerCase() === APP_PROPERTIES.ends)
 }
 
 /**
