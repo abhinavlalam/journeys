@@ -21,6 +21,8 @@ export type Tab =
   | { kind: 'timeline'; id: number }
   /** Every `#task` line, by when it is due. */
   | { kind: 'tasks'; id: number }
+  /** Every tag tracked as a habit, by the last weeks' days. */
+  | { kind: 'habits'; id: number }
   /** Everything the app has said in this window. */
   | { kind: 'log'; id: number }
   | { kind: 'settingsFile'; id: number }
@@ -108,6 +110,8 @@ export function tabLabel(tab: Tab): string {
       return 'Timeline'
     case 'tasks':
       return 'Tasks'
+    case 'habits':
+      return 'Habits'
     case 'log':
       return 'Log'
     case 'settingsFile':
@@ -123,7 +127,7 @@ export function groups(layout: Layout): Group[] {
 }
 
 /** The pages built from the notes, which follow typing while on screen (`liveVersion`). */
-const FROM_THE_NOTES: ReadonlySet<Tab['kind']> = new Set(['graph', 'property', 'tag', 'calendar', 'timeline', 'tasks'])
+const FROM_THE_NOTES: ReadonlySet<Tab['kind']> = new Set(['graph', 'property', 'tag', 'calendar', 'timeline', 'tasks', 'habits'])
 
 /** Whether a page built from the notes is in front in any pane. */
 export function showsTheNotes(ws: Workspace): boolean {

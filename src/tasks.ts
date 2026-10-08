@@ -2,7 +2,7 @@
 // owner's in a note, with the tag's properties: `due::` a date, `status::`, `project::`.
 // Done is `status:: done` on the line, which the Tasks page writes and takes back.
 
-import { dayDate, daysBetween } from './clock'
+import { daysBetween, intoWeek } from './clock'
 import { blockProperties, readBlock, type PropertyType } from './properties'
 import type { CollectedNote } from './useVaultTexts'
 import type { VaultFile } from './vaultModel'
@@ -81,8 +81,7 @@ export function whenOf(task: Task, today: string, firstDay: number): When {
   const days = daysBetween(today, task.due)
   if (days < 0) return 'Overdue'
   if (days === 0) return 'Today'
-  const toWeekEnd = (firstDay + 6 - dayDate(today).getDay() + 7) % 7
-  return days <= toWeekEnd ? 'This week' : 'Later'
+  return days <= 6 - intoWeek(today, firstDay) ? 'This week' : 'Later'
 }
 
 /** The tasks of each group, soonest due first, then as written. */

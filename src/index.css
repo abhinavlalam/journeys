@@ -4388,6 +4388,111 @@ button.folder-toggle {
   font-weight: var(--fw-prose);
 }
 
+/* ---- Habits ---- */
+
+/* The habits by the last weeks' days, raised as a tag's table is. Scrolled sideways
+   when the weeks do not fit, today in sight, the habits' names held at the left. */
+.habit-box {
+  margin-bottom: var(--row-gap);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.folder-children > li.habit-box::before,
+.folder-children > li.habit-box::after {
+  content: none;
+}
+
+.habit-scroll {
+  overflow-x: auto;
+  padding: 0.5rem 0;
+}
+
+.habit-table {
+  border-collapse: collapse;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.habit-table th,
+.habit-table td {
+  padding: 0.15rem 0.25rem;
+  text-align: center;
+  font-weight: inherit;
+  white-space: nowrap;
+}
+
+/* A week's days apart from the next week's. */
+.habit-table .week-start {
+  padding-left: 0.75rem;
+}
+
+.habit-table th[scope='row'] {
+  position: sticky;
+  left: 0;
+  padding: 0.15rem 0.5rem 0.15rem 1rem;
+  text-align: left;
+  background: var(--bg-raised);
+}
+
+.habit-week,
+.habit-weekday {
+  color: var(--text-faint);
+  font-size: 0.92em;
+}
+
+.habit-weekday[aria-current='date'] {
+  color: var(--mark);
+}
+
+/* The figures beside a habit: its streak and this week's count, one tier down. */
+.habit-figure {
+  padding: 0.15rem 1rem 0.15rem 0.75rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A day: a note's checkbox, filled in the habit's colour when the day's note carries
+   it. Today is ringed, and a day not yet here is only an outline. */
+.habit-day {
+  display: block;
+  width: var(--glyph);
+  height: var(--glyph);
+  margin: 0 auto;
+  padding: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--text-faint);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: inherit;
+  line-height: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--motion),
+    border-color var(--motion);
+}
+
+.habit-day:hover:not(:disabled) {
+  border-color: var(--tint, var(--mark));
+}
+
+.habit-day[aria-pressed='true'] {
+  border-color: var(--tint, var(--mark));
+  background: var(--tint, var(--mark));
+}
+
+.habit-day[aria-current='date'] {
+  outline: 1px solid var(--mark);
+  outline-offset: 1px;
+}
+
+.habit-day:disabled {
+  border-style: dashed;
+  border-color: var(--border);
+  cursor: default;
+}
+
 /* ---- Tasks ---- */
 
 /* A task: the fold of what is under it, its box, then its words, which wrap, and the

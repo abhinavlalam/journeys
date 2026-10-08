@@ -3,7 +3,7 @@
 // lines back, typed or synced. So the notes are complete on their own, and the
 // calendar keeps nothing. `source::` names the calendar a line came from.
 
-import { clockStart, DAY_MS, dayDate, daysAfter, daysBetween, HOUR_MS, leadingClock, localDateStamp, localTimeStamp, MINUTE_MS } from './clock'
+import { clockStart, DAY_MS, dayDate, daysAfter, daysBetween, HOUR_MS, intoWeek, leadingClock, localDateStamp, localTimeStamp, MINUTE_MS } from './clock'
 import { dayOf, isDailyNote } from './daily'
 import { recurrences, WEEK_START, WEEKDAY_NAMES, type Frequency, type Occurrence, type Recurrence } from './ics'
 import { APP_PROPERTIES, blockProperties, textProperty, type PropertyType } from './properties'
@@ -290,7 +290,7 @@ export function firstWeekday(language = globalThis.navigator?.language): number 
 export function monthGrid(month: string, firstDay: number): string[] {
   const first = dayDate(`${month}-01`)
   const last = new Date(first.getFullYear(), first.getMonth() + 1, 0)
-  const lead = (first.getDay() - firstDay + 7) % 7
-  const trail = (firstDay + 6 - last.getDay() + 7) % 7
+  const lead = intoWeek(`${month}-01`, firstDay)
+  const trail = 6 - intoWeek(localDateStamp(last), firstDay)
   return Array.from({ length: lead + last.getDate() + trail }, (_, at) => daysAfter(`${month}-01`, at - lead))
 }

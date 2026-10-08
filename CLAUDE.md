@@ -47,6 +47,7 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 | `calendar.ts`, `ics.ts`, `calendarSync.ts`, `useCalendarSync.ts`, `CalendarView.tsx` | The calendar. |
 | `timeline.ts` / `TimelineView.tsx` | The daily notes as each day happened / its page. |
 | `tasks.ts` / `TasksView.tsx` | Every `#task` line by when it is due / its page. |
+| `habits.ts` / `HabitsView.tsx` | Tags tracked as habits, day by day / their page. |
 | `LineEditor.tsx` | One line in the note's own editor, for a page that takes typing: `EditLine` for one written (saved on Enter or leaving when changed, emptied is not deleted), `NewLine` for a new one; `Typing`, what every editor types with. |
 | `ViewerHeader.tsx` | Every page's header: its name (a note's renames it), its status (`statusCount`: nothing at none), its controls, and `ViewSwitch`, a page's ways of being drawn. |
 | `useLog.ts` / `LogView.tsx` | What the app says: shown a while, kept in the Log / its page. |
@@ -511,6 +512,25 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   is empty, says New task, and has no box; `#task` is added unless typed, and its
   properties are offered through the line's `tag` (typed in, the tag beside an empty box
   read as something left on the page). The tag alone is no task.
+
+## Habits
+
+- **A habit is a tag marked as one** (the owner's choice: `habit: true` in its
+  `tags.json` entry, set on the tag's page or by the Habits page's `+`), and **a day is
+  done when its daily note has a line carrying the tag**, any line, so what is already
+  written counts, past days included. Nothing else is kept. Read from `collectTag`, one
+  more memo over the one read.
+- **A press on a day writes the tag alone** (`habitLine`) into that day's note, made if
+  needed, filed as a timeline entry is (`withNewEntry`), and with no clock, as the owner
+  asked of typed entries. **A press on a done day takes back each line that is the tag
+  alone with nothing nested under it** (`withoutHabit`); a day done in the note's own
+  words is left as written and said, as the calendar takes back only its own lines.
+- **The page is the habits by the last weeks** (`habitDays`: four whole weeks from the
+  locale's first day, this one last, scrolled to today when they do not fit, the names
+  held at the left): each day a note's checkbox, filled in the tag's colour, today
+  ringed, a day not yet here only an outline. Beside each, its streak (`streakOf`: days
+  in a row up to today, or up to yesterday while today is not done, since a day not
+  over breaks nothing) and this week's count. The target is every day.
 
 ## Sync
 

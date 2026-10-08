@@ -71,6 +71,9 @@ export function daysAfter(day: string, days: number): string {
   return localDateStamp(new Date(at.getFullYear(), at.getMonth(), at.getDate() + days))
 }
 
+/** How many days into its week a day is, the week starting on `firstDay` (`Date`'s 0 to 6). */
+export const intoWeek = (day: string, firstDay: number) => (dayDate(day).getDay() - firstDay + 7) % 7
+
 /** Whole days from `from` to `to`, negative when `to` is earlier. */
 export function daysBetween(from: string, to: string): number {
   return Math.round((dayDate(to).getTime() - dayDate(from).getTime()) / DAY_MS)
@@ -100,6 +103,7 @@ export const longDay = new Intl.DateTimeFormat(undefined, { weekday: 'long', day
 export const weekdayName = new Intl.DateTimeFormat(undefined, { weekday: 'long' })
 /** `Wed`, for a calendar's columns. */
 export const shortWeekday = new Intl.DateTimeFormat(undefined, { weekday: 'short' })
+export const narrowWeekday = new Intl.DateTimeFormat(undefined, { weekday: 'narrow' })
 /** `24 Sept`. */
 export const shortDate = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
 /** `September 2026`. */

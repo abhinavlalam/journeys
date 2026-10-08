@@ -42,6 +42,8 @@ import { withEditedEntry, withNewEntry } from './timeline'
 import { TimelineView } from './TimelineView'
 import { TasksView } from './TasksView'
 import { readTasks, TASK, withDone } from './tasks'
+import { HabitsView } from './HabitsView'
+import { doneDays, habitLine, habitsOf, withoutHabit } from './habits'
 import { LogView } from './LogView'
 import { useLog } from './useLog'
 import { GraphView } from './GraphView'
@@ -316,6 +318,11 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collectTag, propertyTypes.entries])
   const colours = useMemo(() => coloursOf(tagStructures.entries), [tagStructures.entries])
+  /** Every tag tracked as a habit, with the days its notes say it was done; null while reading. */
+  const habits = useMemo(
+    () => texts && habitsOf(tagStructures.entries).map((tag) => ({ tag, done: doneDays(collectTag(tag) ?? [], settings.dailyFolder) })),
+    [texts, collectTag, tagStructures.entries, settings.dailyFolder]
+  )
   /** The phone's one place at a time, and where its back gesture goes. */
   const phone = usePhoneNav({
     page: active,
@@ -755,6 +762,28 @@ export default function App() {
   const addEntry = (text: string) => fileEntry(undefined, async () => text)
 
   /**
+   * A habit's day marked done, its tag alone filed in the day's note (made if needed), or
+   * taken back: the lines that are its tag alone go, and a day done in the note's own
+   * words is left as written and said.
+   */
+  async function markHabit(tag: string, day: string, done: boolean) {
+    if (done) return void (await fileEntry(day, async () => habitLine(tag)))
+    await vault.mutate(
+      async (v) => {
+        const file = dailyNoteFile(v, settings.dailyFolder, day)
+        const next = withoutHabit(await readVaultFile(file), tag)
+        if (next === null) throw new Error(`#${tag} is in ${file.name} in its own words, so it was left as written.`)
+        await writeVaultFile(file, next)
+        return { file, next }
+      },
+      async ({ file, next }) => {
+        patch(new Set([file.path]), () => next)
+        await buffers.reread(file)
+      }
+    )
+  }
+
+  /**
    * A share from another app, filed in the day it arrived with its files moved into
    * `filesFolder` first. Each file keeps where it went, so a second try after a
    * failure moves none twice. Then a sync round, so the laptop has it soon.
@@ -1083,6 +1112,8 @@ export default function App() {
                 { kind: 'timeline', name: 'Timeline', icon: 'clock', count: 0 },
                 // Every `#task` line, by when it is due; counted while open.
                 { kind: 'tasks', name: 'Tasks', icon: 'check', count: tasks?.filter((one) => !one.done).length ?? 0 },
+                // Every habit by the last weeks; counted while one is not done today.
+                { kind: 'habits', name: 'Habits', icon: 'target', count: habits?.filter((one) => !one.done.has(localDateStamp())).length ?? 0 },
                 // Every message the app has shown in this window.
                 { kind: 'log', name: 'Log', icon: 'inbox', count: log.items.length },
               ] as const
@@ -1228,6 +1259,8 @@ export default function App() {
                     onTotals={(next) => void tagStructures.write(tag, { totals: next.map(writtenTotal) })}
                     colour={colours[tag]}
                     onColour={(next) => void tagStructures.write(tag, { color: next })}
+                    habit={tagStructures.entries[tag]?.habit === true}
+                    onHabit={(next) => void tagStructures.write(tag, { habit: next })}
                     onError={setError}
                     onOpenProperty={(property) => view('property', property)}
                     onOpen={(file) => void openNote(file)}
@@ -1264,6 +1297,17 @@ export default function App() {
                     onEdit={(task, text) => void editEntry(task, text)}
                     onAdd={(text) => void addEntry(text)}
                     {...opens}
+                  />
+                )
+              case 'habits':
+                return (
+                  <HabitsView
+                    habits={habits}
+                    colours={colours}
+                    onMark={(tag, day, done) => void markHabit(tag, day, done)}
+                    onAdd={(tag) => void tagStructures.write(tag, { habit: true })}
+                    onOpenTag={(tag) => view('tag', tag)}
+                    onError={setError}
                   />
                 )
               case 'log':
