@@ -19,7 +19,7 @@ vi.mock('../SourceEditor', () => ({
   SourceEditor: ({ initialText }: { initialText: string }) => <pre data-testid="text">{initialText}</pre>,
 }))
 
-const FILE = '/v/Data/expenses.csv'
+const FILE = '/v/trackers/expenses.csv'
 const written = ['day,amount,what', '2026-10-10,480,"lunch, upstairs"', '2026-10-11,  12.5 ,coffee', ''].join('\n')
 
 afterEach(cleanup)
@@ -31,10 +31,10 @@ beforeEach(() => {
 
 const pane = () => within(document.querySelector('.viewer:not([hidden])') as HTMLElement)
 const cell = (name: string) => pane().getByRole('button', { name })
+/** A tracker is under Applications, by its name, and opens as its table. */
 async function openTable() {
   await openApp()
-  fireEvent.click(within(document.querySelector('.sidebar')!).getByText('Data'))
-  fireEvent.click(await waitFor(() => within(document.querySelector('.sidebar')!).getByText('expenses.csv')))
+  fireEvent.click(await screen.findByLabelText('expenses'))
   await waitFor(() => expect(cell('what, row 1').textContent).toBe('lunch, upstairs'))
 }
 const typeInto = (name: string, value: string, key = 'Enter') => {
@@ -73,6 +73,13 @@ describe('a table edited in place', () => {
     expect(pane().getAllByRole('button', { name: /^what, row/ }).map((one) => one.textContent)).toEqual(['coffee', 'lunch, upstairs'])
     fireEvent.click(pane().getByRole('button', { name: 'Delete row 1' }))
     await waitFor(() => expect(disk.read(FILE)).toBe(written.replace('2026-10-10,480,"lunch, upstairs"\n', '')))
+  })
+
+  it('lists the tables of the folder the settings name as trackers, and no other', async () => {
+    disk.write('/v/Ledgers/loans.csv', 'day,amount\n')
+    await openApp({ trackersFolder: 'Ledgers' })
+    await waitFor(() => expect(screen.getByLabelText('loans')).toBeTruthy())
+    expect(screen.queryByLabelText('expenses')).toBeNull()
   })
 
   /** Switched to after an edit, the text editor held the old text, and its first key saved it over the edit. */

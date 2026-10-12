@@ -235,10 +235,10 @@ describe('hidden folders', () => {
     expect(built([]).edgeCount).toBe(3)
   })
 
-  /** The graph is notes, days and tags: a photo a day links to is not one. */
-  it('never draws a file that is not text', () => {
-    const idx = buildNoteIndex(['Daily/day.md', 'Files/photo.jpg'].map(note))
-    const graph = buildNoteGraph([{ note: note('Daily/day.md'), text: 'lunch [[Files/photo.jpg]]' }], idx)
+  /** The graph is notes, days and tags: a photo a day links to is not one, nor a tracker's table. */
+  it('never draws a file that is not a note', () => {
+    const idx = buildNoteIndex(['Daily/day.md', 'Files/photo.jpg', 'trackers/expenses.csv'].map(note))
+    const graph = buildNoteGraph([{ note: note('Daily/day.md'), text: 'lunch [[Files/photo.jpg]], filed in [[trackers/expenses.csv]]' }], idx)
     expect(graph.nodes.map((one) => one.name)).toEqual(['day'])
     expect(graph.edgeCount).toBe(0)
   })

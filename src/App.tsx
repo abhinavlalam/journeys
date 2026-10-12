@@ -15,7 +15,7 @@ import {
   writePathProperty,
   writeVaultFile,
 } from './vault'
-import { folderNoteRef, isTextFile, knownPath, noteName, SETTINGS_FILE } from './vaultModel'
+import { fileKind, folderNoteRef, isTextFile, knownPath, noteName, SETTINGS_FILE } from './vaultModel'
 import { FileView } from './FileView'
 import type { VaultFile, VaultFolder } from './vaultModel'
 import { FolderTree, useDropTarget } from './FolderTree'
@@ -95,6 +95,7 @@ import { syncWord, useSync } from './useSync'
 import { CloneVault } from './CloneVault'
 import {
   collectFolders,
+  folderAt,
   folderWithNote,
   existingNotesIn,
   pathKey,
@@ -389,6 +390,12 @@ export default function App() {
     setPicked((current) => pick(current, file.path, mode, pickOrder))
     if (mode === 'only') void openNote(file)
   }
+
+  /** The trackers: each table in the trackers folder, an application of its own. */
+  const trackers = useMemo(
+    () => folderAt(vault.root, settings.trackersFolder)?.files.filter((file) => fileKind(file.path) === 'csv') ?? [],
+    [vault.root, settings.trackersFolder]
+  )
 
   /** Every folder, for Expand all and Collapse all. */
   const folderPaths = useMemo(() => (vault.root ? collectFolders(vault.root) : []), [vault.root])
@@ -949,6 +956,20 @@ export default function App() {
     </div>
   )
   const onPage = (kind: TabRequest['kind']) => !phone.browsing && active?.kind === kind
+  /** A page under Applications, pressed when it is in front, with its count beside it. */
+  const applicationRow = ({ kind, name, icon, count }: { kind: 'calendar' | 'timeline' | 'tasks' | 'habits' | 'log'; name: string; icon: string; count: number }) => (
+    <li key={kind} style={{ paddingLeft: stepIn(1) }}>
+      <NoteRow
+        icon={<RowIcon icon={icon} />}
+        name={name}
+        className={active?.kind === kind ? 'selected' : undefined}
+        aria-label={name}
+        aria-pressed={active?.kind === kind}
+        trailing={count > 0 ? <span className="row-count">{count}</span> : undefined}
+        onClick={() => open({ kind })}
+      />
+    </li>
+  )
   /** What every editor types with: a note's, a page's line (an entry, a task) and the phone's. */
   const typing = {
     notes,
@@ -1114,22 +1135,27 @@ export default function App() {
                 { kind: 'tasks', name: 'Tasks', icon: 'check', count: tasks?.filter((one) => !one.done).length ?? 0 },
                 // Every habit by the last weeks; counted while one is not done today.
                 { kind: 'habits', name: 'Habits', icon: 'target', count: habits?.filter((one) => !one.done.has(localDateStamp())).length ?? 0 },
-                // Every message the app has shown in this window.
-                { kind: 'log', name: 'Log', icon: 'inbox', count: log.items.length },
               ] as const
-            ).map(({ kind, name, icon, count }) => (
-              <li key={kind} style={{ paddingLeft: stepIn(1) }}>
-                <NoteRow
-                  icon={<RowIcon icon={icon} />}
-                  name={name}
-                  className={active?.kind === kind ? 'selected' : undefined}
-                  aria-label={name}
-                  aria-pressed={active?.kind === kind}
-                  trailing={count > 0 ? <span className="row-count">{count}</span> : undefined}
-                  onClick={() => open({ kind })}
-                />
-              </li>
-            ))}
+            ).map(applicationRow)}
+            {/* Each tracker's table, opened as the table it is. */}
+            {trackers.map((file) => {
+              const name = file.name.replace(/\.[^.]+$/, '')
+              const shown = active?.kind === 'note' && active.file.path === file.path
+              return (
+                <li key={file.path} style={{ paddingLeft: stepIn(1) }}>
+                  <NoteRow
+                    icon={<RowIcon icon="chart" />}
+                    name={name}
+                    className={shown ? 'selected' : undefined}
+                    aria-label={name}
+                    aria-pressed={shown}
+                    onClick={() => void openNote(file)}
+                  />
+                </li>
+              )
+            })}
+            {/* Every message the app has shown in this window. */}
+            {applicationRow({ kind: 'log', name: 'Log', icon: 'inbox', count: log.items.length })}
             {/* Sync status in one line; opens its settings. */}
             <li style={{ paddingLeft: stepIn(1) }}>
               <NoteRow

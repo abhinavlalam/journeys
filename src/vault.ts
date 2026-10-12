@@ -537,6 +537,8 @@ export async function importFile(
 
 /** Where a file from the phone is kept when the settings don't say (`filesFolder`). */
 export const FILES_FOLDER = 'Files'
+/** Where the trackers' tables are kept, one CSV each, when the settings name no other folder. */
+export const TRACKERS_FOLDER = 'trackers'
 
 /**
  * Where a file kept from the phone goes in `folder`: under its own name, or with

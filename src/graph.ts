@@ -11,7 +11,7 @@ import { parseNoteLinks, pathKey, resolveTarget } from './links'
 import type { NoteIndex } from './links'
 import { blockProperties, splitPageProperties, type PropertyType } from './properties'
 import { tagNames } from './tags'
-import { baseName, isEncrypted, isTextFile, isWithin, noteName } from './vaultModel'
+import { baseName, isNote, isWithin, noteName } from './vaultModel'
 import type { VaultFile } from './vaultModel'
 
 // ---------------------------------------------------------------------------
@@ -224,9 +224,9 @@ export function buildNoteGraph(
   // Folders in `graphHides` are left out with their edges, for notes like a
   // currency that every line links. They are dropped after the walk, so a link
   // into one doesn't come back as a missing node. Locked notes go the same way,
-  // and so does a file that is not text, such as a photo a day links to.
+  // and so does any file that is not a note: a photo a day links to, a tracker's table.
   const left = (path: string) =>
-    isEncrypted(path) || !isTextFile(path) || hidden.some((folder) => isWithin(path, folder))
+    !isNote(path) || hidden.some((folder) => isWithin(path, folder))
   for (const [id, node] of nodes) if (node.kind !== 'tag' && left(node.path)) nodes.delete(id)
   return assemble(nodes, edges.filter((edge) => nodes.has(edge.from) && nodes.has(edge.to)))
 }
