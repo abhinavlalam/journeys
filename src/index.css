@@ -1378,6 +1378,19 @@ button.folder-toggle {
   visibility: visible;
 }
 
+/* A page's few headings show theirs always, and so do the left pane's sections on a
+   screen with no pointer to hover: hidden, the Habits page's + could not be found, and
+   on the phone a tag's + and the pane's search showed only by chance. */
+.note-section > .folder-header .folder-actions {
+  visibility: visible;
+}
+
+@media (hover: none) {
+  .pane-section > .folder-header .folder-actions {
+    visibility: visible;
+  }
+}
+
 /* A square the row's height, with the glyph sized in the type. With the UA's
    padding the `+` made tree rows 24px while every other row followed the setting.
 
