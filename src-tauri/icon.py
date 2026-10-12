@@ -1,7 +1,9 @@
 """The app icon, rasterised — `python3 src-tauri/icon.py`, then
 `npx tauri icon src-tauri/icon.png` to cut the sizes `tauri.conf.json` names.
-(That command also writes Windows, Android and iOS sets; this app bundles for macOS
-only, and they are deleted.)
+(That command also writes Windows and iOS sets, which are deleted.) Android's comes
+from its own two layers: `npx tauri icon src-tauri/icon-android.json -o <a scratch
+folder>`, then its `android/` copied over `gen/android/app/src/main/res`. Until
+2026-10-12 the phone carried Tauri's stock logo.
 
 This file exists because the icon had **no source**. `icons/` held generated art
 with nothing behind it, so its colour could not be changed without redrawing it.
@@ -165,6 +167,21 @@ def arc(x, y):
     return min(math.hypot(x - ex, y - ey) for ex, ey in SWEEP_ENDS) - SWEEP_W / 2
 
 
+def mark(x, y):
+    """Signed distance to the mark: the needle's halves, the sweep and its head."""
+    # North is filled. South is the same triangle outlined *inside* its own edge, so
+    # the halves share one silhouette and both tips are mitred; stroking the
+    # distance rounds the south tip instead, which leaves one sharp point and one
+    # blunt one on a single needle.
+    south = triangle(x, y, SOUTH, WEST, EAST)
+    return min(
+        triangle(x, y, NORTH, NORTH_EAST, NORTH_WEST),
+        max(south, -(south + STROKE)),
+        arc(x, y),
+        triangle(x, y, *HEAD),
+    )
+
+
 def coverage(d):
     return max(0.0, min(1.0, 0.5 - d))
 
@@ -201,20 +218,7 @@ for y in range(N):
             # arrowhead across the shaft — both were half covered and the union
             # came out at a half, drawing a pale seam through solid black. See
             # `NORTH_EAST` for the other half of that fix.
-            #
-            # North is filled. South is the same triangle outlined *inside* its own
-            # edge, so the halves share one silhouette and both tips are mitred;
-            # stroking the distance rounds the south tip instead, which leaves one
-            # sharp point and one blunt one on a single needle.
-            south = triangle(fx, fy, SOUTH, WEST, EAST)
-            ink = coverage(
-                min(
-                    triangle(fx, fy, NORTH, NORTH_EAST, NORTH_WEST),
-                    max(south, -(south + STROKE)),
-                    arc(fx, fy),
-                    triangle(fx, fy, *HEAD),
-                )
-            )
+            ink = coverage(mark(fx, fy))
             if ink > 0:
                 colour = over(colour, INK, ink)
             o = x * 4
@@ -222,18 +226,45 @@ for y in range(N):
             row[o + 3] = round(255 * tile)
     rows.append(bytes(row))
 
-raw = b''.join(b'\x00' + r for r in rows)
-
-
 def chunk(kind, body):
     return struct.pack('>I', len(body)) + kind + body + struct.pack('>I', zlib.crc32(kind + body))
 
 
-png = (
-    b'\x89PNG\r\n\x1a\n'
-    + chunk(b'IHDR', struct.pack('>IIBBBBB', N, N, 8, 6, 0, 0, 0))
-    + chunk(b'IDAT', zlib.compress(raw, 9))
-    + chunk(b'IEND', b'')
+def write(path, rows):
+    raw = b''.join(b'\x00' + r for r in rows)
+    png = (
+        b'\x89PNG\r\n\x1a\n'
+        + chunk(b'IHDR', struct.pack('>IIBBBBB', N, N, 8, 6, 0, 0, 0))
+        + chunk(b'IDAT', zlib.compress(raw, 9))
+        + chunk(b'IEND', b'')
+    )
+    open(path, 'wb').write(png)
+    print('wrote', path, len(png), 'bytes')
+
+
+write('src-tauri/icon.png', rows)
+
+# **Android's adaptive icon** is two layers on a 108dp canvas: the launcher cuts its
+# own shape out of the background and lays the foreground over it, so the tile is not
+# drawn there; inside a launcher's circle it sat small and edged. The foreground is
+# the mark alone, as wide a share of the canvas's 72dp shown as it is of the tile
+# here, so well inside the 66dp every shape keeps. It is the monochrome layer too,
+# which a themed home screen tints by its alpha. The background is the tile's ground,
+# edge to edge.
+SHOWN = N * 72 / 108
+SCALE = SHOWN / TILE
+foreground = []
+for y in range(N):
+    row = bytearray(N * 4)
+    for x in range(N):
+        # Each pixel read off the mark as drawn above, and its distance scaled back.
+        ink = coverage(SCALE * mark(C + (x + 0.5 - C) / SCALE, C + (y + 0.5 - C) / SCALE))
+        if ink > 0:
+            o = x * 4
+            row[o : o + 4] = bytes((*INK, round(255 * ink)))
+    foreground.append(bytes(row))
+write('src-tauri/icon-android-fg.png', foreground)
+write(
+    'src-tauri/icon-android-bg.png',
+    [bytes((*tuple(round(a + (b - a) * y / (N - 1)) for a, b in zip(TOP, BOTTOM)), 255)) * N for y in range(N)],
 )
-open('src-tauri/icon.png', 'wb').write(png)
-print('wrote', len(png), 'bytes')
