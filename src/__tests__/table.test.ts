@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cellText, columnLabel, decimalsOf, numberOf, numberShown, readTable, withCell, withoutRow, withRow } from '../table'
+import { cellText, columnLabel, decimalsOf, numberOf, numberShown, passes, readTable, withCell, withoutRow, withRow } from '../table'
 
 /** A tracker's file, read as rows and written back a row at a time. */
 
@@ -40,6 +40,13 @@ describe('a table', () => {
 
   it('reads a number only when the value is one', () => {
     expect(['480', '-12.5', ' 3 ', '1,200', '€480', ''].map(numberOf)).toEqual([480, -12.5, 3, null, null, null])
+  })
+
+  it('passes a value by the words in it, as written or shown, or a number by how it compares', () => {
+    expect([passes('Harbour Bistro', 'Harbour Bistro', 'bistro'), passes('2026-10-05', 'Mon 5 Oct', 'oct'), passes('lunch', 'lunch', 'tea')]).toEqual([true, true, false])
+    expect(['> 100', '<=480', '=480', '>= 481', '< 0'].map((filter) => passes('480', '480', filter))).toEqual([true, true, true, false, false])
+    // Not a number: the filter is words, and `>` is one of them.
+    expect([passes('lunch', 'lunch', '> 100'), passes('a > 100 b', 'a > 100 b', '> 100')]).toEqual([false, true])
   })
 
   it('says a column’s name as words, and shows its numbers to its most precise value’s decimals', () => {

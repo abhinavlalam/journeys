@@ -156,17 +156,24 @@ at the end once something is typed in it, and taken out by its × after asking; 
 name sorts what is shown, not the file. Every other byte stays as written, the rest of
 the row included: rewritten whole, a row's untouched padded number came back in quotes.
 
-**A table is read as a ledger, and edited as written** (the owner found the first one
-"not great at all"): the names said as words and quieter than the values (`columnLabel`:
-`end-amount` is End amount); a column of numbers (`numberOf`, digits alone) grouped, to
-its most precise value's decimals, on the right; a column of days as `Mon 5 Oct`
-(`shortDay`); each row on a hairline, washed under the pointer. A value keeps to one line
-and a column of sentences (a value past `SENTENCE`) wraps: wrapping every column broke
-names and days over lines while the notes claimed the width. Past the pane the box
-scrolls sideways, the × held at its edge. **A column's total is the owner's choice**,
-made under it and kept by the column's name (`columnTotals` in the settings, `combine`,
-the daily totals' ways and none), summed until then: summed under a balance, it was a
-number that meant nothing.
+**A table is drawn as Airtable draws a grid, and edited as written** (the owner's
+choice, after a ledger with wrapped sentences was "not great at all"): a toolbar with the
+filter and the count; a hairline round every cell; the names said as words
+(`columnLabel`: `end-amount` is End amount) on a tinted band, each with its column's
+glyph (number, day, time, link, text, read off its values); each row numbered as shown
+and one line tall, a long value cut at `--data-cell-max` and whole in its `title` and
+its field; the row's × in its number's place under the pointer, the heads held at the
+left while a wide grid scrolls. A number grouped, to its column's most precise decimals,
+on the right; a day as `Mon 5 Oct` (`shortDay`); a `[[link]]` as its name (`Live`),
+pressed to open, the rest of the cell editing the value, which is why a cell is not a
+`<button>`. **The filter picks rows, never the file** (`passes`): words in any column or
+one, as written or shown, or `>`, `<`, `>=`, `<=`, `=` and a number. **A column's total is
+the owner's choice**, made under it and kept by the column's name (`columnTotals` in the
+settings, `combine`, the daily totals' ways and none), summed until then, over the rows
+shown: summed under a balance, it was a number that meant nothing.
+
+**A table's text reads its links as a note does** (`wikiLinkMarks`, `followLink`, shared
+with the note's editor): the name shown, the brackets at the caret, a press opening it.
 
 **Expenses is an application over the expenses table** (`ExpensesView`, the owner's
 choice: a month at a glance). The table is picked on the page the first time, from the

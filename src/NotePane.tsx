@@ -233,6 +233,7 @@ export function NotePane({
           onChange={handleEditorChange}
           totals={settings.columnTotals}
           onTotal={onColumnTotal}
+          onOpenLink={onOpenLink}
         />
       ) : kind === 'json' || kind === 'csv' || kind === 'text' ? (
         <SourceEditor
@@ -244,6 +245,7 @@ export function NotePane({
           incoming={buffer.incoming}
           onChange={handleEditorChange}
           indentWidth={settings.indentWidth}
+          onOpenLink={onOpenLink}
         />
       ) : (
         <MarkdownEditor

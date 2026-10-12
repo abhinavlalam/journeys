@@ -10,6 +10,7 @@
 import { Decoration, type DecorationSet } from '@codemirror/view'
 import type { EditorState, Range } from '@codemirror/state'
 import { decorated } from './EditorHost'
+import { wikiLinkMarks } from './editorPreview'
 
 /**
  * How many colours before they repeat. Six, each checked against
@@ -65,7 +66,8 @@ export function fieldsOf(line: string, separator: string): { from: number; to: n
 /**
  * The marks for the visible span. The separator comes from the first
  * line wherever the view is, so the colours do not shift on scroll.
- * Empty fields get no mark; `Decoration.mark` refuses zero width.
+ * Empty fields get no mark; `Decoration.mark` refuses zero width. A `[[link]]`
+ * in a value reads as a note's does.
  */
 export function csvDecorations(state: EditorState, from: number, to: number): DecorationSet {
   const separator = separatorOf(state.doc.line(1).text)
@@ -81,7 +83,8 @@ export function csvDecorations(state: EditorState, from: number, to: number): De
       }
     })
   }
-  return Decoration.set(found)
+  found.push(...wikiLinkMarks(state, state.doc.line(first).from, state.doc.line(last).to))
+  return Decoration.set(found, true)
 }
 
 export const csvPreview = decorated(csvDecorations)

@@ -3,7 +3,7 @@
 // Nothing rewrites the text, and every piece of syntax keeps a caret position.
 
 import { Facet, type EditorState, type Range as CmRange } from '@codemirror/state'
-import { Decoration, WidgetType, type DecorationSet } from '@codemirror/view'
+import { Decoration, WidgetType, type DecorationSet, type EditorView } from '@codemirror/view'
 import { getIndentUnit, syntaxTree } from '@codemirror/language'
 import { decorated } from './EditorHost'
 import type { SyntaxNode } from '@lezer/common'
@@ -55,6 +55,22 @@ export function linkTargetAt(state: EditorState, pos: number): { target: string;
     }
   }
   return null
+}
+
+/**
+ * Follows the link a press landed on, if it did. Pressed by `mousedown`: with `click`,
+ * the press moved the caret into the link, its hidden syntax showed, and the pressed
+ * span was replaced before the release, so no click fired. Position from the pressed
+ * node (`posAtDOM`), not the pointer's coordinates.
+ */
+export function followLink(event: MouseEvent, view: EditorView, open: (target: string, wiki: boolean) => void): boolean {
+  if (!isLinkClick(event.target)) return false
+  const pos = event.target instanceof Node ? view.posAtDOM(event.target) : null
+  const found = pos == null ? null : linkTargetAt(view.state, pos)
+  if (!found) return false
+  event.preventDefault()
+  open(found.target, found.wiki)
+  return true
 }
 
 /** Whether a press landed on a tag. */
@@ -298,6 +314,30 @@ function touched(state: EditorState, from: number, to: number): boolean {
 }
 
 /**
+ * The wikilinks between `from` and `to`, in a note or a table's text. CommonMark reads
+ * `[[x]]` as text, so they are found by scanning. A link shows its name:
+ * `[[Note|alias]]` shows the alias and `[[Note]]` shows `Note`; the rest is hidden
+ * until the caret is on it. `skip` leaves one as written.
+ */
+export function wikiLinkMarks(state: EditorState, from: number, to: number, skip = (_at: number) => false): CmRange<Decoration>[] {
+  const found: CmRange<Decoration>[] = []
+  for (const hit of state.doc.sliceString(from, to).matchAll(WIKILINK)) {
+    const at = from + (hit.index ?? 0)
+    if (skip(at)) continue
+    const end = at + hit[0].length
+    found.push(linkMark.range(at, end))
+    if (touched(state, at, end)) continue
+    // A path is not a name: with no alias, only the last segment shows (`noteName`).
+    // `|!2` shows the last two, and the whole target shows with the caret on it.
+    const shown = linkLabelSpan(hit[1])
+    // Everything either side of the shown part, brackets included.
+    found.push(hidden.range(at, at + 2 + shown.from))
+    found.push(hidden.range(at + 2 + shown.to, end))
+  }
+  return found
+}
+
+/**
  * How far into a note to look for the property block. It is at
  * the top, so the search stops well past any real block.
  */
@@ -383,24 +423,9 @@ export function livePreviewDecorations(
     }
   }
 
-  // Wikilinks. CommonMark reads `[[x]]` as text, so they are found by
-  // scanning. A link shows its name: `[[Note|alias]]` shows the alias and
-  // `[[Note]]` shows `Note`; the rest is hidden until the caret is on it.
+  // Wikilinks, but not in code, which reads as written.
+  found.push(...wikiLinkMarks(state, from, to, (at) => inside(state, at, CODE)))
   const text = state.doc.sliceString(from, to)
-  // Neither in code, which reads as written.
-  for (const hit of text.matchAll(WIKILINK)) {
-    const at = from + (hit.index ?? 0)
-    if (inside(state, at, CODE)) continue
-    const end = at + hit[0].length
-    found.push(linkMark.range(at, end))
-    if (touched(state, at, end)) continue
-    // A path is not a name: with no alias, only the last segment shows (`noteName`).
-    // `|!2` shows the last two, and the whole target shows with the caret on it.
-    const shown = linkLabelSpan(hit[1])
-    // Everything either side of the shown part, brackets included.
-    found.push(hidden.range(at, at + 2 + shown.from))
-    found.push(hidden.range(at + 2 + shown.to, end))
-  }
 
   /**
    * `#tag` is always marked, so it can be pressed, and nothing is hidden:

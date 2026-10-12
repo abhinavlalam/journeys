@@ -24,13 +24,12 @@ import { formatKeymap, insertTimeKeymap } from './editorCommands'
 import { propertySource, completionAppearance, slashSource, wikiLinkSource } from './editorComplete'
 import {
   propertyTypes,
-  isLinkClick,
+  followLink,
   isTagClick,
   isTaskClick,
   tagNameAt,
   taskAt,
   toggledTask,
-  linkTargetAt,
   livePreview,
 } from './editorPreview'
 import { splitPageProperties } from './properties'
@@ -114,12 +113,9 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
   return [
     propertyTypes.of(getTypes),
     /**
-     * A press on a link follows it. Clicks elsewhere, including past the end
-     * of a line that ends in a link (`isLinkClick`), still place the caret.
-     *
-     * This is `mousedown` on purpose. With `click`, pressing a link moved the
-     * caret into it, the hidden syntax showed, and the pressed span was replaced
-     * before the release, so no click fired. Following a link took two presses.
+     * A press on a link follows it (`followLink`). Clicks elsewhere, including past
+     * the end of a line that ends in a link (`isLinkClick`), still place the caret.
+     * `mousedown` on purpose: with `click`, following a link took two presses.
      */
     EditorView.domEventHandlers({
       mousedown(event, view) {
@@ -150,15 +146,7 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
           latest.current.onOpenTag?.(tag)
           return true
         }
-        if (!isLinkClick(event.target)) return false
-        // Position from the pressed node (`posAtDOM`), not the pointer's coordinates.
-        const pos = event.target instanceof Node ? view.posAtDOM(event.target) : null
-        if (pos == null) return false
-        const found = linkTargetAt(view.state, pos)
-        if (!found) return false
-        event.preventDefault()
-        latest.current.onOpenLink?.(found.target, found.wiki)
-        return true
+        return followLink(event, view, (target, wiki) => latest.current.onOpenLink?.(target, wiki))
       },
       blur(_event, view) {
         latest.current.line?.onLeave?.(view.state.sliceDoc())

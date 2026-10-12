@@ -101,6 +101,39 @@ describe('a table edited in place', () => {
     expect(total()).toEqual(['none', ''])
   })
 
+  it('shows the rows a filter passes, in any column or one, and totals what it shows', async () => {
+    await openTable()
+    const filter = pane().getByRole('textbox', { name: 'Filter' })
+    const shown = () => pane().queryAllByRole('button', { name: /^What, row/ }).map((one) => one.textContent)
+    const total = () => (pane().getByRole('combobox', { name: 'Total of Amount' }) as HTMLSelectElement).nextElementSibling!.textContent
+    fireEvent.change(filter, { target: { value: 'COFFEE' } })
+    expect([shown(), total(), pane().getByText('1 of 2 rows')]).toEqual([['coffee'], '12.5', expect.anything()])
+    fireEvent.change(pane().getByRole('combobox', { name: 'Filter in' }), { target: { value: '1' } })
+    fireEvent.change(filter, { target: { value: '> 100' } })
+    expect([shown(), total()]).toEqual([['lunch, upstairs'], '480.0'])
+    fireEvent.change(filter, { target: { value: 'tea' } })
+    expect(pane().getByText('No row passes the filter.')).toBeTruthy()
+    fireEvent.keyDown(filter, { key: 'Escape' })
+    expect(shown()).toEqual(['lunch, upstairs', 'coffee'])
+    // Nothing the filter does reaches the file.
+    expect(disk.read(FILE)).toBe(written)
+  })
+
+  /** A `[[link]]` in a value reads as its name and opens; the rest of the cell edits the value as written. */
+  it('opens a link in a value, and edits the value around it as written', async () => {
+    disk.write(FILE, 'day,amount,what\n2026-10-10,480,[[roadmap]] review lunch\n')
+    await openApp()
+    fireEvent.click(within(document.querySelector('.sidebar')!).getByText('Trackers'))
+    fireEvent.click(await waitFor(() => within(document.querySelector('.sidebar')!).getByText('expenses.csv')))
+    const value = await waitFor(() => cell('What, row 1'))
+    expect(value.textContent).toBe('roadmap review lunch')
+    fireEvent.click(value)
+    expect((pane().getByRole('textbox', { name: 'What, row 1' }) as HTMLInputElement).value).toBe('[[roadmap]] review lunch')
+    fireEvent.keyDown(pane().getByRole('textbox', { name: 'What, row 1' }), { key: 'Escape' })
+    fireEvent.click(within(cell('What, row 1')).getByRole('button', { name: 'roadmap' }))
+    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')?.textContent).toBe('roadmap'))
+  })
+
   /** Switched to after an edit, the text editor held the old text, and its first key saved it over the edit. */
   it('shows the text as edited when switched to Text', async () => {
     await openTable()

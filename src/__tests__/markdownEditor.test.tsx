@@ -34,6 +34,7 @@ import { EditorView, type Command, type Decoration, type DecorationSet } from '@
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { codeFolding, foldEffect, indentUnit } from '@codemirror/language'
 import { MarkdownEditor, caretOnOpen } from '../MarkdownEditor'
+import { SourceEditor } from '../SourceEditor'
 import {
   continueIndent,
   toggleMarker,
@@ -1997,6 +1998,16 @@ describe('following a link in the note', () => {
     fireEvent.mouseDown(link, { button: 0, detail: 1, metaKey: true })
     fireEvent.mouseDown(link, { button: 0, detail: 1, altKey: true })
     expect(opened).toEqual([])
+  })
+
+  /** A table's text follows its `[[links]]` as a note does, by the same press. */
+  it('follows a link in a table’s text', () => {
+    const opened: { target: string; wiki: boolean }[] = []
+    const { container } = render(
+      <SourceEditor kind="csv" name="spend.csv" initialText={'where,what\n[[Harbour Bistro]],lunch\n'} onChange={() => {}} onOpenLink={(target, wiki) => opened.push({ target, wiki })} />
+    )
+    fireEvent.mouseDown(container.querySelector('.cm-md-link') as HTMLElement, { button: 0, detail: 1 })
+    expect(opened).toEqual([{ target: 'Harbour Bistro', wiki: true }])
   })
 
   /** Pressing a note's text places a caret; it does not follow a link. */

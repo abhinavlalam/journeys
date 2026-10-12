@@ -1,7 +1,9 @@
-import type { ComponentProps } from 'react'
+import { useRef, type ComponentProps } from 'react'
 import type { Extension } from '@codemirror/state'
+import { EditorView } from '@codemirror/view'
 import { EditorHost } from './EditorHost'
 import { csvPreview } from './csvPreview'
+import { followLink } from './editorPreview'
 import { jsonPreview } from './jsonPreview'
 
 /**
@@ -21,12 +23,28 @@ export function SourceEditor({
   kind,
   name,
   extensions = [],
+  onOpenLink,
   ...host
 }: {
   kind: keyof typeof COLOURS
   /** The file's name, for the editor's accessible name. */
   name: string
   extensions?: Extension[]
+  /** A table's `[[link]]` pressed: it opens, as a note's does. */
+  onOpenLink?: (target: string, wiki: boolean) => void
 } & Pick<ComponentProps<typeof EditorHost>, 'initialText' | 'incoming' | 'onChange' | 'indentWidth' | 'shown'>) {
-  return <EditorHost {...host} extensions={[...extensions, ...COLOURS[kind]]} ariaLabel={`${name} source`} className={`${kind}-editor`} />
+  // The editor takes its extensions once, at mount; the handler is read when pressed.
+  const open = useRef(onOpenLink)
+  open.current = onOpenLink
+  const links = EditorView.domEventHandlers({
+    mousedown: (event, view) => event.button === 0 && !event.metaKey && !event.ctrlKey && !event.altKey && followLink(event, view, (target, wiki) => open.current?.(target, wiki)),
+  })
+  return (
+    <EditorHost
+      {...host}
+      extensions={[...extensions, ...COLOURS[kind], ...(kind === 'csv' ? [links] : [])]}
+      ariaLabel={`${name} source`}
+      className={`${kind}-editor`}
+    />
+  )
 }

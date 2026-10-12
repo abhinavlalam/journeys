@@ -116,3 +116,20 @@ export function numberShown(value: number, decimals: number): string {
   if (!format) formats.set(decimals, (format = new Intl.NumberFormat(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })))
   return format.format(value)
 }
+
+const COMPARISON = /^(>=|<=|>|<|=)\s*(-?\d+(?:\.\d+)?)$/
+/**
+ * Whether a value passes a filter: for a number, `>`, `<`, `>=`, `<=` or `=` and a
+ * number; else the filter's words found in the value as written or as shown, in any case.
+ */
+export function passes(value: string, shown: string, filter: string): boolean {
+  const query = filter.trim().toLowerCase()
+  const comparison = COMPARISON.exec(query)
+  const number = numberOf(value)
+  if (comparison && number !== null) {
+    const [, by, given] = comparison
+    const than = Number(given)
+    return by === '>' ? number > than : by === '<' ? number < than : by === '>=' ? number >= than : by === '<=' ? number <= than : number === than
+  }
+  return value.toLowerCase().includes(query) || shown.toLowerCase().includes(query)
+}

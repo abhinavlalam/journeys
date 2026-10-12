@@ -86,4 +86,17 @@ describe('a delimited file', () => {
     }
     expect(found).toEqual(['cm-csv-c0@0-1', 'cm-csv-c2@3-4', 'cm-csv-c0@6-7'])
   })
+
+  /** A table's `[[link]]` reads as a note's: its name, marked to be pressed, the brackets shown only at the caret. */
+  it('shows a link in a value as its name, as a note does', () => {
+    const doc = 'where,what\n[[Harbour Bistro]],lunch'
+    const marks = (anchor: number) => {
+      const found: string[] = []
+      const iter = csvDecorations(EditorState.create({ doc, selection: { anchor } }), 0, doc.length).iter()
+      for (; iter.value; iter.next()) found.push(`${(iter.value.spec as { class?: string }).class ?? 'hidden'}@${iter.from}-${iter.to}`)
+      return found.filter((one) => !one.startsWith('cm-csv')).sort()
+    }
+    expect(marks(0)).toEqual(['cm-md-link@11-29', 'hidden@11-13', 'hidden@27-29'])
+    expect(marks(15)).toEqual(['cm-md-link@11-29'])
+  })
 })

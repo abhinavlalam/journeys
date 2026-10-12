@@ -2706,55 +2706,167 @@ button.folder-toggle {
   content: none;
 }
 
-/* A table edited in place (`CsvTable`): a value is a button the size of its cell,
-   pressed to become a field in the cell's own type and space. A column's name sorts
-   the rows shown.
+/* A table edited in place (`CsvTable`), drawn as Airtable draws a grid (the owner's
+   choice): a toolbar with the filter and the count, then the grid in the chrome's size,
+   a hairline round every cell, the names on a tinted band with each column's glyph,
+   each row numbered at its head and one line tall, washed under the pointer. A long
+   value is cut short, whole in its `title` and its field; a column is as wide as its
+   values up to `--data-cell-max`, until it is dragged. Past the pane, the grid scrolls
+   sideways under its row heads. Numbers sit on the right, as a ledger's do. */
+.data-table-box {
+  --data-cell-max: 28ch;
+  --data-band: color-mix(in srgb, var(--text) 5%, var(--bg-raised));
+  display: flex;
+  flex-direction: column;
+  margin: 0 var(--column-pad) 2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  font-size: var(--fs-chrome);
+  line-height: var(--line-height-prose);
+  overflow: hidden;
+}
 
-   Read as a ledger: the table spans the pane, each row on a hairline and washed under
-   the pointer; text wraps in its cell, so a long note neither runs off the pane nor
-   is cut short, while a number or a day keeps to one line, a number on the right. The
-   names are quieter than the values. Over `.line-table`, a tag's table, whose cells
-   are one clipped line. */
+.data-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-filter {
+  display: flex;
+  flex: 1;
+  max-width: 32em;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-viewer);
+}
+
+.data-filter select,
+.data-filter input {
+  padding: 0.15rem 0.5rem;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  outline: none;
+}
+
+.data-filter select {
+  border-right: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.data-filter input {
+  flex: 1;
+  min-width: 6em;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.data-filter:focus-within {
+  border-color: var(--mark);
+}
+
+.data-count {
+  margin-left: auto;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.data-scroll {
+  overflow-x: auto;
+}
+
 .data-table {
-  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.data-table th,
+.data-table td {
+  height: calc(var(--row-h) + 0.4rem);
+  padding: 0 0.5rem;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
 .data-table th {
-  padding: 0 var(--column-gap) 0.4rem 0;
+  /* The grip sits on this edge. */
+  position: relative;
+  background: var(--data-band);
   color: var(--text-dim);
   font-weight: var(--fw-medium);
-  vertical-align: bottom;
 }
 
-/* A value keeps to one line, its column as wide as it needs; a column of sentences
-   (`data-prose`) takes what is left and wraps. Wrapping every column broke names and
-   days over lines while the sentences claimed the width. Past the pane, the box
-   scrolls sideways. */
-.data-table td {
-  height: auto;
-  padding: 0 var(--column-gap) 0 0;
-  border-bottom: 1px solid var(--border);
-  vertical-align: top;
-  max-width: none;
-  overflow: visible;
-}
-
-.data-table .data-prose {
-  min-width: 16ch;
-  white-space: normal;
-  overflow-wrap: break-word;
-}
-
-.data-table tbody tr:hover > td {
+.data-table tbody tr:not(.data-add-row):hover > td {
   background: var(--bg-hover);
+}
+
+/* The row's head: its number, and its × in the number's place under the pointer. Held
+   at the left while the grid scrolls, as the × is reached from every row. */
+.data-table .data-row-head {
+  position: sticky;
+  left: 0;
+  width: 0;
+  min-width: 3em;
+  padding: 0;
+  background: var(--bg-raised);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.data-table th.data-row-head {
+  background: var(--data-band);
+}
+
+.data-delete,
+.data-table tr:hover .data-row-number {
+  display: none;
+}
+
+.data-table tr:hover .data-delete {
+  display: inline;
+  padding: 0 0.4rem;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.data-table tr:hover .data-delete:hover {
+  color: var(--alert);
 }
 
 .data-table .data-cell,
 .data-table .data-sort {
   display: block;
+  max-width: var(--data-cell-max);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+
+.data-table .data-sort {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   width: 100%;
-  min-height: var(--row-h);
-  padding: 0.25rem 0;
+  padding: 0;
   border: none;
   background: transparent;
   color: inherit;
@@ -2763,12 +2875,6 @@ button.folder-toggle {
   font-size: inherit;
   line-height: inherit;
   text-align: left;
-  cursor: text;
-}
-
-.data-table .data-sort {
-  min-height: 0;
-  padding: 0;
   cursor: pointer;
 }
 
@@ -2776,22 +2882,52 @@ button.folder-toggle {
   color: var(--text);
 }
 
+.data-type {
+  display: inline-flex;
+  flex: none;
+  width: var(--glyph);
+  height: var(--glyph);
+  color: var(--text-faint);
+}
+
+/* Dragged, a column is as wide as it was left, and its values are cut there. */
+.data-table[data-sized] {
+  table-layout: fixed;
+}
+
+.data-table[data-sized] .data-cell,
+.data-table[data-sized] .data-sort {
+  max-width: none;
+}
+
+.data-table th:hover > .column-grip {
+  opacity: 1;
+}
+
+.data-table .data-cell:focus-visible {
+  outline: 2px solid var(--mark);
+  outline-offset: -2px;
+}
+
 .data-table .data-number,
-.data-table .data-number .data-cell,
 .data-table .data-number .data-sort {
   font-variant-numeric: tabular-nums;
   text-align: right;
+  justify-content: flex-end;
 }
 
-/* The field takes the button's place and size: its padding less the line under it. */
+/* The field takes the cell's place, ringed in the accent, as Airtable marks the cell
+   being typed in. */
+.data-table td:has(> .data-edit) {
+  box-shadow: inset 0 0 0 2px var(--mark);
+}
+
 .data-table .data-edit {
   display: block;
   width: 100%;
   min-width: 6ch;
-  min-height: var(--row-h);
-  padding: 0.25rem 0 calc(0.25rem - 1px);
+  padding: 0;
   border: none;
-  border-bottom: 1px solid var(--mark);
   background: transparent;
   color: var(--text);
   font-family: inherit;
@@ -2801,17 +2937,37 @@ button.folder-toggle {
   outline: none;
 }
 
-/* The totals close the table: how each is totalled, quiet and chosen in place, over
-   its figure. No line of their own; the last row's is above them. */
-.data-table .data-totals td {
-  padding-top: 0.4rem;
-  border-bottom: none;
+.data-table .data-none {
+  color: var(--text-faint);
+}
+
+.data-add-row td {
+  border-right: none;
+}
+
+.data-add {
+  padding: 0 0.5rem;
+  border: none;
+  background: transparent;
   color: var(--text-dim);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.data-add:hover {
+  color: var(--text);
+}
+
+/* The totals close the grid on the names' band: how each is totalled, quiet and
+   chosen in place, then its figure, over the rows shown. */
+.data-table .data-totals td {
+  border-bottom: none;
+  background: var(--data-band);
 }
 
 .data-total-by {
-  display: block;
-  width: 100%;
   padding: 0;
   border: none;
   -webkit-appearance: none;
@@ -2821,8 +2977,6 @@ button.folder-toggle {
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
-  text-align: inherit;
-  text-align-last: right;
   cursor: pointer;
 }
 
@@ -2831,35 +2985,10 @@ button.folder-toggle {
 }
 
 .data-total {
-  display: block;
+  margin-left: 0.4rem;
   color: var(--text);
   font-weight: var(--fw-strong);
-}
-
-/* The × stays at the box's right edge while a wide table scrolls under it. */
-.data-row-actions {
-  position: sticky;
-  right: 0;
-  width: 0;
-  background: var(--bg-raised);
-}
-
-.data-row-actions button {
-  padding: 0.25rem;
-  border: none;
-  background: transparent;
-  color: var(--text-faint);
-  font-size: inherit;
-  line-height: inherit;
-  cursor: pointer;
-}
-
-.data-row-actions button:hover {
-  color: var(--alert);
-}
-
-.data-add {
-  margin-top: 0.5rem;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---- Expenses ---- */
