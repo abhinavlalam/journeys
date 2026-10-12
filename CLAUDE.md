@@ -131,6 +131,30 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 - **Judge a feature by whether it is the right design**, not by how often it is
   used; a feature used daily may still be built the wrong way.
 
+## Notes and tables
+
+The direction since 2026-10-12, the owner's: **notes hold memories, tasks and
+information in plain words, and trackers are tables.** Each tracker (expenses,
+habits) is one CSV file in the vault's `Data/`, with a header row, which the app shows
+as an application of its own and edits in place, a cell or a row at a time. The vault's
+agent organises the daily notes into the tables (capture first, organise later), checks
+for doubles and edits only tables. The calendar is drawn from its feeds, writing nothing
+into notes. One device is used at a time, so tables need no merge rule. CSV, not xlsx:
+plain text that git can show and merge and the agent writes without a library. The
+squeezing of tables into note lines is what grew typed properties, tag structures,
+table views and daily totals, and made the notes dense.
+
+The steps, in order: (1) any `.csv` opens as an editable table with totals, rewriting
+only the row edited; (2) the tables in `Data/` are listed under Applications; (3)
+Habits is a grid over `habits.csv`, tapped in the app; (4) the calendar is drawn from the
+feeds; (5) the agent's organising, and the vault's expense lines moved into
+`Data/expenses.csv` and rewritten in plain words; (6) the line machinery for trackers
+goes (typed line properties, tag structures and their tables, daily totals, `#event`
+lines, habits read from tags, the phone's tag forms). Tags stay as plain labels; tasks
+stay as lines. Until (6) the sections below describe what the app still reads. The
+vault's `.config/app.md` (Notes and tables) and `.config/claude.md` say the same to the
+owner and the agent.
+
 ## Notes, buffers and moves
 
 - **Read the note before switching what is open**, or the editor holds the old
