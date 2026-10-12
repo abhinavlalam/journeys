@@ -648,15 +648,6 @@ export function SettingsPanel({ settings, onChange, onClose, sync, initialSectio
                 />
                 <NameSetting
                   uid={uid}
-                  name="trackers"
-                  label="Trackers folder"
-                  value={settings.trackersFolder}
-                  check={validateFolder}
-                  onChange={(trackersFolder) => patch({ trackersFolder })}
-                  hint="At the top of the vault. Each table in it (expenses.csv, habits.csv) is a tracker, listed under Applications."
-                />
-                <NameSetting
-                  uid={uid}
                   name="timeline-group"
                   label="Timeline group"
                   value={settings.timelineGroup}

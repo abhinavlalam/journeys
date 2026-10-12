@@ -217,9 +217,9 @@ export function AddButton({ label, onPress }: { label: string; onPress: (event: 
  * A section's one line when it has no rows: a row, not a line of text, so its words
  * line up with every other row's, and disabled, since nothing opens.
  */
-export function EmptyRow({ text, depth = 1 }: { text: string; depth?: number }) {
+export function EmptyRow({ text }: { text: string }) {
   return (
-    <li style={{ paddingLeft: stepIn(depth) }}>
+    <li style={{ paddingLeft: stepIn(1) }}>
       <NoteRow icon={<RowIcon />} name={text} disabled />
     </li>
   )

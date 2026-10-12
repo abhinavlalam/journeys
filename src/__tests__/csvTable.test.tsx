@@ -31,10 +31,11 @@ beforeEach(() => {
 
 const pane = () => within(document.querySelector('.viewer:not([hidden])') as HTMLElement)
 const cell = (name: string) => pane().getByRole('button', { name })
-/** A tracker is under Applications, by its name, and opens as its table. */
+/** A table is a file in the tree, opened into the reading pane. */
 async function openTable() {
   await openApp()
-  fireEvent.click(await screen.findByLabelText('expenses'))
+  fireEvent.click(within(document.querySelector('.sidebar')!).getByText('trackers'))
+  fireEvent.click(await waitFor(() => within(document.querySelector('.sidebar')!).getByText('expenses.csv')))
   await waitFor(() => expect(cell('what, row 1').textContent).toBe('lunch, upstairs'))
 }
 const typeInto = (name: string, value: string, key = 'Enter') => {
@@ -73,32 +74,6 @@ describe('a table edited in place', () => {
     expect(pane().getAllByRole('button', { name: /^what, row/ }).map((one) => one.textContent)).toEqual(['coffee', 'lunch, upstairs'])
     fireEvent.click(pane().getByRole('button', { name: 'Delete row 1' }))
     await waitFor(() => expect(disk.read(FILE)).toBe(written.replace('2026-10-10,480,"lunch, upstairs"\n', '')))
-  })
-
-  it('lists the tables of the folder the settings name as trackers, and no other', async () => {
-    disk.write('/v/Ledgers/loans.csv', 'day,amount\n')
-    await openApp({ trackersFolder: 'Ledgers' })
-    await waitFor(() => expect(screen.getByLabelText('loans')).toBeTruthy())
-    expect(screen.queryByLabelText('expenses')).toBeNull()
-  })
-
-  /** Drawn only as tables, an empty folder left nothing to find in the pane. */
-  it('shows Trackers with none yet, and makes one from its name and columns', async () => {
-    // A vault with no tracker yet.
-    resetFakeVault()
-    rememberVault('/v')
-    await openApp()
-    expect(screen.getByText('No trackers yet: + makes one.')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'New tracker' }))
-    const field = screen.getByRole('textbox', { name: 'Tracker name' })
-    fireEvent.change(field, { target: { value: 'reading' } })
-    fireEvent.keyDown(field, { key: 'Enter' })
-    const columns = screen.getByRole('textbox', { name: 'Columns of reading' })
-    fireEvent.change(columns, { target: { value: 'day, book, pages' } })
-    fireEvent.keyDown(columns, { key: 'Enter' })
-    await waitFor(() => expect(disk.read('/v/trackers/reading.csv')).toBe('day,book,pages\n'))
-    await waitFor(() => expect(screen.getByLabelText('reading')).toBeTruthy())
-    await waitFor(() => expect(pane().getByRole('button', { name: 'Add a row' })).toBeTruthy())
   })
 
   /** Switched to after an edit, the text editor held the old text, and its first key saved it over the edit. */

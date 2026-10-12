@@ -5,7 +5,7 @@
  * the stylesheet is right. No React: pure functions and one DOM write.
  */
 import { asObject, oneOf } from './configEntries'
-import { DAILY_FOLDER, FILES_FOLDER, readConfigFile, safeNewName, TRACKERS_FOLDER, writeConfigFile } from './vault'
+import { DAILY_FOLDER, FILES_FOLDER, readConfigFile, safeNewName, writeConfigFile } from './vault'
 import { TAG_NAME } from './tags'
 import { SETTINGS_FILE } from './vaultModel'
 import { onAndroid, paintBars } from './platform'
@@ -168,8 +168,6 @@ export interface Settings {
   dailyFolder: string
   /** Where a photo or file from the phone is kept, as `dailyFolder` is named. */
   filesFolder: string
-  /** Where the trackers' tables are kept, one CSV each, each an application. */
-  trackersFolder: string
   /** The tag a share from another app is filed with, so an agent finds every one. */
   shareTag: string
   /** The group a new timeline entry goes under when none of its tags has one. */
@@ -286,7 +284,6 @@ export const DEFAULT_SETTINGS: Settings = {
   // `vault.ts`'s constant, so this default and `ensureDailyNote`'s can't drift apart.
   dailyFolder: DAILY_FOLDER,
   filesFolder: FILES_FOLDER,
-  trackersFolder: TRACKERS_FOLDER,
   shareTag: 'shared',
   timelineGroup: 'timeline',
   shortcuts: defaultShortcuts(),
@@ -385,7 +382,6 @@ export function parseSettings(raw: unknown): Settings {
     indentWidth: pickNumber(stored.indentWidth, BOUNDS.indentWidth, DEFAULT_SETTINGS.indentWidth),
     dailyFolder: valid('dailyFolder', validateFolder),
     filesFolder: valid('filesFolder', validateFolder),
-    trackersFolder: valid('trackersFolder', validateFolder),
     shareTag: valid('shareTag', validateTag),
     timelineGroup: valid('timelineGroup', validateTag),
     shortcuts: pickShortcuts(stored.shortcuts),

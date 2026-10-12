@@ -89,11 +89,6 @@ describe('where the buttons are', () => {
       'Timeline',
       'Tasks',
       'Habits',
-      // The trackers, a group shown with none yet: its fold, its name, its + and its empty row.
-      'Collapse Trackers',
-      null,
-      'New tracker',
-      null,
       'Log',
       'Sync',
       'Terminal',

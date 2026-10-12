@@ -537,8 +537,6 @@ export async function importFile(
 
 /** Where a file from the phone is kept when the settings don't say (`filesFolder`). */
 export const FILES_FOLDER = 'Files'
-/** Where the trackers' tables are kept, one CSV each, when the settings name no other folder. */
-export const TRACKERS_FOLDER = 'trackers'
 
 /**
  * Where a file kept from the phone goes in `folder`: under its own name, or with
@@ -586,18 +584,6 @@ export async function createNote(
   const file = fileAt(vaultPath, inFolder(await ensureFolder(vaultPath, parentPath), fileName))
   if (await vaultFs.exists(file.absolutePath)) throw new Error(`"${fileName}" already exists.`)
   await vaultFs.writeText(file.absolutePath, '')
-  return file
-}
-
-/**
- * Makes a tracker's table, `<folder>/<name>.csv`, holding `header`, its first line.
- * Never over a table already there.
- */
-export async function createTable(vaultPath: string, folder: string, name: string, header: string): Promise<VaultFile> {
-  const fileName = `${safeNewName(name.replace(/\.csv$/i, ''))}.csv`
-  const file = fileAt(vaultPath, inFolder(await ensureFolder(vaultPath, folder), fileName))
-  if (await vaultFs.exists(file.absolutePath)) throw new Error(`"${fileName}" already exists.`)
-  await vaultFs.writeText(file.absolutePath, header)
   return file
 }
 

@@ -3,7 +3,6 @@ import {
   CONFIG_DIR,
   convertToNested,
   createNote,
-  createTable,
   dailyNoteFile,
   ensureDailyNote,
   folderIcon,
@@ -16,7 +15,7 @@ import {
   writePathProperty,
   writeVaultFile,
 } from './vault'
-import { fileKind, folderNoteRef, isTextFile, knownPath, noteName, SETTINGS_FILE } from './vaultModel'
+import { folderNoteRef, isTextFile, knownPath, noteName, SETTINGS_FILE } from './vaultModel'
 import { FileView } from './FileView'
 import type { VaultFile, VaultFolder } from './vaultModel'
 import { FolderTree, useDropTarget } from './FolderTree'
@@ -44,8 +43,6 @@ import { TimelineView } from './TimelineView'
 import { TasksView } from './TasksView'
 import { readTasks, TASK, withDone } from './tasks'
 import { HabitsView } from './HabitsView'
-import { TrackersGroup } from './TrackersGroup'
-import { headerText } from './table'
 import { doneDays, habitLine, habitsOf, withoutHabit } from './habits'
 import { LogView } from './LogView'
 import { useLog } from './useLog'
@@ -98,7 +95,6 @@ import { syncWord, useSync } from './useSync'
 import { CloneVault } from './CloneVault'
 import {
   collectFolders,
-  folderAt,
   folderWithNote,
   existingNotesIn,
   pathKey,
@@ -393,12 +389,6 @@ export default function App() {
     setPicked((current) => pick(current, file.path, mode, pickOrder))
     if (mode === 'only') void openNote(file)
   }
-
-  /** The trackers: each table in the trackers folder, an application of its own. */
-  const trackers = useMemo(
-    () => folderAt(vault.root, settings.trackersFolder)?.files.filter((file) => fileKind(file.path) === 'csv') ?? [],
-    [vault.root, settings.trackersFolder]
-  )
 
   /** Every folder, for Expand all and Collapse all. */
   const folderPaths = useMemo(() => (vault.root ? collectFolders(vault.root) : []), [vault.root])
@@ -1138,28 +1128,10 @@ export default function App() {
                 { kind: 'tasks', name: 'Tasks', icon: 'check', count: tasks?.filter((one) => !one.done).length ?? 0 },
                 // Every habit by the last weeks; counted while one is not done today.
                 { kind: 'habits', name: 'Habits', icon: 'target', count: habits?.filter((one) => !one.done.has(localDateStamp())).length ?? 0 },
+                // Every message the app has shown in this window.
+                { kind: 'log', name: 'Log', icon: 'inbox', count: log.items.length },
               ] as const
             ).map(applicationRow)}
-            {/* Open unless shut by hand: a key added later is never in a vault's stored set, so a
-                key for open would have started it shut. */}
-            <TrackersGroup
-              trackers={trackers}
-              openPath={active?.kind === 'note' ? active.file.path : null}
-              open={!folders.open.has('shut:trackers')}
-              onToggle={() => folders.toggle('shut:trackers', folders.open.has('shut:trackers'))}
-              onOpen={(file) => void openNote(file)}
-              onStart={() => {
-                closeSearch()
-                creating.cancel()
-                setNamingAction(null)
-              }}
-              onCreate={(name, columns) =>
-                void vault.mutate((v) => createTable(v, settings.trackersFolder, name, headerText(columns)), (file) => openNote(file))
-              }
-              onError={setError}
-            />
-            {/* Every message the app has shown in this window. */}
-            {applicationRow({ kind: 'log', name: 'Log', icon: 'inbox', count: log.items.length })}
             {/* Sync status in one line; opens its settings. */}
             <li style={{ paddingLeft: stepIn(1) }}>
               <NoteRow

@@ -73,9 +73,6 @@ export function cellText(value: string, separator: string): string {
 
 const rowText = (cells: readonly string[], separator: string) => cells.map((one) => cellText(one, separator)).join(separator)
 
-/** A new table's first line: its columns' names, with commas. */
-export const headerText = (columns: readonly string[]) => `${rowText(columns, ',')}\n`
-
 /**
  * The file with one value changed, written where the old one was, every other byte as
  * it was, the rest of its row included. A value past the row's end is reached with

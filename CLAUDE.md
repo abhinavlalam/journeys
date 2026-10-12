@@ -136,9 +136,12 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 
 The direction since 2026-10-12, the owner's: **notes hold memories, tasks and
 information in plain words, and trackers are tables.** Each tracker (expenses,
-habits) is one CSV file in the vault's trackers folder (`trackersFolder`, `trackers`
-unset), with a header row, listed under Applications by its name, never drawn in the
-graph (which draws notes alone), and shown as an application of its own and edits in place, a cell or a row at a time. The vault's
+habits) is one CSV file with a header row, kept in the vault's `trackers/` by the
+owner's convention (the app names no folder for it), opened from the tree into the
+reading pane as a table edited in place, a value or a row at a time, and never drawn
+in the graph, which draws notes alone. No application of their own: a Trackers group
+under Applications was built and taken out on 2026-10-12, as the owner wanted a table
+in the reading pane and nothing more. The vault's
 agent organises the daily notes into the tables (capture first, organise later), checks
 for doubles and edits only tables. The calendar is drawn from its feeds, writing nothing
 into notes. One device is used at a time, so tables need no merge rule. CSV, not xlsx:
@@ -156,10 +159,8 @@ view, mounts over the text as it is now, not as last read, or its first key save
 old text over the edit. Through the note's own buffer, so saving, an outside write and
 a move are a note's.
 
-The steps, in order: (1) any `.csv` opens as an editable table with totals (done); (2) the tables in the trackers folder are listed under Applications (done: a
-Trackers group always there, its tables one to a row, its + asking a name and then the
-columns in one field, `createTable`, never over a table there; open unless shut by hand,
-since a key added later is in no vault's stored set); (3)
+The steps, in order: (1) any `.csv` opens as an editable table with totals (done); (2) dropped: the tables
+are files in the tree, not applications; (3)
 Habits is a grid over `habits.csv`, tapped in the app; (4) the calendar is drawn from the
 feeds; (5) the agent's organising, and the vault's expense lines moved into
 `trackers/expenses.csv` and rewritten in plain words; (6) the line machinery for trackers
@@ -739,8 +740,8 @@ owner and the agent.
   edit, calendars and all. `tags.json` and `properties.json` are said once too.
   `readConfigFile`/`writeConfigFile` take a file name — do not add a second pair.
 - **The vault's names are its owner's settings**: the daily folder, the files folder,
-  the trackers folder, the share tag and the timeline's group (`dailyFolder`,
-  `filesFolder`, `trackersFolder`, `shareTag`, `timelineGroup`), each checked as it is typed (`validateFolder`, `validateTag`). The
+  the share tag and the timeline's group (`dailyFolder`, `filesFolder`, `shareTag`,
+  `timelineGroup`), each checked as it is typed (`validateFolder`, `validateTag`). The
   app's own names stay fixed: `.config`, `icon::`, `path::`, `aliases::`, `ends::`,
   and the calendar's `#event` and `source::`.
 - **A vault's calendars and hidden folders are its own** (`portable`): not carried
