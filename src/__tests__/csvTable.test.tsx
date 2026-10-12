@@ -19,7 +19,7 @@ vi.mock('../SourceEditor', () => ({
   SourceEditor: ({ initialText }: { initialText: string }) => <pre data-testid="text">{initialText}</pre>,
 }))
 
-const FILE = '/v/trackers/expenses.csv'
+const FILE = '/v/Trackers/expenses.csv'
 const written = ['day,amount,what', '2026-10-10,480,"lunch, upstairs"', '2026-10-11,  12.5 ,coffee', ''].join('\n')
 
 afterEach(cleanup)
@@ -34,7 +34,7 @@ const cell = (name: string) => pane().getByRole('button', { name })
 /** A table is a file in the tree, opened into the reading pane. */
 async function openTable() {
   await openApp()
-  fireEvent.click(within(document.querySelector('.sidebar')!).getByText('trackers'))
+  fireEvent.click(within(document.querySelector('.sidebar')!).getByText('Trackers'))
   fireEvent.click(await waitFor(() => within(document.querySelector('.sidebar')!).getByText('expenses.csv')))
   await waitFor(() => expect(cell('what, row 1').textContent).toBe('lunch, upstairs'))
 }

@@ -136,7 +136,7 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 
 The direction since 2026-10-12, the owner's: **notes hold memories, tasks and
 information in plain words, and trackers are tables.** Each tracker (expenses,
-habits) is one CSV file with a header row, kept in the vault's `trackers/` by the
+habits) is one CSV file with a header row, kept in the vault's `Trackers/` by the
 owner's convention (the app names no folder for it), opened from the tree into the
 reading pane as a table edited in place, a value or a row at a time, and never drawn
 in the graph, which draws notes alone. No application of their own: a Trackers group
@@ -163,7 +163,7 @@ The steps, in order: (1) any `.csv` opens as an editable table with totals (done
 are files in the tree, not applications; (3)
 Habits is a grid over `habits.csv`, tapped in the app; (4) the calendar is drawn from the
 feeds; (5) the agent's organising, and the vault's expense lines moved into
-`trackers/expenses.csv` and rewritten in plain words; (6) the line machinery for trackers
+`Trackers/expenses.csv` and rewritten in plain words; (6) the line machinery for trackers
 goes (typed line properties, tag structures and their tables, daily totals, `#event`
 lines, habits read from tags, the phone's tag forms). Tags stay as plain labels; tasks
 stay as lines. Until (6) the sections below describe what the app still reads. The
