@@ -82,6 +82,25 @@ describe('a table edited in place', () => {
     expect(screen.queryByLabelText('expenses')).toBeNull()
   })
 
+  /** Drawn only as tables, an empty folder left nothing to find in the pane. */
+  it('shows Trackers with none yet, and makes one from its name and columns', async () => {
+    // A vault with no tracker yet.
+    resetFakeVault()
+    rememberVault('/v')
+    await openApp()
+    expect(screen.getByText('No trackers yet: + makes one.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'New tracker' }))
+    const field = screen.getByRole('textbox', { name: 'Tracker name' })
+    fireEvent.change(field, { target: { value: 'reading' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    const columns = screen.getByRole('textbox', { name: 'Columns of reading' })
+    fireEvent.change(columns, { target: { value: 'day, book, pages' } })
+    fireEvent.keyDown(columns, { key: 'Enter' })
+    await waitFor(() => expect(disk.read('/v/trackers/reading.csv')).toBe('day,book,pages\n'))
+    await waitFor(() => expect(screen.getByLabelText('reading')).toBeTruthy())
+    await waitFor(() => expect(pane().getByRole('button', { name: 'Add a row' })).toBeTruthy())
+  })
+
   /** Switched to after an edit, the text editor held the old text, and its first key saved it over the edit. */
   it('shows the text as edited when switched to Text', async () => {
     await openTable()

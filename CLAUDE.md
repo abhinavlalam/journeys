@@ -156,7 +156,10 @@ view, mounts over the text as it is now, not as last read, or its first key save
 old text over the edit. Through the note's own buffer, so saving, an outside write and
 a move are a note's.
 
-The steps, in order: (1) any `.csv` opens as an editable table with totals (done); (2) the tables in the trackers folder are listed under Applications (done); (3)
+The steps, in order: (1) any `.csv` opens as an editable table with totals (done); (2) the tables in the trackers folder are listed under Applications (done: a
+Trackers group always there, its tables one to a row, its + asking a name and then the
+columns in one field, `createTable`, never over a table there; open unless shut by hand,
+since a key added later is in no vault's stored set); (3)
 Habits is a grid over `habits.csv`, tapped in the app; (4) the calendar is drawn from the
 feeds; (5) the agent's organising, and the vault's expense lines moved into
 `trackers/expenses.csv` and rewritten in plain words; (6) the line machinery for trackers

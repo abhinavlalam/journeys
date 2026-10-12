@@ -3,6 +3,7 @@ import {
   CONFIG_DIR,
   convertToNested,
   createNote,
+  createTable,
   dailyNoteFile,
   ensureDailyNote,
   folderIcon,
@@ -43,6 +44,8 @@ import { TimelineView } from './TimelineView'
 import { TasksView } from './TasksView'
 import { readTasks, TASK, withDone } from './tasks'
 import { HabitsView } from './HabitsView'
+import { TrackersGroup } from './TrackersGroup'
+import { headerText } from './table'
 import { doneDays, habitLine, habitsOf, withoutHabit } from './habits'
 import { LogView } from './LogView'
 import { useLog } from './useLog'
@@ -1137,23 +1140,24 @@ export default function App() {
                 { kind: 'habits', name: 'Habits', icon: 'target', count: habits?.filter((one) => !one.done.has(localDateStamp())).length ?? 0 },
               ] as const
             ).map(applicationRow)}
-            {/* Each tracker's table, opened as the table it is. */}
-            {trackers.map((file) => {
-              const name = file.name.replace(/\.[^.]+$/, '')
-              const shown = active?.kind === 'note' && active.file.path === file.path
-              return (
-                <li key={file.path} style={{ paddingLeft: stepIn(1) }}>
-                  <NoteRow
-                    icon={<RowIcon icon="chart" />}
-                    name={name}
-                    className={shown ? 'selected' : undefined}
-                    aria-label={name}
-                    aria-pressed={shown}
-                    onClick={() => void openNote(file)}
-                  />
-                </li>
-              )
-            })}
+            {/* Open unless shut by hand: a key added later is never in a vault's stored set, so a
+                key for open would have started it shut. */}
+            <TrackersGroup
+              trackers={trackers}
+              openPath={active?.kind === 'note' ? active.file.path : null}
+              open={!folders.open.has('shut:trackers')}
+              onToggle={() => folders.toggle('shut:trackers', folders.open.has('shut:trackers'))}
+              onOpen={(file) => void openNote(file)}
+              onStart={() => {
+                closeSearch()
+                creating.cancel()
+                setNamingAction(null)
+              }}
+              onCreate={(name, columns) =>
+                void vault.mutate((v) => createTable(v, settings.trackersFolder, name, headerText(columns)), (file) => openNote(file))
+              }
+              onError={setError}
+            />
             {/* Every message the app has shown in this window. */}
             {applicationRow({ kind: 'log', name: 'Log', icon: 'inbox', count: log.items.length })}
             {/* Sync status in one line; opens its settings. */}

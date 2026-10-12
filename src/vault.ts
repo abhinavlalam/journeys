@@ -590,6 +590,18 @@ export async function createNote(
 }
 
 /**
+ * Makes a tracker's table, `<folder>/<name>.csv`, holding `header`, its first line.
+ * Never over a table already there.
+ */
+export async function createTable(vaultPath: string, folder: string, name: string, header: string): Promise<VaultFile> {
+  const fileName = `${safeNewName(name.replace(/\.csv$/i, ''))}.csv`
+  const file = fileAt(vaultPath, inFolder(await ensureFolder(vaultPath, folder), fileName))
+  if (await vaultFs.exists(file.absolutePath)) throw new Error(`"${fileName}" already exists.`)
+  await vaultFs.writeText(file.absolutePath, header)
+  return file
+}
+
+/**
  * Creates a locked note at the top of the vault, encrypted from its first
  * byte: a plain copy synced once stays readable in history. The
  * passphrase is kept for the window, so the note opens without asking.
