@@ -78,10 +78,12 @@ describe('the reading pane', () => {
     expect(screen.getByText('Reveal in Finder')).toBeTruthy()
   })
 
-  it('opens a CSV as its own text, in the editor that colours its columns', async () => {
+  it('opens a CSV as a table, and as its own text in the editor that colours its columns', async () => {
     await openApp()
     fireEvent.click(sidebar().getByText('spend.csv'))
     await waitFor(() => expect(title()).toBe('spend.csv'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'amount, row 1' }).textContent).toBe('480'))
+    fireEvent.click(screen.getByRole('button', { name: 'Text' }))
     await waitFor(() => expect(screen.getByTestId('csv').textContent).toBe('day,amount\n2026-09-18,480\n'))
   })
 

@@ -2705,6 +2705,76 @@ button.folder-toggle {
   content: none;
 }
 
+/* A table edited in place (`CsvTable`): a value is a button the size of its cell,
+   pressed to become a field in the cell's own type and space. A column's name sorts
+   the rows shown. Numbers line up on the right, as a ledger's do. */
+.data-table .data-cell,
+.data-table .data-sort {
+  display: block;
+  width: 100%;
+  min-height: var(--row-h);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-weight: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: text;
+}
+
+.data-table .data-sort {
+  cursor: pointer;
+}
+
+.data-table .data-cell:hover {
+  background: var(--bg-hover);
+}
+
+.data-table .data-number,
+.data-table .data-number .data-cell {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.data-table .data-edit {
+  display: block;
+  width: 100%;
+  min-width: 6ch;
+  /* The value's own height, so a row does not shrink while it is typed in. */
+  min-height: var(--row-h);
+  box-sizing: border-box;
+  padding: 0;
+  border: none;
+  border-bottom: 1px solid var(--mark);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  outline: none;
+}
+
+.data-row-actions button {
+  padding: 0 0.25rem;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.data-row-actions button:hover {
+  color: var(--alert);
+}
+
+.data-add {
+  margin-top: 0.5rem;
+}
+
 /* ---- The timeline ---- */
 
 /* Each day is a page of a journal, raised off the page as a card: its date as

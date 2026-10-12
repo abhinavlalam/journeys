@@ -48,6 +48,7 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 | `timeline.ts` / `TimelineView.tsx` | The daily notes as each day happened / its page. |
 | `tasks.ts` / `TasksView.tsx` | Every `#task` line by when it is due / its page. |
 | `habits.ts` / `HabitsView.tsx` | Tags tracked as habits, day by day / their page. |
+| `table.ts` / `CsvTable.tsx` | A delimited file read as rows, each value knowing where it is written / the table edited in place. |
 | `LineEditor.tsx` | One line in the note's own editor, for a page that takes typing: `EditLine` for one written (saved on Enter or leaving when changed, emptied is not deleted), `NewLine` for a new one; `Typing`, what every editor types with. |
 | `ViewerHeader.tsx` | Every page's header: its name (a note's renames it), its status (`statusCount`: nothing at none), its controls, and `ViewSwitch`, a page's ways of being drawn. |
 | `useLog.ts` / `LogView.tsx` | What the app says: shown a while, kept in the Log / its page. |
@@ -144,8 +145,17 @@ plain text that git can show and merge and the agent writes without a library. T
 squeezing of tables into note lines is what grew typed properties, tag structures,
 table views and daily totals, and made the notes dense.
 
-The steps, in order: (1) any `.csv` opens as an editable table with totals, rewriting
-only the row edited; (2) the tables in `Data/` are listed under Applications; (3)
+**A table is edited a value at a time** (`CsvTable`, `withCell`): a value pressed is a
+field, written where the old one was on Enter or leaving, Tab going on; a row is added
+at the end once something is typed in it, and taken out by its × after asking; a column
+of numbers (`numberOf`, digits alone) is summed; a column's name sorts what is shown, not
+the file. Every other byte stays as written, the rest of the row included: rewritten
+whole, a row's untouched padded number came back in quotes. Text, the header's other
+view, mounts over the text as it is now, not as last read, or its first key saved the
+old text over the edit. Through the note's own buffer, so saving, an outside write and
+a move are a note's.
+
+The steps, in order: (1) any `.csv` opens as an editable table with totals (done); (2) the tables in `Data/` are listed under Applications; (3)
 Habits is a grid over `habits.csv`, tapped in the app; (4) the calendar is drawn from the
 feeds; (5) the agent's organising, and the vault's expense lines moved into
 `Data/expenses.csv` and rewritten in plain words; (6) the line machinery for trackers

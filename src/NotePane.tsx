@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, type ComponentProps, type MutableRefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type ComponentProps, type MutableRefObject } from 'react'
 import { useNoteBuffer } from './useNoteBuffer'
 import type { BufferSet } from './useBuffers'
-import { ViewerHeader } from './ViewerHeader'
+import { ViewerHeader, ViewSwitch } from './ViewerHeader'
+import { CsvTable } from './CsvTable'
 import { MarkdownEditor } from './MarkdownEditor'
 import { SourceEditor } from './SourceEditor'
 import { NoteFooter } from './NoteFooter'
@@ -17,6 +18,9 @@ import type { Typing } from './LineEditor'
 import { DayTotals } from './DayTotals'
 import { typeOf } from './properties'
 import { coloursOf, type DayTotal } from './tags'
+
+/** A delimited file's two ways of being shown: a table edited in place, or its text. */
+const CSV_VIEWS = ['table', 'text'] as const
 
 interface NotePaneProps {
   /** The tab's id, which this pane's buffer is registered under. */
@@ -147,7 +151,20 @@ export function NotePane({
   const loaded = buffer.note?.path === file.path
   const kind = fileKind(file.path)
 
+  /**
+   * A table, or its text (`CSV_VIEWS`). Either mounts over the text as it is now
+   * (`current`), not as last read: switched to after an edit in the other, the editor
+   * held the old text, and its first key saved it over the edit.
+   */
+  const [csvView, setCsvView] = useState<(typeof CSV_VIEWS)[number]>('table')
+  const current = useRef(buffer.body)
+  const taken = useRef({ epoch: buffer.editorEpoch, incoming: buffer.incoming?.n })
+  if (taken.current.epoch !== buffer.editorEpoch) current.current = buffer.body
+  else if (buffer.incoming && taken.current.incoming !== buffer.incoming.n) current.current = buffer.incoming.text
+  taken.current = { epoch: buffer.editorEpoch, incoming: buffer.incoming?.n }
+
   function handleEditorChange(markdown: string) {
+    current.current = markdown
     liveText.current = { path: file.path, text: markdown }
     buffer.handleEditorChange(markdown)
     onTyped?.()
@@ -165,6 +182,7 @@ export function NotePane({
           buffer.saveStatus === 'saving' ? 'Saving…' : buffer.saveStatus === 'saved' ? 'Saved' : ''
         }
       >
+        {kind === 'csv' && <ViewSwitch views={CSV_VIEWS} view={csvView} onView={setCsvView} />}
         {isEncrypted(file.path) && (
           <button className="header-action" onClick={() => onLock(file)}>
             Lock
@@ -204,13 +222,15 @@ export function NotePane({
            tab. The question is what *kind* of file it is and not whether it is a
            note: an unlocked `.enc` is markdown once it is open, and a `.txt` or a
            `.conf` is not — in the markdown editor every `# comment` was a heading. */
-      kind === 'json' || kind === 'csv' || kind === 'text' ? (
+      kind === 'csv' && csvView === 'table' ? (
+        <CsvTable key={`${file.path}:${buffer.editorEpoch}:table`} text={current.current} incoming={buffer.incoming} onChange={handleEditorChange} />
+      ) : kind === 'json' || kind === 'csv' || kind === 'text' ? (
         <SourceEditor
-          key={`${file.path}:${buffer.editorEpoch}`}
+          key={`${file.path}:${buffer.editorEpoch}:${csvView}`}
           kind={kind}
           shown={active}
           name={file.name}
-          initialText={buffer.body}
+          initialText={current.current}
           incoming={buffer.incoming}
           onChange={handleEditorChange}
           indentWidth={settings.indentWidth}
