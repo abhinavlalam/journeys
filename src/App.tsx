@@ -15,7 +15,7 @@ import {
   writePathProperty,
   writeVaultFile,
 } from './vault'
-import { folderNoteRef, isTextFile, knownPath, noteName, SETTINGS_FILE } from './vaultModel'
+import { fileKind, folderNoteRef, isTextFile, knownPath, noteName, SETTINGS_FILE } from './vaultModel'
 import { FileView } from './FileView'
 import type { VaultFile, VaultFolder } from './vaultModel'
 import { FolderTree, useDropTarget } from './FolderTree'
@@ -43,6 +43,7 @@ import { TimelineView } from './TimelineView'
 import { TasksView } from './TasksView'
 import { readTasks, TASK, withDone } from './tasks'
 import { HabitsView } from './HabitsView'
+import { ExpensesView } from './ExpensesView'
 import { doneDays, habitLine, habitsOf, withoutHabit } from './habits'
 import { LogView } from './LogView'
 import { useLog } from './useLog'
@@ -323,6 +324,18 @@ export default function App() {
     () => texts && habitsOf(tagStructures.entries).map((tag) => ({ tag, done: doneDays(collectTag(tag) ?? [], settings.dailyFolder) })),
     [texts, collectTag, tagStructures.entries, settings.dailyFolder]
   )
+  /** The vault's tables, from the one read: what the Expenses page is offered. */
+  const tables = useMemo(() => texts?.filter(({ note }) => fileKind(note.path) === 'csv').map(({ note }) => note) ?? [], [texts])
+  /**
+   * The expenses table's text: as typed, while it is open beside the page (`liveVersion`) or
+   * just left for it (`viewVisible`), else as last read. Null while reading or when it is gone.
+   */
+  const expensesText = useMemo(() => {
+    const live = liveText.current
+    if (live && live.path === settings.expensesSheet) return live.text
+    return texts?.find(({ note }) => note.path === settings.expensesSheet)?.text ?? null
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [texts, settings.expensesSheet, viewVisible, liveVersion])
   /** The phone's one place at a time, and where its back gesture goes. */
   const phone = usePhoneNav({
     page: active,
@@ -950,7 +963,7 @@ export default function App() {
   )
   const onPage = (kind: TabRequest['kind']) => !phone.browsing && active?.kind === kind
   /** A page under Applications, pressed when it is in front, with its count beside it. */
-  const applicationRow = ({ kind, name, icon, count }: { kind: 'calendar' | 'timeline' | 'tasks' | 'habits' | 'log'; name: string; icon: string; count: number }) => (
+  const applicationRow = ({ kind, name, icon, count }: { kind: 'calendar' | 'timeline' | 'tasks' | 'habits' | 'expenses' | 'log'; name: string; icon: string; count: number }) => (
     <li key={kind} style={{ paddingLeft: stepIn(1) }}>
       <NoteRow
         icon={<RowIcon icon={icon} />}
@@ -1128,6 +1141,8 @@ export default function App() {
                 { kind: 'tasks', name: 'Tasks', icon: 'check', count: tasks?.filter((one) => !one.done).length ?? 0 },
                 // Every habit by the last weeks; counted while one is not done today.
                 { kind: 'habits', name: 'Habits', icon: 'target', count: habits?.filter((one) => !one.done.has(localDateStamp())).length ?? 0 },
+                // A month of the expenses table at a glance.
+                { kind: 'expenses', name: 'Expenses', icon: 'money', count: 0 },
                 // Every message the app has shown in this window.
                 { kind: 'log', name: 'Log', icon: 'inbox', count: log.items.length },
               ] as const
@@ -1221,6 +1236,9 @@ export default function App() {
                     onLock={(file) => void locks.lockNotes([file.path])}
                     onTyped={typed}
                     dayTotals={dayTotals}
+                    onColumnTotal={(column, total) =>
+                      changeSettings({ ...settings, columnTotals: { ...settings.columnTotals, [column.toLowerCase()]: total } })
+                    }
                   />
                 )
               case 'file':
@@ -1312,6 +1330,20 @@ export default function App() {
                     onError={setError}
                   />
                 )
+              case 'expenses': {
+                const sheet = tables.find((table) => table.path === settings.expensesSheet)
+                return (
+                  <ExpensesView
+                    sheet={settings.expensesSheet}
+                    text={expensesText}
+                    tables={tables}
+                    reading={reading || !texts}
+                    onPick={(expensesSheet) => changeSettings({ ...settings, expensesSheet })}
+                    onOpenSheet={() => sheet && void openNote(sheet)}
+                    onOpenDay={(day) => void openDay(day)}
+                  />
+                )
+              }
               case 'log':
                 return <LogView items={log.items} />
               case 'calendar':

@@ -1,6 +1,6 @@
 // A delimited file as a table: rows of values, each knowing where it sits in the text,
 // so an edit writes that value again and leaves every other byte as it was. A
-// tracker is kept this way (`Data/expenses.csv`), and its file stays the owner's: what
+// tracker is kept this way (`Trackers/expenses.csv`), and its file stays the owner's: what
 // Excel, the agent or a hand wrote is not reformatted by a cell changed here.
 
 import { separatorOf } from './csvPreview'
@@ -99,3 +99,20 @@ export function withoutRow(text: string, table: Table, row: number): string {
 
 /** A value read as a number: digits, a sign and a decimal point, and nothing else. */
 export const numberOf = (value: string) => (/^-?\d+(\.\d+)?$/.test(value.trim()) ? Number(value) : null)
+
+/** A column's name as it is said: `end-amount` is End amount. */
+export function columnLabel(name: string): string {
+  const words = name.trim().replace(/[-_]+/g, ' ')
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+/** The decimals a column of numbers is shown with: its most precise value's, so the points line up. */
+export const decimalsOf = (values: readonly string[]) => Math.max(0, ...values.map((one) => one.trim().split('.')[1]?.length ?? 0))
+
+const formats = new Map<number, Intl.NumberFormat>()
+/** A number as it is read: grouped, with `decimals` places. */
+export function numberShown(value: number, decimals: number): string {
+  let format = formats.get(decimals)
+  if (!format) formats.set(decimals, (format = new Intl.NumberFormat(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })))
+  return format.format(value)
+}

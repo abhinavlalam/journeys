@@ -2,19 +2,17 @@
 // named for the day (what `ensureDailyNote` writes and ⌘⇧O opens), so
 // each has a note before and after it. Only this module knows that.
 
+import { DAY_STAMP } from './clock'
 import { baseName, folderOf, isSamePath } from './vaultModel'
 import type { VaultFile } from './vaultModel'
 
 /**
- * `YYYY-MM-DD`: the name `ensureDailyNote` gives a day. A note in the folder
- * named anything else (like the folder's own note) is just a note there.
+ * The day a path names, or `''`. A note in the daily folder named anything else
+ * (like the folder's own note) is just a note there.
  */
-const DAY = /^\d{4}-\d{2}-\d{2}$/
-
-/** The day a path names, or `''`. */
 export function dayOf(path: string): string {
   const name = baseName(path).replace(/\.md$/i, '')
-  return DAY.test(name) ? name : ''
+  return DAY_STAMP.test(name) ? name : ''
 }
 
 /**

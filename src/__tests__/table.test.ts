@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cellText, numberOf, readTable, withCell, withoutRow, withRow } from '../table'
+import { cellText, columnLabel, decimalsOf, numberOf, numberShown, readTable, withCell, withoutRow, withRow } from '../table'
 
 /** A tracker's file, read as rows and written back a row at a time. */
 
@@ -39,6 +39,12 @@ describe('a table', () => {
   })
 
   it('reads a number only when the value is one', () => {
-    expect(['480', '-12.5', ' 3 ', '1,200', '₹480', ''].map(numberOf)).toEqual([480, -12.5, 3, null, null, null])
+    expect(['480', '-12.5', ' 3 ', '1,200', '€480', ''].map(numberOf)).toEqual([480, -12.5, 3, null, null, null])
+  })
+
+  it('says a column’s name as words, and shows its numbers to its most precise value’s decimals', () => {
+    expect(['end-amount', 'paid_by', ' for '].map(columnLabel)).toEqual(['End amount', 'Paid by', 'For'])
+    expect([decimalsOf(['480', '12.5', ' 3.25 ']), decimalsOf(['7'])]).toEqual([2, 0])
+    expect(numberShown(10320, 2)).toBe(new Intl.NumberFormat(undefined, { minimumFractionDigits: 2 }).format(10320))
   })
 })

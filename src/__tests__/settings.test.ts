@@ -10,6 +10,7 @@ import {
   faceStack,
   loadSettings,
   parseSettings,
+  portable,
   prefersDarkScheme,
   resolveMode,
   saveSettings,
@@ -491,6 +492,22 @@ describe('graphHides', () => {
   it('survives a round trip through the file', () => {
     const settings = parseSettings('{"graphHides":["Entities/Currencies"]}')
     expect(parseSettings(settingsJson(settings)).graphHides).toEqual(['Entities/Currencies'])
+  })
+})
+
+/** The vault's tables: the one the Expenses page reads, and how each column is totalled. */
+describe('the tables’ settings', () => {
+  it('names the expenses table only as a table, and reads each column’s total on its own', () => {
+    expect([parseSettings(null).expensesSheet, parseSettings(null).columnTotals]).toEqual(['', {}])
+    expect(parseSettings('{"expensesSheet":"Trackers/spend.csv"}').expensesSheet).toBe('Trackers/spend.csv')
+    expect(parseSettings('{"expensesSheet":"Trackers/spend.md"}').expensesSheet).toBe('')
+    expect(parseSettings('{"columnTotals":{"End-Amount":"none","amount":"max","what":"most"}}').columnTotals).toEqual({ 'end-amount': 'none', amount: 'max' })
+  })
+
+  /** A path and a column's name are this vault's: carried into another, they name nothing there. */
+  it('is not carried into another vault', () => {
+    const settings = parseSettings('{"expensesSheet":"Trackers/spend.csv","columnTotals":{"balance":"none"}}')
+    expect([portable(settings).expensesSheet, portable(settings).columnTotals]).toEqual(['', {}])
   })
 })
 

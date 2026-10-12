@@ -2044,7 +2044,8 @@ button.folder-toggle {
    positioned and paints over what is under it, so a section right under
    the title lost the top of its heading. Only the first one needs this. */
 .viewer > .viewer-header + .note-section,
-.viewer > .viewer-header + .daily-steps {
+.viewer > .viewer-header + .daily-steps,
+.viewer > .viewer-header + .day-totals {
   padding-top: var(--header-fade);
 }
 
@@ -2707,13 +2708,53 @@ button.folder-toggle {
 
 /* A table edited in place (`CsvTable`): a value is a button the size of its cell,
    pressed to become a field in the cell's own type and space. A column's name sorts
-   the rows shown. Numbers line up on the right, as a ledger's do. */
+   the rows shown.
+
+   Read as a ledger: the table spans the pane, each row on a hairline and washed under
+   the pointer; text wraps in its cell, so a long note neither runs off the pane nor
+   is cut short, while a number or a day keeps to one line, a number on the right. The
+   names are quieter than the values. Over `.line-table`, a tag's table, whose cells
+   are one clipped line. */
+.data-table {
+  width: 100%;
+}
+
+.data-table th {
+  padding: 0 var(--column-gap) 0.4rem 0;
+  color: var(--text-dim);
+  font-weight: var(--fw-medium);
+  vertical-align: bottom;
+}
+
+/* A value keeps to one line, its column as wide as it needs; a column of sentences
+   (`data-prose`) takes what is left and wraps. Wrapping every column broke names and
+   days over lines while the sentences claimed the width. Past the pane, the box
+   scrolls sideways. */
+.data-table td {
+  height: auto;
+  padding: 0 var(--column-gap) 0 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  max-width: none;
+  overflow: visible;
+}
+
+.data-table .data-prose {
+  min-width: 16ch;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+.data-table tbody tr:hover > td {
+  background: var(--bg-hover);
+}
+
 .data-table .data-cell,
 .data-table .data-sort {
   display: block;
   width: 100%;
   min-height: var(--row-h);
-  padding: 0;
+  padding: 0.25rem 0;
   border: none;
   background: transparent;
   color: inherit;
@@ -2726,27 +2767,29 @@ button.folder-toggle {
 }
 
 .data-table .data-sort {
+  min-height: 0;
+  padding: 0;
   cursor: pointer;
 }
 
-.data-table .data-cell:hover {
-  background: var(--bg-hover);
+.data-table .data-sort:hover {
+  color: var(--text);
 }
 
 .data-table .data-number,
-.data-table .data-number .data-cell {
+.data-table .data-number .data-cell,
+.data-table .data-number .data-sort {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
 
+/* The field takes the button's place and size: its padding less the line under it. */
 .data-table .data-edit {
   display: block;
   width: 100%;
   min-width: 6ch;
-  /* The value's own height, so a row does not shrink while it is typed in. */
   min-height: var(--row-h);
-  box-sizing: border-box;
-  padding: 0;
+  padding: 0.25rem 0 calc(0.25rem - 1px);
   border: none;
   border-bottom: 1px solid var(--mark);
   background: transparent;
@@ -2754,11 +2797,55 @@ button.folder-toggle {
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
+  text-align: inherit;
   outline: none;
 }
 
+/* The totals close the table: how each is totalled, quiet and chosen in place, over
+   its figure. No line of their own; the last row's is above them. */
+.data-table .data-totals td {
+  padding-top: 0.4rem;
+  border-bottom: none;
+  color: var(--text-dim);
+}
+
+.data-total-by {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  text-align-last: right;
+  cursor: pointer;
+}
+
+.data-total-by:hover {
+  color: var(--text);
+}
+
+.data-total {
+  display: block;
+  color: var(--text);
+  font-weight: var(--fw-strong);
+}
+
+/* The × stays at the box's right edge while a wide table scrolls under it. */
+.data-row-actions {
+  position: sticky;
+  right: 0;
+  width: 0;
+  background: var(--bg-raised);
+}
+
 .data-row-actions button {
-  padding: 0 0.25rem;
+  padding: 0.25rem;
   border: none;
   background: transparent;
   color: var(--text-faint);
@@ -2773,6 +2860,168 @@ button.folder-toggle {
 
 .data-add {
   margin-top: 0.5rem;
+}
+
+/* ---- Expenses ---- */
+
+/* A month of the expenses table: tiles, then sections of bars and lines, all in the
+   page's one family; sizes and weights alone set them apart. One series, so one
+   colour, `--mark`; the words stay in the text's tones. */
+.month-step {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.month-step .header-action {
+  display: flex;
+  align-items: center;
+}
+
+.month-step .back svg {
+  transform: scaleX(-1);
+}
+
+.month-step-name {
+  min-width: 9em;
+  color: var(--text);
+  font-size: var(--fs-chrome);
+  line-height: var(--title-leading);
+  text-align: center;
+}
+
+/* A section's chart, on the raised ground of a box, as the habits' grid is. */
+.expense-box {
+  margin-bottom: var(--row-gap);
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.folder-children > li.expense-box::before,
+.folder-children > li.expense-box::after {
+  content: none;
+}
+
+/* A category a row: its name, a bar as long as its spending beside the most, the
+   amount and its share. The bar is thin, rounded at its end and square at its start. */
+.expense-bars {
+  display: grid;
+  grid-template-columns: minmax(6em, max-content) 1fr max-content max-content;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.expense-bars li {
+  display: contents;
+}
+
+.expense-bar-track {
+  display: block;
+}
+
+.expense-bar {
+  display: block;
+  min-width: var(--hair);
+  height: 0.6em;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--mark);
+}
+
+.expense-figure {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.expense-share {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* The month as columns, a day each, standing on one line. A column is pressed for its
+   day, and is the whole height so the pointer finds it; its bar is what was spent. */
+.expense-readout {
+  margin: 0 0 0.5rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.expense-days {
+  display: grid;
+  gap: 2px;
+  height: 6em;
+  border-bottom: 1px solid var(--border);
+}
+
+.expense-day {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.expense-day:hover:not(:disabled),
+.expense-day:focus-visible {
+  background: var(--bg-hover);
+}
+
+.expense-day:disabled {
+  cursor: default;
+}
+
+.expense-day-bar {
+  width: 60%;
+  min-height: var(--hair);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: var(--mark);
+}
+
+/* Today's column is marked at its foot, as today is ringed among the habits. */
+.expense-day[aria-current='date'] {
+  box-shadow: inset 0 -2px 0 var(--text-dim);
+}
+
+.expense-axis {
+  display: grid;
+  gap: 2px;
+  color: var(--text-faint);
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* A line of a list: what, a word on it, and the amount on the right. A row of the
+   tree otherwise (`.file-list li > button`), laid out in a line. */
+.file-list li > .expense-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.expense-line-name {
+  flex: none;
+}
+
+.expense-line-detail {
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-faint);
+  text-overflow: ellipsis;
+}
+
+.expense-line .expense-figure {
+  margin-left: auto;
 }
 
 /* ---- The timeline ---- */

@@ -89,6 +89,7 @@ describe('where the buttons are', () => {
       'Timeline',
       'Tasks',
       'Habits',
+      'Expenses',
       'Log',
       'Sync',
       'Terminal',

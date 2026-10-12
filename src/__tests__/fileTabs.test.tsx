@@ -82,7 +82,7 @@ describe('the reading pane', () => {
     await openApp()
     fireEvent.click(sidebar().getByText('spend.csv'))
     await waitFor(() => expect(title()).toBe('spend.csv'))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'amount, row 1' }).textContent).toBe('480'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Amount, row 1' }).textContent).toBe('480'))
     fireEvent.click(screen.getByRole('button', { name: 'Text' }))
     await waitFor(() => expect(screen.getByTestId('csv').textContent).toBe('day,amount\n2026-09-18,480\n'))
   })

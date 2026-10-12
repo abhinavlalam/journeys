@@ -198,6 +198,20 @@ export type Combine = (typeof COMBINES)[number]
 /** How each way of combining is named: in its menu, and in a total's label. */
 export const COMBINE_NAMES: Record<Combine, string> = { sum: 'Sum', average: 'Average', count: 'Count', min: 'Lowest', max: 'Highest' }
 
+/** How a table's column of numbers is totalled under it: combined, or not at all, as a balance is. */
+export const COLUMN_TOTALS = [...COMBINES, 'none'] as const
+export type ColumnTotal = (typeof COLUMN_TOTALS)[number]
+
+/** `values` combined `by` the owner's choice, or null with none to combine. */
+export function combine(values: readonly number[], by: Combine): number | null {
+  if (values.length === 0) return null
+  if (by === 'count') return values.length
+  if (by === 'min') return Math.min(...values)
+  if (by === 'max') return Math.max(...values)
+  const sum = values.reduce((total, one) => total + one, 0)
+  return by === 'average' ? sum / values.length : sum
+}
+
 /** Where a day's total shows: the day's card in the timeline, the end of its note, or both. */
 export const TOTAL_PLACES = ['both', 'timeline', 'note'] as const
 export type TotalPlace = (typeof TOTAL_PLACES)[number]

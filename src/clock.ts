@@ -6,6 +6,9 @@
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
+/** `YYYY-MM-DD`: a day as the app writes one, and a daily note's name. */
+export const DAY_STAMP = /^\d{4}-\d{2}-\d{2}$/
+
 /** `YYYY-MM-DD` for the local day. */
 export function localDateStamp(now = new Date()): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
@@ -108,6 +111,13 @@ export const narrowWeekday = new Intl.DateTimeFormat(undefined, { weekday: 'narr
 export const shortDate = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
 /** `September 2026`. */
 export const monthName = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' })
+
+/** `Wed 24 Sept`, a day in a row of a table; with its year when it is not this one's. */
+export function shortDay(day: string, today: string): string {
+  const date = dayDate(day)
+  const year = day.slice(0, 4) === today.slice(0, 4) ? '' : ` ${date.getFullYear()}`
+  return `${shortWeekday.format(date)} ${shortDate.format(date)}${year}`
+}
 
 /** `Today`, `Yesterday` or `Tomorrow` for a day within one of today, else null: what a day's heading leads with. */
 export function nearDay(day: string, today: string): string | null {

@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
+import { localDateStamp, shortDay } from '../clock'
 
 /**
  * A tracker's table, edited in place: a value pressed becomes a field, a row is added
@@ -36,7 +37,7 @@ async function openTable() {
   await openApp()
   fireEvent.click(within(document.querySelector('.sidebar')!).getByText('Trackers'))
   fireEvent.click(await waitFor(() => within(document.querySelector('.sidebar')!).getByText('expenses.csv')))
-  await waitFor(() => expect(cell('what, row 1').textContent).toBe('lunch, upstairs'))
+  await waitFor(() => expect(cell('What, row 1').textContent).toBe('lunch, upstairs'))
 }
 const typeInto = (name: string, value: string, key = 'Enter') => {
   const field = pane().getByRole('textbox', { name })
@@ -45,11 +46,10 @@ const typeInto = (name: string, value: string, key = 'Enter') => {
 }
 
 describe('a table edited in place', () => {
-  it('writes a changed value back into its row alone, and sums a column of numbers', async () => {
+  it('writes a changed value back into its row alone', async () => {
     await openTable()
-    expect(pane().getByText('492.5')).toBeTruthy()
-    fireEvent.click(cell('what, row 2'))
-    typeInto('what, row 2', 'the good coffee')
+    fireEvent.click(cell('What, row 2'))
+    typeInto('What, row 2', 'the good coffee')
     // The other row keeps its quotes, and this one its padded number.
     await waitFor(() => expect(disk.read(FILE)).toBe(written.replace('coffee', 'the good coffee')))
   })
@@ -57,30 +57,55 @@ describe('a table edited in place', () => {
   it('adds a row once something is typed in it, going on with Tab', async () => {
     await openTable()
     fireEvent.click(pane().getByRole('button', { name: 'Add a row' }))
-    typeInto('day, new row', '2026-10-12', 'Tab')
-    typeInto('amount, row 3', '90', 'Tab')
-    typeInto('what, row 3', 'bus')
+    typeInto('Day, new row', '2026-10-12', 'Tab')
+    typeInto('Amount, row 3', '90', 'Tab')
+    typeInto('What, row 3', 'bus')
     await waitFor(() => expect(disk.read(FILE)).toBe(`${written}2026-10-12,90,bus\n`))
     // Left empty, a new row was never there.
     fireEvent.click(pane().getByRole('button', { name: 'Add a row' }))
-    fireEvent.keyDown(pane().getByRole('textbox', { name: 'day, new row' }), { key: 'Enter' })
+    fireEvent.keyDown(pane().getByRole('textbox', { name: 'Day, new row' }), { key: 'Enter' })
     await new Promise((settle) => setTimeout(settle, 1000))
     expect(disk.read(FILE)).toBe(`${written}2026-10-12,90,bus\n`)
   })
 
   it('takes a row out, and sorts the rows shown without touching the file', async () => {
     await openTable()
-    fireEvent.click(pane().getByRole('button', { name: 'Sort by amount' }))
-    expect(pane().getAllByRole('button', { name: /^what, row/ }).map((one) => one.textContent)).toEqual(['coffee', 'lunch, upstairs'])
+    fireEvent.click(pane().getByRole('button', { name: 'Sort by Amount' }))
+    expect(pane().getAllByRole('button', { name: /^What, row/ }).map((one) => one.textContent)).toEqual(['coffee', 'lunch, upstairs'])
     fireEvent.click(pane().getByRole('button', { name: 'Delete row 1' }))
     await waitFor(() => expect(disk.read(FILE)).toBe(written.replace('2026-10-10,480,"lunch, upstairs"\n', '')))
+  })
+
+  /** Read as a ledger is; a field takes the value as it is written, which is what is kept. */
+  it('shows a number to its column’s decimals and a day in words, and edits each as written', async () => {
+    await openTable()
+    expect([cell('Amount, row 1').textContent, cell('Amount, row 2').textContent]).toEqual(['480.0', '12.5'])
+    expect(cell('Day, row 1').textContent).toBe(shortDay('2026-10-10', localDateStamp()))
+    fireEvent.click(cell('Day, row 1'))
+    expect((pane().getByRole('textbox', { name: 'Day, row 1' }) as HTMLInputElement).value).toBe('2026-10-10')
+    fireEvent.keyDown(pane().getByRole('textbox', { name: 'Day, row 1' }), { key: 'Escape' })
+    fireEvent.click(cell('Amount, row 2'))
+    expect((pane().getByRole('textbox', { name: 'Amount, row 2' }) as HTMLInputElement).value).toBe('  12.5 ')
+  })
+
+  /** A balance adds up to nothing: how a column is totalled is chosen under it, and kept by its name. */
+  it('sums a column of numbers until another way is chosen under it, kept in the settings', async () => {
+    await openTable()
+    const by = () => pane().getByRole('combobox', { name: 'Total of Amount' }) as HTMLSelectElement
+    const total = () => [by().value, by().nextElementSibling!.textContent]
+    expect(total()).toEqual(['sum', '492.5'])
+    fireEvent.change(by(), { target: { value: 'max' } })
+    await waitFor(() => expect(total()).toEqual(['max', '480.0']))
+    fireEvent.change(by(), { target: { value: 'none' } })
+    await waitFor(() => expect(JSON.parse(disk.read('/v/.config/settings.json')!).columnTotals).toEqual({ amount: 'none' }))
+    expect(total()).toEqual(['none', ''])
   })
 
   /** Switched to after an edit, the text editor held the old text, and its first key saved it over the edit. */
   it('shows the text as edited when switched to Text', async () => {
     await openTable()
-    fireEvent.click(cell('amount, row 1'))
-    typeInto('amount, row 1', '500')
+    fireEvent.click(cell('Amount, row 1'))
+    typeInto('Amount, row 1', '500')
     fireEvent.click(pane().getByRole('button', { name: 'Text' }))
     expect(screen.getByTestId('text').textContent).toBe(written.replace('480', '500'))
   })

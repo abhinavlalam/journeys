@@ -6,8 +6,8 @@
  */
 import { asObject, oneOf } from './configEntries'
 import { DAILY_FOLDER, FILES_FOLDER, readConfigFile, safeNewName, writeConfigFile } from './vault'
-import { TAG_NAME } from './tags'
-import { SETTINGS_FILE } from './vaultModel'
+import { COLUMN_TOTALS, TAG_NAME, type ColumnTotal } from './tags'
+import { fileKind, SETTINGS_FILE } from './vaultModel'
 import { onAndroid, paintBars } from './platform'
 import { ACTIONS, defaultShortcuts, normalizeCombo, type ActionId } from './shortcuts'
 
@@ -187,6 +187,10 @@ export interface Settings {
   timelineView: (typeof TIMELINE_VIEWS)[number]
   /** How the Tasks page groups tasks: by when they are due, or by the page they are on. */
   tasksView: (typeof TASK_VIEWS)[number]
+  /** The table the Expenses page reads, picked on the page; `''` until it is. */
+  expensesSheet: string
+  /** How a table's column is totalled, by the column's name in lower case; unset, summed. */
+  columnTotals: Record<string, ColumnTotal>
   /**
    * The calendars Sync reads: each a private iCal address (Google's secret
    * address in iCal format) and a name, which is what `source::` says on
@@ -291,6 +295,8 @@ export const DEFAULT_SETTINGS: Settings = {
   graphShows: { text: true, property: true, tag: true },
   timelineView: 'list',
   tasksView: 'due',
+  expensesSheet: '',
+  columnTotals: {},
   calendarFeeds: [],
   calendarDays: 7,
   calendarMinutes: 5,
@@ -390,6 +396,8 @@ export function parseSettings(raw: unknown): Settings {
     graphShows: pickShows(stored.graphShows),
     timelineView: oneOf(TIMELINE_VIEWS, stored.timelineView) ?? DEFAULT_SETTINGS.timelineView,
     tasksView: oneOf(TASK_VIEWS, stored.tasksView) ?? DEFAULT_SETTINGS.tasksView,
+    expensesSheet: typeof stored.expensesSheet === 'string' && fileKind(stored.expensesSheet) === 'csv' ? stored.expensesSheet : '',
+    columnTotals: pickTotals(stored.columnTotals),
     calendarFeeds: pickFeeds(stored.calendarFeeds),
     calendarDays: pickNumber(stored.calendarDays, BOUNDS.calendarDays, DEFAULT_SETTINGS.calendarDays),
     calendarMinutes: pickNumber(stored.calendarMinutes, BOUNDS.calendarMinutes, DEFAULT_SETTINGS.calendarMinutes),
@@ -433,6 +441,17 @@ function pickFeeds(value: unknown): CalendarFeed[] {
     const name = typeof one?.name === 'string' ? one.name.trim() : ''
     return [{ name, url: url.trim() }]
   })
+}
+
+/** Each column's total as written, a name in any case; one that is not a way to total is left out. */
+function pickTotals(value: unknown): Record<string, ColumnTotal> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([name, total]) => {
+      const read = oneOf(COLUMN_TOTALS, total)
+      return read ? [[name.toLowerCase(), read]] : []
+    })
+  )
 }
 
 /**
@@ -491,13 +510,14 @@ export function saveVaultSettings(vaultPath: string, settings: Settings): Promis
 }
 
 /**
- * Settings without what belongs to the vault: its calendars and the folders
- * its graph hides. The rest is the person's, carried into a vault with no
- * settings yet and kept for the window before one opens. A calendar address
- * is a secret; carried, it once reached another vault's remote.
+ * Settings without what belongs to the vault: its calendars, the folders its graph
+ * hides, its expenses table and its columns' totals. The rest is the person's,
+ * carried into a vault with no settings yet and kept for the window before one
+ * opens. A calendar address is a secret; carried, it once reached another vault's
+ * remote.
  */
 export function portable(settings: Settings): Settings {
-  return { ...settings, calendarFeeds: [], graphHides: [] }
+  return { ...settings, calendarFeeds: [], graphHides: [], expensesSheet: '', columnTotals: {} }
 }
 
 export function saveSettings(settings: Settings): void {

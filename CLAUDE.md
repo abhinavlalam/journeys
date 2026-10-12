@@ -49,6 +49,7 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 | `tasks.ts` / `TasksView.tsx` | Every `#task` line by when it is due / its page. |
 | `habits.ts` / `HabitsView.tsx` | Tags tracked as habits, day by day / their page. |
 | `table.ts` / `CsvTable.tsx` | A delimited file read as rows, each value knowing where it is written / the table edited in place. |
+| `expenses.ts` / `ExpensesView.tsx` | The expenses table read by its columns' names, and a month added up / its page. |
 | `LineEditor.tsx` | One line in the note's own editor, for a page that takes typing: `EditLine` for one written (saved on Enter or leaving when changed, emptied is not deleted), `NewLine` for a new one; `Typing`, what every editor types with. |
 | `ViewerHeader.tsx` | Every page's header: its name (a note's renames it), its status (`statusCount`: nothing at none), its controls, and `ViewSwitch`, a page's ways of being drawn. |
 | `useLog.ts` / `LogView.tsx` | What the app says: shown a while, kept in the Log / its page. |
@@ -151,10 +152,34 @@ table views and daily totals, and made the notes dense.
 
 **A table is edited a value at a time** (`CsvTable`, `withCell`): a value pressed is a
 field, written where the old one was on Enter or leaving, Tab going on; a row is added
-at the end once something is typed in it, and taken out by its × after asking; a column
-of numbers (`numberOf`, digits alone) is summed; a column's name sorts what is shown, not
-the file. Every other byte stays as written, the rest of the row included: rewritten
-whole, a row's untouched padded number came back in quotes. Text, the header's other
+at the end once something is typed in it, and taken out by its × after asking; a column's
+name sorts what is shown, not the file. Every other byte stays as written, the rest of
+the row included: rewritten whole, a row's untouched padded number came back in quotes.
+
+**A table is read as a ledger, and edited as written** (the owner found the first one
+"not great at all"): the names said as words and quieter than the values (`columnLabel`:
+`end-amount` is End amount); a column of numbers (`numberOf`, digits alone) grouped, to
+its most precise value's decimals, on the right; a column of days as `Mon 5 Oct`
+(`shortDay`); each row on a hairline, washed under the pointer. A value keeps to one line
+and a column of sentences (a value past `SENTENCE`) wraps: wrapping every column broke
+names and days over lines while the notes claimed the width. Past the pane the box
+scrolls sideways, the × held at its edge. **A column's total is the owner's choice**,
+made under it and kept by the column's name (`columnTotals` in the settings, `combine`,
+the daily totals' ways and none), summed until then: summed under a balance, it was a
+number that meant nothing.
+
+**Expenses is an application over the expenses table** (`ExpensesView`, the owner's
+choice: a month at a glance). The table is picked on the page the first time, from the
+vault's tables, and kept as `expensesSheet`; picked again by Change table, or when it is
+gone. It is read by its columns' names (`EXPENSE_COLUMNS`: day and amount, and where
+there are, time, for, category, merchant, account, end-amount), from the one read, so
+what is typed into it beside the page shows. A month: spent, against the month before
+over the same days (twelve days set against a whole month read as spending less, every
+month), a day's average and the count, as tiles; the categories as bars; the days as
+columns, a press opening the day's note; the places spent at most; each account's
+balance after its last expense; the month's expenses, a press opening the table. One
+currency is added up, the one most rows are in; the rest are said, not summed. A row with
+no day or amount is said too. Text, the header's other
 view, mounts over the text as it is now, not as last read, or its first key saved the
 old text over the edit. Through the note's own buffer, so saving, an outside write and
 a move are a note's.
@@ -744,8 +769,8 @@ owner and the agent.
   `timelineGroup`), each checked as it is typed (`validateFolder`, `validateTag`). The
   app's own names stay fixed: `.config`, `icon::`, `path::`, `aliases::`, `ends::`,
   and the calendar's `#event` and `source::`.
-- **A vault's calendars and hidden folders are its own** (`portable`): not carried
-  into a new vault, not kept in `localStorage`, and not handed out until that
+- **A vault's calendars, hidden folders, expenses table and column totals are its
+  own** (`portable`): not carried into a new vault, not kept in `localStorage`, and not handed out until that
   vault's file is read. Carried, a secret feed reached another vault's remote, and
   the render that switched vaults synced the old calendar into the new one.
 - `stylesheet.test.ts` holds the sheet to its rules; run it after any CSS change:

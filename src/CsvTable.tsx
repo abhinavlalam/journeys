@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { confirm } from '@tauri-apps/plugin-dialog'
+import { DAY_STAMP, localDateStamp, shortDay } from './clock'
 import { useColumnWidths } from './columnWidths'
-import { numberText } from './properties'
-import { numberOf, readTable, withCell, withoutRow, withRow } from './table'
+import { countOf } from './rows'
+import { combine, COMBINE_NAMES, COLUMN_TOTALS, type ColumnTotal } from './tags'
+import { columnLabel, decimalsOf, numberOf, numberShown, readTable, withCell, withoutRow, withRow } from './table'
+
+/** Longer than this, a value is a sentence rather than a name, and its column wraps. */
+const SENTENCE = 32
 
 /** The value being typed: in a row (a row's index in the table, or a new one), in a column. */
 type Editing = { row: number | 'new'; column: number; value: string }
@@ -11,19 +16,29 @@ type Editing = { row: number | 'new'; column: number; value: string }
  * A delimited file as a table that is edited in place: a value pressed becomes a field,
  * written on Enter or on leaving it, Tab going on to the next; a row is added at the end
  * and taken out by its ×, after asking. A column's name sorts the rows shown, not the
- * file. A column of numbers is summed under it. Every write is one value or one row
- * (`withCell`), so the rest of the file stays as Excel, the agent or a hand wrote it.
+ * file. Every write is one value or one row (`withCell`), so the rest of the file stays
+ * as Excel, the agent or a hand wrote it.
+ *
+ * A value is shown for reading and edited as written: a number grouped and to its
+ * column's decimals, a day as `Mon 5 Oct`. A column of numbers is totalled under it as
+ * the owner chose there (`totals`, by the column's name), summed until then: a balance
+ * adds up to nothing, so it is set to none.
  */
 export function CsvTable({
   text: initial,
   incoming,
   onChange,
+  totals,
+  onTotal,
 }: {
   /** Read at mount; the caller keys this on the file, as the editor is. */
   text: string
   /** The file as written elsewhere since, taken in as the editor takes it. */
   incoming?: { text: string; n: number } | null
   onChange: (text: string) => void
+  /** How each column is totalled, by its name in lower case; unset, summed. */
+  totals: Readonly<Record<string, ColumnTotal>>
+  onTotal: (column: string, total: ColumnTotal) => void
 }) {
   const [text, setText] = useState(initial)
   const [editing, setEditing] = useState<Editing | null>(null)
@@ -44,10 +59,26 @@ export function CsvTable({
   const rows = body.map((row, at) => ({ ...row, at: at + 1 })).filter((row) => row.to > row.from)
   const width = Math.max(header?.cells.length ?? 0, ...rows.map((row) => row.cells.length))
   const columns = Array.from({ length: width }, (_, at) => at)
-  const numeric = columns.filter((column) => {
-    const values = rows.map((row) => row.cells[column] ?? '').filter((value) => value.trim() !== '')
-    return values.length > 0 && values.every((value) => numberOf(value) !== null)
-  })
+  /** Each column's values, the empty ones left out. */
+  const filled = columns.map((column) => rows.map((row) => row.cells[column] ?? '').filter((value) => value.trim() !== ''))
+  const every = (column: number, test: (value: string) => boolean) => filled[column].length > 0 && filled[column].every(test)
+  const numeric = columns.filter((column) => every(column, (value) => numberOf(value) !== null))
+  const days = columns.filter((column) => every(column, (value) => DAY_STAMP.test(value.trim())))
+  const decimals = columns.map((column) => (numeric.includes(column) ? decimalsOf(filled[column]) : 0))
+  /** A number lines up on the right; a column of sentences wraps, where the rest keep to a line. */
+  const kinds = columns.map((column) =>
+    numeric.includes(column) ? 'data-number' : filled[column].some((value) => value.length > SENTENCE) ? 'data-prose' : undefined
+  )
+  const today = localDateStamp()
+  /** A value as it is read; the field takes it as written. */
+  const shownValue = (column: number, value: string) =>
+    value.trim() === ''
+      ? ''
+      : numeric.includes(column)
+        ? numberShown(numberOf(value)!, decimals[column])
+        : days.includes(column)
+          ? shortDay(value.trim(), today)
+          : value
   const shown = sort
     ? [...rows].sort((a, b) => {
         const [x, y] = [a.cells[sort.column] ?? '', b.cells[sort.column] ?? '']
@@ -98,8 +129,7 @@ export function CsvTable({
     else if (event.key === 'Escape') {
       live.current = null
       setEditing(null)
-    }
-    else if (event.key === 'Tab') {
+    } else if (event.key === 'Tab') {
       event.preventDefault()
       commit(event.shiftKey ? -1 : 1)
     }
@@ -124,7 +154,15 @@ export function CsvTable({
       onBlur={() => commit(null)}
     />
   )
-  const name = (column: number) => header?.cells[column] || `column ${column + 1}`
+  const name = (column: number) => columnLabel(header?.cells[column] || `column ${column + 1}`)
+  const totalOf = (column: number) => totals[(header?.cells[column] ?? '').trim().toLowerCase()] ?? 'sum'
+  /** A column's total, as chosen, to its decimals; a count is whole and an average takes two at least. */
+  const totalText = (column: number) => {
+    const by = totalOf(column)
+    if (by === 'none') return ''
+    const value = combine(filled[column].map((one) => numberOf(one)!), by)
+    return value === null ? '' : numberShown(value, by === 'count' ? 0 : by === 'average' ? Math.max(decimals[column], 2) : decimals[column])
+  }
 
   if (!header) return <p className="viewer-empty">This table has no columns yet. In Text, its first line names them, separated by commas.</p>
   return (
@@ -133,7 +171,7 @@ export function CsvTable({
         <thead>
           <tr>
             {columns.map((column) => (
-              <th key={column} data-col={column} style={{ width: widths?.[column] }}>
+              <th key={column} data-col={column} className={kinds[column]} style={{ width: widths?.[column] }}>
                 <button
                   className="data-sort"
                   aria-label={`Sort by ${name(column)}`}
@@ -152,12 +190,12 @@ export function CsvTable({
           {shown.map((row) => (
             <tr key={row.from}>
               {columns.map((column) => (
-                <td key={column} className={numeric.includes(column) ? 'data-number' : undefined}>
+                <td key={column} className={kinds[column]}>
                   {editing?.row === row.at && editing.column === column ? (
                     field(editing.value, `${name(column)}, row ${row.at}`)
                   ) : (
                     <button className="data-cell" aria-label={`${name(column)}, row ${row.at}`} onClick={() => open(row.at, column, row.cells)}>
-                      {row.cells[column] ?? ''}
+                      {shownValue(column, row.cells[column] ?? '')}
                     </button>
                   )}
                 </td>
@@ -172,28 +210,42 @@ export function CsvTable({
           {editing?.row === 'new' && (
             <tr>
               {columns.map((column) => (
-                <td key={column}>{column === editing.column ? field(editing.value, `${name(column)}, new row`) : null}</td>
+                <td key={column} className={kinds[column]}>
+                  {column === editing.column ? field(editing.value, `${name(column)}, new row`) : null}
+                </td>
               ))}
               <td />
             </tr>
           )}
         </tbody>
-        {numeric.length > 0 && (
-          <tfoot>
-            <tr className="line-sum">
-              {columns.map((column) => (
-                <td key={column} className={numeric.includes(column) ? 'data-number' : undefined}>
-                  {numeric.includes(column)
-                    ? numberText(rows.reduce((sum, row) => sum + (numberOf(row.cells[column] ?? '') ?? 0), 0))
-                    : column === 0
-                      ? 'sum'
-                      : ''}
-                </td>
-              ))}
-              <td />
-            </tr>
-          </tfoot>
-        )}
+        <tfoot>
+          <tr className="data-totals">
+            {columns.map((column) => (
+              <td key={column} className={kinds[column]}>
+                {numeric.includes(column) ? (
+                  <>
+                    <select
+                      className="data-total-by"
+                      aria-label={`Total of ${name(column)}`}
+                      value={totalOf(column)}
+                      onChange={(event) => onTotal((header.cells[column] ?? '').trim(), event.currentTarget.value as ColumnTotal)}
+                    >
+                      {COLUMN_TOTALS.map((by) => (
+                        <option key={by} value={by}>
+                          {by === 'none' ? 'No total' : COMBINE_NAMES[by]}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="data-total">{totalText(column)}</span>
+                  </>
+                ) : column === 0 ? (
+                  countOf(rows.length, 'row')
+                ) : null}
+              </td>
+            ))}
+            <td />
+          </tr>
+        </tfoot>
       </table>
       <button className="header-action data-add" onClick={() => open('new', 0, [])}>
         Add a row

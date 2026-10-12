@@ -8,7 +8,7 @@ import { daysBetween, leadingClock, minutesOf } from './clock'
 import { dayOf, isDailyNote } from './daily'
 import { blockProperties, endsIn, numberText, readBlock, splitPageProperties, type PropertyType } from './properties'
 import { indentOf, proseLines } from './prose'
-import { collectTagLines, COMBINE_NAMES, tagNames, tagsOnly, type Combine, type DayTotal, type TotalPlace } from './tags'
+import { collectTagLines, combine, COMBINE_NAMES, tagNames, tagsOnly, type DayTotal, type TotalPlace } from './tags'
 import type { VaultFile } from './vaultModel'
 
 export interface TimelineEntry {
@@ -273,16 +273,6 @@ export function fieldsOf(
     const value = given.get(name.toLowerCase())
     return value ? [{ name, value }] : []
   })
-}
-
-/** `values` combined `by` the owner's choice, or null with none to combine. */
-function combine(values: readonly number[], by: Combine): number | null {
-  if (values.length === 0) return null
-  if (by === 'count') return values.length
-  if (by === 'min') return Math.min(...values)
-  if (by === 'max') return Math.max(...values)
-  const sum = values.reduce((total, one) => total + one, 0)
-  return by === 'average' ? sum / values.length : sum
 }
 
 /**

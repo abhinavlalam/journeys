@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { agoWord, clockStart, daysAfter, daysBetween, leadingClock, localDateStamp, localTimeStamp, relativeDay } from '../clock'
+import { agoWord, clockStart, dayDate, daysAfter, daysBetween, leadingClock, localDateStamp, localTimeStamp, relativeDay, shortDate, shortDay, shortWeekday } from '../clock'
 
 /**
  * The stamps use the local calendar, which can only be shown from a zone other than
@@ -76,6 +76,13 @@ describe('days as YYYY-MM-DD', () => {
     expect(agoWord(now - 30_000, now)).toBe('just now')
     expect(agoWord(now - 2 * 60_000, now)).toBe('2 minutes ago')
     expect(agoWord(now - 3 * 3_600_000, now)).toBe('3 hours ago')
+  })
+
+  /** A table's row of days reads as words; the year only where it is not this one. */
+  it('says a day in a row short, with its year when it is another year’s', () => {
+    const words = `${shortWeekday.format(dayDate('2026-10-05'))} ${shortDate.format(dayDate('2026-10-05'))}`
+    expect(shortDay('2026-10-05', '2026-10-12')).toBe(words)
+    expect(shortDay('2026-10-05', '2027-01-02')).toBe(`${words} 2026`)
   })
 
   it('reads the start of a clock', () => {

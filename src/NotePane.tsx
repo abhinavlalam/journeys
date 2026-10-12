@@ -17,7 +17,7 @@ import type { useVaultTexts } from './useVaultTexts'
 import type { Typing } from './LineEditor'
 import { DayTotals } from './DayTotals'
 import { typeOf } from './properties'
-import { coloursOf, type DayTotal } from './tags'
+import { coloursOf, type ColumnTotal, type DayTotal } from './tags'
 
 /** A delimited file's two ways of being shown: a table edited in place, or its text. */
 const CSV_VIEWS = ['table', 'text'] as const
@@ -55,6 +55,8 @@ interface NotePaneProps {
   onLock: (file: VaultFile) => void
   /** Each tag's daily totals, closing a daily note as they close its day in the timeline. */
   dayTotals: Readonly<Record<string, readonly DayTotal[]>>
+  /** How a table's column is totalled, chosen under it: kept in the settings by the column's name. */
+  onColumnTotal: (column: string, total: ColumnTotal) => void
   /**
    * A key was typed. `App` listens while a view built from the notes is
    * on screen in another pane, to take the live text; see `liveVersion`.
@@ -90,6 +92,7 @@ export function NotePane({
   onLock,
   onTyped,
   dayTotals,
+  onColumnTotal,
 }: NotePaneProps) {
   const buffer = useNoteBuffer({ vaultPath, refresh, setError })
 
@@ -223,7 +226,14 @@ export function NotePane({
            note: an unlocked `.enc` is markdown once it is open, and a `.txt` or a
            `.conf` is not — in the markdown editor every `# comment` was a heading. */
       kind === 'csv' && csvView === 'table' ? (
-        <CsvTable key={`${file.path}:${buffer.editorEpoch}:table`} text={current.current} incoming={buffer.incoming} onChange={handleEditorChange} />
+        <CsvTable
+          key={`${file.path}:${buffer.editorEpoch}:table`}
+          text={current.current}
+          incoming={buffer.incoming}
+          onChange={handleEditorChange}
+          totals={settings.columnTotals}
+          onTotal={onColumnTotal}
+        />
       ) : kind === 'json' || kind === 'csv' || kind === 'text' ? (
         <SourceEditor
           key={`${file.path}:${buffer.editorEpoch}:${csvView}`}
