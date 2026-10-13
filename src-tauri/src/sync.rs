@@ -475,6 +475,16 @@ fn clone(url: &str, into: &str) -> Result<()> {
             let _ = branch.set_upstream(Some(pick));
         }
     }
+    // A clone commits as the vault's last commit was written: its owner, on another
+    // device. With no identity of its own every commit was refused, and the round
+    // stopped before its pull, so a phone took in nothing for a week.
+    if let Ok(author) = repo.head().and_then(|head| head.peel_to_commit()).map(|last| last.author().to_owned()) {
+        if let (Some(name), Some(email)) = (author.name(), author.email()) {
+            let mut config = repo.config().map_err(err)?;
+            config.set_str("user.name", name).map_err(err)?;
+            config.set_str("user.email", email).map_err(err)?;
+        }
+    }
     Ok(())
 }
 
@@ -803,7 +813,12 @@ mod tests {
         let into = temp("clone4").join("Journal");
         clone(&format!("file://{}", s(&bare)), &s(&into)).unwrap();
         assert_eq!(read(&into, "Notes/Hello.md"), "hi");
-        assert!(status_of(&s(&into)).remote.is_some());
+        let status = status_of(&s(&into));
+        assert!(status.remote.is_some());
+        // It commits as the vault's last commit was written, with nothing asked.
+        assert_eq!((status.name.as_str(), status.email.as_str()), ("Mira Vance", "mira@example"));
+        write(&into, "Notes/Phone.md", "from the phone");
+        assert!(commit(&s(&into), false).unwrap());
     }
 
     #[test]

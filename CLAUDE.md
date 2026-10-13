@@ -609,7 +609,9 @@ owner and the agent.
   Every command is `spawn_blocking` via `blocking`. The token is in the keychain
   (`/usr/bin/security`, keyed by remote), never in the vault.
 - **The identity is the repository's local config only**; the machine's global
-  one may be someone's work account.
+  one may be someone's work account. A clone takes its last commit's author (`clone`):
+  the phone's had none, every commit was refused, and each round stopped before its
+  pull, so for a week the phone took in nothing and gave nothing.
 - A pull: nothing here → take theirs; no merge base → refused; fast-forward →
   checkout; else merge, each conflict kept as this side plus `name (other).md`.
   Checkouts are `safe()`; libgit2's `Conflict` means wait a round. Push only when
