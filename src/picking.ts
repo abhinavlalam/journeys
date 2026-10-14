@@ -1,7 +1,8 @@
 // A set of rows in the left pane, picked to act on together.
 //
-// Picking is not opening: ⌘-click adds a row and ⇧-click adds a range, and
-// neither opens a note. A plain click opens the note and makes it the whole set.
+// Picking is not opening: ⌥-click adds a row and ⇧-click adds a range, and
+// neither opens a note. A plain click opens the note and makes it the whole set, and
+// ⌘-click opens it in a new tab, as everywhere in the app (it picked, until then).
 //
 // Pure. A range runs in `visibleFiles` order, the order the tree draws, so it
 // covers what is on screen between the two clicks and nothing in a shut folder.
@@ -18,11 +19,9 @@ export const nothingPicked: Picked = { paths: new Set(), anchor: null }
 
 export type PickMode = 'only' | 'toggle' | 'range'
 
-/**
- * Which gesture a click is. `mod` is `metaKey` on every platform, as in `shortcuts.ts`.
- */
-export function pickMode(event: { metaKey: boolean; shiftKey: boolean }): PickMode {
-  if (event.metaKey) return 'toggle'
+/** Which gesture a click is. */
+export function pickMode(event: { altKey: boolean; shiftKey: boolean }): PickMode {
+  if (event.altKey) return 'toggle'
   if (event.shiftKey) return 'range'
   return 'only'
 }

@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
+import { clickBeside, disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 import { readProperty } from '../properties'
 
 /**
@@ -92,7 +92,7 @@ describe('the reading pane', () => {
     await openApp()
     fireEvent.click(sidebar().getByText('roadmap'))
     await waitFor(() => expect(tabs()).toEqual(['roadmap']))
-    fireEvent.click(sidebar().getByText('deck.pdf'))
+    clickBeside(sidebar().getByText('deck.pdf'))
     await waitFor(() => expect(tabs()).toEqual(['roadmap', 'deck.pdf']))
 
     fireEvent.contextMenu(sidebar().getByText('deck.pdf'))

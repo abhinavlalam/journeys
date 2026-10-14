@@ -17,7 +17,7 @@ import { formatKeymap } from './editorCommands'
 // The action registry
 // ---------------------------------------------------------------------------
 
-export type ActionId = 'openToday' | 'insertTime'
+export type ActionId = 'openToday' | 'insertTime' | 'openTerminal'
 
 interface Action {
   id: ActionId
@@ -27,12 +27,14 @@ interface Action {
 
 /**
  * A new action is an entry here plus its handler. Where the
- * handler is installed makes it the window's (`openToday` in
- * `App`) or the editor's (`insertTime` in `MarkdownEditor`).
+ * handler is installed makes it the window's (`openToday` and
+ * `openTerminal` in `App`) or the editor's (`insertTime` in `MarkdownEditor`).
  */
 export const ACTIONS: readonly Action[] = [
   { id: 'openToday', label: "Open today's page", defaultCombo: 'mod+shift+o' },
   { id: 'insertTime', label: 'Insert current time', defaultCombo: 'mod+shift+t' },
+  // VS Code's key for its terminal, so the hand already knows it.
+  { id: 'openTerminal', label: 'Go to the terminal', defaultCombo: 'ctrl+`' },
 ]
 
 export function defaultShortcuts(): Record<ActionId, string> {

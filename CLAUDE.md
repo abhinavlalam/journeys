@@ -290,6 +290,12 @@ owner and the agent.
 
 - `workspace.ts` is pure and tested alone. **A note is open in one place**;
   opening it anywhere goes to its tab. A split makes an empty, focused group.
+- **A press opens in place of the tab in front, ⌘-press beside it** (`openTab`'s
+  `beside`, the owner's choice: a tab for every press made more than anyone could keep
+  track of). ⌘ is read on the way down (`besidePress`, a capture listener in `App`),
+  before a row or a link acts, and taken once. Nothing opens over a terminal or the
+  settings file (`KEPT`), a terminal is a tab of its own, and the graph's toggle opens
+  beside, so its second press goes back.
 - **A buffer per note tab**, owned by `NotePane` through `useNoteBuffer` and
   registered with `useBuffers`, the one door every vault operation reaches every
   open note through. Inactive note tabs stay mounted, **editor and all**, hidden as a terminal is, so a
@@ -334,7 +340,8 @@ owner and the agent.
   A `NameField` types as meant (no autocorrect, capitals or spellcheck: macOS
   made `with:` into `With:`), and a name it cannot take keeps the field and says
   why — dropped as the field closed, it read as the `+` not working.
-- **Picking is not opening**: ⌘-click and ⇧-click build a set (`picking.ts`, range
+- **Picking is not opening**: ⌥-click and ⇧-click build a set (⌘-click picked until
+  2026-10-14, when it became a new tab everywhere) (`picking.ts`, range
   in drawn order via `visibleFiles`); a plain click opens. A picked set takes a
   ground; the open row is coloured, not filled.
 - **Drags start on the primary button only** (`usePrimaryDrag`; WebKit starts one
@@ -355,7 +362,8 @@ owner and the agent.
   syntax tree changes too, or a long note's end never renders.
 - **Presses are `mousedown`** for links, tags and checkboxes: the pressed
   span is replaced before release, so no `click` ever fires. Position from
-  `posAtDOM` on the pressed node.
+  `posAtDOM` on the pressed node (`followLink`). ⌘ on a link follows it, into a new
+  tab; ⌘ elsewhere is CodeMirror's second caret.
 - **`markdown({ addKeymap: false })`** and **`autocompletion({ defaultKeymap:
   false })`**: each adds its keys above anything passed; the one array in
   `MarkdownEditor` is the whole precedence (its props reach the extensions through
@@ -634,6 +642,8 @@ owner and the agent.
 
 ## The terminal
 
+- **⌃` goes to the terminal** (`openTerminal`, an action in `ACTIONS`, rebindable;
+  VS Code's key), as the row does: the last one, else a new one. Not on the phone.
 - `portable-pty`, `$SHELL -i -l` in the vault (a Dock-launched app has no PATH),
   `TERM=xterm-256color`. **tmux holds the session**, because the app owns the PTY
   master and its death kills every child.

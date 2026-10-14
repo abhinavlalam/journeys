@@ -94,7 +94,8 @@ describe('the defaults', () => {
     expect(DEFAULT_SETTINGS.dailyFolder).toBe('Daily')
     expect(DEFAULT_SETTINGS.shortcuts).toEqual({
       openToday: 'mod+shift+o',
-      insertTime: 'mod+shift+t'
+      insertTime: 'mod+shift+t',
+      openTerminal: 'ctrl+`',
     })
   })
 
@@ -240,7 +241,8 @@ describe('reading what was stored', () => {
     )
     expect(parsed.shortcuts).toEqual({
       openToday: 'mod+shift+t',
-      insertTime: 'mod+shift+o'
+      insertTime: 'mod+shift+o',
+      openTerminal: 'ctrl+`',
     })
   })
 

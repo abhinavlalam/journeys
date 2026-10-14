@@ -1988,16 +1988,18 @@ describe('following a link in the note', () => {
   })
 
   /**
-   * Only a plain left press follows a link: the right button is
-   * the menu's, and modifiers are the platform's.
+   * A left press follows a link, and ⌘ with it too: the app opens that one in a new tab.
+   * The right button is the menu's, and ⌥ and ⌃ are the platform's.
    */
-  it('leaves the other buttons and the modifiers alone', () => {
+  it('follows a link on a left press, ⌘ or not, and leaves the rest alone', () => {
     const { opened, container } = mounted('See [[Roadmap]] today.\n')
     const link = container.querySelector('.cm-md-link') as HTMLElement
     fireEvent.mouseDown(link, { button: 2, detail: 1 })
-    fireEvent.mouseDown(link, { button: 0, detail: 1, metaKey: true })
     fireEvent.mouseDown(link, { button: 0, detail: 1, altKey: true })
+    fireEvent.mouseDown(link, { button: 0, detail: 1, ctrlKey: true })
     expect(opened).toEqual([])
+    fireEvent.mouseDown(link, { button: 0, detail: 1, metaKey: true })
+    expect(opened).toEqual([{ target: 'Roadmap', wiki: true }])
   })
 
   /** A table's text follows its `[[links]]` as a note does, by the same press. */

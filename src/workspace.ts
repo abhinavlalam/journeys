@@ -183,11 +183,24 @@ export function activateTab(ws: Workspace, groupId: number, index: number): Work
  * Opens a tab in the focused group after the active one, as a
  * browser does, or goes to the same tab if it is open anywhere.
  */
-export function openTab(ws: Workspace, request: TabRequest): Workspace {
+/** What a tab is never replaced over, since it holds what cannot be put back: a shell, a settings file not saved. */
+const KEPT: ReadonlySet<Tab['kind']> = new Set(['terminal', 'settingsFile'])
+
+/**
+ * Opens what is asked for: its tab, where it is already open; else in place of the
+ * focused group's tab in front, as a browser's page does, or `beside` it (⌘-click). A
+ * new tab for every press made more tabs than anyone could keep track of. A terminal
+ * is a tab of its own, and nothing replaces a tab that is `KEPT`.
+ */
+export function openTab(ws: Workspace, request: TabRequest, beside = false): Workspace {
   const found = findTab(ws, tabKey(request))
   if (found) return activateTab(ws, found.groupId, found.index)
   const tab = { ...request, id: ws.nextId } as Tab
   return withGroup({ ...ws, nextId: ws.nextId + 1 }, ws.focused, (group) => {
+    const front = group.tabs[group.active]
+    if (front && !beside && request.kind !== 'terminal' && !KEPT.has(front.kind)) {
+      return { ...group, tabs: group.tabs.map((one, at) => (at === group.active ? tab : one)) }
+    }
     const at = group.tabs.length === 0 ? 0 : group.active + 1
     return { ...group, tabs: [...group.tabs.slice(0, at), tab, ...group.tabs.slice(at)], active: at }
   })
@@ -248,13 +261,16 @@ export function openTerminal(ws: Workspace): Workspace {
     : openTab(ws, { kind: 'terminal', session: terminalName(ws) })
 }
 
-/** The graph button: close the graph if the focused group shows it, else open it. */
+/**
+ * The graph button: close the graph if the focused group shows it, else open it beside
+ * the tab in front, so the next press goes back to that tab.
+ */
 export function toggleTab(ws: Workspace, request: TabRequest): Workspace {
   const group = groupById(ws, ws.focused)
   const active = group?.tabs[group.active]
   return group && active && tabKey(active) === tabKey(request)
     ? closeTab(ws, group.id, group.active)
-    : openTab(ws, request)
+    : openTab(ws, request, true)
 }
 
 /**

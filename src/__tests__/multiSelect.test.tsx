@@ -36,10 +36,10 @@ const pickedNames = () =>
 const tabs = () => [...document.querySelectorAll('[role="tab"] .tab-name')].map((el) => el.textContent)
 
 describe('picking rows', () => {
-  it('adds a row on ⌘-click without opening it', async () => {
+  it('adds a row on ⌥-click without opening it', async () => {
     await openApp()
-    fireEvent.click(row('alpha'), { metaKey: true })
-    fireEvent.click(row('beta'), { metaKey: true })
+    fireEvent.click(row('alpha'), { altKey: true })
+    fireEvent.click(row('beta'), { altKey: true })
     await waitFor(() => expect(pickedNames()).toEqual(['alpha', 'beta']))
     // Nothing opened: twenty notes picked to delete are not twenty tabs.
     expect(tabs()).toEqual([])
@@ -48,7 +48,7 @@ describe('picking rows', () => {
 
   it('takes the range on ⇧-click, in the order the tree draws', async () => {
     await openApp()
-    fireEvent.click(row('alpha'), { metaKey: true })
+    fireEvent.click(row('alpha'), { altKey: true })
     fireEvent.click(row('roadmap'), { shiftKey: true })
     // alpha, beta, gamma, inbox, roadmap at the root; the range is what lies between.
     await waitFor(() => expect(pickedNames()).toEqual(['alpha', 'beta', 'gamma', 'inbox', 'roadmap']))
@@ -57,8 +57,8 @@ describe('picking rows', () => {
 
   it('opens on a plain click, and that note becomes the whole set', async () => {
     await openApp()
-    fireEvent.click(row('alpha'), { metaKey: true })
-    fireEvent.click(row('beta'), { metaKey: true })
+    fireEvent.click(row('alpha'), { altKey: true })
+    fireEvent.click(row('beta'), { altKey: true })
     await waitFor(() => expect(pickedNames()).toHaveLength(2))
 
     fireEvent.click(row('gamma'))
@@ -70,9 +70,9 @@ describe('picking rows', () => {
 describe('deleting a set', () => {
   it('asks once and deletes every picked note', async () => {
     await openApp()
-    fireEvent.click(row('alpha'), { metaKey: true })
-    fireEvent.click(row('beta'), { metaKey: true })
-    fireEvent.click(row('gamma'), { metaKey: true })
+    fireEvent.click(row('alpha'), { altKey: true })
+    fireEvent.click(row('beta'), { altKey: true })
+    fireEvent.click(row('gamma'), { altKey: true })
     await waitFor(() => expect(pickedNames()).toHaveLength(3))
 
     fireEvent.contextMenu(row('beta'))
@@ -94,8 +94,8 @@ describe('deleting a set', () => {
     await openApp()
     fireEvent.click(row('alpha'))
     await waitFor(() => expect(tabs()).toEqual(['alpha']))
-    // The open note is already the set, so ⌘-click on another adds to it.
-    fireEvent.click(row('beta'), { metaKey: true })
+    // The open note is already the set, so ⌥-click on another adds to it.
+    fireEvent.click(row('beta'), { altKey: true })
     await waitFor(() => expect(pickedNames()).toEqual(['alpha', 'beta']))
 
     fireEvent.contextMenu(row('alpha'))
@@ -107,7 +107,7 @@ describe('deleting a set', () => {
   /** One row is one row: the menu it had before picking existed. */
   it('offers the single note’s own menu when nothing else is picked', async () => {
     await openApp()
-    fireEvent.click(row('alpha'), { metaKey: true })
+    fireEvent.click(row('alpha'), { altKey: true })
     await waitFor(() => expect(pickedNames()).toEqual(['alpha']))
     fireEvent.contextMenu(row('alpha'))
     expect(screen.getByText('Delete')).toBeTruthy()

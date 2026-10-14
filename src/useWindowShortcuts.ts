@@ -1,11 +1,12 @@
 import { useWindowEvent } from './useWindowEvent'
-import { matchesCombo, SETTINGS_COMBO } from './shortcuts'
+import { matchesCombo, SETTINGS_COMBO, type ActionId } from './shortcuts'
 
 /**
- * The window's two shortcuts: today's note on its combo, and Settings on ⌘,.
+ * The window's shortcuts: each action given on its combo (today's note, the terminal),
+ * and Settings on ⌘,.
  *
  * ⌘, is the macOS habit and not in `ACTIONS`, so no one can rebind it and
- * lose the way in. `RESERVED_COMBOS` refuses it. The bound action is still
+ * lose the way in. `RESERVED_COMBOS` refuses it. The bound actions are still
  * checked first, so a combo saved before the reservation keeps working.
  *
  * Registered once, and read through a ref: the vault path (null on the
@@ -18,17 +19,19 @@ import { matchesCombo, SETTINGS_COMBO } from './shortcuts'
  * the dialog, and capturing a rebind would fire the action being rebound.
  */
 export function useWindowShortcuts(current: {
-  openToday: () => Promise<unknown>
-  combo: string
+  /** What each window action does. One left out (the terminal, on the phone) is not bound. */
+  actions: Partial<Record<ActionId, () => unknown>>
+  shortcuts: Readonly<Record<ActionId, string>>
   disabled: boolean
   openSettings: () => void
 }) {
   useWindowEvent('keydown', (event) => {
-    const { openToday, combo, disabled, openSettings } = current
+    const { actions, shortcuts, disabled, openSettings } = current
     if (disabled) return
-    if (matchesCombo(event, combo)) {
+    for (const [id, run] of Object.entries(actions) as [ActionId, () => unknown][]) {
+      if (!matchesCombo(event, shortcuts[id])) continue
       event.preventDefault()
-      void openToday()
+      void run()
       return
     }
     if (matchesCombo(event, SETTINGS_COMBO)) {

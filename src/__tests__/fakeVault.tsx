@@ -11,7 +11,7 @@
  * vi.mock('@tauri-apps/plugin-fs', () => fsModule()) vi.mock('../MarkdownEditor', ()
  * => markdownEditorModule()) beforeEach(() => { resetFakeVault() })
  */
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { expect, vi } from 'vitest'
 import type { VaultFile } from '../vaultModel'
 
@@ -362,6 +362,12 @@ export async function openApp(settings?: Record<string, unknown>) {
   const { default: App } = await import('../App')
   render(<App />)
   await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
+}
+
+/** ⌘-click, which opens in a new tab: the app reads ⌘ on the press, so a press and then the click. */
+export function clickBeside(element: Element) {
+  fireEvent.mouseDown(element, { metaKey: true })
+  fireEvent.click(element, { metaKey: true })
 }
 
 /** A note in the fake vault, by path. */

@@ -82,6 +82,7 @@ import { useVault, type VaultBufferOps } from './useVault'
 import { useRelocation } from './useRelocation'
 import { useInlineCreate } from './useInlineCreate'
 import { useWindowShortcuts } from './useWindowShortcuts'
+import { useWindowEvent } from './useWindowEvent'
 import { useLocks } from './useLocks'
 import { onAndroid } from './platform'
 import { PhoneBar, usePhoneNav } from './Phone'
@@ -174,7 +175,20 @@ export default function App() {
     }, LIVE_REFRESH_MS)
   }
   /** On the phone a page is a place in its trail (`usePhoneNav`), shown alone. */
-  const open = (tab: TabRequest) => (onAndroid ? phone.go(tab) : setWs((current) => openTab(current, tab)))
+  /**
+   * Whether the press opening something held ⌘: it opens in a new tab, else in place of
+   * the tab in front (`openTab`). Read on the way down, before a row or a link acts on
+   * the press, and taken once, so an open no press asked for (a share filed) is not sent
+   * to a new tab by an old one.
+   */
+  const besidePress = useRef(false)
+  useWindowEvent('mousedown', (event) => void (besidePress.current = event.metaKey), true)
+  useWindowEvent('keydown', () => void (besidePress.current = false), true)
+  const open = (tab: TabRequest) => {
+    const beside = besidePress.current
+    besidePress.current = false
+    return onAndroid ? phone.go(tab) : setWs((current) => openTab(current, tab, beside))
+  }
   /**
    * Opens a property's or tag's page: from a row, a `#tag` in a
    * note, or a new tag's `+`.
@@ -223,7 +237,7 @@ export default function App() {
   const folders = useFolderOpenState(vault.vaultPath, SECTIONS)
 
   /**
-   * Rows picked to act on together (see `picking.ts`). ⌘-click adds one and
+   * Rows picked to act on together (see `picking.ts`). ⌥-click adds one and
    * ⇧-click takes a range. A plain click opens a note and picks only it.
    */
   const [picked, setPicked] = useState(nothingPicked)
@@ -617,8 +631,9 @@ export default function App() {
     onError: setError,
   })
   useWindowShortcuts({
-    openToday,
-    combo: settings.shortcuts.openToday,
+    // No shell on the phone, so no way to it.
+    actions: onAndroid ? { openToday } : { openToday, openTerminal: () => setWs((current) => openTerminal(current)) },
+    shortcuts: settings.shortcuts,
     disabled: settingsOpen,
     openSettings: () => setSettingsOpen(true),
   })

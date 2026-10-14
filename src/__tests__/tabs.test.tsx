@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
+import { clickBeside, disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
  * The reading pane is a workspace: notes open as tabs, and a group of
@@ -40,12 +40,29 @@ async function openFromTree(name: string) {
   fireEvent.click(sidebar().getByText(name))
   await waitFor(() => expect(activeTabs()).toContain(name))
 }
+async function openBesideFromTree(name: string) {
+  clickBeside(sidebar().getByText(name))
+  await waitFor(() => expect(activeTabs()).toContain(name))
+}
 
 describe('tabs', () => {
-  it('opens each note as a tab and shows the one clicked', async () => {
+  /** A tab for every press made more tabs than anyone could keep track of. */
+  it('opens a note in place of the one in front, and beside it on ⌘-click', async () => {
     await openApp()
     await openFromTree('alpha')
     await openFromTree('beta')
+    expect([tabs(), title()]).toEqual([['beta'], 'beta'])
+    await openBesideFromTree('alpha')
+    expect([tabs(), title()]).toEqual([['beta', 'alpha'], 'alpha'])
+    // A plain press after a ⌘-click is a plain press again.
+    fireEvent.click(screen.getByLabelText('Timeline'))
+    await waitFor(() => expect(tabs()).toEqual(['beta', 'Timeline']))
+  })
+
+  it('opens each note as a tab and shows the one clicked', async () => {
+    await openApp()
+    await openFromTree('alpha')
+    await openBesideFromTree('beta')
     expect(tabs()).toEqual(['alpha', 'beta'])
     expect(title()).toBe('beta')
     // One editor shown: the other tab keeps its buffer, hidden.
@@ -59,7 +76,7 @@ describe('tabs', () => {
   it('opens a note that is already open by going to its tab', async () => {
     await openApp()
     await openFromTree('alpha')
-    await openFromTree('beta')
+    await openBesideFromTree('beta')
     await openFromTree('alpha')
     expect(tabs()).toEqual(['alpha', 'beta'])
     expect(title()).toBe('alpha')
@@ -68,7 +85,7 @@ describe('tabs', () => {
   it('closes a tab to its neighbour, and the last one to the empty pane', async () => {
     await openApp()
     await openFromTree('alpha')
-    await openFromTree('beta')
+    await openBesideFromTree('beta')
     fireEvent.click(screen.getByLabelText('Close beta'))
     await waitFor(() => expect(title()).toBe('alpha'))
     fireEvent.click(screen.getByLabelText('Close alpha'))
@@ -113,6 +130,19 @@ describe('a terminal', () => {
     fireEvent.contextMenu(screen.getByLabelText('Terminal'))
     fireEvent.click(screen.getByText('New terminal'))
     await waitFor(() => expect(tabs()).toEqual(['alpha', 'Terminal', 'Terminal']))
+  })
+
+  /** ⌃` goes to the terminal from anywhere, as the row does: the open one, else a new one. */
+  it('is gone to by its shortcut', async () => {
+    await openApp()
+    await openFromTree('alpha')
+    fireEvent.keyDown(window, { key: '`', ctrlKey: true })
+    await waitFor(() => expect(activeTabs()).toEqual(['Terminal']))
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /alpha/ }))
+    await waitFor(() => expect(activeTabs()).toEqual(['alpha']))
+    fireEvent.keyDown(window, { key: '`', ctrlKey: true })
+    await waitFor(() => expect(activeTabs()).toEqual(['Terminal']))
+    expect(tabs()).toEqual(['alpha', 'Terminal'])
   })
 })
 
@@ -184,7 +214,7 @@ describe('panes', () => {
   it('moves a tab to another pane by drag', async () => {
     await openApp()
     await openFromTree('alpha')
-    await openFromTree('beta')
+    await openBesideFromTree('beta')
     fireEvent.click(screen.getByLabelText('Split right'))
     await waitFor(() => expect(groups()).toBe(2))
     const [first, second] = [...document.querySelectorAll('.pane-group')] as HTMLElement[]
@@ -207,7 +237,7 @@ describe('panes', () => {
   it('splits a pane by dropping a tab at its edge', async () => {
     await openApp()
     await openFromTree('alpha')
-    await openFromTree('beta')
+    await openBesideFromTree('beta')
     // The drop target exists only while a tab is dragged.
     const startDrag = () => fireEvent.dragStart(screen.getByRole('tab', { name: /beta/ }), { dataTransfer })
     const bodyOf = () => document.querySelector('.pane-drop') as HTMLElement

@@ -119,9 +119,11 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
      */
     EditorView.domEventHandlers({
       mousedown(event, view) {
-        // Left button only, with no modifier. Right click is the
-        // menu; ⌘-click and ⌥-drag are the platform's.
-        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey) return false
+        // Left button only, without ⌃ or ⌥. Right click is the
+        // menu; ⌥-drag is the platform's.
+        if (event.button !== 0 || event.ctrlKey || event.altKey) return false
+        // ⌘ on a link opens it in a new tab (`openTab`); elsewhere ⌘-click is the editor's, a second caret.
+        if (event.metaKey) return followLink(event, view, (target, wiki) => latest.current.onOpenLink?.(target, wiki))
         /**
          * A press on a checkbox toggles it. Also `mousedown`,
          * since the toggle rebuilds the box before the release.

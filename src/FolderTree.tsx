@@ -80,7 +80,7 @@ interface FolderTreeProps {
   unlock: InlineUnlock | null
   selectedPath: string | null
   /**
-   * Notes picked to act on together, by path. ⌘-click and ⇧-click add to
+   * Notes picked to act on together, by path. ⌥-click and ⇧-click add to
    * it without opening. A picked row gets a background (see `.picked`).
    */
   picked: ReadonlySet<string>

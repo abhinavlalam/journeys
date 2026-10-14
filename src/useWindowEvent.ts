@@ -12,7 +12,9 @@ import { useEffect, useRef } from 'react'
  */
 export function useWindowEvent<K extends keyof WindowEventMap>(
   type: K,
-  handler: (event: WindowEventMap[K]) => void
+  handler: (event: WindowEventMap[K]) => void,
+  /** Before the event reaches what was pressed: what that does may depend on it. */
+  capture = false
 ) {
   const latest = useRef(handler)
   useEffect(() => {
@@ -20,7 +22,7 @@ export function useWindowEvent<K extends keyof WindowEventMap>(
   })
   useEffect(() => {
     const call = (event: WindowEventMap[K]) => latest.current(event)
-    window.addEventListener(type, call)
-    return () => window.removeEventListener(type, call)
-  }, [type])
+    window.addEventListener(type, call, capture)
+    return () => window.removeEventListener(type, call, capture)
+  }, [type, capture])
 }

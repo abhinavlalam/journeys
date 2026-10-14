@@ -10,12 +10,13 @@ const ORDER = ['Areas/x.md', 'Areas/y.md', 'a.md', 'b.md']
 const names = (picked: Picked) => [...picked.paths].sort()
 
 describe('a gesture', () => {
-  it('is read off the modifiers, and `mod` is the meta key', () => {
-    expect(pickMode({ metaKey: false, shiftKey: false })).toBe('only')
-    expect(pickMode({ metaKey: true, shiftKey: false })).toBe('toggle')
-    expect(pickMode({ metaKey: false, shiftKey: true })).toBe('range')
-    // Both: ⌘ wins, because toggling never loses what is picked.
-    expect(pickMode({ metaKey: true, shiftKey: true })).toBe('toggle')
+  /** ⌥ picks one row; ⌘ is a new tab, everywhere in the app. */
+  it('is read off the modifiers, and ⌥ picks a row', () => {
+    expect(pickMode({ altKey: false, shiftKey: false })).toBe('only')
+    expect(pickMode({ altKey: true, shiftKey: false })).toBe('toggle')
+    expect(pickMode({ altKey: false, shiftKey: true })).toBe('range')
+    // Both: ⌥ wins, because toggling never loses what is picked.
+    expect(pickMode({ altKey: true, shiftKey: true })).toBe('toggle')
   })
 })
 

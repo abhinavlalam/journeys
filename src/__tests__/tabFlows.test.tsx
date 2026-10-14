@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { EditorView } from '@codemirror/view'
-import { disk, fsModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
+import { clickBeside, disk, fsModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
  * Tabs with the real editor under them. Other tab tests use a textarea; these
@@ -47,8 +47,9 @@ function type(text: string) {
   })
 }
 
+/** Beside the tab in front (⌘-click), so the note left keeps its tab. */
 async function open(name: string) {
-  fireEvent.click(sidebar().getByText(name))
+  clickBeside(sidebar().getByText(name))
   await waitFor(() => expect(title()).toBe(name))
   await waitFor(() =>
     expect(

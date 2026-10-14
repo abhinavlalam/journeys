@@ -37,7 +37,8 @@ export function SourceEditor({
   const open = useRef(onOpenLink)
   open.current = onOpenLink
   const links = EditorView.domEventHandlers({
-    mousedown: (event, view) => event.button === 0 && !event.metaKey && !event.ctrlKey && !event.altKey && followLink(event, view, (target, wiki) => open.current?.(target, wiki)),
+    // ⌘ too: the link opens in a new tab.
+    mousedown: (event, view) => event.button === 0 && !event.ctrlKey && !event.altKey && followLink(event, view, (target, wiki) => open.current?.(target, wiki)),
   })
   return (
     <EditorHost
