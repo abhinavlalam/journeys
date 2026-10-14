@@ -642,8 +642,8 @@ owner and the agent.
 
 ## The terminal
 
-- **⌃` goes to the terminal** (`openTerminal`, an action in `ACTIONS`, rebindable;
-  VS Code's key), as the row does: the last one, else a new one. Not on the phone.
+- **⇧⌘L goes to the terminal** (`openTerminal`, an action in `ACTIONS`, rebindable;
+  the owner's pick), as the row does: the last one, else a new one. Not on the phone.
 - `portable-pty`, `$SHELL -i -l` in the vault (a Dock-launched app has no PATH),
   `TERM=xterm-256color`. **tmux holds the session**, because the app owns the PTY
   master and its death kills every child.

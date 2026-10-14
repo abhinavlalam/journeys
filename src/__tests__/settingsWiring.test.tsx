@@ -95,7 +95,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 100))
 describe('settings reaching the app', () => {
   it('opens today’s page on the combo the settings name, and not on the default', async () => {
     remember({
-      shortcuts: { openToday: 'mod+alt+j', insertTime: 'mod+shift+t', openTerminal: 'ctrl+`' },
+      shortcuts: { openToday: 'mod+alt+j', insertTime: 'mod+shift+t', openTerminal: 'mod+shift+l' },
     })
     await openApp()
 

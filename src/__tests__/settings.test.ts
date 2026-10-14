@@ -95,7 +95,7 @@ describe('the defaults', () => {
     expect(DEFAULT_SETTINGS.shortcuts).toEqual({
       openToday: 'mod+shift+o',
       insertTime: 'mod+shift+t',
-      openTerminal: 'ctrl+`',
+      openTerminal: 'mod+shift+l',
     })
   })
 
@@ -242,7 +242,7 @@ describe('reading what was stored', () => {
     expect(parsed.shortcuts).toEqual({
       openToday: 'mod+shift+t',
       insertTime: 'mod+shift+o',
-      openTerminal: 'ctrl+`',
+      openTerminal: 'mod+shift+l',
     })
   })
 

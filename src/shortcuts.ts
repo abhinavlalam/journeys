@@ -33,8 +33,7 @@ interface Action {
 export const ACTIONS: readonly Action[] = [
   { id: 'openToday', label: "Open today's page", defaultCombo: 'mod+shift+o' },
   { id: 'insertTime', label: 'Insert current time', defaultCombo: 'mod+shift+t' },
-  // VS Code's key for its terminal, so the hand already knows it.
-  { id: 'openTerminal', label: 'Go to the terminal', defaultCombo: 'ctrl+`' },
+  { id: 'openTerminal', label: 'Go to the terminal', defaultCombo: 'mod+shift+l' },
 ]
 
 export function defaultShortcuts(): Record<ActionId, string> {

@@ -132,15 +132,15 @@ describe('a terminal', () => {
     await waitFor(() => expect(tabs()).toEqual(['alpha', 'Terminal', 'Terminal']))
   })
 
-  /** ⌃` goes to the terminal from anywhere, as the row does: the open one, else a new one. */
+  /** ⇧⌘L goes to the terminal from anywhere, as the row does: the open one, else a new one. */
   it('is gone to by its shortcut', async () => {
     await openApp()
     await openFromTree('alpha')
-    fireEvent.keyDown(window, { key: '`', ctrlKey: true })
+    fireEvent.keyDown(window, { key: 'L', metaKey: true, shiftKey: true })
     await waitFor(() => expect(activeTabs()).toEqual(['Terminal']))
     fireEvent.mouseDown(screen.getByRole('tab', { name: /alpha/ }))
     await waitFor(() => expect(activeTabs()).toEqual(['alpha']))
-    fireEvent.keyDown(window, { key: '`', ctrlKey: true })
+    fireEvent.keyDown(window, { key: 'L', metaKey: true, shiftKey: true })
     await waitFor(() => expect(activeTabs()).toEqual(['Terminal']))
     expect(tabs()).toEqual(['alpha', 'Terminal'])
   })
