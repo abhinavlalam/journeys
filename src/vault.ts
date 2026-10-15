@@ -623,7 +623,9 @@ export const DAILY_FOLDER = 'Daily'
 export async function ensureDailyNote(
   vaultPath: string,
   folder = DAILY_FOLDER,
-  day = localDateStamp()
+  day = localDateStamp(),
+  /** What a new day is written with: its sections' headings (`daySkeleton`). */
+  begun = ''
 ): Promise<{ file: VaultFile; created: boolean }> {
   const folderAbsolute = `${vaultPath}/${folder}`
   if (!(await vaultFs.exists(folderAbsolute))) await vaultFs.makeFolder(folderAbsolute)
@@ -632,7 +634,7 @@ export async function ensureDailyNote(
   // Only a new day is written. The caller is told whether it was
   // created, because a new note's icon is given once.
   const created = !(await vaultFs.exists(file.absolutePath))
-  if (created) await vaultFs.writeText(file.absolutePath, '')
+  if (created) await vaultFs.writeText(file.absolutePath, begun)
   return { file, created }
 }
 

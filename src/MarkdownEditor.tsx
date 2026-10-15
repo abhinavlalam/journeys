@@ -24,6 +24,8 @@ import { formatKeymap, insertTimeKeymap } from './editorCommands'
 import { propertySource, completionAppearance, slashSource, wikiLinkSource } from './editorComplete'
 import {
   propertyTypes,
+  daySectionNames,
+  daySectionPreview,
   followLink,
   isTagClick,
   isTaskClick,
@@ -81,6 +83,8 @@ interface MarkdownEditorProps {
    * through the ref, so a change does not remount.
    */
   dailyFolder?: string
+  /** A daily note's sections' names, drawn apart (`daySectionPreview`); none for any other note. */
+  daySections?: readonly string[]
   /** Called on every document change, and nothing else. */
   onChange: (markdown: string) => void
   /**
@@ -112,6 +116,7 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
   const getTypes = () => latest.current.propertyTypes ?? {}
   return [
     propertyTypes.of(getTypes),
+    daySectionNames.of(() => latest.current.daySections ?? []),
     /**
      * A press on a link follows it (`followLink`). Clicks elsewhere, including past
      * the end of a line that ends in a link (`isLinkClick`), still place the caret.
@@ -208,6 +213,7 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
     // everything here, and `continueIndent` never ran from the key.
     markdown({ base: markdownLanguage, addKeymap: false }),
     livePreview,
+    daySectionPreview,
   ]
 }
 

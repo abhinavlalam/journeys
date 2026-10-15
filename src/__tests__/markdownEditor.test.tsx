@@ -54,6 +54,8 @@ import {
   propertyTypes,
   taskAt,
   toggledTask,
+  daySectionDecorations,
+  daySectionNames,
 } from '../editorPreview'
 import { vaultFile as note } from './fakeVault'
 
@@ -180,6 +182,26 @@ function spans(set: DecorationSet): string[] {
 }
 
 const all = (state: EditorState) => spans(livePreviewDecorations(state, 0, state.doc.length))
+
+/** A daily note's sections, drawn apart: its heading a band, each line on its section's ground. */
+describe('a daily note’s sections', () => {
+  const lines = (doc: string, names: readonly string[]) => {
+    const state = EditorState.create({ doc, extensions: [daySectionNames.of(() => names)] })
+    const found: string[] = []
+    const iter = daySectionDecorations(state, 0, state.doc.length).iter()
+    for (; iter.value; iter.next()) {
+      const spec = iter.value.spec as { class: string; attributes: Record<string, string> }
+      found.push(`${state.doc.lineAt(iter.from).number}:${spec.class}:${spec.attributes['data-section']}`)
+    }
+    return found
+  }
+
+  it('marks each section’s heading and lines, and nothing in another note', () => {
+    const doc = 'icon:: pen\n\n## Log\n09:30 standup\n\n## Notes\nan idea'
+    expect(lines(doc, ['Log', 'Notes', 'Trackers'])).toEqual(['3:cm-day-heading:0', '4:cm-day-line:0', '5:cm-day-line:0', '6:cm-day-heading:1', '7:cm-day-line:1'])
+    expect(lines(doc, [])).toEqual([])
+  })
+})
 
 describe('Live Preview', () => {
   it('renders a bold run and hides its asterisks when the caret is elsewhere', () => {

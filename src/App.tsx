@@ -50,6 +50,7 @@ import { EXPENSE_COLUMNS, mainCurrency, readExpenses } from './expenses'
 import { CALORIE_COLUMNS, readCalories } from './calories'
 import type { TrackedDay } from './trackerParts'
 import { TRACKERS, withRecord, type Tracker } from './trackers'
+import { daySkeleton } from './daySections'
 
 /** What a page adds a row to a tracker's table by. */
 const TRACKER_COLUMNS = { expenses: EXPENSE_COLUMNS, calories: CALORIE_COLUMNS } as const
@@ -294,6 +295,9 @@ export default function App() {
   /** Each tag's structure, from `.config/tags.json`. */
   const tagStructures = useConfigEntries(vault.vaultPath, TAGS_FILE, setError)
 
+  /** The daily sections' names, the same array while they are unchanged, so the timeline is not rebuilt on every render. */
+  const daySectionNames = useMemo(() => settings.daySections.map((section) => section.name), [settings.daySections])
+
   /**
    * The one read of the vault and everything built from it. `liveText`,
    * the open note as typed, is the one input not read from disk.
@@ -317,6 +321,7 @@ export default function App() {
     root: vault.root,
     graphHides: settings.graphHides,
     dailyFolder: settings.dailyFolder,
+    daySections: daySectionNames,
     vaultPath: vault.vaultPath,
     openPath: focusedNote?.path ?? null,
     // A view built from the notes is open, so use the note as typed:
@@ -603,7 +608,7 @@ export default function App() {
     const file = dailyNoteFile(vault.vaultPath, settings.dailyFolder, day)
     if (noteIndex.byKey.has(pathKey(file.path))) return openNote(file)
     await vault.mutate(
-      (v) => ensureDailyNote(v, settings.dailyFolder, day),
+      (v) => ensureDailyNote(v, settings.dailyFolder, day, daySkeleton(settings.daySections)),
       async ({ file, created }) => {
         // A new note is given its icon once, when it is made.
         if (created) await inheritIcon(file)
@@ -642,7 +647,7 @@ export default function App() {
     }
     const { byDay, sources } = await feedLines(settings.calendarFeeds, localDateStamp(), settings.calendarDays, format.properties)
     await vault.mutate(
-      (v) => syncEvents(v, settings.dailyFolder, format, byDay, sources),
+      (v) => syncEvents(v, settings.dailyFolder, format, byDay, sources, settings.daySections),
       async ({ changed, created }) => {
         for (const file of created) await inheritIcon(file)
         for (const { file, text } of changed) patch(new Set([file.path]), () => text)
@@ -794,8 +799,9 @@ export default function App() {
     return vault.mutate(
       async (v) => {
         const text = await entry(v)
-        const { file, created } = await ensureDailyNote(v, settings.dailyFolder, day)
+        const { file, created } = await ensureDailyNote(v, settings.dailyFolder, day, daySkeleton(settings.daySections))
         const next = withNewEntry(file, await readVaultFile(file), text, {
+          sections: settings.daySections,
           indent: ' '.repeat(settings.indentWidth),
           group: settings.timelineGroup,
           // A tag with a structure is a record, written at the top level of the day.

@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { daysAfter, localDateStamp } from '../clock'
-import { disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
+import { sectionedDay, disk, fsModule, markdownEditorModule, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
  * The timeline: the daily notes as each day happened, oldest at the top
@@ -155,13 +155,14 @@ describe('the timeline', () => {
       fireEvent.keyDown(field, { key: 'Enter' })
     }
     type('coffee with [[Mira Vance]]')
-    await waitFor(() => expect(disk.read(today())).toBe('#timeline\n    coffee with [[Mira Vance]]\n'))
+    // A new day is begun with its sections; a line with no time goes in Notes, off the timeline.
+    await waitFor(() => expect(disk.read(today())).toBe(sectionedDay({ notes: ['coffee with [[Mira Vance]]'] })))
     // A fresh line for the next, and nothing on the timeline for a line with no time.
     expect(lineIn(days()[2])!.value).toBe('')
     expect(entries(days()[2])).toEqual([['', '', 'moment']])
     type('10:00 call with [[Mira Vance]]')
     await waitFor(() => expect(entries(days()[2])[0]).toEqual(['10:00', 'call with Mira Vance', 'moment']))
-    expect(disk.read(today())).toBe('#timeline\n    coffee with [[Mira Vance]]\n    10:00 call with [[Mira Vance]]\n')
+    expect(disk.read(today())).toBe(sectionedDay({ log: ['10:00 call with [[Mira Vance]]'], notes: ['coffee with [[Mira Vance]]'] }))
   })
 
   it('files a new entry under its tag’s group in today’s note, and keeps a draft on leaving', async () => {

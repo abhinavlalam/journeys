@@ -85,6 +85,7 @@ export function useVaultTexts({
   root,
   graphHides,
   dailyFolder,
+  daySections,
   vaultPath,
   openPath,
   viewOpen,
@@ -98,6 +99,8 @@ export function useVaultTexts({
   graphHides: readonly string[]
   /** Where the daily notes live (`settings.dailyFolder`), for the timeline. */
   dailyFolder: string
+  /** The daily sections' names: the timeline reads a day's first. Kept the same array while unchanged. */
+  daySections: readonly string[]
   vaultPath: string | null
   /**
    * The open note: switching notes is when `liveText` is dropped
@@ -307,7 +310,7 @@ export function useVaultTexts({
   )
 
   const collectTag = useMemo(() => tagLines(corpus), [corpus])
-  const timeline = useMemo(() => (corpus ? timelineDays(corpus, dailyFolder) : null), [corpus, dailyFolder])
+  const timeline = useMemo(() => (corpus ? timelineDays(corpus, dailyFolder, daySections) : null), [corpus, dailyFolder, daySections])
 
   const patch = (paths: ReadonlySet<string>, change: (text: string) => string) =>
     setTexts(

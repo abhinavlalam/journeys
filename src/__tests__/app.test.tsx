@@ -7,6 +7,7 @@ import {
   markdownEditorModule,
   rememberVault,
   resetFakeVault,
+  sectionedDay,
 } from './fakeVault'
 import { localDateStamp } from '../clock'
 import { stepIn } from '../rows'
@@ -302,7 +303,8 @@ describe('the shell', () => {
     // Opened through the tree's own path, so the row is there and selected.
     await waitFor(() => expect(row(today())).toBeTruthy())
     expect(row(today()).closest('button')?.className).toContain('selected')
-    expect(editor().value).toBe('')
+    // A new day is begun with its sections.
+    expect(editor().value).toBe(sectionedDay({}))
   })
 
   /** Made already, it opens as it is: no write, and no walk of the folders first. */

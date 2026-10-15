@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-libra
 import { EditorView } from '@codemirror/view'
 import { daysAfter, localDateStamp, localTimeStamp } from '../clock'
 import type { Share } from '../share'
-import { disk, fsModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
+import { sectionedDay, disk, fsModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 
 /**
  * The phone: one place at a time over a bar, today's note as the place to
@@ -73,7 +73,7 @@ describe('the phone', () => {
     await waitFor(() => expect(document.querySelector('.capture-line .cm-editor')).toBeTruthy())
     type('walked to the harbour')
     fireEvent.click(sheet().getByRole('button', { name: 'Add' }))
-    await waitFor(() => expect(disk.read(today())).toBe('#timeline\n    walked to the harbour\n'))
+    await waitFor(() => expect(disk.read(today())).toBe(sectionedDay({ notes: ['walked to the harbour'] })))
     // Written, the sheet closes and the page stays.
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
@@ -90,7 +90,7 @@ describe('the phone', () => {
     fireEvent.click(sheet().getByRole('button', { name: 'Now' }))
     expect(line().state.doc.toString()).toBe(`${localTimeStamp()} lunch`)
     fireEvent.keyDown(line().contentDOM, { key: 'Enter' })
-    await waitFor(() => expect(disk.read(today())).toBe(`#timeline\n    ${localTimeStamp()} lunch\n`))
+    await waitFor(() => expect(disk.read(today())).toBe(sectionedDay({ log: [`${localTimeStamp()} lunch`] })))
   })
 
   it('keeps a note’s draft while the sheet is closed, and closes on the gesture', async () => {
@@ -118,7 +118,7 @@ describe('the phone', () => {
     fireEvent.click(sheet().getByRole('button', { name: 'Add' }))
     // A tag with a structure is a record, at the top level of the day.
     await waitFor(() =>
-      expect(disk.read(today())).toBe(`${localTimeStamp()} #expense lunch by the water amount:: 24.50 merchant:: [[Harbour Bistro]]\n`)
+      expect(disk.read(today())).toBe(sectionedDay({ trackers: [`${localTimeStamp()} #expense lunch by the water amount:: 24.50 merchant:: [[Harbour Bistro]]`] }))
     )
   })
 
@@ -143,7 +143,7 @@ describe('the phone', () => {
     fireEvent.change(field('Files'), { target: { files: [new File(['PNG'], 'harbour.png', { type: 'image/png' })] } })
     fill('Caption', 'from the ferry')
     fireEvent.click(sheet().getByRole('button', { name: 'Add' }))
-    await waitFor(() => expect(disk.read(today())).toBe('#timeline\n    from the ferry [[Files/harbour 2.png]]\n'))
+    await waitFor(() => expect(disk.read(today())).toBe(sectionedDay({ notes: ['from the ferry [[Files/harbour 2.png]]'] })))
     expect(disk.read('/v/Files/harbour 2.png')).toBe('PNG')
     expect(disk.read('/v/Files/harbour.png')).toBe('an older one')
   })
@@ -204,7 +204,7 @@ describe('a share from another app', () => {
     await openApp()
     const clock = localTimeStamp(new Date(at))
     await waitFor(() =>
-      expect(disk.read(today())).toBe(`#timeline\n    ${clock} #shared Lunch spot [[Files/photo 2.jpg]]\n        by the harbour\n`)
+      expect(disk.read(today())).toBe(sectionedDay({ log: [`${clock} #shared Lunch spot [[Files/photo 2.jpg]]`, '    by the harbour'] }))
     )
     // Never over a file, and moved rather than copied.
     expect(disk.read('/v/Files/photo 2.jpg')).toBe('JPEG')

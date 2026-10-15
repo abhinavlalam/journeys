@@ -48,6 +48,7 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 | `configEntries.ts`, `useConfigEntries.ts` | A `.config` file of entries keyed by name (`properties.json`): merged on write, never written over when unreadable, read again on focus with the same text keeping the same entries (new ones rebuilt the graph on every return); `oneOf`, a value read from a file as one of a set. |
 | `calendar.ts`, `ics.ts`, `calendarSync.ts`, `useCalendarSync.ts`, `CalendarView.tsx` | The calendar. |
 | `timeline.ts` / `TimelineView.tsx` | The daily notes as each day happened / its page. |
+| `daySections.ts` | A daily note's sections: where they are, which a line goes in, a line filed in one, a day begun with them, and a day written before them put in them. |
 | `tasks.ts` / `TasksView.tsx` | Every `#task` line by when it is due / its page. |
 | `table.ts` / `CsvTable.tsx` | A delimited file read as rows, each value knowing where it is written / the table edited in place. |
 | `trackers.ts`, `expenses.ts`, `calories.ts`, `habits.ts` / `TrackersView.tsx`, `trackerParts.tsx` | The trackers' tables, each read by its columns' names, and what each adds up / their page and its parts, and the Tracked section ending a daily note. |
@@ -502,6 +503,29 @@ owner and the agent.
   the **Log**, an application of its own, for the window's life, in memory. The
   screen before a vault is open has no Log, so it shows `said`, the latest until put
   away.
+
+## A day's sections
+
+- **Every daily note has the same three sections** (the owner's, 2026-10-15): `## Log`
+  (what happened, work, meetings), `## Notes` (tasks, goals, a thought), `## Trackers`
+  (expenses, food), named and tagged in `daySections`. Plain markdown headings, so the
+  note stays markdown; the editor draws them apart (`daySectionPreview`: each heading a
+  band, each section's lines on a ground of its own hue with its rule), and only in a
+  daily note.
+- **A line goes where its kind says** (`sectionOf`): one carrying a section's tag goes
+  there; else one with a clock, or with a clock under it, goes in the first; else the
+  second. What is nested under a line goes with it. Every line the app writes into a
+  day goes through it: an entry, a task, the phone's +, a share (`withNewEntry`), and a
+  calendar event, always in the first (`syncEvents`).
+- **A new day is begun with its sections** (`daySkeleton`, through `ensureDailyNote`),
+  and an empty one too. A day written before them is filed as it was (`inSections`): a
+  heading tacked onto its end read as a section of one line. `sectioned` puts such a day
+  in them, once, as the vault's were on 2026-10-15.
+- **The timeline reads a day's first section alone**, its log: what is planned, spent
+  and eaten are in the others. A day written before the sections is read whole.
+- **The Trackers section ends with what the tables hold** (`TrackedSection`, drawn
+  under the note, after its last section), so what was written sits over what was
+  processed.
 
 ## The timeline
 

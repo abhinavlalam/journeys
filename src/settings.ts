@@ -9,6 +9,7 @@ import { DAILY_FOLDER, FILES_FOLDER, readConfigFile, safeNewName, writeConfigFil
 import { COLUMN_TOTALS, TAG_NAME, type ColumnTotal } from './tags'
 import { fileKind, SETTINGS_FILE } from './vaultModel'
 import { TRACKERS, type Tracker } from './trackers'
+import type { DaySection } from './daySections'
 import { onAndroid, paintBars } from './platform'
 import { ACTIONS, defaultShortcuts, normalizeCombo, type ActionId } from './shortcuts'
 
@@ -175,6 +176,12 @@ export interface Settings {
   shareTag: string
   /** The group a new timeline entry goes under when none of its tags has one. */
   timelineGroup: string
+  /**
+   * The sections every daily note has, in order, and the tags whose lines go in each.
+   * A line with none of them goes in the first when it has a clock (the timeline reads
+   * only that one), else in the second.
+   */
+  daySections: DaySection[]
   shortcuts: Record<ActionId, string>
   /**
    * Folders the graph leaves out, as vault-relative paths (`Archive/Old`). Useful
@@ -303,6 +310,11 @@ export const DEFAULT_SETTINGS: Settings = {
   filesFolder: FILES_FOLDER,
   shareTag: 'shared',
   timelineGroup: 'timeline',
+  daySections: [
+    { name: 'Log', tags: [] },
+    { name: 'Notes', tags: ['task', 'goal'] },
+    { name: 'Trackers', tags: ['expense', 'food'] },
+  ],
   shortcuts: defaultShortcuts(),
   graphHides: [],
   graphShows: { text: true, property: true, tag: true },
@@ -407,6 +419,7 @@ export function parseSettings(raw: unknown): Settings {
     filesFolder: valid('filesFolder', validateFolder),
     shareTag: valid('shareTag', validateTag),
     timelineGroup: valid('timelineGroup', validateTag),
+    daySections: pickSections(stored.daySections),
     shortcuts: pickShortcuts(stored.shortcuts),
     // Trailing slashes off: a folder is named as the tree spells it.
     graphHides: pickStrings(stored.graphHides).map((one) => one.replace(/\/+$/, '')),
@@ -462,6 +475,24 @@ function pickFeeds(value: unknown): CalendarFeed[] {
     const name = typeof one?.name === 'string' ? one.name.trim() : ''
     return [{ name, url: url.trim() }]
   })
+}
+
+/**
+ * The daily sections as written: three, each a name on one line, unlike the others, and
+ * its tags. Anything else is the default, whole: sections are read by position.
+ */
+function pickSections(value: unknown): DaySection[] {
+  if (!Array.isArray(value) || value.length !== DEFAULT_SETTINGS.daySections.length) return DEFAULT_SETTINGS.daySections
+  const read = value.map((one) => ({
+    name: typeof one?.name === 'string' ? one.name.trim() : '',
+    tags: pickStrings(one?.tags).flatMap((tag) => {
+      const checked = validateTag(tag)
+      return checked.ok ? [checked.value] : []
+    }),
+  }))
+  const names = read.map((one) => one.name.toLowerCase())
+  const good = read.every((one) => one.name !== '' && !/[\r\n]/.test(one.name)) && new Set(names).size === names.length
+  return good ? read : DEFAULT_SETTINGS.daySections
 }
 
 /**

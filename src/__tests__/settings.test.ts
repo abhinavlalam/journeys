@@ -522,6 +522,22 @@ describe('the trackers’ settings', () => {
   })
 })
 
+/** The daily sections: three, by position, each a name and the tags whose lines go there. */
+describe('the daily sections', () => {
+  it('are Log, Notes and Trackers unless three are written, and a bad one means the default, whole', () => {
+    expect(parseSettings(null).daySections.map((one) => one.name)).toEqual(['Log', 'Notes', 'Trackers'])
+    const written = '{"daySections":[{"name":"Day","tags":[]},{"name":"Plans","tags":["#Task","not a tag"]},{"name":"Spent","tags":["expense"]}]}'
+    expect(parseSettings(written).daySections).toEqual([
+      { name: 'Day', tags: [] },
+      { name: 'Plans', tags: ['task'] },
+      { name: 'Spent', tags: ['expense'] },
+    ])
+    // Two of one name, or too few, are the default.
+    expect(parseSettings('{"daySections":[{"name":"Day"},{"name":"day"},{"name":"Spent"}]}').daySections).toEqual(DEFAULT_SETTINGS.daySections)
+    expect(parseSettings('{"daySections":[{"name":"Day"}]}').daySections).toEqual(DEFAULT_SETTINGS.daySections)
+  })
+})
+
 /** `graphShows`: the graph's three checkboxes, each read on its own. */
 describe('graphShows', () => {
   it('shows every kind of connection by default, and reads each kind on its own', () => {

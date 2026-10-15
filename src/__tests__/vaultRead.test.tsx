@@ -25,7 +25,7 @@ const onError = () => {}
 async function texts() {
   const root = await readVault('/v')
   const hook = renderHook(() =>
-    useVaultTexts({ root, graphHides: hides, dailyFolder: 'Daily', vaultPath: '/v', openPath: null, viewOpen: false, liveVersion: 0, liveText, types, onError })
+    useVaultTexts({ root, graphHides: hides, dailyFolder: 'Daily', daySections: hides, vaultPath: '/v', openPath: null, viewOpen: false, liveVersion: 0, liveText, types, onError })
   )
   await waitFor(() => expect(hook.result.current.graph).not.toBeNull())
   return hook

@@ -7,6 +7,9 @@ import { daysAfter, MINUTE_MS } from '../clock'
 import { useCalendarSync } from '../useCalendarSync'
 import { DEFAULT_SETTINGS } from '../settings'
 
+/** A day the sync made: its sections, with `lines` in the first. */
+const logged = (lines: readonly string[]) => ['## Log', ...lines, '', '## Notes', '', '## Trackers', ''].join('\n')
+
 /**
  * The calendar from the row to the disk: Sync fetches a feed, its
  * events land in daily notes as `#event` lines, the page shows them
@@ -90,13 +93,10 @@ describe('the calendar', () => {
     await openCalendar()
     await waitFor(() => expect(disk.has(`/v/Daily/${tomorrow}.md`)).toBe(true))
     expect(fetched).toHaveBeenCalledWith('https://calendar.example/ical/abc/basic.ics')
-    expect(disk.read(`/v/Daily/${today}.md`)).toBe('09:30 to 10:00 #event Standup with:: "Mira Vance" source:: Work\n')
+    // A day the sync makes is begun with its sections, and an event goes in the first.
+    expect(disk.read(`/v/Daily/${today}.md`)).toBe(logged(['09:30 to 10:00 #event Standup with:: "Mira Vance" source:: Work']))
     expect(disk.read(`/v/Daily/${tomorrow}.md`)).toBe(
-      [
-        '#event Offsite at:: Goa source:: Work',
-        '09:30 to 10:00 #event Standup with:: "Mira Vance" source:: Work',
-        '',
-      ].join('\n')
+      logged(['#event Offsite at:: Goa source:: Work', '09:30 to 10:00 #event Standup with:: "Mira Vance" source:: Work'])
     )
     const tags = JSON.parse(disk.read('/v/.config/tags.json')!)
     expect(tags.event.properties).toEqual(['with', 'at', 'source', 'repeats', 'reminder'])
@@ -120,9 +120,7 @@ describe('the calendar', () => {
     disk.write('/v/.config/tags.json', JSON.stringify({ event: { properties: ['source', 'with'] } }))
     await openCalendar()
     await waitFor(() => expect(disk.has(`/v/Daily/${tomorrow}.md`)).toBe(true))
-    expect(disk.read(`/v/Daily/${tomorrow}.md`)).toBe(
-      ['#event Offsite source:: Work', '09:30 to 10:00 #event Standup source:: Work with:: "Mira Vance"', ''].join('\n')
-    )
+    expect(disk.read(`/v/Daily/${tomorrow}.md`)).toBe(logged(['#event Offsite source:: Work', '09:30 to 10:00 #event Standup source:: Work with:: "Mira Vance"']))
   })
 
   it('leaves the notes alone when the tags file cannot be read as JSON', async () => {
@@ -199,9 +197,10 @@ describe('the calendar', () => {
       disk
         .read(`/v/Daily/${tomorrow}.md`)!
         .replace('source:: Work\n09:30', 'source:: Work\n12:00 #event Lunch source:: "Fable Weekly"\n09:30')
-        .replace('"Mira Vance" source:: Work', '"Mira Vance" source:: Work and bring the notes') +
-        '11:00 #event Review source:: Work\n  - bring the slides\n' +
-        '19:00 #event Dinner with:: "Ravi Iyer"\n'
+        .replace(
+          '"Mira Vance" source:: Work\n',
+          '"Mira Vance" source:: Work and bring the notes\n11:00 #event Review source:: Work\n  - bring the slides\n19:00 #event Dinner with:: "Ravi Iyer"\n'
+        )
     )
     // The calendar drops the offsite and the second standup.
     feed.text = FEED.replace('COUNT=2', 'COUNT=1').replace(/BEGIN:VEVENT\r\nUID:o1[\s\S]*?END:VEVENT\r\n/, '')
@@ -209,13 +208,12 @@ describe('the calendar', () => {
     await waitFor(() => expect(disk.read(`/v/Daily/${tomorrow}.md`)).not.toContain('Offsite'))
     // The lunch goes too: a feed answers to its own name as well as the given one.
     expect(disk.read(`/v/Daily/${tomorrow}.md`)).toBe(
-      [
+      logged([
         '09:30 to 10:00 #event Standup with:: "Mira Vance" source:: Work and bring the notes',
         '11:00 #event Review source:: Work',
         '  - bring the slides',
         '19:00 #event Dinner with:: "Ravi Iyer"',
-        '',
-      ].join('\n')
+      ])
     )
     // Today's standup is still in the calendar, so it is still in the note, once.
     expect(disk.read(`/v/Daily/${today}.md`)!.split('#event')).toHaveLength(2)

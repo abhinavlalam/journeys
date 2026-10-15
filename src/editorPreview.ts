@@ -13,6 +13,7 @@ import { LEADING_CLOCK } from './clock'
 import { checkMarkup } from './icons'
 import { TAG, tagAt } from './tags'
 import { linkLabelSpan } from './vaultModel'
+import { spansOf } from './daySections'
 
 /** `[[Target]]` and `[[Target|Alias]]`, which CommonMark parses as plain text. */
 const WIKILINK = /\[\[([^\]\n]+)\]\]/g
@@ -242,6 +243,33 @@ const headingLine = Decoration.line({ class: 'cm-md-heading-line' })
 export const propertyTypes = Facet.define<() => Entries, () => Entries>({
   combine: (values) => values[0] ?? (() => ({})),
 })
+
+/** A daily note's sections' names (`daySections`); none for any other note. */
+export const daySectionNames = Facet.define<() => readonly string[], () => readonly string[]>({
+  combine: (values) => values[0] ?? (() => []),
+})
+
+/**
+ * A daily note's sections drawn apart: each heading a band with its name, and each
+ * section's lines on a ground of its own (`data-section`), so a day's parts read
+ * apart. Only lines: the text is the note's, as written.
+ */
+export function daySectionDecorations(state: EditorState, from: number, to: number): DecorationSet {
+  const names = state.facet(daySectionNames)()
+  if (names.length === 0) return Decoration.none
+  const found: CmRange<Decoration>[] = []
+  const [first, last] = [state.doc.lineAt(from).number - 1, state.doc.lineAt(to).number - 1]
+  for (const span of spansOf(state.doc.toString(), names)) {
+    const attributes = { 'data-section': String(span.index) }
+    for (let at = Math.max(span.heading, first); at <= Math.min(span.end, last); at++) {
+      const deco = Decoration.line({ class: at === span.heading ? 'cm-day-heading' : 'cm-day-line', attributes })
+      found.push(deco.range(state.doc.line(at + 1).from))
+    }
+  }
+  return Decoration.set(found)
+}
+
+export const daySectionPreview = decorated(daySectionDecorations)
 
 /** A block property whose value isn't of its type: its name, in the alert colour. */
 const invalidProperty = Decoration.mark({ class: 'cm-md-property-invalid' })

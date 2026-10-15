@@ -160,6 +160,7 @@ export function NotePane({
    */
   const loaded = buffer.note?.path === file.path
   const kind = fileKind(file.path)
+  const daySectionNames = useMemo(() => settings.daySections.map((section) => section.name), [settings.daySections])
 
   /**
    * A table, or its text (`CSV_VIEWS`). Either mounts over the text as it is now
@@ -263,12 +264,16 @@ export function NotePane({
           onChange={handleEditorChange}
           {...typing}
           dailyFolder={settings.dailyFolder}
+          daySections={isDailyNote(file.path, settings.dailyFolder) ? daySectionNames : undefined}
           caretAtEnd={isDailyNote(file.path, settings.dailyFolder)}
           indentWidth={settings.indentWidth}
           onOpenLink={onOpenLink}
           onOpenTag={onOpenTag}
         />
       )}
+      {/* What the trackers' tables hold for the day, under its last section, Trackers: what the
+          note says and this does not is not in a table yet. */}
+      {loaded && isDailyNote(file.path, settings.dailyFolder) && <TrackedSection day={tracked(dayOf(file.path))} onOpenTable={onOpenTable} />}
       {/* A day's totals at its note's end, from the text as last saved or typed: the
           pane is drawn again when a save lands, so they follow the typing. */}
       {loaded && !buffer.unreadable && isDailyNote(file.path, settings.dailyFolder) && (
@@ -280,8 +285,7 @@ export function NotePane({
           place="note"
         />
       )}
-      {/* What the trackers' tables hold for the day: what the note says and this does not is not in a table yet. */}
-      {loaded && isDailyNote(file.path, settings.dailyFolder) && <TrackedSection day={tracked(dayOf(file.path))} onOpenTable={onOpenTable} />}
+
       {/* Notes only. A link to a non-`.md` target is external,
           so nothing links to a JSON file. */}
       {loaded && isNote(file.path) && (

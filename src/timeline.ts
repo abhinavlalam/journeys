@@ -10,6 +10,7 @@ import { blockProperties, endsIn, numberText, readBlock, splitPageProperties, ty
 import { indentOf, proseLines } from './prose'
 import { collectTagLines, combine, COMBINE_NAMES, tagNames, tagsOnly, type DayTotal, type TotalPlace } from './tags'
 import type { VaultFile } from './vaultModel'
+import { inSections, sectionOf, spansOf, withInSection, type DaySection } from './daySections'
 
 export interface TimelineEntry {
   note: VaultFile
@@ -60,16 +61,21 @@ interface Group {
  * line without a clock is not an entry, and what is under it is read on its own.
  * A heading's lines belong to its group at any depth. Code is never an entry.
  */
-function readDay(note: VaultFile, raw: string): { entries: TimelineEntry[]; groups: Group[] } {
+function readDay(note: VaultFile, raw: string, sections: readonly string[] = []): { entries: TimelineEntry[]; groups: Group[] } {
   const day = dayOf(note.path)
   const lines = raw.split(/\r?\n/)
   const prose = proseLines(raw)
-  const first = splitPageProperties(raw).prefix.split('\n').length - 1
+  // A day in sections is read in its first, its log, alone: what is done and planned, and
+  // what is spent and eaten, are in the others. A day written before them is read whole.
+  const spans = spansOf(raw, sections)
+  const log = spans.find((one) => one.index === 0)
+  const first = spans.length === 0 ? splitPageProperties(raw).prefix.split('\n').length - 1 : log ? log.heading + 1 : lines.length
+  const last = log ? log.end : lines.length - 1
   const entries: TimelineEntry[] = []
   const groups: Group[] = []
   const heads: Group[] = []
   let entry: { indent: number; below: string[] } | null = null
-  for (let at = first; at < lines.length; at++) {
+  for (let at = first; at <= last; at++) {
     const line = lines[at]
     if (line.trim() === '') continue
     const indent = indentOf(line)
@@ -112,8 +118,8 @@ function readDay(note: VaultFile, raw: string): { entries: TimelineEntry[]; grou
 }
 
 /** A day's entries by start time; a tie keeps the written order. */
-export function dayEntries(note: VaultFile, raw: string): TimelineEntry[] {
-  return readDay(note, raw).entries.sort((a, b) => a.start - b.start)
+export function dayEntries(note: VaultFile, raw: string, sections: readonly string[] = []): TimelineEntry[] {
+  return readDay(note, raw, sections).entries.sort((a, b) => a.start - b.start)
 }
 
 /**
@@ -130,9 +136,16 @@ export function withNewEntry(
   note: VaultFile,
   raw: string,
   text: string,
-  { indent, group: fallback, structured }: { indent: string; group: string; structured: (tag: string) => boolean }
+  {
+    sections = [],
+    indent,
+    group: fallback,
+    structured,
+  }: { sections?: readonly DaySection[]; indent: string; group: string; structured: (tag: string) => boolean }
 ): string {
   const [first, ...detail] = text.split('\n')
+  // A day in sections takes the entry at the end of the section its kind says.
+  if (inSections(raw, sections)) return withInSection(raw, sections, sectionOf(first, sections, detail), [first, ...detail.map((line) => indent + line)])
   const { entries, groups } = readDay(note, raw)
   const tags = tagNames(first)
   const carrying = entries.filter((one) => tagNames(one.text).some((tag) => tags.includes(tag))).at(-1)
@@ -245,10 +258,10 @@ export function reachOf(entry: TimelineEntry): { since: Reach | null; until: Rea
 }
 
 /** Every daily note with anything in it, oldest first, down to today. */
-export function timelineDays(notes: readonly { note: VaultFile; text: string }[], folder: string): TimelineDay[] {
+export function timelineDays(notes: readonly { note: VaultFile; text: string }[], folder: string, sections: readonly string[] = []): TimelineDay[] {
   return notes
     .filter(({ note }) => isDailyNote(note.path, folder))
-    .map(({ note, text }) => ({ day: dayOf(note.path), note, entries: dayEntries(note, text), text }))
+    .map(({ note, text }) => ({ day: dayOf(note.path), note, entries: dayEntries(note, text, sections), text }))
     .filter((one) => one.entries.length > 0)
     .sort((a, b) => a.day.localeCompare(b.day))
 }

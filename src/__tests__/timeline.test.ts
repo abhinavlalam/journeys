@@ -124,6 +124,24 @@ describe('the days', () => {
     )
     expect(days.map((one) => one.day)).toEqual(['2026-09-20', '2026-09-22'])
   })
+
+  /** The timeline is what happened when: a day in sections is read in its first alone. */
+  it('read a day in sections in its log alone, and one written before them whole', () => {
+    const sectioned = ['## Log', '09:00 run', '', '## Notes', '10:00 #task call the dentist', '', '## Trackers', '12:55 #expense lunch', ''].join('\n')
+    const days = timelineDays(
+      [
+        { note: note('Daily/2026-09-22.md'), text: sectioned },
+        { note: note('Daily/2026-09-21.md'), text: '09:00 run\n12:55 #expense lunch\n' },
+        { note: note('Daily/2026-09-23.md'), text: sectioned.replace('## Log\n09:00 run\n\n', '') },
+      ],
+      'Daily',
+      ['Log', 'Notes', 'Trackers']
+    )
+    expect(days.map((one) => [one.day, one.entries.map((entry) => `${entry.at}:${entry.text}`)])).toEqual([
+      ['2026-09-21', ['0:09:00 run', '1:12:55 #expense lunch']],
+      ['2026-09-22', ['1:09:00 run']],
+    ])
+  })
 })
 
 describe('a table tag’s entry', () => {

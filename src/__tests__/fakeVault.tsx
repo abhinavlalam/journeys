@@ -364,6 +364,10 @@ export async function openApp(settings?: Record<string, unknown>) {
   await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
 }
 
+/** A day in its sections (the default `daySections`), each holding the lines given. */
+export const sectionedDay = ({ log = [], notes = [], trackers = [] }: { log?: string[]; notes?: string[]; trackers?: string[] }) =>
+  [['## Log', ...log], ['## Notes', ...notes], ['## Trackers', ...trackers]].map((section) => section.join('\n')).join('\n\n') + '\n'
+
 /** ⌘-click, which opens in a new tab: the app reads ⌘ on the press, so a press and then the click. */
 export function clickBeside(element: Element) {
   fireEvent.mouseDown(element, { metaKey: true })

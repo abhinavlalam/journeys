@@ -1,6 +1,7 @@
 // Writing the feeds' events into the daily notes: the calendar's
 // one write, through `vault.ts`.
 
+import { daySkeleton, inSections, withInSection, type DaySection } from './daySections'
 import { EVENT, eventLine, lineKey, readEvent, SOURCE, untouched, type EventFormat } from './calendar'
 import { fetchFeed } from './calendarFeed'
 import { dayDate, daysAfter, localDateStamp } from './clock'
@@ -65,7 +66,9 @@ export async function syncEvents(
   folder: string,
   format: EventFormat,
   byDay: ReadonlyMap<string, readonly string[]>,
-  sources: ReadonlySet<string>
+  sources: ReadonlySet<string>,
+  /** The daily sections: a new day is made with them, and an event goes in the first, with what happened. */
+  sections: readonly DaySection[] = []
 ): Promise<Synced> {
   const keyOf = (line: string) => lineKey(format.typeOf, line)
   const out: Synced = { changed: [], created: [] }
@@ -73,9 +76,9 @@ export async function syncEvents(
     const page = vaultFileRef(vaultPath, `${folder}/${day}.md`)
     let file = page
     let created = false
-    if (lines.length > 0) ({ file, created } = await ensureDailyNote(vaultPath, folder, day))
+    if (lines.length > 0) ({ file, created } = await ensureDailyNote(vaultPath, folder, day, daySkeleton(sections)))
     else if (!(await fileExists(page))) continue
-    const text = created ? '' : await readVaultFile(file)
+    const text = await readVaultFile(file)
 
     const wanted = new Set(lines.map(keyOf))
     const gone = new Set(
@@ -102,7 +105,13 @@ export async function syncEvents(
     if (fresh.length === 0 && gone.size === 0) continue
     if (created) out.created.push(file)
     const next =
-      fresh.length === 0 ? kept : kept.trim() === '' ? `${fresh.join('\n')}\n` : `${kept.replace(/\n*$/, '\n')}${fresh.join('\n')}\n`
+      fresh.length === 0
+        ? kept
+        : inSections(kept, sections)
+          ? withInSection(kept, sections, 0, fresh)
+          : kept.trim() === ''
+            ? `${fresh.join('\n')}\n`
+            : `${kept.replace(/\n*$/, '\n')}${fresh.join('\n')}\n`
     await writeVaultFile(file, next)
     out.changed.push({ file, text: next })
   }

@@ -5273,6 +5273,39 @@ button.task-box:hover {
   padding-top: 0;
 }
 
+/* A daily note's sections (`## Log`, `## Notes`, `## Trackers`, the owner's): each
+   section's lines on a ground of its own hue with its rule at the left, and each
+   heading a band of its name, small and spaced, so a day's parts read apart. The
+   text is the note's; only lines are drawn. */
+.markdown-editor .cm-line.cm-day-line,
+.markdown-editor .cm-line.cm-day-heading {
+  --section: var(--hue-blue);
+  background: color-mix(in srgb, var(--section) 5%, transparent);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--section) 55%, transparent);
+}
+
+.markdown-editor .cm-line[data-section='1'] {
+  --section: var(--hue-amber);
+}
+
+.markdown-editor .cm-line[data-section='2'] {
+  --section: var(--hue-green);
+}
+
+.code-editor .cm-editor .cm-line.cm-day-heading {
+  padding-top: 1em;
+  color: color-mix(in srgb, var(--section) 70%, var(--text));
+  font-size: var(--fs-chrome);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.markdown-editor .cm-day-heading .cm-md-h2 {
+  font-size: inherit;
+  line-height: inherit;
+  font-weight: var(--fw-strong);
+}
+
 .markdown-editor .cm-md-h1 {
   font-size: 1.55em;
   font-weight: var(--fw-strong);
