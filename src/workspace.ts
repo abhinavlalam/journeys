@@ -36,7 +36,13 @@ type Kinds =
    * A shell in the vault folder. `session` names its PTY. The
    * one kind that can be open twice.
    */
-  | { kind: 'terminal'; id: number; session: string }
+  | {
+      kind: 'terminal'
+      id: number
+      session: string
+      /** A command typed into the shell once it has started: what the tab was opened to run. */
+      run?: string
+    }
 
 /**
  * A tab, and where it has been: what it showed before (`back`, the latest last), and

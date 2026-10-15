@@ -74,6 +74,22 @@ describe('tabs', () => {
     await waitFor(() => expect(title()).toBe('beta'))
   })
 
+  /** ⌘P: a few letters name a note or a page; ↩ opens it in place, ⌘↩ beside. */
+  it('opens a note or a page by its name from quick open', async () => {
+    await openApp()
+    await openFromTree('alpha')
+    fireEvent.keyDown(window, { key: 'p', metaKey: true })
+    const field = await waitFor(() => screen.getByRole('textbox', { name: 'Open' }))
+    fireEvent.change(field, { target: { value: 'bet' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    await waitFor(() => expect([tabs(), title()]).toEqual([['beta'], 'beta']))
+    expect(screen.queryByRole('dialog', { name: 'Open' })).toBeNull()
+    fireEvent.keyDown(window, { key: 'p', metaKey: true })
+    fireEvent.change(await waitFor(() => screen.getByRole('textbox', { name: 'Open' })), { target: { value: 'timel' } })
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Open' }), { key: 'Enter', metaKey: true })
+    await waitFor(() => expect(tabs()).toEqual(['beta', 'Timeline']))
+  })
+
   it('opens each note as a tab and shows the one clicked', async () => {
     await openApp()
     await openFromTree('alpha')
@@ -145,6 +161,19 @@ describe('a terminal', () => {
     fireEvent.contextMenu(screen.getByLabelText('Terminal'))
     fireEvent.click(screen.getByText('New terminal'))
     await waitFor(() => expect(tabs()).toEqual(['alpha', 'Terminal', 'Terminal']))
+  })
+
+  /** Organise asks the vault's agent in a session of its own, beside the page; pressed again, it goes there. */
+  it('opens the agent’s own session from Trackers’ Organise', async () => {
+    await openApp()
+    fireEvent.click(screen.getByLabelText('Trackers'))
+    fireEvent.click(await waitFor(() => screen.getByRole('button', { name: 'Organise' })))
+    await waitFor(() => expect(tabs()).toEqual(['Trackers', 'Terminal']))
+    await waitFor(() => expect(screen.getByTestId('terminal').textContent).toBe('journeys-organise'))
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /Trackers/ }))
+    fireEvent.click(await waitFor(() => screen.getByRole('button', { name: 'Organise' })))
+    await waitFor(() => expect(activeTabs()).toEqual(['Terminal']))
+    expect(tabs()).toEqual(['Trackers', 'Terminal'])
   })
 
   /** ⇧⌘L goes to the terminal from anywhere, as the row does: the open one, else a new one. */

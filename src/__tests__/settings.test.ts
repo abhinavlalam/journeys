@@ -98,6 +98,7 @@ describe('the defaults', () => {
       openTerminal: 'mod+shift+l',
       goBack: 'mod+alt+arrowleft',
       goForward: 'mod+alt+arrowright',
+      quickOpen: 'mod+p',
     })
   })
 
@@ -247,6 +248,7 @@ describe('reading what was stored', () => {
       openTerminal: 'mod+shift+l',
       goBack: 'mod+alt+arrowleft',
       goForward: 'mod+alt+arrowright',
+      quickOpen: 'mod+p',
     })
   })
 

@@ -84,6 +84,19 @@ describe('a Terminal tab', () => {
     expect(bridge.killTerminal).toHaveBeenLastCalledWith(id)
   })
 
+  /** Organise's tab: the command typed once the shell has started, as if by hand, and only once. */
+  it('types the command it was opened to run, once its shell has started', async () => {
+    const { TerminalPane } = await import('../TerminalPane')
+    bridge.writeTerminal.mockClear()
+    render(<TerminalPane session="journeys-organise" cwd="/v" run="claude 'organise'" />)
+    await vi.waitFor(() => expect(bridge.spawnTerminal).toHaveBeenCalledTimes(1))
+    expect(bridge.writeTerminal).not.toHaveBeenCalled()
+    pending.spawns[0](true)
+    await vi.waitFor(() => expect(bridge.writeTerminal).toHaveBeenCalledTimes(1))
+    const [id] = bridge.spawnTerminal.mock.calls[0]
+    expect(bridge.writeTerminal).toHaveBeenCalledWith(id, "claude 'organise'\r")
+  })
+
   it('attaches each mount on a channel of its own, to the one session', async () => {
     const { TerminalPane } = await import('../TerminalPane')
     bridge.spawnTerminal.mockClear()

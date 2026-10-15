@@ -317,6 +317,10 @@ owner and the agent.
   before a row or a link acts, and taken once. Nothing opens over a terminal or the
   settings file (`KEPT`), a terminal is a tab of its own, and the graph's toggle opens
   beside, so its second press goes back.
+- **Quick open** (⌘P, `QuickOpen`, `quickMatch`): every file by its name (a note by its
+  aliases too), the pages and the tags, matched by a name's start, a word's start, a
+  part, then its letters in order; ↩ opens in place, ⌘↩ beside. Its own `quickMatch.ts`:
+  `quickOpen.ts` beside `QuickOpen.tsx` was the case trap below.
 - **A tab goes back and forward** (`stepTab`, ⌘⌥← and ⌘⌥→, a mouse's own buttons): a
   replaced tab keeps what it showed (`back`, `forward`, `TRAIL` deep), and the trail
   follows a move and forgets a delete as the tabs do (`mapFileTabs`). A page open in
@@ -666,6 +670,10 @@ owner and the agent.
 
 ## The terminal
 
+- **Organise** (Trackers' header, `ORGANISE`) opens a terminal on a session of its own,
+  `journeys-organise`, and types `claude '…'` once its shell has started (`run`): the
+  vault's agent puts the days' notes into the tables, as its instructions say, asking
+  what it cannot tell. Opened again while its tab is there, it goes to that tab.
 - **⇧⌘L goes to the terminal** (`openTerminal`, an action in `ACTIONS`, rebindable;
   the owner's pick), as the row does: the last one, else a new one. Not on the phone.
 - `portable-pty`, `$SHELL -i -l` in the vault (a Dock-launched app has no PATH),

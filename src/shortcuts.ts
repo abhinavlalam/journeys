@@ -17,7 +17,7 @@ import { formatKeymap } from './editorCommands'
 // The action registry
 // ---------------------------------------------------------------------------
 
-export type ActionId = 'openToday' | 'insertTime' | 'openTerminal' | 'goBack' | 'goForward'
+export type ActionId = 'openToday' | 'insertTime' | 'openTerminal' | 'goBack' | 'goForward' | 'quickOpen'
 
 interface Action {
   id: ActionId
@@ -37,6 +37,7 @@ export const ACTIONS: readonly Action[] = [
   // ⌘[ and ⌘] are the editor's indent; these are Obsidian's.
   { id: 'goBack', label: 'Back, in the tab in front', defaultCombo: 'mod+alt+arrowleft' },
   { id: 'goForward', label: 'Forward, in the tab in front', defaultCombo: 'mod+alt+arrowright' },
+  { id: 'quickOpen', label: 'Open a note or page by its name', defaultCombo: 'mod+p' },
 ]
 
 export function defaultShortcuts(): Record<ActionId, string> {

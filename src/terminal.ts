@@ -22,6 +22,16 @@ export function spawnTerminal(
   return invoke('spawn_terminal', { id, name, cwd, cols, rows, conf })
 }
 
+/**
+ * What Organise (Trackers) runs, in a session of its own: the vault's agent asked to put
+ * the days' notes into the tables, as the vault's own instructions for it say. Started
+ * as a conversation, so its questions (two alike expenses) are asked and answered there.
+ */
+export const ORGANISE = {
+  session: 'journeys-organise',
+  run: "claude 'Organise my daily notes into the tracker tables, as your instructions for this vault say: the days not organised yet.'",
+}
+
 export function writeTerminal(id: string, data: string): Promise<void> {
   return invoke('write_terminal', { id, data })
 }

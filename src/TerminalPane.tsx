@@ -116,7 +116,7 @@ let mounts = 0
  * spawn runs off the main thread, so a tab closed before it lands is detached
  * on arrival, and by id, so it cannot reach a newer tab on the same session.
  */
-export function TerminalPane({ session, cwd, shown = true }: { session: string; cwd: string; shown?: boolean }) {
+export function TerminalPane({ session, cwd, shown = true, run }: { session: string; cwd: string; shown?: boolean; run?: string }) {
   const container = useRef<HTMLDivElement>(null)
   const term = useRef<Terminal | null>(null)
   /** Null until the first spawn answers. False is the one case worth saying. */
@@ -163,6 +163,7 @@ export function TerminalPane({ session, cwd, shown = true }: { session: string; 
     term.current = terminal
 
     let exited = false
+    let ran = false
     let unlistenOutput: (() => void) | undefined
     let unlistenExit: (() => void) | undefined
 
@@ -174,6 +175,11 @@ export function TerminalPane({ session, cwd, shown = true }: { session: string; 
           if (disposed) return void killTerminal(id).catch(() => {})
           exited = false
           setPersists(persistent)
+          // Typed as if by hand, once: the shell reads it when it is ready.
+          if (run && !ran) {
+            ran = true
+            void writeTerminal(id, `${run}\r`)
+          }
         })
         .catch((err: unknown) => terminal.writeln(`Could not start a shell: ${String(err)}`))
     void start()

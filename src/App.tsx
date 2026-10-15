@@ -91,6 +91,7 @@ import { useVault, type VaultBufferOps } from './useVault'
 import { useRelocation } from './useRelocation'
 import { useInlineCreate } from './useInlineCreate'
 import { useWindowShortcuts } from './useWindowShortcuts'
+import { QuickOpen, type QuickItem } from './QuickOpen'
 import { useWindowEvent } from './useWindowEvent'
 import { useLocks } from './useLocks'
 import { onAndroid } from './platform'
@@ -100,7 +101,7 @@ import { useShares } from './useShares'
 import { shareDay, shareEntry, type Share } from './share'
 import { useDrops } from './useDrops'
 import { useCalendarSync } from './useCalendarSync'
-import { endTerminal } from './terminal'
+import { endTerminal, ORGANISE } from './terminal'
 import { SettingsPanel, type SectionId } from './SettingsPanel'
 import { syncWord, useSync } from './useSync'
 import { CloneVault } from './CloneVault'
@@ -198,6 +199,8 @@ export default function App() {
     event.preventDefault()
     setWs((current) => stepTab(current, event.button === 3))
   })
+  /** Whether quick open (⌘P) is up. */
+  const [quickOpen, setQuickOpen] = useState(false)
   const open = (tab: TabRequest) => {
     const beside = besidePress.current
     besidePress.current = false
@@ -677,6 +680,7 @@ export default function App() {
       : {
           openToday,
           openTerminal: () => setWs((current) => openTerminal(current)),
+          quickOpen: () => setQuickOpen(true),
           goBack: () => setWs((current) => stepTab(current, true)),
           goForward: () => setWs((current) => stepTab(current, false)),
         },
@@ -1000,6 +1004,39 @@ export default function App() {
       folders={folderPaths}
     />
   )
+
+  /**
+   * What quick open offers: every file by its name (a note by its aliases too), the
+   * pages, and the tags. Each opens as a press would, ⌘↩ beside the tab in front.
+   */
+  const beside = (then: () => unknown) => (inNew: boolean) => {
+    besidePress.current = inNew
+    then()
+  }
+  const quickItems: QuickItem[] = !quickOpen
+    ? []
+    : [
+        ...notes.map((file) => ({
+          key: `file:${file.path}`,
+          name: file.name,
+          also: aliases.filter((one) => one.note.path === file.path).map((one) => one.name),
+          detail: file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : '',
+          icon: <RowIcon icon={icons[file.path] ?? (fileKind(file.path) === 'csv' ? 'chart' : 'page')} />,
+          open: beside(() => openNote(file)),
+        })),
+        ...(
+          [
+            { kind: 'calendar', name: 'Calendar', icon: 'calendar' },
+            { kind: 'timeline', name: 'Timeline', icon: 'clock' },
+            { kind: 'tasks', name: 'Tasks', icon: 'check' },
+            { kind: 'trackers', name: 'Trackers', icon: 'chart' },
+            { kind: 'log', name: 'Log', icon: 'inbox' },
+            { kind: 'graph', name: 'Graph', icon: 'globe' },
+          ] as const
+        ).map((page) => ({ key: `page:${page.kind}`, name: page.name, detail: 'page', icon: <RowIcon icon={page.icon} />, open: beside(() => open({ kind: page.kind })) })),
+        ...tags.map((tag) => ({ key: `tag:${tag.name}`, name: `#${tag.name}`, also: [tag.name], detail: 'tag', icon: <RowIcon icon="hash" />, open: beside(() => view('tag', tag.name)) })),
+      ]
+  const quick = quickOpen && <QuickOpen items={quickItems} onClose={() => setQuickOpen(false)} />
 
   if (!vault.vaultPath || !vault.root) {
     return (
@@ -1394,6 +1431,7 @@ export default function App() {
                     onAddHabit={(name) => void changeTable(settings.trackers.habits, (text) => withHabit(text, name))}
                     onOpenTable={openTable}
                     onOpenDay={(day) => void openDay(day)}
+                    onOrganise={onAndroid ? undefined : () => open({ kind: 'terminal', ...ORGANISE })}
                     onError={setError}
                   />
                 )
@@ -1417,7 +1455,7 @@ export default function App() {
               case 'terminal':
                 return (
                   <Suspense fallback={null}>
-                    <TerminalPane session={tab.session} cwd={vault.vaultPath!} shown={isActive} />
+                    <TerminalPane session={tab.session} cwd={vault.vaultPath!} shown={isActive} run={tab.run} />
                   </Suspense>
                 )
               case 'graph':
@@ -1465,6 +1503,7 @@ export default function App() {
         </PhoneBar>
       )}
       {panel}
+      {quick}
     </div>
   )
 }

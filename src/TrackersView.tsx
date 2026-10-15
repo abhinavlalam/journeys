@@ -66,6 +66,7 @@ export function TrackersView({
   onAddHabit,
   onOpenTable,
   onOpenDay,
+  onOrganise,
   onError,
 }: {
   view: View
@@ -84,6 +85,8 @@ export function TrackersView({
   onAddHabit: (name: string) => void
   onOpenTable: (tracker: Tracker) => void
   onOpenDay: (day: string) => void
+  /** Asks the vault's agent, in a terminal, to put the notes into the tables; none on the phone. */
+  onOrganise?: () => void
   onError: (message: string) => void
 }) {
   const today = localDateStamp()
@@ -151,6 +154,11 @@ export function TrackersView({
       {view !== 'today' && tables[view].path && (
         <button className="header-action" aria-pressed={changing} onClick={() => setChanging((was) => !was)}>
           Change table
+        </button>
+      )}
+      {onOrganise && (
+        <button className="header-action" title="Ask the vault's agent to put the days' notes into the tables" onClick={onOrganise}>
+          Organise
         </button>
       )}
     </ViewerHeader>
