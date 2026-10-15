@@ -17,8 +17,8 @@ npm run build     # tsc --noEmit && vite build — the real type check
 npm test          # vitest
 npx tauri dev     # run the app
 npx tauri build   # bundle to $CARGO_TARGET_DIR/release/bundle/macos
-ditto "$CARGO_TARGET_DIR/release/bundle/macos/Journeys.app" /Applications/Journeys.app
-                  # then open that one: Raycast and Spotlight find only what is in Applications
+rm -rf /Applications/Journeys.app && mv "$CARGO_TARGET_DIR/release/bundle/macos/Journeys.app" /Applications/
+                  # moved, not copied: Raycast and Spotlight find only what is in Applications
 cd src-tauri && cargo test
 ```
 
@@ -854,6 +854,10 @@ owner and the agent.
 - **A successful build is not a running one.** Quit before rebuilding; `open` on a
   running app only focuses it. Compare the process start time with the binary's
   mtime.
+- **One copy of the app on the machine.** A bundle left in the build folder is
+  registered with macOS beside the one in Applications, as the same app at another
+  path: launched by name, it ran as a second window over the same vault, and a quit
+  by name ended only one.
 - **Google Drive replays old versions over edits.** Edit, type-check and commit as
   one command, then check `git show HEAD:<file>`. Stream mode also makes files
   online-only, including most of the vault's `.git`; a read after the Mac sleeps then
