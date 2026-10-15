@@ -17,6 +17,8 @@ npm run build     # tsc --noEmit && vite build — the real type check
 npm test          # vitest
 npx tauri dev     # run the app
 npx tauri build   # bundle to $CARGO_TARGET_DIR/release/bundle/macos
+ditto "$CARGO_TARGET_DIR/release/bundle/macos/Journeys.app" /Applications/Journeys.app
+                  # then open that one: Raycast and Spotlight find only what is in Applications
 cd src-tauri && cargo test
 ```
 
