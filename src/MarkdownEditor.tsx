@@ -26,6 +26,7 @@ import {
   propertyTypes,
   daySectionNames,
   daySectionPreview,
+  tagColours,
   followLink,
   isTagClick,
   isTaskClick,
@@ -35,6 +36,7 @@ import {
   livePreview,
 } from './editorPreview'
 import { splitPageProperties } from './properties'
+import { coloursOf } from './tags'
 import type { Alias } from './links'
 import type { VaultFile } from './vaultModel'
 import type { Entries } from './configEntries'
@@ -117,6 +119,8 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
   return [
     propertyTypes.of(getTypes),
     daySectionNames.of(() => latest.current.daySections ?? []),
+    // Each tag's colour, set on its page, which its marks take.
+    tagColours.of(() => coloursOf(latest.current.tagStructures ?? {})),
     /**
      * A press on a link follows it (`followLink`). Clicks elsewhere, including past
      * the end of a line that ends in a link (`isLinkClick`), still place the caret.

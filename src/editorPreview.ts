@@ -11,7 +11,7 @@ import { blockProperties, PROPERTY_KEY, splitPageProperties, typeOf } from './pr
 import type { Entries } from './configEntries'
 import { LEADING_CLOCK } from './clock'
 import { checkMarkup } from './icons'
-import { TAG, tagAt } from './tags'
+import { TAG, TAG_COLOURS, tagAt, type TagColour } from './tags'
 import { linkLabelSpan } from './vaultModel'
 import { spansOf } from './daySections'
 
@@ -250,8 +250,8 @@ export const daySectionNames = Facet.define<() => readonly string[], () => reado
 })
 
 /**
- * A daily note's sections drawn apart: each heading a band with its name, and each
- * section's lines on a ground of its own (`data-section`), so a day's parts read
+ * A daily note's sections drawn apart: each heading its name, small, and each
+ * section's lines with a rule of its own hue (`data-section`), so a day's parts read
  * apart. Only lines: the text is the note's, as written.
  */
 export function daySectionDecorations(state: EditorState, from: number, to: number): DecorationSet {
@@ -331,6 +331,13 @@ const spaceHang = (spaces: number) => `calc(${spaces} * var(--space-w))`
 const propertyKey = Decoration.mark({ class: 'cm-md-property' })
 const linkMark = Decoration.mark({ class: 'cm-md-link' })
 const tagMark = Decoration.mark({ class: 'cm-md-tag' })
+/** A tag with a colour, set on its page: the mark in its hue, so notes read apart by what they carry. */
+const tagMarks = new Map(TAG_COLOURS.map((hue) => [hue, Decoration.mark({ class: 'cm-md-tag', attributes: { 'data-hue': hue } })]))
+
+/** Each tag's colour (`coloursOf`), for the note's tags. */
+export const tagColours = Facet.define<() => Readonly<Record<string, string>>, () => Readonly<Record<string, string>>>({
+  combine: (values) => values[0] ?? (() => ({})),
+})
 const stampMark = Decoration.mark({ class: 'cm-md-stamp' })
 
 /**
@@ -459,10 +466,12 @@ export function livePreviewDecorations(
    * `#tag` is always marked, so it can be pressed, and nothing is hidden:
    * the `#` is part of the tag. Found by scanning, like wikilinks.
    */
+  const colours = state.facet(tagColours)()
   for (const hit of text.matchAll(TAG)) {
     const at = from + (hit.index ?? 0) + hit[1].length
     if (inside(state, at, CODE)) continue
-    found.push(tagMark.range(at, at + hit[2].length + 1))
+    const mark = tagMarks.get(colours[hit[2].toLowerCase()] as TagColour) ?? tagMark
+    found.push(mark.range(at, at + hit[2].length + 1))
   }
 
   // `---` is drawn as a rule when the caret is elsewhere, and shown as text when it is

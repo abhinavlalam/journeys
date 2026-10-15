@@ -509,9 +509,9 @@ owner and the agent.
 - **Every daily note has the same three sections** (the owner's, 2026-10-15): `## Log`
   (what happened, work, meetings), `## Notes` (tasks, goals, a thought), `## Trackers`
   (expenses, food), named and tagged in `daySections`. Plain markdown headings, so the
-  note stays markdown; the editor draws them apart (`daySectionPreview`: each heading a
-  band, each section's lines on a ground of its own hue with its rule), and only in a
-  daily note.
+  note stays markdown; the editor draws them apart (`daySectionPreview`: each heading
+  its name, small and spaced, and each section's lines with a rule of its own hue at
+  the left; no ground, which the owner found ugly), and only in a daily note.
 - **A line goes where its kind says** (`sectionOf`): one carrying a section's tag goes
   there; else one with a clock, or with a clock under it, goes in the first; else the
   second. What is nested under a line goes with it. Every line the app writes into a

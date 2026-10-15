@@ -56,6 +56,7 @@ import {
   toggledTask,
   daySectionDecorations,
   daySectionNames,
+  tagColours,
 } from '../editorPreview'
 import { vaultFile as note } from './fakeVault'
 
@@ -182,6 +183,24 @@ function spans(set: DecorationSet): string[] {
 }
 
 const all = (state: EditorState) => spans(livePreviewDecorations(state, 0, state.doc.length))
+
+/** A tag given a colour on its page takes it in a note, so notes read apart by what they carry. */
+describe('a tag’s colour', () => {
+  it('marks a tag in its colour, and one with none in the accent', () => {
+    const state = EditorState.create({
+      doc: 'lunch #Expense with #team',
+      selection: EditorSelection.single(0),
+      extensions: [markdown({ base: markdownLanguage }), tagColours.of(() => ({ expense: 'green' }))],
+    })
+    const found: string[] = []
+    const iter = livePreviewDecorations(state, 0, state.doc.length).iter()
+    for (; iter.value; iter.next()) {
+      const spec = iter.value.spec as { class?: string; attributes?: Record<string, string> }
+      if (spec.class === 'cm-md-tag') found.push(`${state.sliceDoc(iter.from, iter.to)}:${spec.attributes?.['data-hue'] ?? 'mark'}`)
+    }
+    expect(found).toEqual(['#Expense:green', '#team:mark'])
+  })
+})
 
 /** A daily note's sections, drawn apart: its heading a band, each line on its section's ground. */
 describe('a daily note’s sections', () => {

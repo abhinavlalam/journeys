@@ -5274,13 +5274,12 @@ button.task-box:hover {
 }
 
 /* A daily note's sections (`## Log`, `## Notes`, `## Trackers`, the owner's): each
-   section's lines on a ground of its own hue with its rule at the left, and each
-   heading a band of its name, small and spaced, so a day's parts read apart. The
-   text is the note's; only lines are drawn. */
+   section's lines with a rule of its own hue at the left, and each heading its name,
+   small and spaced, so a day's parts read apart. No ground: filled, the owner found
+   the sections ugly. The text is the note's; only lines are drawn. */
 .markdown-editor .cm-line.cm-day-line,
 .markdown-editor .cm-line.cm-day-heading {
   --section: var(--hue-blue);
-  background: color-mix(in srgb, var(--section) 5%, transparent);
   box-shadow: inset 2px 0 0 color-mix(in srgb, var(--section) 55%, transparent);
 }
 
@@ -5494,6 +5493,11 @@ button.task-box:hover {
 .markdown-editor .cm-md-tag {
   color: var(--mark);
   cursor: pointer;
+}
+
+/* A tag given a colour on its page takes it, in a note as on the timeline. */
+.markdown-editor .cm-md-tag[data-hue] {
+  color: var(--tint);
 }
 
 /* A section's heading at the end of a note: the reading face one step up,
