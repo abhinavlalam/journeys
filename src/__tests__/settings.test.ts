@@ -497,19 +497,28 @@ describe('graphHides', () => {
   })
 })
 
-/** The vault's tables: the one the Expenses page reads, and how each column is totalled. */
-describe('the tables’ settings', () => {
-  it('names the expenses table only as a table, and reads each column’s total on its own', () => {
-    expect([parseSettings(null).expensesSheet, parseSettings(null).columnTotals]).toEqual(['', {}])
-    expect(parseSettings('{"expensesSheet":"Trackers/spend.csv"}').expensesSheet).toBe('Trackers/spend.csv')
-    expect(parseSettings('{"expensesSheet":"Trackers/spend.md"}').expensesSheet).toBe('')
+/** The trackers: each one's table, their targets, and how each column is totalled. */
+describe('the trackers’ settings', () => {
+  it('names each tracker’s table only as a table, and reads the expenses table where it was kept until 2026-10-15', () => {
+    expect([parseSettings(null).trackers, parseSettings(null).columnTotals]).toEqual([{ expenses: '', calories: '', habits: '' }, {}])
+    expect(parseSettings('{"expensesSheet":"Trackers/spend.csv"}').trackers.expenses).toBe('Trackers/spend.csv')
+    expect(parseSettings('{"trackers":{"calories":"Trackers/food.csv","habits":"Trackers/habits.md"}}').trackers).toEqual({
+      expenses: '',
+      calories: 'Trackers/food.csv',
+      habits: '',
+    })
     expect(parseSettings('{"columnTotals":{"End-Amount":"none","amount":"max","what":"most"}}').columnTotals).toEqual({ 'end-amount': 'none', amount: 'max' })
+  })
+
+  it('reads a target as a number in its bounds, and a category’s budget only above nothing', () => {
+    expect([parseSettings(null).calorieTarget, parseSettings('{"calorieTarget":2100}').calorieTarget, parseSettings('{"calorieTarget":-5}').calorieTarget]).toEqual([0, 2100, 0])
+    expect(parseSettings('{"categoryBudgets":{"Plants":40,"Boats":0,"Tea":"lots"}}').categoryBudgets).toEqual({ Plants: 40 })
   })
 
   /** A path and a column's name are this vault's: carried into another, they name nothing there. */
   it('is not carried into another vault', () => {
-    const settings = parseSettings('{"expensesSheet":"Trackers/spend.csv","columnTotals":{"balance":"none"}}')
-    expect([portable(settings).expensesSheet, portable(settings).columnTotals]).toEqual(['', {}])
+    const settings = parseSettings('{"trackers":{"expenses":"Trackers/spend.csv"},"columnTotals":{"balance":"none"},"categoryBudgets":{"Plants":40}}')
+    expect([portable(settings).trackers.expenses, portable(settings).columnTotals, portable(settings).categoryBudgets]).toEqual(['', {}, {}])
   })
 })
 

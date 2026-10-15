@@ -31,11 +31,13 @@ beforeEach(() => {
 })
 
 const pane = () => within(document.querySelector('.viewer:not([hidden])') as HTMLElement)
+/** The Notes section, where the folder is: Applications has a Trackers of its own. */
+const notes = () => within(document.querySelector('.pane-section') as HTMLElement)
 const cell = (name: string) => pane().getByRole('button', { name })
 /** A table is a file in the tree, opened into the reading pane. */
 async function openTable() {
   await openApp()
-  fireEvent.click(within(document.querySelector('.sidebar')!).getByText('Trackers'))
+  fireEvent.click(notes().getByText('Trackers'))
   fireEvent.click(await waitFor(() => within(document.querySelector('.sidebar')!).getByText('expenses.csv')))
   await waitFor(() => expect(cell('What, row 1').textContent).toBe('lunch, upstairs'))
 }
@@ -123,7 +125,7 @@ describe('a table edited in place', () => {
   it('opens a link in a value, and edits the value around it as written', async () => {
     disk.write(FILE, 'day,amount,what\n2026-10-10,480,[[roadmap]] review lunch\n')
     await openApp()
-    fireEvent.click(within(document.querySelector('.sidebar')!).getByText('Trackers'))
+    fireEvent.click(notes().getByText('Trackers'))
     fireEvent.click(await waitFor(() => within(document.querySelector('.sidebar')!).getByText('expenses.csv')))
     const value = await waitFor(() => cell('What, row 1'))
     expect(value.textContent).toBe('roadmap review lunch')

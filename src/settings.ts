@@ -8,6 +8,7 @@ import { asObject, oneOf } from './configEntries'
 import { DAILY_FOLDER, FILES_FOLDER, readConfigFile, safeNewName, writeConfigFile } from './vault'
 import { COLUMN_TOTALS, TAG_NAME, type ColumnTotal } from './tags'
 import { fileKind, SETTINGS_FILE } from './vaultModel'
+import { TRACKERS, type Tracker } from './trackers'
 import { onAndroid, paintBars } from './platform'
 import { ACTIONS, defaultShortcuts, normalizeCombo, type ActionId } from './shortcuts'
 
@@ -125,6 +126,8 @@ export type FaceId = (typeof FACES)[number]['id']
 /** How the timeline draws a day, and how the Tasks page groups tasks: the switches in their headers. */
 export const TIMELINE_VIEWS = ['list', 'day'] as const
 export const TASK_VIEWS = ['due', 'page'] as const
+/** The Trackers page's ways in: today across them all, then each tracker's own. */
+export const TRACKER_VIEWS = ['today', ...TRACKERS] as const
 
 export interface Settings {
   mode: Mode
@@ -187,8 +190,16 @@ export interface Settings {
   timelineView: (typeof TIMELINE_VIEWS)[number]
   /** How the Tasks page groups tasks: by when they are due, or by the page they are on. */
   tasksView: (typeof TASK_VIEWS)[number]
-  /** The table the Expenses page reads, picked on the page; `''` until it is. */
-  expensesSheet: string
+  /** The table each tracker reads, picked or made on its page; `''` until it is. */
+  trackers: Record<Tracker, string>
+  /** The Trackers page last shown. */
+  trackersView: (typeof TRACKER_VIEWS)[number]
+  /** The calories a day is meant to come to; 0 is none. */
+  calorieTarget: number
+  /** What a month's spending is meant to stay under; 0 is none. */
+  monthlyBudget: number
+  /** The same for a category, by its name as the table writes it. */
+  categoryBudgets: Record<string, number>
   /** How a table's column is totalled, by the column's name in lower case; unset, summed. */
   columnTotals: Record<string, ColumnTotal>
   /**
@@ -262,6 +273,8 @@ export const BOUNDS = {
   calendarMinutes: { min: 1, max: 60, step: 1 },
   syncSeconds: { min: 15, max: 600, step: 15 },
   lockMinutes: { min: 1, max: 60, step: 1 },
+  calorieTarget: { min: 0, max: 20000, step: 50 },
+  monthlyBudget: { min: 0, max: 1e12, step: 1 },
 } as const
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -295,7 +308,11 @@ export const DEFAULT_SETTINGS: Settings = {
   graphShows: { text: true, property: true, tag: true },
   timelineView: 'list',
   tasksView: 'due',
-  expensesSheet: '',
+  trackers: { expenses: '', calories: '', habits: '' },
+  trackersView: 'today',
+  calorieTarget: 0,
+  monthlyBudget: 0,
+  categoryBudgets: {},
   columnTotals: {},
   calendarFeeds: [],
   calendarDays: 7,
@@ -396,7 +413,11 @@ export function parseSettings(raw: unknown): Settings {
     graphShows: pickShows(stored.graphShows),
     timelineView: oneOf(TIMELINE_VIEWS, stored.timelineView) ?? DEFAULT_SETTINGS.timelineView,
     tasksView: oneOf(TASK_VIEWS, stored.tasksView) ?? DEFAULT_SETTINGS.tasksView,
-    expensesSheet: typeof stored.expensesSheet === 'string' && fileKind(stored.expensesSheet) === 'csv' ? stored.expensesSheet : '',
+    trackers: pickTrackers(stored),
+    trackersView: oneOf(TRACKER_VIEWS, stored.trackersView) ?? DEFAULT_SETTINGS.trackersView,
+    calorieTarget: pickNumber(stored.calorieTarget, BOUNDS.calorieTarget, DEFAULT_SETTINGS.calorieTarget),
+    monthlyBudget: pickNumber(stored.monthlyBudget, BOUNDS.monthlyBudget, DEFAULT_SETTINGS.monthlyBudget),
+    categoryBudgets: pickAmounts(stored.categoryBudgets),
     columnTotals: pickTotals(stored.columnTotals),
     calendarFeeds: pickFeeds(stored.calendarFeeds),
     calendarDays: pickNumber(stored.calendarDays, BOUNDS.calendarDays, DEFAULT_SETTINGS.calendarDays),
@@ -441,6 +462,23 @@ function pickFeeds(value: unknown): CalendarFeed[] {
     const name = typeof one?.name === 'string' ? one.name.trim() : ''
     return [{ name, url: url.trim() }]
   })
+}
+
+/**
+ * Each tracker's table, a delimited file or nothing. The expenses table was
+ * `expensesSheet` from 2026-10-12 to 2026-10-15, read once into its place here.
+ */
+function pickTrackers(stored: Partial<Record<string, unknown>>): Record<Tracker, string> {
+  const own = stored.trackers && typeof stored.trackers === 'object' && !Array.isArray(stored.trackers) ? (stored.trackers as Record<string, unknown>) : {}
+  const given: Partial<Record<string, unknown>> = { expenses: stored.expensesSheet, ...own }
+  const table = (value: unknown) => (typeof value === 'string' && fileKind(value) === 'csv' ? value : '')
+  return Object.fromEntries(TRACKERS.map((tracker) => [tracker, table(given[tracker])])) as Record<Tracker, string>
+}
+
+/** Amounts by name: each a number above 0, the rest left out. */
+function pickAmounts(value: unknown): Record<string, number> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(Object.entries(value).filter(([, amount]) => typeof amount === 'number' && Number.isFinite(amount) && amount > 0))
 }
 
 /** Each column's total as written, a name in any case; one that is not a way to total is left out. */
@@ -511,13 +549,13 @@ export function saveVaultSettings(vaultPath: string, settings: Settings): Promis
 
 /**
  * Settings without what belongs to the vault: its calendars, the folders its graph
- * hides, its expenses table and its columns' totals. The rest is the person's,
+ * hides, its trackers' tables, its categories' budgets and its columns' totals. The rest is the person's,
  * carried into a vault with no settings yet and kept for the window before one
  * opens. A calendar address is a secret; carried, it once reached another vault's
  * remote.
  */
 export function portable(settings: Settings): Settings {
-  return { ...settings, calendarFeeds: [], graphHides: [], expensesSheet: '', columnTotals: {} }
+  return { ...settings, calendarFeeds: [], graphHides: [], trackers: DEFAULT_SETTINGS.trackers, categoryBudgets: {}, columnTotals: {} }
 }
 
 export function saveSettings(settings: Settings): void {

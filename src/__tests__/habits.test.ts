@@ -1,34 +1,38 @@
 import { describe, expect, it } from 'vitest'
-import { doneDays, habitDays, habitsOf, streakOf, withoutHabit } from '../habits'
-import { collectTagLines } from '../tags'
-import { vaultFile as note } from './fakeVault'
+import { habitDays, readHabits, streakOf, withHabit, withTick } from '../habits'
 
-/** A habit is a tag a day's note carries; the page reads days, streaks and weeks from that. */
+/** Habits are a table: a row per day, a column per habit, a day's cell marked when it was done. */
 
-describe('habits', () => {
-  it('are the tags whose entry says so', () => {
-    expect(habitsOf({ Water: { habit: true }, stretch: { habit: true }, expense: { properties: ['amount'] }, sail: { habit: false } })).toEqual([
-      'stretch',
-      'water',
-    ])
+const table = ['Day,water,stretch', '2026-10-05,1,', '2026-10-06,yes,0', '2026-10-07,,1', 'soon,1,1', ''].join('\n')
+
+describe('the habits table', () => {
+  it('reads every column but the day as a habit, done where its cell is marked', () => {
+    const { names, done } = readHabits(table)
+    expect(names).toEqual(['water', 'stretch'])
+    expect([...done.get('water')!]).toEqual(['2026-10-05', '2026-10-06'])
+    // `0` and empty are not done; a row with no day is not read.
+    expect([...done.get('stretch')!]).toEqual(['2026-10-07'])
+    expect(readHabits('')).toEqual({ names: [], done: new Map() })
   })
 
-  it('are done on each day whose note carries the tag, and only daily notes count', () => {
-    const day = (path: string, raw: string) => ({ note: note(path), lines: collectTagLines(raw, 'water') })
-    const done = doneDays(
-      [
-        day('Daily/2026-10-05.md', '#water'),
-        day('Daily/2026-10-06.md', '07:30 #water the ferns, then the palm'),
-        day('Daily/2026-10-07.md', 'a dry day'),
-        day('Plants/Ferns.md', '#water weekly'),
-      ],
-      'Daily'
-    )
-    expect([...done].sort()).toEqual(['2026-10-05', '2026-10-06'])
+  /** A tick is the one value written: the rest of the file stays as it was. */
+  it('ticks a day in its row, or adds the row, and takes a tick back', () => {
+    expect(withTick(table, '2026-10-07', 'Water', true)).toBe(table.replace('2026-10-07,,1', '2026-10-07,1,1'))
+    expect(withTick(table, '2026-10-05', 'water', false)).toBe(table.replace('2026-10-05,1,', '2026-10-05,,'))
+    expect(withTick(table, '2026-10-08', 'stretch', true)).toBe(`${table}2026-10-08,,1\n`)
+    // Nothing to take back on a day with no row, and no habit of that name.
+    expect([withTick(table, '2026-10-09', 'water', false), withTick(table, '2026-10-07', 'sail', true)]).toEqual([table, table])
   })
 
+  it('adds a habit as a column, and begins an empty table with the day', () => {
+    expect(withHabit(table, 'read').split('\n')[0]).toBe('Day,water,stretch,read')
+    expect(withHabit(table, 'WATER')).toBe(table)
+    expect(withHabit('', 'water')).toBe('day,water\n')
+  })
+})
+
+describe('the days', () => {
   it('show whole weeks from the locale’s first day, this one last', () => {
-    // 2026-10-07 is a Wednesday; with weeks from Monday, two weeks run 28 Sep to 11 Oct.
     const days = habitDays('2026-10-07', 1, 2)
     expect([days[0], days.at(-1), days.length]).toEqual(['2026-09-28', '2026-10-11', 14])
   })
@@ -39,12 +43,5 @@ describe('habits', () => {
     expect(streakOf(done, '2026-10-07')).toBe(3)
     expect(streakOf(new Set([...done, '2026-10-07']), '2026-10-07')).toBe(4)
     expect(streakOf(done, '2026-10-08')).toBe(0)
-  })
-
-  it('are taken back only where the line is the tag alone, as a press writes it', () => {
-    const raw = ['#timeline', '  09:00 standup', '  #water', '#Water', '  07:30 #water the ferns'].join('\n')
-    // The bare line under `#timeline` goes; `#Water` heads a line and is the owner's.
-    expect(withoutHabit(raw, 'water')).toBe(['#timeline', '  09:00 standup', '#Water', '  07:30 #water the ferns'].join('\n'))
-    expect(withoutHabit('07:30 #water the ferns', 'water')).toBeNull()
   })
 })

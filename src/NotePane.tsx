@@ -8,7 +8,9 @@ import { SourceEditor } from './SourceEditor'
 import { NoteFooter } from './NoteFooter'
 import { FolderTree } from './FolderTree'
 import { backlinksTo, childrenOf, folderWithNote, trailTo } from './links'
-import { dailyNeighbours, isDailyNote } from './daily'
+import { dailyNeighbours, dayOf, isDailyNote } from './daily'
+import { TrackedSection, type TrackedDay } from './trackerParts'
+import type { Tracker } from './trackers'
 import { ChevronIcon } from './icons'
 import { fileKind, isEncrypted, isNote } from './vaultModel'
 import type { VaultFile, VaultFolder } from './vaultModel'
@@ -55,6 +57,9 @@ interface NotePaneProps {
   onLock: (file: VaultFile) => void
   /** Each tag's daily totals, closing a daily note as they close its day in the timeline. */
   dayTotals: Readonly<Record<string, readonly DayTotal[]>>
+  /** What the trackers' tables hold for a day, ending its daily note. */
+  tracked: (day: string) => TrackedDay
+  onOpenTable: (tracker: Tracker) => void
   /** How a table's column is totalled, chosen under it: kept in the settings by the column's name. */
   onColumnTotal: (column: string, total: ColumnTotal) => void
   /**
@@ -93,6 +98,8 @@ export function NotePane({
   onTyped,
   dayTotals,
   onColumnTotal,
+  tracked,
+  onOpenTable,
 }: NotePaneProps) {
   const buffer = useNoteBuffer({ vaultPath, refresh, setError })
 
@@ -273,6 +280,8 @@ export function NotePane({
           place="note"
         />
       )}
+      {/* What the trackers' tables hold for the day: what the note says and this does not is not in a table yet. */}
+      {loaded && isDailyNote(file.path, settings.dailyFolder) && <TrackedSection day={tracked(dayOf(file.path))} onOpenTable={onOpenTable} />}
       {/* Notes only. A link to a non-`.md` target is external,
           so nothing links to a JSON file. */}
       {loaded && isNote(file.path) && (

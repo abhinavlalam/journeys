@@ -1,27 +1,63 @@
-// Habits: tags tracked day by day. A tag is a habit when its `tags.json` entry says so
-// (`habit: true`, set on its page or by the Habits page's +), and a day is done when its
-// daily note has a line carrying the tag: any line, as the owner writes it, or the tag
-// alone, which a press on the Habits page writes. Nothing else is kept.
+// Habits: a table with a row per day and a column per habit, a day's cell marked when
+// the habit was done. Ticked on the Trackers page; a spreadsheet reads it as it is, and
+// adds a column up to the days done.
 
-import { daysAfter, intoWeek } from './clock'
-import type { Entries } from './configEntries'
-import { dayOf, isDailyNote } from './daily'
-import { collectTagLines } from './tags'
-import type { CollectedNote } from './useVaultTexts'
+import { DAY_STAMP, daysAfter, intoWeek } from './clock'
+import { readTable, withCell, withRow } from './table'
 
-/** The tags tracked as habits, folded, by name. */
-export function habitsOf(entries: Entries): string[] {
-  return Object.keys(entries)
-    .filter((tag) => entries[tag]?.habit === true)
-    .map((tag) => tag.toLowerCase())
-    .sort()
+/** What a tick writes: a number, so a spreadsheet adds the days up. */
+export const TICK = '1'
+
+export interface Habits {
+  /** The habits, in the table's order. */
+  names: string[]
+  /** Each habit's days done, by name. */
+  done: Map<string, Set<string>>
 }
 
-/** The days a habit was done: each daily note with a line carrying its tag. */
-export function doneDays(collected: readonly CollectedNote[], dailyFolder: string): Set<string> {
-  return new Set(
-    collected.filter(({ note, lines }) => lines.length > 0 && isDailyNote(note.path, dailyFolder)).map(({ note }) => dayOf(note.path))
-  )
+const DAY = 'day'
+
+/** The table's habits: every column but `day`, and the days a cell is marked (anything but empty or `0`). */
+export function readHabits(text: string): Habits {
+  const [header, ...rows] = readTable(text).rows
+  const names = header?.cells.map((one) => one.trim()) ?? []
+  const dayAt = names.findIndex((name) => name.toLowerCase() === DAY)
+  const habits = names.flatMap((name, at) => (at === dayAt || name === '' ? [] : [{ name, at }]))
+  const done = new Map(habits.map(({ name }) => [name, new Set<string>()]))
+  for (const row of rows) {
+    const day = (row.cells[dayAt] ?? '').trim()
+    if (!DAY_STAMP.test(day)) continue
+    for (const { name, at } of habits) {
+      const value = (row.cells[at] ?? '').trim()
+      if (value !== '' && value !== '0') done.get(name)!.add(day)
+    }
+  }
+  return { names: habits.map(({ name }) => name), done }
+}
+
+/**
+ * The file with a habit marked done, or not, on a day: written into the day's row,
+ * the value alone, or a row added for a day not there yet. Unmarking a day with no row
+ * changes nothing.
+ */
+export function withTick(text: string, day: string, habit: string, done: boolean): string {
+  const table = readTable(text)
+  const names = table.rows[0]?.cells.map((one) => one.trim().toLowerCase()) ?? []
+  const [dayAt, habitAt] = [names.indexOf(DAY), names.indexOf(habit.toLowerCase())]
+  if (dayAt === -1 || habitAt === -1) return text
+  const row = table.rows.findIndex((one, at) => at > 0 && (one.cells[dayAt] ?? '').trim() === day)
+  if (row !== -1) return withCell(text, table, row, habitAt, done ? TICK : '')
+  if (!done) return text
+  return withRow(text, table, names.map((_, at) => (at === dayAt ? day : at === habitAt ? TICK : '')))
+}
+
+/** The file with a habit added as a column, or with its columns begun (`day` first). A name it has is left alone. */
+export function withHabit(text: string, name: string): string {
+  const table = readTable(text)
+  const names = table.rows[0]?.cells.map((one) => one.trim()) ?? []
+  if (names.some((one) => one.toLowerCase() === name.toLowerCase())) return text
+  if (names.filter(Boolean).length === 0) return withRow(text, table, [DAY, name])
+  return withCell(text, table, 0, names.length, name)
 }
 
 /** The days the page shows: `weeks` whole weeks from the locale's first day, this one last. */
@@ -35,22 +71,4 @@ export function streakOf(done: ReadonlySet<string>, today: string): number {
   let count = 0
   for (let day = done.has(today) ? today : daysAfter(today, -1); done.has(day); day = daysAfter(day, -1)) count++
   return count
-}
-
-/** The line a press writes in a day: the habit's tag alone, filed as an entry is (`withNewEntry`). */
-export const habitLine = (tag: string) => `#${tag}`
-
-/**
- * A day's note with a habit taken back: each line that is its tag alone with nothing
- * nested under it, as a press writes it. Null when there is none: the day is done in
- * the owner's own words, and only the owner takes those back.
- */
-export function withoutHabit(raw: string, tag: string): string | null {
-  const bare = collectTagLines(raw, tag).filter((one) => one.text.toLowerCase() === habitLine(tag) && one.below.length === 0)
-  if (bare.length === 0) return null
-  const gone = new Set(bare.map((one) => one.at))
-  return raw
-    .split('\n')
-    .filter((_, at) => !gone.has(at))
-    .join('\n')
 }

@@ -49,9 +49,8 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 | `calendar.ts`, `ics.ts`, `calendarSync.ts`, `useCalendarSync.ts`, `CalendarView.tsx` | The calendar. |
 | `timeline.ts` / `TimelineView.tsx` | The daily notes as each day happened / its page. |
 | `tasks.ts` / `TasksView.tsx` | Every `#task` line by when it is due / its page. |
-| `habits.ts` / `HabitsView.tsx` | Tags tracked as habits, day by day / their page. |
 | `table.ts` / `CsvTable.tsx` | A delimited file read as rows, each value knowing where it is written / the table edited in place. |
-| `expenses.ts` / `ExpensesView.tsx` | The expenses table read by its columns' names, and a month added up / its page. |
+| `trackers.ts`, `expenses.ts`, `calories.ts`, `habits.ts` / `TrackersView.tsx`, `trackerParts.tsx` | The trackers' tables, each read by its columns' names, and what each adds up / their page and its parts, and the Tracked section ending a daily note. |
 | `LineEditor.tsx` | One line in the note's own editor, for a page that takes typing: `EditLine` for one written (saved on Enter or leaving when changed, emptied is not deleted), `NewLine` for a new one; `Typing`, what every editor types with. |
 | `ViewerHeader.tsx` | Every page's header: its name (a note's renames it), its status (`statusCount`: nothing at none), its controls, and `ViewSwitch`, a page's ways of being drawn. |
 | `useLog.ts` / `LogView.tsx` | What the app says: shown a while, kept in the Log / its page. |
@@ -139,12 +138,10 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 
 The direction since 2026-10-12, the owner's: **notes hold memories, tasks and
 information in plain words, and trackers are tables.** Each tracker (expenses,
-habits) is one CSV file with a header row, kept in the vault's `Trackers/` by the
-owner's convention (the app names no folder for it), opened from the tree into the
+calories, habits) is one CSV file with a header row, kept in the vault's `Trackers/` by
+the owner's convention (the app names no folder for it), opened from the tree into the
 reading pane as a table edited in place, a value or a row at a time, and never drawn
-in the graph, which draws notes alone. No application of their own: a Trackers group
-under Applications was built and taken out on 2026-10-12, as the owner wanted a table
-in the reading pane and nothing more. The vault's
+in the graph, which draws notes alone. The vault's
 agent organises the daily notes into the tables (capture first, organise later), checks
 for doubles and edits only tables. The calendar is drawn from its feeds, writing nothing
 into notes. One device is used at a time, so tables need no merge rule. CSV, not xlsx:
@@ -177,27 +174,45 @@ shown: summed under a balance, it was a number that meant nothing.
 **A table's text reads its links as a note does** (`wikiLinkMarks`, `followLink`, shared
 with the note's editor): the name shown, the brackets at the caret, a press opening it.
 
-**Expenses is an application over the expenses table** (`ExpensesView`, the owner's
-choice: a month at a glance). The table is picked on the page the first time, from the
-vault's tables, and kept as `expensesSheet`; picked again by Change table, or when it is
-gone. It is read by its columns' names (`EXPENSE_COLUMNS`: day and amount, and where
-there are, time, for, category, merchant, account, end-amount), from the one read, so
-what is typed into it beside the page shows. A month: spent, against the month before
-over the same days (twelve days set against a whole month read as spending less, every
-month), a day's average and the count, as tiles; the categories as bars; the days as
-columns, a press opening the day's note; the places spent at most; each account's
-balance after its last expense; the month's expenses, a press opening the table. One
-currency is added up, the one most rows are in; the rest are said, not summed. A row with
-no day or amount is said too. Text, the header's other
-view, mounts over the text as it is now, not as last read, or its first key saved the
-old text over the edit. Through the note's own buffer, so saving, an outside write and
-a move are a note's.
+**Trackers is one application over the trackers' tables** (`TrackersView`, the owner's
+choice on 2026-10-15, after the separate Expenses and Habits pages were "not useful":
+today first, then a page for each, from the header's switch, kept as `trackersView`).
+Each tracker's table is picked or made on its page the first time (`trackers` in the
+settings; a made one goes beside the others, with the tracker's columns) and read by
+its columns' names (`trackedRows`: a row needs a day and its number; what lacks either
+is counted and said). From the one read, so what is typed into a table beside the page
+shows. A page writes a row at a time through `changeTable` (`withRecord`, `withTick`,
+`withHabit`), as every write goes: the queued typing first, then the open tab told.
+- **Today**: spent today and this month against the budget, kcal against the target,
+  the habits ticked, each a tile with its meter; the habits to tick; an expense and
+  something eaten added, stamped now, and the usual things eaten offered again.
+- **Expenses**: a month at a glance, stepped back and on: spent against the budget and
+  the month before over the same days (twelve days set against a whole month read as
+  spending less, every month), a day's average and the count; the categories as bars,
+  each against its budget; the days as columns, a press opening the day's note; the
+  last twelve weeks; where; each account's balance after its last expense; the month's
+  expenses; one added; and the budgets. One currency is added up, the one most rows
+  are in; the rest are said, not summed.
+- **Calories**: today against the target, a day's average over the days tracked this
+  week (a day with nothing written is not tracked, not a day of nothing eaten), the
+  last thirty days as columns with the target across them, something eaten added.
+- **Habits**: see Habits below.
+- **Targets are the owner's, set on the page** (`calorieTarget`, `monthlyBudget`,
+  `categoryBudgets`); a figure past its target turns `--alert`, beside the words.
 
-The steps, in order: (1) any `.csv` opens as an editable table with totals (done); (2) dropped: the tables
-are files in the tree, not applications; (3)
-Habits is a grid over `habits.csv`, tapped in the app; (4) the calendar is drawn from the
-feeds; (5) the agent's organising, and the vault's expense lines moved into
-`Trackers/expenses.csv` and rewritten in plain words; (6) the line machinery for trackers
+**Each daily note ends with what the tables hold for its day** (`TrackedSection`, the
+owner's choice): the day's expenses, things eaten and habits, read only, a line opening
+its table. What the note says and this does not, the agent has not put in a table yet.
+
+**A table's own page** (Text, the header's other view) mounts over the text as it is
+now, not as last read, or its first key saved the old text over the edit. Through the
+note's own buffer, so saving, an outside write and a move are a note's.
+
+The steps, in order: (1) any `.csv` opens as an editable table with totals (done); (2)
+the Trackers application (done 2026-10-15); (3) habits as a grid over `habits.csv`,
+ticked in the app (done); (4) the calendar is drawn from the feeds; (5) the agent's
+organising, and the vault's expense and food lines copied into `Trackers/expenses.csv`
+and `Trackers/calories.csv` (done) and rewritten in plain words; (6) the line machinery for trackers
 goes (typed line properties, tag structures and their tables, daily totals, `#event`
 lines, habits read from tags, the phone's tag forms). Tags stay as plain labels; tasks
 stay as lines. Until (6) the sections below describe what the app still reads. The
@@ -596,22 +611,19 @@ owner and the agent.
 
 ## Habits
 
-- **A habit is a tag marked as one** (the owner's choice: `habit: true` in its
-  `tags.json` entry, set on the tag's page or by the Habits page's `+`), and **a day is
-  done when its daily note has a line carrying the tag**, any line, so what is already
-  written counts, past days included. Nothing else is kept. Read from `collectTag`, one
-  more memo over the one read.
-- **A press on a day writes the tag alone** (`habitLine`) into that day's note, made if
-  needed, filed as a timeline entry is (`withNewEntry`), and with no clock, as the owner
-  asked of typed entries. **A press on a done day takes back each line that is the tag
-  alone with nothing nested under it** (`withoutHabit`); a day done in the note's own
-  words is left as written and said, as the calendar takes back only its own lines.
+- **Habits are a table** (`habits.ts`, the owner's choice on 2026-10-15): a row per day,
+  a column per habit, a day's cell marked (`TICK`, a number, so a spreadsheet adds the
+  days up; anything but empty or `0` reads as done). A press on a day writes that one
+  value (`withTick`), or a row for a day not there yet; `+` adds a column (`withHabit`).
+  Until then a habit was a tag marked as one, done where a day's note carried it, and a
+  press wrote the tag into the note: the notes are to stay plain.
 - **The page is the habits by the last weeks** (`habitDays`: four whole weeks from the
   locale's first day, this one last, scrolled to today when they do not fit, the names
-  held at the left): each day a note's checkbox, filled in the tag's colour, today
-  ringed, a day not yet here only an outline. Beside each, its streak (`streakOf`: days
-  in a row up to today, or up to yesterday while today is not done, since a day not
-  over breaks nothing) and this week's count. The target is every day.
+  held at the left): each day a note's checkbox, filled when done, today ringed, a day
+  not yet here only an outline. Beside each, its streak (`streakOf`: days in a row up to
+  today, or up to yesterday while today is not done, since a day not over breaks
+  nothing) and this week's count; under them, the last twelve weeks' share done. The
+  target is every day.
 
 ## Sync
 

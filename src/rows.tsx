@@ -242,7 +242,8 @@ export function Section({
   children,
 }: {
   title: string
-  count: number
+  /** How many it holds, beside the title; none for a section that holds a form. */
+  count?: number
   startOpen: boolean
   /**
    * Clicking the heading's name opens what the section is about,
@@ -263,7 +264,7 @@ export function Section({
         open={open}
         onToggle={() => setOpen((shown) => !shown)}
         onOpen={onOpen}
-        trailing={<span className="row-count">{count}</span>}
+        trailing={count === undefined ? undefined : <span className="row-count">{count}</span>}
         actions={actions && <span className="folder-actions">{actions}</span>}
       />
       {open && (

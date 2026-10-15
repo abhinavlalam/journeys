@@ -1,8 +1,9 @@
 // The expenses table as the Expenses page reads it: a row an expense, each column
 // found by the name the vault's guide gives it, and a month of them added up.
 
-import { DAY_STAMP, localDateStamp } from './clock'
-import { numberOf, numberShown, readTable } from './table'
+import { localDateStamp } from './clock'
+import { numberOf, numberShown } from './table'
+import { trackedRows } from './trackers'
 
 /** The columns read, by their names in the table's first line, in any case. */
 export const EXPENSE_COLUMNS = {
@@ -16,7 +17,6 @@ export const EXPENSE_COLUMNS = {
   account: 'account',
   balance: 'end-amount',
 } as const
-type Field = keyof typeof EXPENSE_COLUMNS
 
 export interface Expense {
   day: string
@@ -35,40 +35,9 @@ export interface Expense {
  * The table's expenses by day and time, and what was not read: the columns it lacks
  * of the two every expense needs, and how many rows have no day or amount.
  */
-export function readExpenses(text: string): {
-  expenses: Expense[]
-  missing: string[]
-  unread: number
-} {
-  const [header, ...rows] = readTable(text).rows
-  const names = header?.cells.map((one) => one.trim().toLowerCase()) ?? []
-  const missing = [EXPENSE_COLUMNS.day, EXPENSE_COLUMNS.amount].filter((name) => !names.includes(name))
-  if (missing.length > 0) return { expenses: [], missing, unread: 0 }
-  let unread = 0
-  const expenses = rows
-    .filter((row) => row.to > row.from)
-    .flatMap((row): Expense[] => {
-      const value = (field: Field) => (row.cells[names.indexOf(EXPENSE_COLUMNS[field])] ?? '').trim()
-      const amount = numberOf(value('amount'))
-      if (!DAY_STAMP.test(value('day')) || amount === null) {
-        unread++
-        return []
-      }
-      return [
-        {
-          day: value('day'),
-          time: value('time'),
-          amount,
-          currency: value('currency'),
-          what: value('what'),
-          category: value('category'),
-          merchant: value('merchant'),
-          account: value('account'),
-          balance: numberOf(value('balance')),
-        },
-      ]
-    })
-    .sort((a, b) => `${a.day} ${a.time}`.localeCompare(`${b.day} ${b.time}`))
+export function readExpenses(text: string): { expenses: Expense[]; missing: string[]; unread: number } {
+  const { rows, missing, unread } = trackedRows(text, EXPENSE_COLUMNS, 'amount')
+  const expenses = rows.map(({ n, balance, ...row }) => ({ ...row, amount: n, balance: numberOf(balance) }))
   return { expenses, missing, unread }
 }
 

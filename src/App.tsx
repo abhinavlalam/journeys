@@ -5,6 +5,8 @@ import {
   createNote,
   dailyNoteFile,
   ensureDailyNote,
+  ensureFolder,
+  fileExists,
   folderIcon,
   keepFile,
   keepShared,
@@ -15,7 +17,7 @@ import {
   writePathProperty,
   writeVaultFile,
 } from './vault'
-import { fileKind, folderNoteRef, isTextFile, knownPath, noteName, SETTINGS_FILE } from './vaultModel'
+import { fileKind, folderNoteRef, folderOf, isTextFile, knownPath, noteName, SETTINGS_FILE } from './vaultModel'
 import { FileView } from './FileView'
 import type { VaultFile, VaultFolder } from './vaultModel'
 import { FolderTree, useDropTarget } from './FolderTree'
@@ -42,9 +44,15 @@ import { withEditedEntry, withNewEntry } from './timeline'
 import { TimelineView } from './TimelineView'
 import { TasksView } from './TasksView'
 import { readTasks, TASK, withDone } from './tasks'
-import { HabitsView } from './HabitsView'
-import { ExpensesView } from './ExpensesView'
-import { doneDays, habitLine, habitsOf, withoutHabit } from './habits'
+import { TrackersView } from './TrackersView'
+import { readHabits, withHabit, withTick } from './habits'
+import { EXPENSE_COLUMNS, mainCurrency, readExpenses } from './expenses'
+import { CALORIE_COLUMNS, readCalories } from './calories'
+import type { TrackedDay } from './trackerParts'
+import { TRACKERS, withRecord, type Tracker } from './trackers'
+
+/** What a page adds a row to a tracker's table by. */
+const TRACKER_COLUMNS = { expenses: EXPENSE_COLUMNS, calories: CALORIE_COLUMNS } as const
 import { LogView } from './LogView'
 import { useLog } from './useLog'
 import { GraphView } from './GraphView'
@@ -333,23 +341,44 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collectTag, propertyTypes.entries])
   const colours = useMemo(() => coloursOf(tagStructures.entries), [tagStructures.entries])
-  /** Every tag tracked as a habit, with the days its notes say it was done; null while reading. */
-  const habits = useMemo(
-    () => texts && habitsOf(tagStructures.entries).map((tag) => ({ tag, done: doneDays(collectTag(tag) ?? [], settings.dailyFolder) })),
-    [texts, collectTag, tagStructures.entries, settings.dailyFolder]
-  )
-  /** The vault's tables, from the one read: what the Expenses page is offered. */
+  /** The vault's tables, from the one read: what a tracker is offered to read. */
   const tables = useMemo(() => texts?.filter(({ note }) => fileKind(note.path) === 'csv').map(({ note }) => note) ?? [], [texts])
   /**
-   * The expenses table's text: as typed, while it is open beside the page (`liveVersion`) or
-   * just left for it (`viewVisible`), else as last read. Null while reading or when it is gone.
+   * Each tracker's table and its text: as typed, while it is open beside the page
+   * (`liveVersion`) or just left for it (`viewVisible`), else as last read. Null while
+   * reading or when it is gone.
    */
-  const expensesText = useMemo(() => {
+  const trackerTables = useMemo(() => {
     const live = liveText.current
-    if (live && live.path === settings.expensesSheet) return live.text
-    return texts?.find(({ note }) => note.path === settings.expensesSheet)?.text ?? null
+    const textOf = (path: string) => (!path ? null : live?.path === path ? live.text : (texts?.find(({ note }) => note.path === path)?.text ?? null))
+    return Object.fromEntries(TRACKERS.map((tracker) => [tracker, { path: settings.trackers[tracker], text: textOf(settings.trackers[tracker]) }])) as Record<
+      Tracker,
+      { path: string; text: string | null }
+    >
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [texts, settings.expensesSheet, viewVisible, liveVersion])
+  }, [texts, settings.trackers, viewVisible, liveVersion])
+  /** What the trackers' tables hold for a day, which ends its daily note. */
+  const tracked = useMemo(() => {
+    const read = <T,>(tracker: Tracker, reader: (text: string) => T) => (trackerTables[tracker].text === null ? null : reader(trackerTables[tracker].text!))
+    const expenses = read('expenses', (text) => readExpenses(text).expenses)
+    const meals = read('calories', (text) => readCalories(text).meals)
+    const habits = read('habits', readHabits)
+    const currency = expenses ? mainCurrency(expenses) : ''
+    return (day: string): TrackedDay => ({
+      expenses: expenses && expenses.filter((one) => one.day === day),
+      meals: meals && meals.filter((one) => one.day === day),
+      habits: habits && habits.names.map((name) => ({ name, done: habits.done.get(name)?.has(day) ?? false })),
+      currency,
+      calorieTarget: settings.calorieTarget,
+    })
+  }, [trackerTables, settings.calorieTarget])
+  /** The habits not ticked today, counted beside Trackers. */
+  const habitsLeft = useMemo(() => {
+    const text = trackerTables.habits.text
+    if (!text) return 0
+    const { names, done } = readHabits(text)
+    return names.filter((name) => !done.get(name)?.has(localDateStamp())).length
+  }, [trackerTables.habits.text])
   /** The phone's one place at a time, and where its back gesture goes. */
   const phone = usePhoneNav({
     page: active,
@@ -790,17 +819,16 @@ export default function App() {
   const addEntry = (text: string) => fileEntry(undefined, async () => text)
 
   /**
-   * A habit's day marked done, its tag alone filed in the day's note (made if needed), or
-   * taken back: the lines that are its tag alone go, and a day done in the note's own
-   * words is left as written and said.
+   * A tracker's table changed by a page (a row added, a habit ticked), as every write is:
+   * the typing queued for it written first, and its open tab taking the change in. A
+   * table not there yet is made; one there and unreadable throws, and is not written over.
    */
-  async function markHabit(tag: string, day: string, done: boolean) {
-    if (done) return void (await fileEntry(day, async () => habitLine(tag)))
-    await vault.mutate(
+  function changeTable(path: string, change: (text: string) => string) {
+    return vault.mutate(
       async (v) => {
-        const file = dailyNoteFile(v, settings.dailyFolder, day)
-        const next = withoutHabit(await readVaultFile(file), tag)
-        if (next === null) throw new Error(`#${tag} is in ${file.name} in its own words, so it was left as written.`)
+        const file = vaultFileRef(v, path)
+        const next = change((await fileExists(file)) ? await readVaultFile(file) : '')
+        if (folderOf(path)) await ensureFolder(v, folderOf(path))
         await writeVaultFile(file, next)
         return { file, next }
       },
@@ -809,6 +837,16 @@ export default function App() {
         await buffers.reread(file)
       }
     )
+  }
+  /** A tracker's table, opened to edit. */
+  const openTable = (tracker: Tracker) => {
+    const table = tables.find((one) => one.path === settings.trackers[tracker])
+    if (table) void openNote(table)
+  }
+  /** A table made for a tracker, its columns written, and picked. One already at the path is picked as it is. */
+  async function makeTable(tracker: Tracker, path: string) {
+    const header = tracker === 'habits' ? 'day' : Object.values(TRACKER_COLUMNS[tracker]).join(',')
+    if (await changeTable(path, (text) => text || `${header}\n`)) changeSettings({ ...settings, trackers: { ...settings.trackers, [tracker]: path } })
   }
 
   /**
@@ -978,7 +1016,7 @@ export default function App() {
   )
   const onPage = (kind: TabRequest['kind']) => !phone.browsing && active?.kind === kind
   /** A page under Applications, pressed when it is in front, with its count beside it. */
-  const applicationRow = ({ kind, name, icon, count }: { kind: 'calendar' | 'timeline' | 'tasks' | 'habits' | 'expenses' | 'log'; name: string; icon: string; count: number }) => (
+  const applicationRow = ({ kind, name, icon, count }: { kind: 'calendar' | 'timeline' | 'tasks' | 'trackers' | 'log'; name: string; icon: string; count: number }) => (
     <li key={kind} style={{ paddingLeft: stepIn(1) }}>
       <NoteRow
         icon={<RowIcon icon={icon} />}
@@ -1154,10 +1192,8 @@ export default function App() {
                 { kind: 'timeline', name: 'Timeline', icon: 'clock', count: 0 },
                 // Every `#task` line, by when it is due; counted while open.
                 { kind: 'tasks', name: 'Tasks', icon: 'check', count: tasks?.filter((one) => !one.done).length ?? 0 },
-                // Every habit by the last weeks; counted while one is not done today.
-                { kind: 'habits', name: 'Habits', icon: 'target', count: habits?.filter((one) => !one.done.has(localDateStamp())).length ?? 0 },
-                // A month of the expenses table at a glance.
-                { kind: 'expenses', name: 'Expenses', icon: 'money', count: 0 },
+                // Expenses, calories and habits, today first; counted while a habit is not ticked today.
+                { kind: 'trackers', name: 'Trackers', icon: 'chart', count: habitsLeft },
                 // Every message the app has shown in this window.
                 { kind: 'log', name: 'Log', icon: 'inbox', count: log.items.length },
               ] as const
@@ -1251,6 +1287,8 @@ export default function App() {
                     onLock={(file) => void locks.lockNotes([file.path])}
                     onTyped={typed}
                     dayTotals={dayTotals}
+                    tracked={tracked}
+                    onOpenTable={openTable}
                     onColumnTotal={(column, total) =>
                       changeSettings({ ...settings, columnTotals: { ...settings.columnTotals, [column.toLowerCase()]: total } })
                     }
@@ -1294,8 +1332,6 @@ export default function App() {
                     onTotals={(next) => void tagStructures.write(tag, { totals: next.map(writtenTotal) })}
                     colour={colours[tag]}
                     onColour={(next) => void tagStructures.write(tag, { color: next })}
-                    habit={tagStructures.entries[tag]?.habit === true}
-                    onHabit={(next) => void tagStructures.write(tag, { habit: next })}
                     onError={setError}
                     onOpenProperty={(property) => view('property', property)}
                     onOpen={(file) => void openNote(file)}
@@ -1334,31 +1370,26 @@ export default function App() {
                     {...opens}
                   />
                 )
-              case 'habits':
+              case 'trackers':
                 return (
-                  <HabitsView
-                    habits={habits}
-                    colours={colours}
-                    onMark={(tag, day, done) => void markHabit(tag, day, done)}
-                    onAdd={(tag) => void tagStructures.write(tag, { habit: true })}
-                    onOpenTag={(tag) => view('tag', tag)}
+                  <TrackersView
+                    view={settings.trackersView}
+                    onView={(trackersView) => changeSettings({ ...settings, trackersView })}
+                    tables={trackerTables}
+                    files={tables}
+                    reading={reading || !texts}
+                    targets={settings}
+                    onTargets={(targets) => changeSettings({ ...settings, ...targets })}
+                    onPick={(tracker, path) => changeSettings({ ...settings, trackers: { ...settings.trackers, [tracker]: path } })}
+                    onMake={(tracker, path) => void makeTable(tracker, path)}
+                    onAdd={(tracker, record) => void changeTable(settings.trackers[tracker], (text) => withRecord(text, TRACKER_COLUMNS[tracker], record))}
+                    onTick={(day, habit, done) => void changeTable(settings.trackers.habits, (text) => withTick(text, day, habit, done))}
+                    onAddHabit={(name) => void changeTable(settings.trackers.habits, (text) => withHabit(text, name))}
+                    onOpenTable={openTable}
+                    onOpenDay={(day) => void openDay(day)}
                     onError={setError}
                   />
                 )
-              case 'expenses': {
-                const sheet = tables.find((table) => table.path === settings.expensesSheet)
-                return (
-                  <ExpensesView
-                    sheet={settings.expensesSheet}
-                    text={expensesText}
-                    tables={tables}
-                    reading={reading || !texts}
-                    onPick={(expensesSheet) => changeSettings({ ...settings, expensesSheet })}
-                    onOpenSheet={() => sheet && void openNote(sheet)}
-                    onOpenDay={(day) => void openDay(day)}
-                  />
-                )
-              }
               case 'log':
                 return <LogView items={log.items} />
               case 'calendar':
@@ -1405,6 +1436,7 @@ export default function App() {
             { name: 'Today', icon: <NoteIcon icon="pen" />, current: !phone.browsing && active?.kind === 'note' && active.file.path === todayNote?.path, onPress: showToday },
             { name: 'Timeline', icon: <NoteIcon icon="clock" />, current: onPage('timeline'), onPress: () => open({ kind: 'timeline' }) },
             { name: 'Calendar', icon: <NoteIcon icon="calendar" />, current: onPage('calendar'), onPress: () => open({ kind: 'calendar' }) },
+            { name: 'Trackers', icon: <NoteIcon icon="chart" />, current: onPage('trackers'), onPress: () => open({ kind: 'trackers' }) },
             { name: 'Browse', icon: <NoteIcon icon="list" />, current: phone.browsing, onPress: () => phone.go('browse') },
           ]}
         >

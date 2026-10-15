@@ -1994,6 +1994,7 @@ button.folder-toggle {
 .viewer > .note-section,
 .viewer > .journal-day,
 .viewer > .day-totals,
+.viewer > .tracker-controls,
 .viewer > .calendar-month,
 .viewer > .json-message,
 .viewer > .code-editor {
@@ -2045,7 +2046,8 @@ button.folder-toggle {
    the title lost the top of its heading. Only the first one needs this. */
 .viewer > .viewer-header + .note-section,
 .viewer > .viewer-header + .daily-steps,
-.viewer > .viewer-header + .day-totals {
+.viewer > .viewer-header + .day-totals,
+.viewer > .viewer-header + .tracker-controls {
   padding-top: var(--header-fade);
 }
 
@@ -2991,11 +2993,23 @@ button.folder-toggle {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- Expenses ---- */
+/* ---- Trackers ---- */
 
-/* A month of the expenses table: tiles, then sections of bars and lines, all in the
-   page's one family; sizes and weights alone set them apart. One series, so one
-   colour, `--mark`; the words stay in the text's tones. */
+/* Expenses, calories and habits: a row of controls, tiles, then sections of charts,
+   lines and forms, all in the page's one family; sizes and weights alone set them
+   apart. One series, so one colour, `--mark`; a figure past its target turns
+   `--alert`, beside the words that say so. */
+.tracker-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding-left: calc(var(--gutter-w) + var(--column-pad));
+  font-size: var(--fs-chrome);
+  line-height: var(--title-leading);
+}
+
 .month-step {
   display: flex;
   align-items: center;
@@ -3014,13 +3028,33 @@ button.folder-toggle {
 .month-step-name {
   min-width: 9em;
   color: var(--text);
-  font-size: var(--fs-chrome);
-  line-height: var(--title-leading);
   text-align: center;
 }
 
+/* A tile's meter: how much of its target is used, a thin bar under its words. */
+.tracker-meter {
+  display: block;
+  height: var(--hair);
+  margin-top: 0.4rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  overflow: hidden;
+}
+
+.tracker-meter > span {
+  display: block;
+  height: 100%;
+  background: var(--mark);
+}
+
+.day-total[data-over] .tracker-meter > span,
+.tracker-bar[data-over],
+.tracker-column[data-over] .tracker-column-bar {
+  background: var(--alert);
+}
+
 /* A section's chart, on the raised ground of a box, as the habits' grid is. */
-.expense-box {
+.tracker-box {
   margin-bottom: var(--row-gap);
   padding: 0.75rem 1rem;
   border: 1px solid var(--border);
@@ -3028,14 +3062,18 @@ button.folder-toggle {
   background: var(--bg-raised);
 }
 
-.folder-children > li.expense-box::before,
-.folder-children > li.expense-box::after {
+.folder-children > li.tracker-box::before,
+.folder-children > li.tracker-box::after,
+
+.folder-children > li.tracker-amounts::before,
+.folder-children > li.tracker-amounts::after {
   content: none;
 }
 
-/* A category a row: its name, a bar as long as its spending beside the most, the
-   amount and its share. The bar is thin, rounded at its end and square at its start. */
-.expense-bars {
+/* A bar a row: its name, a bar as long as its figure beside the most, the figure and
+   its share or its limit. Thin, rounded at its end and square at its start; a limit is
+   a hairline across the track. */
+.tracker-bars {
   display: grid;
   grid-template-columns: minmax(6em, max-content) 1fr max-content max-content;
   align-items: center;
@@ -3045,15 +3083,16 @@ button.folder-toggle {
   list-style: none;
 }
 
-.expense-bars li {
+.tracker-bars li {
   display: contents;
 }
 
-.expense-bar-track {
+.tracker-bar-track {
+  position: relative;
   display: block;
 }
 
-.expense-bar {
+.tracker-bar {
   display: block;
   min-width: var(--hair);
   height: 0.6em;
@@ -3061,35 +3100,53 @@ button.folder-toggle {
   background: var(--mark);
 }
 
-.expense-figure {
+.tracker-limit {
+  position: absolute;
+  top: -0.25rem;
+  bottom: -0.25rem;
+  border-left: 1px solid var(--text-dim);
+}
+
+.tracker-figure {
   color: var(--text);
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
 }
 
-.expense-share {
+.tracker-share {
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
   text-align: right;
+  white-space: nowrap;
 }
 
-/* The month as columns, a day each, standing on one line. A column is pressed for its
-   day, and is the whole height so the pointer finds it; its bar is what was spent. */
-.expense-readout {
+/* Columns, a day or a week each, standing on one line. A column is pressed for its day,
+   and is the whole height so the pointer finds it; its bar is the figure. A target is a
+   hairline across them all. */
+.tracker-readout {
   margin: 0 0 0.5rem;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
 }
 
-.expense-days {
+.tracker-columns {
+  position: relative;
   display: grid;
   gap: 2px;
   height: 6em;
   border-bottom: 1px solid var(--border);
 }
 
-.expense-day {
+.tracker-target {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--text-dim);
+  pointer-events: none;
+}
+
+.tracker-column {
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -3100,57 +3157,166 @@ button.folder-toggle {
   cursor: pointer;
 }
 
-.expense-day:hover:not(:disabled),
-.expense-day:focus-visible {
+.tracker-column:hover:not(:disabled),
+.tracker-column:focus-visible {
   background: var(--bg-hover);
 }
 
-.expense-day:disabled {
+.tracker-column:disabled {
   cursor: default;
 }
 
-.expense-day-bar {
+.tracker-column-bar {
   width: 60%;
   min-height: var(--hair);
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   background: var(--mark);
 }
 
-/* Today's column is marked at its foot, as today is ringed among the habits. */
-.expense-day[aria-current='date'] {
+/* The column that is now (today, this week) is marked at its foot. */
+.tracker-column[aria-current] {
   box-shadow: inset 0 -2px 0 var(--text-dim);
 }
 
-.expense-axis {
+.tracker-axis {
   display: grid;
   gap: 2px;
   color: var(--text-faint);
   font-size: 0.85em;
   font-variant-numeric: tabular-nums;
   text-align: center;
+  white-space: nowrap;
 }
 
-/* A line of a list: what, a word on it, and the amount on the right. A row of the
+/* A line of a list: what, a word on it, and the figure on the right. A row of the
    tree otherwise (`.file-list li > button`), laid out in a line. */
-.file-list li > .expense-line {
+.file-list li > .tracker-line {
   display: flex;
   align-items: baseline;
   gap: 0.5rem;
 }
 
-.expense-line-name {
+.tracker-line-name {
   flex: none;
 }
 
-.expense-line-detail {
+.tracker-line-detail {
   flex: 1;
   overflow: hidden;
   color: var(--text-faint);
   text-overflow: ellipsis;
 }
 
-.expense-line .expense-figure {
+.tracker-line .tracker-figure {
   margin-left: auto;
+}
+
+/* Chips: a habit to tick today, or a usual thing eaten to add again. Pressed is filled. */
+.tracker-ticks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.25rem 0;
+}
+
+.tracker-tick {
+  padding: 0.15rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  color: var(--text);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  cursor: pointer;
+}
+
+.tracker-tick:hover {
+  border-color: var(--mark);
+}
+
+.tracker-tick[aria-pressed='true'] {
+  border-color: var(--mark);
+  background: color-mix(in srgb, var(--mark) 22%, var(--bg-raised));
+  font-weight: var(--fw-strong);
+}
+
+/* A row typed on the page: its fields in a line that wraps, each its label over it. */
+.tracker-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+  padding: 0.25rem 0 0.5rem;
+}
+
+.tracker-field,
+.tracker-amount {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  color: var(--text-faint);
+  font-size: var(--fs-chrome);
+}
+
+.tracker-field input,
+.tracker-amount input {
+  width: 10em;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-viewer);
+  color: var(--text);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  outline: none;
+}
+
+.tracker-field-number input,
+.tracker-amount input {
+  width: 7em;
+  font-size: inherit;
+  line-height: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.tracker-field input:focus,
+.tracker-amount input:focus {
+  border-color: var(--mark);
+}
+
+.tracker-amounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.25rem 0 0.5rem;
+}
+
+/* On a phone the page is the screen: the tiles two to a row, the bars without their
+   shares, the fields as wide as half the screen. */
+@media (max-width: 40rem) {
+  .tracker-tiles > .day-total {
+    flex: 1 1 40%;
+  }
+
+  .tracker-bars {
+    grid-template-columns: minmax(5em, max-content) 1fr max-content;
+  }
+
+  .tracker-share {
+    display: none;
+  }
+
+  .tracker-field,
+  .tracker-field input {
+    flex: 1 1 40%;
+    width: auto;
+  }
+
+  .tracker-controls {
+    padding-left: var(--column-pad);
+  }
 }
 
 /* ---- The timeline ---- */
@@ -4914,8 +5080,8 @@ button.folder-toggle {
   font-variant-numeric: tabular-nums;
 }
 
-/* A day: a note's checkbox, filled in the habit's colour when the day's note carries
-   it. Today is ringed, and a day not yet here is only an outline. */
+/* A day: a note's checkbox, filled when the habit was done that day. Today is ringed,
+   and a day not yet here is only an outline. */
 .habit-day {
   display: block;
   width: var(--glyph);

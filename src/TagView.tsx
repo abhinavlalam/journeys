@@ -33,8 +33,6 @@ export function TagView({
   onTotals,
   colour,
   onColour,
-  habit,
-  onHabit,
   onError,
   onOpenProperty,
   onOpen,
@@ -58,8 +56,6 @@ export function TagView({
   colour: TagColour | undefined
   onColour: (next: TagColour | null) => void
   /** Whether the tag is tracked on the Habits page, and a change to it. */
-  habit: boolean
-  onHabit: (next: boolean) => void
   onError: (message: string) => void
   onOpenProperty: (property: string) => void
   onOpen: (file: VaultFile) => void
@@ -163,19 +159,6 @@ export function TagView({
               onClick={() => onColour(one)}
             />
           ))}
-        </li>
-      </Section>
-      {/* Tracked on the Habits page: a day is done when its note carries the tag. */}
-      <Section title="Habit" count={habit ? 1 : 0} startOpen>
-        <li className="note-row" style={{ paddingLeft: stepIn(1) }}>
-          <NoteRow
-            icon={<RowIcon icon={habit ? 'check' : undefined} />}
-            name="Tracked as a habit"
-            aria-pressed={habit}
-            aria-label={habit ? `Stop tracking #${name} as a habit` : `Track #${name} as a habit`}
-            trailing={<span className="row-count">{habit ? 'on the Habits page' : 'not tracked'}</span>}
-            onClick={() => onHabit(!habit)}
-          />
         </li>
       </Section>
       {/* Each `number` property, totalled for every day when chosen here, and how:
