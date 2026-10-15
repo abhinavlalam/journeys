@@ -59,6 +59,21 @@ describe('tabs', () => {
     await waitFor(() => expect(tabs()).toEqual(['beta', 'Timeline']))
   })
 
+  /** Replaced, the tab in front remembers: ⌘⌥← and ⌘⌥→, or a mouse's own buttons, walk it. */
+  it('goes back and forward in the tab in front', async () => {
+    await openApp()
+    await openFromTree('alpha')
+    await openFromTree('beta')
+    fireEvent.keyDown(window, { key: 'ArrowLeft', metaKey: true, altKey: true })
+    await waitFor(() => expect([tabs(), title()]).toEqual([['alpha'], 'alpha']))
+    fireEvent.keyDown(window, { key: 'ArrowRight', metaKey: true, altKey: true })
+    await waitFor(() => expect([tabs(), title()]).toEqual([['beta'], 'beta']))
+    fireEvent.mouseUp(window, { button: 3 })
+    await waitFor(() => expect(title()).toBe('alpha'))
+    fireEvent.mouseUp(window, { button: 4 })
+    await waitFor(() => expect(title()).toBe('beta'))
+  })
+
   it('opens each note as a tab and shows the one clicked', async () => {
     await openApp()
     await openFromTree('alpha')

@@ -96,6 +96,8 @@ describe('the defaults', () => {
       openToday: 'mod+shift+o',
       insertTime: 'mod+shift+t',
       openTerminal: 'mod+shift+l',
+      goBack: 'mod+alt+arrowleft',
+      goForward: 'mod+alt+arrowright',
     })
   })
 
@@ -243,6 +245,8 @@ describe('reading what was stored', () => {
       openToday: 'mod+shift+t',
       insertTime: 'mod+shift+o',
       openTerminal: 'mod+shift+l',
+      goBack: 'mod+alt+arrowleft',
+      goForward: 'mod+alt+arrowright',
     })
   })
 

@@ -43,6 +43,17 @@ describe('a save that fails', () => {
     expect(disk.read('/v/roadmap.md')).toBe('two\n')
   })
 
+  /** A synced folder refuses a write for a moment: a quit just after typing stayed for that. */
+  it('is tried once more before it is said, and lands when the disk takes it then', async () => {
+    const { buffer, setError } = await opened()
+    const undo = disk.forbid('/v/roadmap.md', 'busy')
+    setTimeout(undo, 50)
+    act(() => buffer().handleEditorChange('two\n'))
+    await act(() => buffer().flushPendingSave())
+    expect(disk.read('/v/roadmap.md')).toBe('two\n')
+    expect(setError.mock.calls.some(([message]) => /Could not save/.test(String(message)))).toBe(false)
+  })
+
   it('is not the note deleted elsewhere: the typing is written', async () => {
     const { buffer } = await opened()
     disk.delete('/v/roadmap.md')

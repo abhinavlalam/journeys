@@ -248,7 +248,9 @@ owner and the agent.
   key does nothing. A fold is atomic to the cursor, so Backspace after `#diet …` took
   the heading's five hidden lines, unseen, and the next round committed it.
 - **A save that fails stays queued, and the flush throws.** It was said and then
-  dropped, so the flush before a quit reported success and the typing was lost. A
+  dropped, so the flush before a quit reported success and the typing was lost. It is
+  tried once more first (`SAVE_RETRY_MS`): Drive refuses a write for a moment, and a quit
+  just after typing stayed for that and went through when asked again. A
   quit stays, a lock waits, sync and vault operations go on, and focus does not
   read the disk over the typing. A note deleted elsewhere is written, not failed.
 - **A move that moves nothing writes nothing** (`relocateFile`, `relocateFolder`):
@@ -314,6 +316,10 @@ owner and the agent.
   before a row or a link acts, and taken once. Nothing opens over a terminal or the
   settings file (`KEPT`), a terminal is a tab of its own, and the graph's toggle opens
   beside, so its second press goes back.
+- **A tab goes back and forward** (`stepTab`, ⌘⌥← and ⌘⌥→, a mouse's own buttons): a
+  replaced tab keeps what it showed (`back`, `forward`, `TRAIL` deep), and the trail
+  follows a move and forgets a delete as the tabs do (`mapFileTabs`). A page open in
+  another tab is gone to there. ⌘[ and ⌘] are the editor's indent.
 - **A buffer per note tab**, owned by `NotePane` through `useNoteBuffer` and
   registered with `useBuffers`, the one door every vault operation reaches every
   open note through. Inactive note tabs stay mounted, **editor and all**, hidden as a terminal is, so a

@@ -5,6 +5,9 @@ import { isWithin, movedWith, type VaultFile, type VaultFolder } from './vaultMo
 import { followedFile, pathKey } from './links'
 import type { NoteMoves } from './links'
 
+/** How long a failed save waits before its one more try. */
+const SAVE_RETRY_MS = 300
+
 /** How long typing has to stop before the note is written. */
 const AUTOSAVE_MS = 800
 
@@ -191,13 +194,19 @@ export function useNoteBuffer({ vaultPath, refresh, setError }: NoteBufferDeps) 
 
   /**
    * Writes one queued edit now, and records it so a flush can wait for it. A
-   * write that fails is said, queued again unless newer typing replaced it, and
-   * thrown, so a quit stays and a lock waits instead of dropping the typing.
+   * write that fails is tried once more (`SAVE_RETRY_MS` later), then said, queued
+   * again unless newer typing replaced it, and thrown, so a quit stays and a lock
+   * waits instead of dropping the typing.
    */
   function runSave(pending: { file: VaultFile; raw: string }): Promise<void> {
     const write = (async () => {
       try {
-        await writeNote(pending.file, pending.raw)
+        await writeNote(pending.file, pending.raw).catch(async () => {
+          // A synced folder refuses a write for a moment (Drive, mid-sync): a quit
+          // just after typing stayed for that, and went through when asked again.
+          await new Promise((resolve) => setTimeout(resolve, SAVE_RETRY_MS))
+          await writeNote(pending.file, pending.raw)
+        })
       } catch (err) {
         pendingSave.current ??= pending
         setError(`Could not save ${pending.file.path}: ${String(err)}`)

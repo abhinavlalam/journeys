@@ -81,6 +81,7 @@ import {
   openAlone,
   openTab,
   openTerminal,
+  stepTab,
   showsTheNotes,
   terminalName,
   toggleTab,
@@ -193,6 +194,12 @@ export default function App() {
   const besidePress = useRef(false)
   useWindowEvent('mousedown', (event) => void (besidePress.current = event.metaKey), true)
   useWindowEvent('keydown', () => void (besidePress.current = false), true)
+  // A mouse's own back and forward buttons step the tab in front, as in a browser.
+  useWindowEvent('mouseup', (event) => {
+    if (onAndroid || (event.button !== 3 && event.button !== 4)) return
+    event.preventDefault()
+    setWs((current) => stepTab(current, event.button === 3))
+  })
   const open = (tab: TabRequest) => {
     const beside = besidePress.current
     besidePress.current = false
@@ -666,7 +673,14 @@ export default function App() {
   })
   useWindowShortcuts({
     // No shell on the phone, so no way to it.
-    actions: onAndroid ? { openToday } : { openToday, openTerminal: () => setWs((current) => openTerminal(current)) },
+    actions: onAndroid
+      ? { openToday }
+      : {
+          openToday,
+          openTerminal: () => setWs((current) => openTerminal(current)),
+          goBack: () => setWs((current) => stepTab(current, true)),
+          goForward: () => setWs((current) => stepTab(current, false)),
+        },
     shortcuts: settings.shortcuts,
     disabled: settingsOpen,
     openSettings: () => setSettingsOpen(true),

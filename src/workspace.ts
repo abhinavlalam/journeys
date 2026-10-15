@@ -10,7 +10,8 @@ import { followedFile, pathKey } from './links'
 import type { NoteMoves } from './links'
 import { isWithin, SETTINGS_FILE, type VaultFile } from './vaultModel'
 
-export type Tab =
+/** What a tab can show. */
+type Kinds =
   | { kind: 'note'; id: number; file: VaultFile }
   | { kind: 'graph'; id: number }
   | { kind: 'property'; id: number; name: string }
@@ -38,11 +39,28 @@ export type Tab =
   | { kind: 'terminal'; id: number; session: string }
 
 /**
+ * A tab, and where it has been: what it showed before (`back`, the latest last), and
+ * what it went back from (`forward`). A press replaces the tab in front (`openTab`),
+ * so going back is the other half of it.
+ */
+export type Tab = Kinds & { back?: TabRequest[]; forward?: TabRequest[] }
+
+/**
  * A tab as asked for, before it has an id. `Omit` is applied to each member of
  * the union, or a `{ kind: 'graph' }` would type-check with a `file` on it.
  */
 type WithoutId<T> = T extends unknown ? Omit<T, 'id'> : never
-export type TabRequest = WithoutId<Tab>
+export type TabRequest = WithoutId<Kinds>
+
+/** How far back a tab remembers. */
+const TRAIL = 50
+
+/** What a tab shows, as it would be asked for again. */
+function pageOf(tab: Tab): TabRequest {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { id, back, forward, ...page } = tab
+  return page as TabRequest
+}
 
 export interface Group {
   id: number
@@ -175,10 +193,6 @@ export function activateTab(ws: Workspace, groupId: number, index: number): Work
   )
 }
 
-/**
- * Opens a tab in the focused group after the active one, as a
- * browser does, or goes to the same tab if it is open anywhere.
- */
 /** What a tab is never replaced over, since it holds what cannot be put back: a shell, a settings file not saved. */
 const KEPT: ReadonlySet<Tab['kind']> = new Set(['terminal', 'settingsFile'])
 
@@ -195,7 +209,8 @@ export function openTab(ws: Workspace, request: TabRequest, beside = false): Wor
   return withGroup({ ...ws, nextId: ws.nextId + 1 }, ws.focused, (group) => {
     const front = group.tabs[group.active]
     if (front && !beside && request.kind !== 'terminal' && !KEPT.has(front.kind)) {
-      return { ...group, tabs: group.tabs.map((one, at) => (at === group.active ? tab : one)) }
+      const replaced = { ...tab, back: [...(front.back ?? []), pageOf(front)].slice(-TRAIL), forward: [] }
+      return { ...group, tabs: group.tabs.map((one, at) => (at === group.active ? replaced : one)) }
     }
     const at = group.tabs.length === 0 ? 0 : group.active + 1
     return { ...group, tabs: [...group.tabs.slice(0, at), tab, ...group.tabs.slice(at)], active: at }
@@ -217,6 +232,35 @@ export function openAlone(ws: Workspace, request: TabRequest): Workspace {
     focused: ws.focused,
     nextId: Math.max(ws.nextId, tab.id + 1),
   }
+}
+
+/**
+ * The tab in front goes back to what it showed before (`back`), or forward to what it
+ * went back from, as a browser's page does. What is open in another tab already is
+ * gone to there instead, and taken off this one's trail.
+ */
+export function stepTab(ws: Workspace, back: boolean): Workspace {
+  const group = groupById(ws, ws.focused)
+  const tab = group?.tabs[group.active]
+  const trail = (back ? tab?.back : tab?.forward) ?? []
+  if (!group || !tab || trail.length === 0) return ws
+  const to = trail.at(-1)!
+  const rest = trail.slice(0, -1)
+  const found = findTab(ws, tabKey(to))
+  if (found) {
+    const left = withGroup(ws, group.id, (one) => ({
+      ...one,
+      tabs: one.tabs.map((each, at) => (at === one.active ? { ...each, [back ? 'back' : 'forward']: rest } : each)),
+    }))
+    return activateTab(left, found.groupId, found.index)
+  }
+  const step = {
+    ...to,
+    id: ws.nextId,
+    back: back ? rest : [...(tab.back ?? []), pageOf(tab)],
+    forward: back ? [...(tab.forward ?? []), pageOf(tab)] : rest,
+  } as Tab
+  return withGroup({ ...ws, nextId: ws.nextId + 1 }, group.id, (one) => ({ ...one, tabs: one.tabs.map((each, at) => (at === one.active ? step : each)) }))
 }
 
 /** The prefix of every session the app owns, on its own tmux socket. */
@@ -428,12 +472,20 @@ export function resizeSplit(ws: Workspace, splitId: number, ratio: number): Work
  * or PDF keeps its tab. A null answer closes the tab.
  */
 function mapFileTabs(ws: Workspace, fn: (file: VaultFile) => VaultFile | null): Workspace {
+  // A tab's trail follows too: going back to a moved note finds it, and to a deleted one does not try.
+  const follow = (pages: TabRequest[] | undefined): TabRequest[] | undefined =>
+    pages?.flatMap((page): TabRequest[] => {
+      if (page.kind !== 'note' && page.kind !== 'file') return [page]
+      const next = fn(page.file)
+      return next ? [{ ...page, file: next }] : []
+    })
   return settle({
     ...ws,
     layout: mapGroups(ws.layout, (group) => {
       const tabs: Tab[] = []
       let active = group.active
-      group.tabs.forEach((tab, i) => {
+      group.tabs.forEach((was, i) => {
+        const tab = was.back || was.forward ? { ...was, back: follow(was.back), forward: follow(was.forward) } : was
         // Notes and files both follow a rename, and close on a delete.
         if (tab.kind !== 'note' && tab.kind !== 'file') return void tabs.push(tab)
         const next = fn(tab.file)

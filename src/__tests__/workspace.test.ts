@@ -15,6 +15,7 @@ import {
   openTerminal,
   resizeSplit,
   splitGroup,
+  stepTab,
   tabLabel,
   terminalName,
   toggleTab,
@@ -27,6 +28,11 @@ const note = (path: string) => ({
 })
 /** Opened as ⌘-click opens: in a new tab beside the one in front. */
 const beside = (ws: Workspace, request: Parameters<typeof openTab>[1]) => openTab(ws, request, true)
+/** The tab with `label` brought to front in its group. */
+const activateTabByLabel = (ws: Workspace, label: string) => {
+  const group = groups(ws.layout).find((one) => one.tabs.some((tab) => tabLabel(tab) === label))!
+  return { ...ws, focused: group.id, layout: { kind: 'group' as const, group: { ...group, active: group.tabs.findIndex((tab) => tabLabel(tab) === label) } } }
+}
 const labels = (ws: Workspace) => groups(ws.layout).map((group) => group.tabs.map(tabLabel))
 const actives = (ws: Workspace) => groups(ws.layout).map((group) => tabLabel(group.tabs[group.active]))
 
@@ -42,6 +48,37 @@ describe('tabs in one group', () => {
     // A note open elsewhere is gone to, not opened over the one in front.
     ws = openTab(ws, { kind: 'graph' })
     expect([labels(ws), actives(ws)]).toEqual([[['Graph', 'c']], ['Graph']])
+  })
+
+  /** Replaced, a tab remembers what it showed: back and forward walk it, as a browser's page does. */
+  it('goes back to what the tab in front showed, and forward again', () => {
+    let ws = openTab(openTab(openTab(emptyWorkspace(), note('a.md')), note('b.md')), { kind: 'graph' })
+    ws = stepTab(ws, true)
+    expect([labels(ws), activeTab(ws)!.forward?.map((one) => one.kind)]).toEqual([[['b']], ['graph']])
+    ws = stepTab(stepTab(ws, true), true)
+    // Nothing further back: the same workspace.
+    expect(labels(ws)).toEqual([['a']])
+    ws = stepTab(ws, false)
+    expect(labels(ws)).toEqual([['b']])
+    // Opening something new forgets the way forward.
+    ws = openTab(ws, note('c.md'))
+    expect([labels(stepTab(ws, false)), activeTab(ws)!.back?.map((one) => one.kind === 'note' && one.file.name)]).toEqual([[['c']], ['a', 'b']])
+  })
+
+  it('goes to a page open in another tab rather than opening it twice', () => {
+    // `b` in place of `a`, then `a` beside it: back from `b` is the other tab.
+    let ws = beside(openTab(openTab(emptyWorkspace(), note('a.md')), note('b.md')), note('a.md'))
+    ws = stepTab(activateTabByLabel(ws, 'b'), true)
+    expect([labels(ws), actives(ws)]).toEqual([[['b', 'a']], ['a']])
+    expect(groups(ws.layout)[0].tabs[0].back).toEqual([])
+  })
+
+  it('follows a moved note back, and forgets a deleted one', () => {
+    let ws = openTab(openTab(emptyWorkspace(), note('a.md')), note('b.md'))
+    ws = followFileTabs(ws, 'a.md', note('Plans/a.md').file)
+    expect(activeTab(ws)!.back?.map((one) => one.kind === 'note' && one.file.path)).toEqual(['Plans/a.md'])
+    ws = closeNotesUnder(ws, 'Plans')
+    expect(activeTab(ws)!.back).toEqual([])
   })
 
   /** A shell and an unsaved settings file are not put back once replaced, so they stay; a terminal is a tab of its own. */
