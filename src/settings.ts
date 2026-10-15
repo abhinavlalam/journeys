@@ -311,7 +311,8 @@ export const DEFAULT_SETTINGS: Settings = {
   shareTag: 'shared',
   timelineGroup: 'timeline',
   daySections: [
-    { name: 'Log', tags: [] },
+    // A calendar's event is the day's, all-day or timed: the calendar writes it here.
+    { name: 'Log', tags: ['event'] },
     { name: 'Notes', tags: ['task', 'goal'] },
     { name: 'Trackers', tags: ['expense', 'food'] },
   ],

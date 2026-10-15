@@ -514,8 +514,10 @@ owner and the agent.
   its name, small and spaced, and each section's lines with a rule of its own hue at
   the left; no ground, which the owner found ugly), and only in a daily note.
 - **A line goes where its kind says** (`sectionOf`): one carrying a section's tag goes
-  there; else one with a clock, or with a clock under it, goes in the first; else the
-  second. What is nested under a line goes with it. Every line the app writes into a
+  there, whatever its clock (a video watched at 21:30 is a note: the owner keeps the Log
+  for what matters, and lists media tags under Notes); else one with a clock, or with a
+  clock under it, goes in the first; else the second. `#event` is the Log's by default,
+  so an all-day event, with no clock, is the day's too. What is nested under a line goes with it. Every line the app writes into a
   day goes through it: an entry, a task, the phone's +, a share (`withNewEntry`), and a
   calendar event, always in the first (`syncEvents`).
 - **A new day is begun with its sections** (`daySkeleton`, through `ensureDailyNote`),

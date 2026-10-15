@@ -4,8 +4,8 @@ import { daySkeleton, sectioned, sectionOf, spansOf, withInSection, type DaySect
 /** A daily note in sections: the same headings in every day, each line where its kind says. */
 
 const SECTIONS: DaySection[] = [
-  { name: 'Log', tags: [] },
-  { name: 'Notes', tags: ['task', 'goal'] },
+  { name: 'Log', tags: ['event'] },
+  { name: 'Notes', tags: ['task', 'goal', 'youtube'] },
   { name: 'Trackers', tags: ['expense', 'food'] },
 ]
 const NAMES = SECTIONS.map((one) => one.name)
@@ -29,6 +29,10 @@ describe('a day’s sections', () => {
     expect(sectionOf('an idea for the graph', SECTIONS)).toBe(1)
     // A group of timed lines goes where they would.
     expect(sectionOf('#trip', SECTIONS, ['  08:00 the ferry'])).toBe(0)
+    // A tag outranks a clock: a video watched at 21:30 is a note, not the day's log;
+    // and an all-day event is the day's, with no clock.
+    expect(sectionOf('21:30 #youtube a talk on boats', SECTIONS)).toBe(1)
+    expect(sectionOf('#event Offsite', SECTIONS)).toBe(0)
   })
 
   it('begin a new day with their headings', () => {
