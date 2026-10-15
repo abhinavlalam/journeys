@@ -5,6 +5,7 @@
 import { useState, type ReactNode } from 'react'
 import type { Meal } from './calories'
 import { moneyText, type Expense } from './expenses'
+import { localDateStamp, localTimeStamp } from './clock'
 import { countOf, EmptyRow, NoteRow, READING, RowIcon, Section, stepIn } from './rows'
 import type { Tracker } from './trackers'
 import { folderOf, type VaultFile } from './vaultModel'
@@ -162,6 +163,27 @@ export interface FormField {
   /** What it starts as. */
   start?: string
 }
+
+/** The fields an expense is added with, offered what the table already says. */
+export function expenseFields(expenses: readonly Expense[], currency: string): FormField[] {
+  const known = (key: 'category' | 'merchant' | 'account') => [...new Set(expenses.map((one) => one[key]).filter(Boolean))].sort()
+  return [
+    { name: 'amount', label: 'Amount', number: true },
+    { name: 'what', label: 'For' },
+    { name: 'category', label: 'Category', offered: known('category') },
+    { name: 'merchant', label: 'Where', offered: known('merchant') },
+    { name: 'account', label: 'Account', offered: known('account') },
+    { name: 'currency', label: 'Currency', start: currency },
+  ]
+}
+
+export const FOOD_FIELDS: FormField[] = [
+  { name: 'item', label: 'What', needed: true },
+  { name: 'calories', label: 'kcal', number: true },
+]
+
+/** A row added now: today's day and the clock, then what was typed. */
+export const now = (record: Record<string, string>) => ({ day: localDateStamp(), time: localTimeStamp(), ...record })
 
 /**
  * A row typed on the page and added to its table: each field as named, Add written when

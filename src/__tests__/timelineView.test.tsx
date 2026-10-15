@@ -23,7 +23,7 @@ beforeEach(() => {
   resetFakeVault()
   rememberVault('/v')
   disk.write('/v/.config/properties.json', JSON.stringify({ amount: { type: 'number' }, merchant: { type: 'backlink' } }))
-  disk.write('/v/.config/tags.json', JSON.stringify({ expense: { properties: ['amount', 'merchant'] } }))
+  disk.write('/v/.config/tags.json', JSON.stringify({ expense: {} }))
   disk.write('/v/Daily/2026-09-20.md', '08:00 #walk by the river\n')
   disk.write(
     '/v/Daily/2026-09-21.md',
@@ -69,17 +69,14 @@ describe('the timeline', () => {
     const [first, second] = days()
     expect(entries(first)).toEqual([['08:00', '#walk by the river', 'moment']])
     expect(entries(second)).toEqual([
-      ['08:30', '#expenseamount 60', 'moment'],
+      ['08:30', '#expense 60', 'moment'],
       ['08:45', '#food oats', 'moment'],
       ['09:00', 'standup', 'moment'],
-      ['12:30', '#expense lunchamount 480merchant Harbour Bistro', 'moment'],
+      ['12:30', '#expense lunch 480 Harbour Bistro', 'moment'],
       ['13:00–13:5050 min', 'review with Mira Vance', 'block'],
     ])
-    const tiles = [...second.querySelectorAll('.day-total')].map((one) => [
-      one.querySelector('.day-total-number')!.textContent,
-      one.querySelector('.day-total-name')!.textContent,
-    ])
-    expect(tiles).toEqual([['540', 'amount · #expense']])
+    // A day's figures are its trackers' now, not totals of its lines.
+    expect(second.querySelector('.day-total')).toBeNull()
   })
 
   /** As written, a markdown link was its whole address, and a strong phrase kept its asterisks. */
@@ -198,21 +195,11 @@ describe('the timeline', () => {
 
   /** A tag's colour, chosen on its page, marks its entries and its chips. */
   it('marks an entry and its chips with their tags’ colours', async () => {
-    disk.write('/v/.config/tags.json', JSON.stringify({ expense: { properties: ['amount', 'merchant'], color: 'amber' }, food: { color: 'green' } }))
+    disk.write('/v/.config/tags.json', JSON.stringify({ expense: { color: 'amber' }, food: { color: 'green' } }))
     await openTimeline()
     const hues = [...days()[1].querySelectorAll('.timeline-entry')].map((one) => one.getAttribute('data-hue'))
     expect(hues).toEqual(['amber', 'green', null, 'amber', null])
     expect(days()[1].querySelector('.line-tag[data-hue="green"]')!.textContent).toBe('#food')
-    // A total's tile takes its tag's colour too.
-    expect(days()[1].querySelector('.day-total')!.getAttribute('data-hue')).toBe('amber')
-  })
-
-  /** The same totals close the day's note, where they are set to show there too. */
-  it('closes a day’s note with its totals', async () => {
-    await openTimeline()
-    fireEvent.click(days()[1].querySelector('.journal-date')!)
-    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('2026-09-21'))
-    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) > .day-totals')!.textContent).toBe('540amount · #expense'))
   })
 
   /** A day as a calendar draws one: the switch is kept, and a box opens on a press. */

@@ -43,7 +43,7 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 | `MarkdownEditor.tsx`, `SourceEditor.tsx` | A note; and a file that is not one, as its own text: JSON and CSV coloured, a `.conf`, `.yaml` or `.txt` plain (as markdown, every `# comment` was a heading). |
 | `editorCommands.ts`, `editorComplete.ts`, `editorFold.ts`, `editorPreview.ts` | Keys that write syntax, the `[[`, `/` and property popups, folding, decorations. |
 | `FolderTree.tsx`, `rows.tsx`, `SidebarSection.tsx`, `useDrops.ts` | The left pane; `rows.tsx` is the one row shape everything lists with; `useDrops` is what is dropped onto the tree. |
-| `tags.ts`, `properties.ts`, `actionKinds.ts`, `TagView.tsx`, `PropertyView.tsx`, `LineTable.tsx` | Tags and their structures, properties and their types, the Actions pane's kinds, and their pages. |
+| `tags.ts`, `properties.ts`, `actionKinds.ts`, `TagView.tsx`, `PropertyView.tsx`, `LineTable.tsx` | Tags and their colours, properties and their types, the Actions pane's kinds, and their pages. |
 | `prose.ts` | The one rule for what in a note is code (`maskCode`, `proseLines`), for everything that reads a note for meaning, and for a line's indent (`indentOf`). |
 | `configEntries.ts`, `useConfigEntries.ts` | A `.config` file of entries keyed by name (`properties.json`): merged on write, never written over when unreadable, read again on focus with the same text keeping the same entries (new ones rebuilt the graph on every return); `oneOf`, a value read from a file as one of a set. |
 | `calendar.ts`, `ics.ts`, `calendarSync.ts`, `useCalendarSync.ts`, `CalendarView.tsx` | The calendar. |
@@ -214,9 +214,9 @@ the Trackers application (done 2026-10-15); (3) habits as a grid over `habits.cs
 ticked in the app (done); (4) the calendar is drawn from the feeds; (5) the agent's
 organising, and the vault's expense and food lines copied into `Trackers/expenses.csv`
 and `Trackers/calories.csv` (done) and rewritten in plain words; (6) the line machinery for trackers
-goes (typed line properties, tag structures and their tables, daily totals, `#event`
-lines, habits read from tags, the phone's tag forms). Tags stay as plain labels; tasks
-stay as lines. Until (6) the sections below describe what the app still reads. The
+goes (done 2026-10-15: tag structures and their tables, daily totals, habits read from
+tags, the phone's tag forms; the old `#expense` and `#food` lines rewritten in plain
+words). Tags stay as plain labels; tasks and events keep their `key:: value`s. The
 vault's `.config/app.md` (Notes and tables) and `.config/claude.md` say the same to the
 owner and the agent.
 
@@ -348,7 +348,7 @@ owner and the agent.
 - **A folder is open because it is in one set.** Opening a note writes its
   ancestors into it (`reveal`); nothing derives openness from the selection.
 - **`/` groups tags** in the Actions pane (`branches`): `#listening/podcast` is its
-  own tag, page and structure, drawn under a `listening` group keyed in the same
+  own tag and page, drawn under a `listening` group keyed in the same
   set (`branchKey`), which Expand all opens (`headsOf`). A head that is a tag itself
   opens from its name, as a folder opens its note (`GroupRow`'s `onOpen`). A group's
   indent is on its header, never on the `li` holding its list, or every row under
@@ -451,22 +451,13 @@ owner and the agent.
   outside code (`proseLines`, off `maskCode` — the one rule for what is code, which
   the links read too), and folded to lower case (the only folded name). A property
   keeps the first spelling met.
-- **A tag's structure is a list of properties** (`tags.json`, `propertiesOf`), one
-  per row on its page: `+` adds, `×` removes, a row opens the property's page, where
-  its type is. The Actions pane's `+` declares a tag. **Its lines are a list or a
-  table**, switched in the page's header and kept as `view` in its `tags.json`
-  entry (`viewOf`: unchosen, a table for a tag with properties) — the tag's own way
-  of being drawn, which the timeline is to read too, and not the calendar. It was
-  both at once, as two sections, until the owner asked for the choice. A page
-  quoting a line reads it as the note does (`readBlock`: names and quotes left out).
-- **A tag's line is offered its properties** (`propertySource`): all of them after
-  `#tag `, then narrowed as a name is typed, in the structure's order, never inside
-  a value (after `name::`, in an open `[[` or quote), and never one the line
-  already carries.
-- **A table leaves out a line of tags alone** (`tagsOnly`): a group's heading is
-  gathered as a line carrying its tag, and on the `#expense` page it was a row of
-  empty cells. The list keeps it, heading what is nested under it.
-- `LineTable` is read-only (a cell edit is a write through a partial parse), takes
+- **A tag is a label** (2026-10-15, once trackers were tables): its page is its colour
+  and every line carrying it, each read as the note does (`readBlock`: names and
+  quotes left out). The Actions pane's `+` declares one, an entry in `tags.json`, which
+  holds only colours now. A tag's structure of properties, its lines as a table, its
+  daily totals and the popup offering its properties as a line was typed were taken
+  out: what a tracker counts is in its table.
+- `LineTable` (a property's page) is read-only (a cell edit is a write through a partial parse), takes
   its columns and a reader of a line's values, leads with the note, adds `when` and
   `what` (`lineWords`: the line without clock, tags and values; on a prose tag the
   table had amounts and not what they were for), reads every cell by `Live`, as a property's page
@@ -484,8 +475,8 @@ owner and the agent.
   Dedupe is day + clock + title (`eventKey`).
 - **An event's line is `clock #event title name:: value…`** (`eventText`, read back
   by `readEvent`): the title is the words before the first property, so words added
-  after one leave it the same event; the properties are the `#event` structure's,
-  in its order (`EVENT_PROPERTIES` until the vault has one), a value of more than
+  after one leave it the same event; the properties are `EVENT_PROPERTIES`, in that
+  order, a value of more than
   one word quoted (`textProperty`). One over days carries `ends::` and a timed one
   its end's clock: with only its start, a flight from 23:00 to 01:00 was a moment, and
   an offsite over three days was on its first. A feed's all-day end is the day after
@@ -494,8 +485,7 @@ owner and the agent.
   feed, the feed no longer has it, nothing is nested under it, and it is exactly
   its values (`untouched`). An empty name is never a source.
 - `useCalendarSync` runs on vault open, on a new feed, every `calendarMinutes`
-  and on a stale focus. The sync reads `tags.json` at that moment: the pane's
-  copy may not be read yet, and "not read" is not "not declared".
+  and on a stale focus.
 - The fetch is `curl` in Rust, off the main thread, scheme-checked. A body that is
   not a calendar (a Wi-Fi sign-in page) is refused: read as no events, it took
   every synced line back.
@@ -537,9 +527,8 @@ owner and the agent.
 
 - **The daily notes as each day happened**, oldest first and today at the bottom;
   the page opens at its end. The owner writes a day by kind — a line of tags alone
-  heads a group (`#timeline`, `#diet`), its entries nested under it, and a tag with
-  a structure (`#expense`) is a record, one to a line at the top level or in another
-  tag's group — and the timeline reads it by clock across the groups, a tie as written. **An
+  heads a group (`#timeline`, `#diet`), its entries nested under it — and the timeline
+  reads it by clock across the groups, a tie as written. **An
   entry is a line with a clock** (the owner's choice: the timeline is what happened
   when); what is nested under one is its detail, and a line without a clock is
   neither an entry nor a place for one, so what is nested under it reads on its own.
@@ -578,16 +567,6 @@ owner and the agent.
   that opens is a chip in its colour (`line-tag`) on the timeline and a task alike;
   scoped to the timeline, a task's coloured tag was plain text. Not in a day's box,
   already washed in its colour.
-- A tag drawn as a table (`tablesOf`) shows its entry's fields in place of its
-  properties in the sentence (`wordsOf`, `fieldsOf`). **A day's totals are the
-  owner's settings, not rules in the code** (`dayTotalsOf`, `totals` in a tag's
-  `tags.json` entry, set under Daily totals on its page): for each `number` property,
-  how it is combined (`COMBINES`), its label and where it shows (the timeline's card,
-  the day's note, both). Unset, the tag's `number` properties, summed, whatever its
-  view (tied to the table view, switching `#food` to a list took its calories off
-  every day). `totalsOf`
-  reads every line of the day carrying the tag, timed or not, and only plain numbers:
-  a built-in `~` for estimates was taken out as hardcoding the owner's notation.
 - **A tag's colour is its setting** (`color`, one of `TAG_COLOURS`, the palette's
   six hues, which the CSV columns share): an entry takes its first coloured tag's as
   `data-hue`, a wash on its row and its dot, and each chip its own tag's. A timeline is one more memo over the one
@@ -602,11 +581,11 @@ owner and the agent.
   wrote (placed after the last day, it was a second Today). Its editor is typed as a
   note's is, the time key included. Enter files it, Escape clears it, and leaving
   keeps the draft.
-  `withNewEntry` files it as the day is written — under the group its tag heads,
-  else beside its tag's entries, in their group (`#food` under `#diet`) or after the
-  last at the top level, else for a tag with a structure at the day's end at the top
-  level (the vault's records are written there), else the settings' `timelineGroup`
-  (`#timeline` unset), made at the end if missing — indented as the lines beside it are. It is filed as typed: with no clock it is a line of the note,
+  `withNewEntry` files it in its section (see A day's sections), or in a day written
+  before them as the day is written — under the group its tag heads, else beside its
+  tag's entries, in their group (`#food` under `#diet`) or after the last at the top
+  level, else the settings' `timelineGroup` (`#timeline` unset), made at the end if
+  missing — indented as the lines beside it are. It is filed as typed: with no clock it is a line of the note,
   not on the timeline (it was stamped with the time, and the owner asked for it
   not to be). Today's note is made then, with the icon only, as ⌘⇧O makes it.
 
@@ -634,9 +613,8 @@ owner and the agent.
   the line has changed. The box is a note's checkbox, so a task looks the same in both;
   as a button it takes the row's size and leading, or `1lh` is the UA's and it sits high.
 - **A task typed at the top goes into today's note**, filed as a timeline entry is
-  (`withNewEntry`: a tag with a structure is a record at the day's top level). The line
-  is empty, says New task, and has no box; `#task` is added unless typed, and its
-  properties are offered through the line's `tag` (typed in, the tag beside an empty box
+  (`withNewEntry`: in the Notes section, by its tag). The line is empty, says New task,
+  and has no box; `#task` is added unless typed (typed in, the tag beside an empty box
   read as something left on the page). The tag alone is no task.
 
 ## Habits
@@ -753,9 +731,10 @@ owner and the agent.
   there, closing the settings first; it is listened for only while there is
   somewhere to go, so with nowhere Android leaves the app.
 - **The + adds from any page** (`Capture`; the owner preferred it to a capture line
-  under today): a note's line in today; a tag's line from a form of its structure
-  (`tagLine`: clock, tag, words, then each value in the structure's order as its type
-  reads it, `propertyText`); a photo or file kept in `filesFolder` and linked (`keepFile`);
+  under today): a note's line in today, in its section; an expense or a thing eaten as
+  a row of its tracker's table, the Trackers page's own form (`AddForm`), and a habit
+  ticked for today (until 2026-10-15, a tag's line from a form of its structure); a
+  photo or file kept in `filesFolder` and linked (`keepFile`);
   an event in its own day as the calendar writes one (`eventText`, without
   `source::`); or a new note, which opens. A sheet closes once its line is written
   and the page stays; the back gesture closes it. No time is filled in unasked: Now
@@ -913,7 +892,8 @@ owner and the agent.
   `collections.json` (2026-09-28: a tag's structure and typed `::` properties do
   their work, and the vault was migrated), and drawn list bullets, number boxes,
   markdown's list nesting for Tab and the Marker gap setting (2026-09-29: the
-  owner prefers raw list lines).
+  owner prefers raw list lines), and a tag's structure, its table view, daily totals,
+  the property popup and the phone's tag forms (2026-10-15: trackers are tables).
 - **Still open**: at `--fw-prose` 600, `####` and below stop reading as headings;
   folders are not pickable; the graph's Everything repels every pair of nodes each
   step (`stepLayout`, then `spread`), fine at hundreds of notes and slow at

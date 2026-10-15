@@ -214,7 +214,6 @@ function NewTask({ typing, onAdd, ...opens }: { typing: Typing; onAdd: (text: st
         <span className="task-box" aria-hidden />
         <NewLine
           className="task-what line-edit"
-          tag={TASK}
           placeholder="New task"
           typing={typing}
           onAdd={(text) => {

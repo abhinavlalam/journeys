@@ -3528,19 +3528,6 @@ button.folder-toggle {
   background: var(--bg-hover);
 }
 
-/* A table tag's fields, on their own line under the words: the value a
-   step back, its name another. */
-.timeline-fields {
-  display: flex;
-  flex-wrap: wrap;
-  column-gap: 0.75rem;
-  color: var(--text-dim);
-}
-
-.timeline-field-name {
-  color: var(--text-faint);
-}
-
 /* What is nested under an entry, folded to a count: shown whole, a video's
    notes buried the rest of the day. A press opens it, and not the editor. */
 .timeline-more {
@@ -3655,9 +3642,8 @@ button.folder-toggle {
   outline-offset: 2px;
 }
 
-/* A day's totals as tiles: the number large, its label under it. They close a
-   day's card in the timeline, on the words' column, and a day's note, on its
-   text's column. What each totals, how and where is set on its tag's page. */
+/* Figures as tiles: the number large, its label under it, as the Trackers page
+   leads with them (`Tiles`). */
 .day-totals {
   display: flex;
   flex-wrap: wrap;
@@ -3666,10 +3652,6 @@ button.folder-toggle {
   list-style: none;
   font-size: var(--fs-prose);
   line-height: var(--line-height-prose);
-}
-
-.journal-day .day-totals {
-  margin: 0.75rem var(--pane-inset) 0 calc(var(--timeline-when) + var(--timeline-rail) + 1rem);
 }
 
 .viewer > .day-totals {
@@ -3686,11 +3668,6 @@ button.folder-toggle {
   background: color-mix(in srgb, var(--mark) 10%, var(--bg-raised));
 }
 
-/* A tile in its tag's colour, where the tag has one. */
-.day-total[data-hue] {
-  background: color-mix(in srgb, var(--tint) 16%, var(--bg-raised));
-}
-
 .day-total-number {
   font-size: 1.6em;
   line-height: 1.2;
@@ -3701,39 +3678,6 @@ button.folder-toggle {
 
 .day-total-name {
   color: var(--text-dim);
-}
-
-/* A chosen total's settings under its row: how it is combined, what it is
-   called, where it shows, on a line of their own, wrapping on a narrow screen.
-   The row holding them is not a flex line: in one, they took its whole width. */
-.note-row:has(> .total-settings) {
-  display: block;
-}
-
-.total-settings {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  padding-bottom: 0.4rem;
-}
-
-.total-settings select,
-.total-settings input {
-  padding: 0.15rem 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-sidebar);
-  color: var(--text);
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-}
-
-.total-settings input {
-  flex: 1;
-  min-width: 8em;
-  font-size: inherit;
-  line-height: inherit;
 }
 
 /* ---- A day as a grid (the timeline's Day view) ---- */

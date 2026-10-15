@@ -6,9 +6,9 @@
 
 import { daysBetween, leadingClock, minutesOf } from './clock'
 import { dayOf, isDailyNote } from './daily'
-import { blockProperties, endsIn, numberText, readBlock, splitPageProperties, type PropertyType } from './properties'
+import { endsIn, readBlock, splitPageProperties, type PropertyType } from './properties'
 import { indentOf, proseLines } from './prose'
-import { collectTagLines, combine, COMBINE_NAMES, tagNames, tagsOnly, type DayTotal, type TotalPlace } from './tags'
+import { tagNames, tagsOnly } from './tags'
 import type { VaultFile } from './vaultModel'
 import { inSections, sectionOf, spansOf, withInSection, type DaySection } from './daySections'
 
@@ -123,14 +123,14 @@ export function dayEntries(note: VaultFile, raw: string, sections: readonly stri
 }
 
 /**
- * A day's note with a new entry filed in it, and nothing else moved: under the
- * group headed by one of its tags; else beside the entries carrying one, in the
- * group holding them (`#food` under `#diet`) or after the last at the top level
- * (an `#expense`, as the vault writes a record); else, for a tag with a structure,
- * at the day's end at the top level; else under `group` (`settings.timelineGroup`),
- * added at the note's end if missing. In a group it goes after the group's last
- * line, indented like its lines (or `indent` in from the heading). Lines after the
- * first in `text` are its detail, nested `indent` under it.
+ * A day's note with a new entry filed in it, and nothing else moved. A day in its
+ * sections takes it at the end of the section its kind says (`sectionOf`). A day
+ * written before them takes it as it always did: under the group headed by one of
+ * its tags; else beside the entries carrying one, in the group holding them (`#food`
+ * under `#diet`) or after the last at the top level; else under `group`
+ * (`settings.timelineGroup`), added at the note's end if missing. In a group it goes
+ * after the group's last line, indented like its lines (or `indent` in from the
+ * heading). Lines after the first in `text` are its detail, nested `indent` under it.
  */
 export function withNewEntry(
   note: VaultFile,
@@ -140,8 +140,7 @@ export function withNewEntry(
     sections = [],
     indent,
     group: fallback,
-    structured,
-  }: { sections?: readonly DaySection[]; indent: string; group: string; structured: (tag: string) => boolean }
+  }: { sections?: readonly DaySection[]; indent: string; group: string }
 ): string {
   const [first, ...detail] = text.split('\n')
   // A day in sections takes the entry at the end of the section its kind says.
@@ -152,7 +151,7 @@ export function withNewEntry(
   const group =
     groups.find((one) => tags.includes(one.name)) ??
     (carrying?.group ? groups.find((one) => one.name === carrying.group) : undefined) ??
-    (carrying || tags.some(structured) ? undefined : groups.find((one) => one.name === fallback))
+    (carrying ? undefined : groups.find((one) => one.name === fallback))
   const block = (pad: string) => [pad + first, ...detail.map((line) => pad + indent + line)]
   const lines = raw.split('\n')
   if (group) {
@@ -166,7 +165,6 @@ export function withNewEntry(
     lines.splice(runEnd(lines, carrying.at) + 1, 0, ...block(pad))
     return lines.join('\n')
   }
-  if (tags.some(structured)) return `${raw}${raw === '' || raw.endsWith('\n') ? '' : '\n'}${block('').join('\n')}\n`
   const gap = raw === '' || raw.endsWith('\n\n') ? '' : raw.endsWith('\n') ? '\n' : '\n\n'
   return `${raw}${gap}#${fallback}\n${block(indent).join('\n')}\n`
 }
@@ -197,21 +195,13 @@ export function withEditedEntry(raw: string, entry: { at: number; text: string }
 
 /**
  * What an entry says after its clock. Properties read as the note shows them
- * (names and quotes out), or are left out when drawn as fields beside it. Its
- * `ends::` is left out too: where it reaches is said beside its clock.
+ * (names and quotes out). Its `ends::` is left out: where it reaches is said
+ * beside its clock.
  */
-export function wordsOf(entry: TimelineEntry, typeOf: (name: string) => PropertyType, asFields: boolean): string {
+export function wordsOf(entry: TimelineEntry, typeOf: (name: string) => PropertyType): string {
   const after = entry.text.slice(entry.clock.length)
   const ends = endsIn(after)
-  const line = ends ? after.slice(0, ends.from) + after.slice(ends.to) : after
-  if (!asFields) return readBlock(line, typeOf).trim()
-  let out = ''
-  let at = 0
-  for (const one of blockProperties(line, typeOf)) {
-    out += line.slice(at, one.from)
-    at = one.to
-  }
-  return (out + line.slice(at)).replace(/\s+/g, ' ').trim()
+  return readBlock(ends ? after.slice(0, ends.from) + after.slice(ends.to) : after, typeOf).trim()
 }
 
 /** A day as the timeline shows it: a written one, or today, which may have no note yet. */
@@ -264,52 +254,4 @@ export function timelineDays(notes: readonly { note: VaultFile; text: string }[]
     .map(({ note, text }) => ({ day: dayOf(note.path), note, entries: dayEntries(note, text, sections), text }))
     .filter((one) => one.entries.length > 0)
     .sort((a, b) => a.day.localeCompare(b.day))
-}
-
-/**
- * The fields a line shows for a table-view tag: each property of
- * those tags' structures the line has a value for, in the structure's
- * order. `tables` is the structure of every tag drawn as a table.
- */
-export function fieldsOf(
-  text: string,
-  tables: Readonly<Record<string, readonly string[]>>,
-  typeOf: (name: string) => PropertyType
-): { name: string; value: string }[] {
-  const names = [...new Set(tagNames(text).flatMap((tag) => tables[tag] ?? []))]
-  const given = new Map(
-    blockProperties(text, typeOf)
-      .filter((one) => one.valid && one.value)
-      .map((one) => [one.name.toLowerCase(), one.value])
-  )
-  return names.flatMap((name) => {
-    const value = given.get(name.toLowerCase())
-    return value ? [{ name, value }] : []
-  })
-}
-
-/**
- * A day's totals for one place (its card in the timeline, or its note's end): each
- * of a tag's totals (`dayTotalsOf`) over every line of the day carrying the tag,
- * timed or not, combined as set. Over entries alone, an expense written without a
- * time was not counted.
- */
-export function totalsOf(
-  raw: string,
-  totals: Readonly<Record<string, readonly DayTotal[]>>,
-  typeOf: (name: string) => PropertyType,
-  place: Exclude<TotalPlace, 'both'>
-): { key: string; tag: string; value: string; label: string }[] {
-  return Object.entries(totals).flatMap(([tag, chosen]) => {
-    const lines = collectTagLines(raw, tag).map((one) => one.text)
-    return chosen
-      .filter((one) => one.show === 'both' || one.show === place)
-      .flatMap((one) => {
-        const values = lines.flatMap((line) => fieldsOf(line, { [tag]: [one.property] }, typeOf)).map((field) => Number(field.value))
-        const value = combine(values, one.by)
-        if (value === null) return []
-        const named = one.by === 'sum' ? one.property : `${one.property}, ${COMBINE_NAMES[one.by].toLowerCase()}`
-        return [{ key: `${tag} ${one.property} ${one.by}`, tag, value: numberText(value), label: one.label || `${named} · #${tag}` }]
-      })
-  })
 }

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { clockText, lengthOf } from '../clock'
-import { dayEntries, fieldsOf, reachOf, timelineDays, totalsOf, withCarried, withEditedEntry, withNewEntry, wordsOf, type ShownDay } from '../timeline'
-import type { Combine, TotalPlace } from '../tags'
+import { dayEntries, reachOf, timelineDays, withCarried, withEditedEntry, withNewEntry, wordsOf, type ShownDay } from '../timeline'
 import type { PropertyType } from '../properties'
 import { vaultFile as note } from './fakeVault'
 
@@ -86,7 +85,7 @@ describe('an entry over days', () => {
     expect([late.end, trip.end, timed.end]).toEqual([DAY + 7 * 60, 3 * DAY, 2 * DAY + 19 * 60])
     // An `ends::` that is not later is not read.
     expect(wrong.end).toBeNull()
-    expect(wordsOf(trip, text, false)).toBe('#trip Lakeside')
+    expect(wordsOf(trip, text)).toBe('#trip Lakeside')
   })
 
   it('is carried into each later day shown that it reaches, from that day’s start, and says where it reaches', () => {
@@ -144,49 +143,12 @@ describe('the days', () => {
   })
 })
 
-describe('a table tag’s entry', () => {
-  const types: Record<string, PropertyType> = { amount: 'number', merchant: 'backlink' }
-  const typeOf = (name: string) => types[name] ?? 'text'
-  const tables = { expense: ['amount', 'merchant', 'for'] }
-
-  it('shows the fields its structure names, in that order', () => {
-    expect(fieldsOf('12:00 #expense merchant:: [[Harbour Bistro]] amount:: 480 mood:: calm', tables, typeOf)).toEqual([
-      { name: 'amount', value: '480' },
-      { name: 'merchant', value: '[[Harbour Bistro]]' },
-    ])
-    expect(fieldsOf('12:00 #food item:: oats', tables, text)).toEqual([])
-  })
-
-  const total = (property: string, by: Combine = 'sum', show: TotalPlace = 'both', label = '') => ({ property, by, label, show })
-
-  /** An expense written without a time was left out when only entries counted. */
-  it('totals every line of the day carrying the tag, timed or not', () => {
-    const raw = ['08:30 #expense amount:: 60', '#expense parking amount:: 4.5', '    12:00 #expense amount:: 480.5', '13:00 #food amount:: 9'].join('\n')
-    expect(totalsOf(raw, { expense: [total('amount')] }, typeOf, 'timeline')).toEqual([
-      { key: 'expense amount sum', tag: 'expense', value: '545', label: 'amount · #expense' },
-    ])
-    expect(totalsOf(raw, {}, typeOf, 'timeline')).toEqual([])
-  })
-
-  it('combines as set, says how in its label, and shows only where it is set to', () => {
-    const raw = ['#expense amount:: 60', '#expense amount:: 40', '#expense amount:: 5'].join('\n')
-    const shown = (by: Combine) => totalsOf(raw, { expense: [total('amount', by)] }, typeOf, 'note')[0]
-    expect(shown('average')).toMatchObject({ value: '35', label: 'amount, average · #expense' })
-    expect(shown('count')).toMatchObject({ value: '3' })
-    expect(shown('min')).toMatchObject({ value: '5', label: 'amount, lowest · #expense' })
-    expect(shown('max')).toMatchObject({ value: '60' })
-    expect(totalsOf(raw, { expense: [total('amount', 'sum', 'note', 'spent')] }, typeOf, 'note')[0]).toMatchObject({ value: '105', label: 'spent' })
-    expect(totalsOf(raw, { expense: [total('amount', 'sum', 'note')] }, typeOf, 'timeline')).toEqual([])
-  })
-})
-
 describe('how an entry reads', () => {
   const typeOf = (name: string): PropertyType => (name === 'amount' ? 'number' : 'text')
   const [entry] = dayEntries(day, '13:00 to 13:50 #expense lunch amount:: 480 with:: "Mira Vance"')
 
-  it('says its words past the clock, its properties by value or, drawn as fields, not at all', () => {
-    expect(wordsOf(entry, typeOf, false)).toBe('#expense lunch 480 Mira Vance')
-    expect(wordsOf(entry, typeOf, true)).toBe('#expense lunch')
+  it('says its words past the clock, and its properties by value', () => {
+    expect(wordsOf(entry, typeOf)).toBe('#expense lunch 480 Mira Vance')
   })
 
   it('writes a clock the one way, and a block’s length in words', () => {
@@ -226,7 +188,7 @@ describe('filing a new entry', () => {
   const raw = ['#timeline', '     09:00 standup', '', '#expense', '     12:30 #expense lunch amount:: 480', '', '#diet', '     08:45 #food oats', ''].join('\n')
   /** `#expense` and `#food` have a structure, as `tags.json` gives them one. */
   const filed = (text: string, into = raw, group = 'timeline') =>
-    withNewEntry(day, into, text, { indent: '    ', group, structured: (tag) => ['expense', 'food'].includes(tag) })
+    withNewEntry(day, into, text, { indent: '    ', group })
 
   it('goes under the group its tag heads, after the group’s last line, indented as its lines are', () => {
     expect(filed('19:00 #expense dinner')).toBe(raw.replace('amount:: 480\n', 'amount:: 480\n     19:00 #expense dinner\n'))
@@ -260,12 +222,6 @@ describe('filing a new entry', () => {
   it('goes after its tag’s entries at the top level, past what is nested under the last', () => {
     const flat = ['#timeline', '    09:00 standup', '07:13 #expense cab amount:: 12', '    from the ferry', '', '- [ ] post', ''].join('\n')
     expect(filed('19:00 #expense dinner', flat)).toBe(flat.replace('ferry\n', 'ferry\n19:00 #expense dinner\n'))
-  })
-
-  it('puts the first entry of a tag with a structure at the day’s end, at the top level', () => {
-    const plain = ['#timeline', '    09:00 standup', '- [ ] post'].join('\n')
-    expect(filed('12:30 #expense lunch', plain)).toBe(`${plain}\n12:30 #expense lunch\n`)
-    expect(filed('12:30 #expense lunch', '')).toBe('12:30 #expense lunch\n')
   })
 
   /** A shared message is one entry and its detail, not lines of the day of their own. */

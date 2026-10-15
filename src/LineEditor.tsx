@@ -25,8 +25,6 @@ type LineEditorProps = {
   className?: string
   typing: Typing
   autoFocus?: boolean
-  /** The tag the line is filed under without carrying it, for its properties' popup. */
-  tag?: string
   placeholder?: string
   onEnter: (text: string) => void
   onEscape: () => void
@@ -87,7 +85,6 @@ export function LineEditor({
   onEscape,
   onLeave,
   autoFocus,
-  tag,
   placeholder,
   className = 'line-edit',
   onOpenLink,
@@ -114,7 +111,6 @@ export function LineEditor({
           onEnter: (line) => once(() => onEnter(line)),
           onEscape: () => once(onEscape),
           onLeave: onLeave && ((line) => once(() => onLeave(line))),
-          tag,
         }}
       />
     </span>

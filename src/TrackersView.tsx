@@ -1,13 +1,13 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { firstWeekday } from './calendar'
-import { dayDate, daysAfter, localDateStamp, localTimeStamp, monthName, narrowWeekday, shortDate, shortDay, weekdayName } from './clock'
+import { dayDate, daysAfter, localDateStamp, monthName, narrowWeekday, shortDate, shortDay, weekdayName } from './clock'
 import { CALORIE_COLUMNS, readCalories, usualItems, type Meal } from './calories'
 import { balancesOf, EXPENSE_COLUMNS, mainCurrency, monthAfter, monthOf, moneyText, readExpenses, type Expense } from './expenses'
 import { habitDays, readHabits, streakOf, type Habits } from './habits'
 import { ChevronIcon } from './icons'
 import { AddButton, countOf, EmptyRow, NameField, Section, stepIn } from './rows'
 import { TRACKER_VIEWS } from './settings'
-import { AddForm, AmountField, Bars, Box, Columns, Line, TablePicker, Tile, Tiles } from './trackerParts'
+import { AddForm, AmountField, Bars, Box, Columns, expenseFields, FOOD_FIELDS, Line, now, TablePicker, Tile, Tiles } from './trackerParts'
 import { daysBack, perDay, perWeek, weeksBack, type Tracker } from './trackers'
 import { baseName, folderOf, type VaultFile } from './vaultModel'
 import { ViewerHeader, ViewSwitch } from './ViewerHeader'
@@ -222,27 +222,6 @@ export function TrackersView({
     </>
   )
 }
-
-/** The fields an expense is added with, offered what the table already says. */
-function expenseFields(expenses: readonly Expense[], currency: string) {
-  const known = (key: 'category' | 'merchant' | 'account') => [...new Set(expenses.map((one) => one[key]).filter(Boolean))].sort()
-  return [
-    { name: 'amount', label: 'Amount', number: true },
-    { name: 'what', label: 'For' },
-    { name: 'category', label: 'Category', offered: known('category') },
-    { name: 'merchant', label: 'Where', offered: known('merchant') },
-    { name: 'account', label: 'Account', offered: known('account') },
-    { name: 'currency', label: 'Currency', start: currency },
-  ]
-}
-
-const FOOD_FIELDS = [
-  { name: 'item', label: 'What', needed: true },
-  { name: 'calories', label: 'kcal', number: true },
-]
-
-/** A row added now: today's day and the clock, then what was typed. */
-const now = (record: Record<string, string>) => ({ day: localDateStamp(), time: localTimeStamp(), ...record })
 
 /** Today across the trackers: what was spent and eaten against their targets, the habits to tick, and a row added from here. */
 function TodayPage({

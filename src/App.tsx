@@ -10,7 +10,6 @@ import {
   folderIcon,
   keepFile,
   keepShared,
-  readConfigFile,
   readVaultFile,
   vaultFileRef,
   writeNoteProperty,
@@ -38,8 +37,8 @@ import {
   type PropertyType,
 } from './properties'
 import { useConfigEntries } from './useConfigEntries'
-import { keyIn, readEntries } from './configEntries'
-import { coloursOf, dayTotalsOf, propertiesOf, tablesOf, TAG_NAME, TAGS_FILE, viewOf, type DayTotal } from './tags'
+import { keyIn } from './configEntries'
+import { coloursOf, TAG_NAME, TAGS_FILE } from './tags'
 import { withEditedEntry, withNewEntry } from './timeline'
 import { TimelineView } from './TimelineView'
 import { TasksView } from './TasksView'
@@ -48,7 +47,7 @@ import { TrackersView } from './TrackersView'
 import { readHabits, withHabit, withTick } from './habits'
 import { EXPENSE_COLUMNS, mainCurrency, readExpenses } from './expenses'
 import { CALORIE_COLUMNS, readCalories } from './calories'
-import type { TrackedDay } from './trackerParts'
+import { expenseFields, FOOD_FIELDS, type TrackedDay } from './trackerParts'
 import { TRACKERS, withRecord, type Tracker } from './trackers'
 import { daySkeleton } from './daySections'
 
@@ -136,7 +135,6 @@ const LIVE_REFRESH_MS = 250
 const SIDEBAR_WIDTH = { start: 260, min: 180, max: 520 }
 
 /** A daily total as `tags.json` keeps it: a label only when one was given. */
-const writtenTotal = ({ label, ...rest }: DayTotal) => (label ? { ...rest, label } : rest)
 
 export default function App() {
   // Every message goes through `setError`: shown at the bottom
@@ -345,7 +343,6 @@ export default function App() {
   const captureDraft = useRef('')
   const typeOfName = (name: string) => typeOf(propertyTypes.entries, name)
   /** Each tag's daily totals and colour, as set on its page. */
-  const dayTotals = useMemo(() => dayTotalsOf(tagStructures.entries, typeOfName), [tagStructures.entries, propertyTypes.entries])
   /** Every `#task` line, for the Tasks page and its count. */
   const tasks = useMemo(() => {
     const collected = collectTag(TASK)
@@ -384,6 +381,14 @@ export default function App() {
       calorieTarget: settings.calorieTarget,
     })
   }, [trackerTables, settings.calorieTarget])
+  /** The phone's + forms for a row of a tracker's table, as the Trackers page has them; null where there is no table. */
+  const trackerForms = useMemo(() => {
+    const expenses = trackerTables.expenses.text === null ? null : readExpenses(trackerTables.expenses.text).expenses
+    return {
+      expense: expenses && expenseFields(expenses, mainCurrency(expenses)),
+      food: trackerTables.calories.text === null ? null : FOOD_FIELDS,
+    }
+  }, [trackerTables.expenses.text, trackerTables.calories.text])
   /** The habits not ticked today, counted beside Trackers. */
   const habitsLeft = useMemo(() => {
     const text = trackerTables.habits.text
@@ -532,7 +537,7 @@ export default function App() {
         if (tag) setError(`#${tag} is not a tag: a tag is one word, with a letter in it.`)
         return
       }
-      await tagStructures.write(tag, { properties: propertiesOf(tagStructures.entries, tag) })
+      await tagStructures.write(tag, {})
       view('tag', tag)
       return
     }
@@ -645,13 +650,7 @@ export default function App() {
    */
   async function syncCalendar() {
     if (!vault.vaultPath) return
-    const declared = readEntries((await readConfigFile(vault.vaultPath, TAGS_FILE)) ?? '')
-    if (!declared) throw new Error(`${TAGS_FILE} could not be read as JSON, so the calendar was left alone.`)
-    if (!declared[EVENT]) await tagStructures.write(EVENT, { properties: EVENT_PROPERTIES })
-    const format = {
-      properties: declared[EVENT] ? propertiesOf(declared, EVENT) : EVENT_PROPERTIES,
-      typeOf: typeOfName,
-    }
+    const format = { properties: EVENT_PROPERTIES, typeOf: typeOfName }
     const { byDay, sources } = await feedLines(settings.calendarFeeds, localDateStamp(), settings.calendarDays, format.properties)
     await vault.mutate(
       (v) => syncEvents(v, settings.dailyFolder, format, byDay, sources, settings.daySections),
@@ -819,7 +818,6 @@ export default function App() {
           indent: ' '.repeat(settings.indentWidth),
           group: settings.timelineGroup,
           // A tag with a structure is a record, written at the top level of the day.
-          structured: (tag) => propertiesOf(tagStructures.entries, tag).length > 0,
         })
         await writeVaultFile(file, next)
         return { file, created, next }
@@ -1306,7 +1304,6 @@ export default function App() {
                     onRename={(file, name) => void renameNote(file, name)}
                     onLock={(file) => void locks.lockNotes([file.path])}
                     onTyped={typed}
-                    dayTotals={dayTotals}
                     tracked={tracked}
                     onOpenTable={openTable}
                     onColumnTotal={(column, total) =>
@@ -1341,21 +1338,12 @@ export default function App() {
                   <TagView
                     name={tab.name}
                     collected={collectTag(tab.name)}
-                    properties={propertiesOf(tagStructures.entries, tab.name)}
-                    view={viewOf(tagStructures.entries, tab.name)}
-                    onView={(next) => void tagStructures.write(tag, { view: next })}
                     typeOf={typeOfName}
                     icons={icons}
                     loading={reading}
-                    onProperties={(next) => void tagStructures.write(tag, { properties: next })}
-                    totals={dayTotals[tag] ?? []}
-                    onTotals={(next) => void tagStructures.write(tag, { totals: next.map(writtenTotal) })}
                     colour={colours[tag]}
                     onColour={(next) => void tagStructures.write(tag, { color: next })}
-                    onError={setError}
-                    onOpenProperty={(property) => view('property', property)}
                     onOpen={(file) => void openNote(file)}
-                    onOpenLink={openLink}
                   />
                 )
               }
@@ -1363,8 +1351,6 @@ export default function App() {
                 return (
                   <TimelineView
                     days={timeline}
-                    tables={tablesOf(tagStructures.entries)}
-                    totals={dayTotals}
                     colours={colours}
                     typeOf={typeOfName}
                     typing={typing}
@@ -1465,9 +1451,12 @@ export default function App() {
             onAdding={setAdding}
             typing={typing}
             folders={folderPaths}
-            typeOf={typeOfName}
             draft={captureDraft}
             onLine={(day, text) => fileEntry(day, async () => text)}
+            forms={trackerForms}
+            onRow={(tracker, record) => changeTable(settings.trackers[tracker], (text) => withRecord(text, TRACKER_COLUMNS[tracker], record))}
+            habits={tracked(localDateStamp()).habits}
+            onTick={(habit, done) => changeTable(settings.trackers.habits, (text) => withTick(text, localDateStamp(), habit, done))}
             onFiles={fileUploads}
             onPage={makeNote}
             {...opens}

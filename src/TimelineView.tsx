@@ -4,10 +4,9 @@ import { EditLine, NewLine, type Typing } from './LineEditor'
 import type { PropertyType } from './properties'
 import { countOf, EmptyRow, READING, Section, statusCount } from './rows'
 import { ChevronIcon } from './icons'
-import { DayTotals } from './DayTotals'
 import { dayGrid, QUIET_EM } from './dayGrid'
-import { tagNames, type DayTotal } from './tags'
-import { fieldsOf, reachOf, withCarried, wordsOf, type Reach, type ShownDay, type TimelineDay, type TimelineEntry } from './timeline'
+import { tagNames } from './tags'
+import { reachOf, withCarried, wordsOf, type Reach, type ShownDay, type TimelineDay, type TimelineEntry } from './timeline'
 import { TIMELINE_VIEWS, type Settings } from './settings'
 import { ViewerHeader, ViewSwitch } from './ViewerHeader'
 import { Live, type Opens as LineOpens } from './Live'
@@ -21,16 +20,13 @@ type Opens = LineOpens & { onOpen: (file: VaultFile) => void }
  * of a journal, headed by its date, its entries by clock whatever group
  * they are written in. A moment is a dot on the rail; a stretch of time is
  * a bar with its length. What is nested under an entry is folded to a
- * count, and opens on a press. A tag drawn as a table shows its fields,
- * and the day ends with its totals.
+ * count, and opens on a press.
  *
  * A press on an entry edits it, with the note's own editor on one line. A
  * day's date opens its note. A new entry is typed at the bottom of today.
  */
 export function TimelineView({
   days,
-  tables,
-  totals,
   colours,
   typeOf,
   typing,
@@ -42,10 +38,6 @@ export function TimelineView({
 }: {
   /** Null while the vault is still being read. */
   days: TimelineDay[] | null
-  /** Every tag drawn as a table, with its structure (`tablesOf`). */
-  tables: Record<string, string[]>
-  /** Each tag's daily totals (`dayTotalsOf`). */
-  totals: Record<string, DayTotal[]>
   /** Each tag's colour (`coloursOf`): an entry takes its first tag's. */
   colours: Record<string, string>
   typeOf: (name: string) => PropertyType
@@ -102,7 +94,7 @@ export function TimelineView({
       {shown.map(({ note, ...day }) => (
         <section key={day.day} className="journal-day">
           <DayHead day={day.day} today={today} count={day.entries.filter((one) => one.start >= 0).length} onOpen={note ? () => opens.onOpen(note) : undefined} />
-          {view === 'day' && <Grid day={day.day} entries={day.entries} keyOf={keyOf} colours={colours} typeOf={typeOf} tables={tables} {...opens} />}
+          {view === 'day' && <Grid day={day.day} entries={day.entries} keyOf={keyOf} colours={colours} typeOf={typeOf} {...opens} />}
           <ol className="timeline-entries">
             {view === 'list' && day.entries.map((entry, at) => (
               <Fragment key={keyOf(entry)}>
@@ -115,7 +107,6 @@ export function TimelineView({
                   entry={entry}
                   day={day.day}
                   colours={colours}
-                  tables={tables}
                   typeOf={typeOf}
                   editor={editing === keyOf(entry) && editorFor(entry)}
                   onPress={() => setEditing(keyOf(entry))}
@@ -125,7 +116,6 @@ export function TimelineView({
             ))}
             {day.day === today && newEntry}
           </ol>
-          <DayTotals text={day.text} totals={totals} colours={colours} typeOf={typeOf} place="timeline" />
         </section>
       ))}
     </>
@@ -190,7 +180,6 @@ function Grid({
   keyOf,
   colours,
   typeOf,
-  tables,
   ...opens
 }: {
   day: string
@@ -198,7 +187,6 @@ function Grid({
   keyOf: (entry: TimelineEntry) => string
   colours: Record<string, string>
   typeOf: (name: string) => PropertyType
-  tables: Record<string, string[]>
 } & Opens) {
   const [open, setOpen] = useState<string | null>(null)
   const grid = dayGrid(entries)
@@ -206,7 +194,6 @@ function Grid({
   /** A box: its clock, its words, and what is nested under it once pressed open. */
   const box = (entry: TimelineEntry, place: { top: number; height: number; left: string; width: string }, across: boolean) => {
     const key = keyOf(entry)
-    const fields = fieldsOf(entry.text, tables, typeOf)
     return (
       <div
         key={key}
@@ -218,9 +205,9 @@ function Grid({
         style={{ top: `${place.top}em`, minHeight: `${place.height}em`, height: open === key ? undefined : `${place.height}em`, left: place.left, width: place.width }}
         onClick={() => setOpen((was) => (was === key ? null : key))}
       >
-        <span className="day-box-when">{whenText(entry)}</span> <Live text={wordsOf(entry, typeOf, fields.length > 0)} colours={colours} {...opens} />
+        <span className="day-box-when">{whenText(entry)}</span> <Live text={wordsOf(entry, typeOf)} colours={colours} {...opens} />
         {across && <span className="day-across-reach">{reachWords(entry, day)}</span>}
-        {open === key && <Detail lines={[...fields.map((one) => `${one.name} ${one.value}`), ...entry.below]} {...opens} />}
+        {open === key && <Detail lines={entry.below} {...opens} />}
       </div>
     )
   }
@@ -271,14 +258,13 @@ function DayHead({ day, today, count, onOpen }: { day: string; today: string; co
 
 /**
  * One entry: its clock, its mark on the rail, and what it says (or its `editor`
- * while being edited), its fields under it. What is nested under it is a count
+ * while being edited). What is nested under it is a count
  * until pressed open: shown whole, a video's notes buried the rest of the day.
  */
 function Entry({
   entry,
   day,
   colours,
-  tables,
   typeOf,
   editor,
   onPress,
@@ -288,12 +274,10 @@ function Entry({
   /** The day it is shown on, which where a span reaches is named from. */
   day: string
   colours: Record<string, string>
-  tables: Record<string, string[]>
   typeOf: (name: string) => PropertyType
   editor: ReactNode
   onPress: () => void
 } & Opens) {
-  const fields = fieldsOf(entry.text, tables, typeOf)
   const [open, setOpen] = useState(false)
   const detail = entry.below.filter((line) => line.trim() !== '')
   const reach = reachWords(entry, day)
@@ -306,16 +290,7 @@ function Entry({
       <span className="timeline-rail" aria-hidden />
       {editor || (
         <span className="timeline-what">
-          <Live text={wordsOf(entry, typeOf, fields.length > 0)} colours={colours} {...opens} />
-          {fields.length > 0 && (
-            <span className="timeline-fields">
-              {fields.map((one) => (
-                <span key={one.name} className="timeline-field">
-                  <span className="timeline-field-name">{one.name}</span> <Live text={one.value} {...opens} />
-                </span>
-              ))}
-            </span>
-          )}
+          <Live text={wordsOf(entry, typeOf)} colours={colours} {...opens} />
           {detail.length > 0 && (
             <button
               className="timeline-more"

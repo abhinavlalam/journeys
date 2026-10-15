@@ -283,7 +283,7 @@ describe('the + ', () => {
     fireEvent.keyDown(field, { key: 'Enter' })
 
     await waitFor(() =>
-      expect(JSON.parse(disk.read('/v/.config/tags.json')!)).toEqual({ travel: { properties: [] } })
+      expect(JSON.parse(disk.read('/v/.config/tags.json')!)).toEqual({ travel: {} })
     )
     await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe('#travel'))
     // Listed as soon as it is declared, before any note carries it.

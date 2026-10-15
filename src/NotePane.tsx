@@ -17,9 +17,7 @@ import type { VaultFile, VaultFolder } from './vaultModel'
 import type { Settings } from './settings'
 import type { useVaultTexts } from './useVaultTexts'
 import type { Typing } from './LineEditor'
-import { DayTotals } from './DayTotals'
-import { typeOf } from './properties'
-import { coloursOf, type ColumnTotal, type DayTotal } from './tags'
+import type { ColumnTotal } from './tags'
 
 /** A delimited file's two ways of being shown: a table edited in place, or its text. */
 const CSV_VIEWS = ['table', 'text'] as const
@@ -55,8 +53,6 @@ interface NotePaneProps {
   onRename: (file: VaultFile, name: string) => void
   /** Locks a locked note again: its tab closes and its passphrase is forgotten. */
   onLock: (file: VaultFile) => void
-  /** Each tag's daily totals, closing a daily note as they close its day in the timeline. */
-  dayTotals: Readonly<Record<string, readonly DayTotal[]>>
   /** What the trackers' tables hold for a day, ending its daily note. */
   tracked: (day: string) => TrackedDay
   onOpenTable: (tracker: Tracker) => void
@@ -96,7 +92,6 @@ export function NotePane({
   onRename,
   onLock,
   onTyped,
-  dayTotals,
   onColumnTotal,
   tracked,
   onOpenTable,
@@ -274,17 +269,6 @@ export function NotePane({
       {/* What the trackers' tables hold for the day, under its last section, Trackers: what the
           note says and this does not is not in a table yet. */}
       {loaded && isDailyNote(file.path, settings.dailyFolder) && <TrackedSection day={tracked(dayOf(file.path))} onOpenTable={onOpenTable} />}
-      {/* A day's totals at its note's end, from the text as last saved or typed: the
-          pane is drawn again when a save lands, so they follow the typing. */}
-      {loaded && !buffer.unreadable && isDailyNote(file.path, settings.dailyFolder) && (
-        <DayTotals
-          text={liveText.current?.path === file.path ? liveText.current.text : buffer.body}
-          totals={dayTotals}
-          colours={coloursOf(typing.tagStructures)}
-          typeOf={(name) => typeOf(typing.propertyTypes, name)}
-          place="note"
-        />
-      )}
 
       {/* Notes only. A link to a non-`.md` target is external,
           so nothing links to a JSON file. */}

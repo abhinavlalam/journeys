@@ -21,7 +21,7 @@ import {
 } from '@codemirror/autocomplete'
 import { EditorHost } from './EditorHost'
 import { formatKeymap, insertTimeKeymap } from './editorCommands'
-import { propertySource, completionAppearance, slashSource, wikiLinkSource } from './editorComplete'
+import { completionAppearance, slashSource, wikiLinkSource } from './editorComplete'
 import {
   propertyTypes,
   daySectionNames,
@@ -94,7 +94,7 @@ interface MarkdownEditorProps {
    * Escape and leaving are the caller's. An open popup still takes its keys first. `tag`
    * is the one its line is filed under without being typed, for its properties' popup.
    */
-  line?: { onEnter: (text: string) => void; onEscape: () => void; onLeave?: (text: string) => void; tag?: string }
+  line?: { onEnter: (text: string) => void; onEscape: () => void; onLeave?: (text: string) => void }
   /** What an empty editor says. Read at mount. */
   placeholder?: string
   /** Takes the keyboard when it mounts: a line opened by a press does, unless told not to. */
@@ -171,7 +171,6 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
       override: [
         wikiLinkSource(() => latest.current.notes ?? [], () => latest.current.aliases ?? []),
         slashSource(() => latest.current.dailyFolder ?? ''),
-        propertySource(() => latest.current.tagStructures ?? {}, getTypes, () => latest.current.line?.tag),
       ],
     }),
     // Before everything else. The timestamp combo is read on

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { collectTagLines, coloursOf, dayTotalsOf, lineWords, tagAt, tagLine, tagNames } from '../tags'
+import { collectTagLines, coloursOf, tagAt, tagNames } from '../tags'
 
 /**
  * `#word` in a note's prose. Most of this file is what is not a tag (a heading,
@@ -136,76 +136,6 @@ describe('tagAt', () => {
   /** Folded, so pressing `#Travel` opens the same page as the `travel` row. */
   it('folds what a press reads', () => {
     expect(tagAt('went #Travel today', 6)).toBe('travel')
-  })
-})
-
-/** The phone's tag form writes the line the laptop would, and reads back as written. */
-describe('a tag’s line from a form', () => {
-  const types: Record<string, 'number' | 'backlink' | 'text' | 'date'> = { amount: 'number', merchant: 'backlink', note: 'text', on: 'date' }
-  const typeOf = (name: string) => types[name] ?? 'text'
-  const line = (fields: Record<string, string>, clock = '', what = '') =>
-    tagLine('expense', ['amount', 'merchant', 'note', 'on'], { clock, what, fields }, typeOf)
-
-  it('puts the clock, the tag and the words first, then each value in the structure’s order', () => {
-    expect(line({ merchant: 'Harbour Bistro', amount: '24.50' }, '12:30', 'lunch')).toBe(
-      '12:30 #expense lunch amount:: 24.50 merchant:: [[Harbour Bistro]]'
-    )
-  })
-
-  it('writes each value as its type reads it, and leaves out what is empty', () => {
-    expect(line({ merchant: '[[Harbour Bistro]]', note: 'by the water', on: '2026-10-04', amount: ' ' })).toBe(
-      '#expense merchant:: [[Harbour Bistro]] note:: "by the water" on:: 2026-10-04'
-    )
-  })
-})
-
-/** What a tag's table shows as a line's own words: the calendar's reading of an event's title. */
-describe('a line’s own words', () => {
-  const typeOf = (name: string) => (name === 'water' || name === 'amount' ? ('number' as const) : ('text' as const))
-
-  it('leaves out the clock, the tags, the values and a leading list mark', () => {
-    expect(lineWords('08:45 #plant [[Plants/Fern]] water:: 2', typeOf)).toBe('[[Plants/Fern]]')
-    expect(lineWords('09:15 - #youtube [[Tide tables]] link:: https://example.com/tides', typeOf)).toBe('[[Tide tables]]')
-    expect(lineWords('- #task Book the survey: slip 4 due:: 2026-12-20', typeOf)).toBe('Book the survey: slip 4')
-    expect(lineWords('- [ ] #task call the harbour', typeOf)).toBe('call the harbour')
-    expect(lineWords('#quote Without a goal, you can’t score. by:: [[Mira Vance]]', typeOf)).toBe('Without a goal, you can’t score.')
-  })
-
-  it('keeps words written after a value, and is empty on a line that is all values', () => {
-    expect(lineWords('08:40 #expense lunch amount:: 480 at the water', typeOf)).toBe('lunch at the water')
-    expect(lineWords('09:00 #expense amount:: 5', typeOf)).toBe('')
-  })
-})
-
-/** What a day totals, and how, set per tag on its page. */
-describe('a day’s totals', () => {
-  const typeOf = (name: string) => (['amount', 'calories', 'water'].includes(name) ? ('number' as const) : ('text' as const))
-  const sum = (property: string) => ({ property, by: 'sum', label: '', show: 'both' })
-
-  it('are a tag’s number properties, summed, until set, and then exactly what is set', () => {
-    const entries = {
-      expense: { properties: ['amount', 'merchant'] },
-      food: { properties: ['item', 'calories'], totals: [{ property: 'calories', by: 'average', label: 'eaten', show: 'note' }] },
-      plant: { properties: ['water'], view: 'list' },
-      walk: { properties: [] },
-    }
-    // A list is totalled as a table is: how a tag's lines are drawn is not what it adds up.
-    expect(dayTotalsOf(entries, typeOf)).toEqual({
-      expense: [sum('amount')],
-      food: [{ property: 'calories', by: 'average', label: 'eaten', show: 'note' }],
-      plant: [sum('water')],
-    })
-    expect(dayTotalsOf({ expense: { properties: ['amount'], totals: [] } }, typeOf)).toEqual({})
-  })
-
-  it('read a bare name as a sum shown in both places, and an unknown setting as its default', () => {
-    expect(dayTotalsOf({ expense: { totals: ['amount', { property: 'water', by: 'median', show: 'everywhere' }] } }, typeOf)).toEqual({
-      expense: [sum('amount'), sum('water')],
-    })
-  })
-
-  it('leave out a property that is no longer a number', () => {
-    expect(dayTotalsOf({ food: { properties: ['item'], totals: ['item'] } }, typeOf)).toEqual({})
   })
 })
 

@@ -1,21 +1,22 @@
 import { useRef, useState, type MutableRefObject, type ReactNode } from 'react'
 import { EditorView } from '@codemirror/view'
 import { LEADING_CLOCK, localDateStamp, localTimeStamp } from './clock'
-import { EVENT, EVENT_PROPERTIES, eventText, SOURCE } from './calendar'
+import { EVENT_PROPERTIES, eventText, SOURCE } from './calendar'
 import { PlusIcon } from './icons'
 import type { Typing } from './LineEditor'
 import { MarkdownEditor } from './MarkdownEditor'
-import type { PropertyType } from './properties'
-import { NoteRow, RowIcon, stepIn } from './rows'
-import { propertiesOf, tagLine } from './tags'
+import { EmptyRow, NoteRow, RowIcon, stepIn } from './rows'
+import { AddForm, now, type FormField } from './trackerParts'
 
 /** What the phone's + is adding, or its menu. */
-export type Adding = 'menu' | 'note' | 'tags' | { tag: string } | 'file' | 'event' | 'page'
+export type Adding = 'menu' | 'note' | 'expense' | 'food' | 'habit' | 'file' | 'event' | 'page'
 
 /** What the + offers, in its menu's order. */
 const CHOICES = [
-  { step: 'note', icon: 'pen', name: 'Note', hint: 'a line in today' },
-  { step: 'tags', icon: 'tag', name: 'Tag', hint: 'a line of one of your tags' },
+  { step: 'note', icon: 'pen', name: 'Note', hint: 'a line in today, in its section' },
+  { step: 'expense', icon: 'money', name: 'Expense', hint: 'a row in the expenses table' },
+  { step: 'food', icon: 'food', name: 'Something eaten', hint: 'a row in the calories table' },
+  { step: 'habit', icon: 'target', name: 'Habit', hint: 'ticked for today' },
   { step: 'file', icon: 'image', name: 'Photo or file', hint: 'kept in the vault, linked from today' },
   { step: 'event', icon: 'calendar', name: 'Event', hint: 'on its day, in the calendar' },
   { step: 'page', icon: 'page', name: 'New note', hint: 'a page of its own' },
@@ -27,11 +28,17 @@ interface CaptureProps {
   typing: Typing
   /** Every folder, for where a new note goes. */
   folders: string[]
-  typeOf: (name: string) => PropertyType
   /** What is typed in the note's line, kept while the sheet is closed. */
   draft: MutableRefObject<string>
   /** Files a line in a day's note (today's when `day` is absent); says whether it went through. */
   onLine: (day: string | undefined, text: string) => Promise<boolean>
+  /** The trackers' forms: an expense's and a thing eaten's fields, null where the tracker has no table yet. */
+  forms: { expense: readonly FormField[] | null; food: readonly FormField[] | null }
+  /** Adds a row to a tracker's table; says whether it went through. */
+  onRow: (tracker: 'expenses' | 'calories', record: Record<string, string>) => Promise<boolean>
+  /** Today's habits, null with no habits table; and a habit ticked or not. */
+  habits: readonly { name: string; done: boolean }[] | null
+  onTick: (habit: string, done: boolean) => Promise<boolean>
   /** Keeps files in the vault and files a line linking them in today. */
   onFiles: (files: File[], caption: string, clock: string) => Promise<boolean>
   /** Makes a note and opens it. */
@@ -42,16 +49,16 @@ interface CaptureProps {
 
 /**
  * The phone's capture: a + at the bottom right of every page, and a sheet of what it
- * adds. Each choice is a small form that writes one line in the vault's own form
- * (a tag's line in its structure's order, an event as the calendar writes one), so
- * nothing typed on the phone reads differently from what the laptop writes. You stay
- * on the page you were on; the sheet closes once the line is written.
+ * adds. A note's line goes in today, in the section its kind says; an expense or a
+ * thing eaten is a row of its tracker's table, as the Trackers page adds one; a habit
+ * is ticked for today; an event is written as the calendar writes one. Nothing typed on
+ * the phone reads differently from what the laptop writes. You stay on the page you
+ * were on; the sheet closes once it is written.
  */
 export function Capture(props: CaptureProps) {
   const { adding, onAdding } = props
   const done = (went: boolean) => went && onAdding(null)
-  const title =
-    adding === 'menu' ? 'Add' : adding === 'tags' ? 'Tag' : typeof adding === 'object' && adding ? `#${adding.tag}` : CHOICES.find((one) => one.step === adding)?.name
+  const title = adding === 'menu' ? 'Add' : CHOICES.find((one) => one.step === adding)?.name
   return (
     <>
       {adding === null && (
@@ -82,28 +89,25 @@ export function Capture(props: CaptureProps) {
                 ))}
               </ul>
             )}
-            {adding === 'tags' && (
-              <ul className="file-list capture-list">
-                {Object.keys(props.typing.tagStructures)
-                  .filter((tag) => tag !== EVENT)
-                  .sort()
-                  .map((tag) => (
-                    <li key={tag} className="note-row" style={{ paddingLeft: stepIn(1) }}>
-                      <NoteRow
-                        icon={<RowIcon icon="tag" />}
-                        name={`#${tag}`}
-                        trailing={<span className="row-count">{propertiesOf(props.typing.tagStructures, tag).join(', ')}</span>}
-                        onClick={() => onAdding({ tag })}
-                      />
-                    </li>
-                  ))}
-              </ul>
-            )}
             {adding === 'note' && <NoteForm {...props} onLine={(text) => props.onLine(undefined, text).then(done)} />}
-            {typeof adding === 'object' && adding && (
-              <TagForm {...props} tag={adding.tag} onLine={(text) => props.onLine(undefined, text).then(done)} />
+            {adding === 'expense' && (
+              <TrackerForm
+                label="An expense"
+                fields={props.forms.expense}
+                table="expenses"
+                onAdd={(record) => props.onRow('expenses', now(record)).then(done)}
+              />
             )}
-            {adding === 'event' && <EventForm {...props} onLine={(day, text) => props.onLine(day, text).then(done)} />}
+            {adding === 'food' && (
+              <TrackerForm
+                label="Something eaten"
+                fields={props.forms.food}
+                table="calories"
+                onAdd={(record) => props.onRow('calories', now(record)).then(done)}
+              />
+            )}
+            {adding === 'habit' && <HabitTicks habits={props.habits} onTick={props.onTick} />}
+            {adding === 'event' && <EventForm onLine={(day, text) => props.onLine(day, text).then(done)} />}
             {adding === 'file' && <FileForm onFiles={(files, caption, clock) => props.onFiles(files, caption, clock).then(done)} />}
             {adding === 'page' && <PageForm folders={props.folders} onPage={(folder, name) => props.onPage(folder, name).then(done)} />}
           </div>
@@ -196,60 +200,61 @@ function NoteForm({ draft, typing, onOpenLink, onOpenTag, onLine }: Omit<Capture
   )
 }
 
-/** A control for a property's value, by its type: a number keypad, a date picker, a note's name from `list`. */
-function ValueInput({ type, value, onChange, list }: { type: PropertyType; value: string; onChange: (value: string) => void; list?: string }) {
-  const common = { value, onChange: (event: { currentTarget: HTMLInputElement }) => onChange(event.currentTarget.value) }
-  if (type === 'number') return <input {...common} type="text" inputMode="decimal" />
-  if (type === 'date') return <input {...common} type="date" />
-  if (type === 'url') return <input {...common} type="url" />
-  return <input {...common} type="text" list={type === 'backlink' ? list : undefined} autoCapitalize="off" />
+/** A tracker's row, the Trackers page's own form; a tracker with no table says where to make one. */
+function TrackerForm({
+  label,
+  fields,
+  table,
+  onAdd,
+}: {
+  label: string
+  fields: readonly FormField[] | null
+  table: string
+  onAdd: (record: Record<string, string>) => unknown
+}) {
+  if (!fields)
+    return (
+      <ul className="file-list capture-list">
+        <EmptyRow text={`No ${table} table yet: Trackers asks for one.`} />
+      </ul>
+    )
+  return <AddForm label={label} fields={fields} onAdd={onAdd} />
 }
 
-/** The notes' names and other names, for a backlink's suggestions. */
-function NoteNames({ id, typing }: { id: string; typing: Typing }) {
+/** Today's habits, each pressed to tick it or take the tick back; the sheet stays, for the next. */
+function HabitTicks({ habits, onTick }: { habits: readonly { name: string; done: boolean }[] | null; onTick: (habit: string, done: boolean) => unknown }) {
+  if (!habits?.length)
+    return (
+      <ul className="file-list capture-list">
+        <EmptyRow text={habits ? 'No habits yet: Trackers → Habits adds one.' : 'No habits table yet: Trackers asks for one.'} />
+      </ul>
+    )
   return (
-    <datalist id={id}>
-      {[...new Set([...typing.notes.map((one) => one.name), ...typing.aliases.map((one) => one.name)])].map((name) => (
-        <option key={name} value={name} />
+    <div className="tracker-ticks capture-ticks">
+      {habits.map((one) => (
+        <button key={one.name} className="tracker-tick" aria-pressed={one.done} onClick={() => onTick(one.name, !one.done)}>
+          {one.name}
+        </button>
       ))}
-    </datalist>
-  )
-}
-
-/** One of the vault's tags as a form: its words and each property of its structure. */
-function TagForm({ tag, typing, typeOf, onLine }: Omit<CaptureProps, 'onLine'> & { tag: string; onLine: (text: string) => Promise<unknown> }) {
-  const properties = propertiesOf(typing.tagStructures, tag)
-  const [clock, setClock] = useState('')
-  const [what, setWhat] = useState('')
-  const [fields, setFields] = useState<Record<string, string>>({})
-  return (
-    <form className="capture-form" onSubmit={(event) => (event.preventDefault(), void onLine(tagLine(tag, properties, { clock, what, fields }, typeOf)))}>
-      <NoteNames id="capture-notes" typing={typing} />
-      <When value={clock} onChange={setClock} />
-      <Field name="What">
-        <input type="text" value={what} onChange={(event) => setWhat(event.currentTarget.value)} autoFocus />
-      </Field>
-      {properties.map((name) => (
-        <Field key={name} name={name}>
-          <ValueInput type={typeOf(name)} value={fields[name] ?? ''} onChange={(value) => setFields((was) => ({ ...was, [name]: value }))} list="capture-notes" />
-        </Field>
-      ))}
-      <Submit>Add</Submit>
-    </form>
+    </div>
   )
 }
 
 /** An event, written into its day's note as the calendar writes one, so the calendar shows it. */
-function EventForm({ typing, onLine }: Omit<CaptureProps, 'onLine'> & { onLine: (day: string, text: string) => Promise<unknown> }) {
-  const declared = propertiesOf(typing.tagStructures, EVENT)
-  const properties = (declared.length > 0 ? declared : EVENT_PROPERTIES).filter((name) => name.toLowerCase() !== SOURCE)
+function EventForm({ onLine }: { onLine: (day: string, text: string) => Promise<unknown> }) {
+  const properties = EVENT_PROPERTIES.filter((name) => name.toLowerCase() !== SOURCE)
   const [what, setWhat] = useState('')
   const [day, setDay] = useState(localDateStamp())
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [fields, setFields] = useState<Record<string, string>>({})
   const clock = from && to ? `${from} to ${to}` : from
-  const line = () => eventText(properties, { clock, what: what.trim(), fields: Object.fromEntries(Object.entries(fields).map(([name, value]) => [name.toLowerCase(), value.trim()])) })
+  const line = () =>
+    eventText(properties, {
+      clock,
+      what: what.trim(),
+      fields: Object.fromEntries(Object.entries(fields).map(([name, value]) => [name.toLowerCase(), value.trim()])),
+    })
   return (
     <form className="capture-form" onSubmit={(event) => (event.preventDefault(), what.trim() && void onLine(day, line()))}>
       <Field name="What">
@@ -266,7 +271,15 @@ function EventForm({ typing, onLine }: Omit<CaptureProps, 'onLine'> & { onLine: 
       </Field>
       {properties.map((name) => (
         <Field key={name} name={name}>
-          <ValueInput type="text" value={fields[name] ?? ''} onChange={(value) => setFields((was) => ({ ...was, [name]: value }))} />
+          <input
+            type="text"
+            autoCapitalize="off"
+            value={fields[name] ?? ''}
+            onChange={(event) => {
+              const value = event.currentTarget.value
+              setFields((was) => ({ ...was, [name]: value }))
+            }}
+          />
         </Field>
       ))}
       <Submit>Add</Submit>

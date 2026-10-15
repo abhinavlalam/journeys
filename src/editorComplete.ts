@@ -7,9 +7,6 @@ import type { Completion, CompletionContext, CompletionResult } from '@codemirro
 import { localDateStamp, localTimeStamp } from './clock'
 import { matchNotes, type Alias } from './links'
 import { knownPath, noteName } from './vaultModel'
-import { blockProperties, PROPERTY_NAME, typeOf } from './properties'
-import { propertiesOf, TAG, tagNames } from './tags'
-import type { Entries } from './configEntries'
 import type { VaultFile } from './vaultModel'
 
 /** The block commands `/` offers, and the markdown each writes. */
@@ -117,38 +114,6 @@ export function wikiLinkSource(getNotes: () => VaultFile[], getAliases: () => re
       filter: false,
       options,
     }
-  }
-}
-
-/**
- * A tag's properties, offered on its line: all of them once `#expense `
- * is typed, then narrowed as a name is typed. Tab writes `currency:: `.
- * Only those the line does not have yet, and never inside a value
- * (after `name::`, or in quotes). The detail is the property's type. `getImplied` is
- * the tag a line is written under without carrying it (a new task's).
- */
-const TYPING_NAME = new RegExp(`${PROPERTY_NAME}$`)
-const AFTER_TAG = new RegExp(String.raw`${TAG.source}\s$`)
-
-export function propertySource(getTags: () => Entries, getTypes: () => Entries, getImplied: () => string | undefined) {
-  return (context: CompletionContext): CompletionResult | null => {
-    const line = context.state.doc.lineAt(context.pos)
-    const before = line.text.slice(0, context.pos - line.from)
-    const typed = TYPING_NAME.exec(before)?.[0] ?? ''
-    const lead = before.slice(0, before.length - typed.length)
-    // A name starts after a space, and not in a value: right after `name::`, or
-    // inside an open `[[` or quote. With nothing typed, only right after the tag.
-    const inValue = /::\s*$|\[\[[^\]]*$/.test(lead) || (lead.match(/["“”]/g) ?? []).length % 2 === 1
-    if (!/\s$/.test(lead) || inValue || (!typed && !AFTER_TAG.test(before))) return null
-    const typeOfName = (name: string) => typeOf(getTypes(), name)
-    const carried = new Set(blockProperties(line.text, typeOfName).map((one) => one.name.toLowerCase()))
-    const tags = [getImplied(), ...tagNames(before)].filter((tag): tag is string => !!tag)
-    const names = [...new Set(tags.flatMap((tag) => propertiesOf(getTags(), tag)))]
-    const options: Completion[] = names
-      .filter((name) => !carried.has(name.toLowerCase()))
-      // `boost` keeps the structure's order: CodeMirror sorts a tie by label.
-      .map((name, at) => ({ label: name, type: 'property', detail: typeOfName(name), apply: `${name}:: `, boost: -at }))
-    return options.length ? { from: context.pos - typed.length, options, validFor: /^[\w-]*$/ } : null
   }
 }
 

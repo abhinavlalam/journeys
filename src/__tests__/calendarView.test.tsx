@@ -89,7 +89,7 @@ describe('the calendar', () => {
   })
 
   /** Nobody presses anything: opening the vault reads the calendar. */
-  it('syncs a feed into the daily notes on its own, once, and declares the tag', async () => {
+  it('syncs a feed into the daily notes on its own, once', async () => {
     await openCalendar()
     await waitFor(() => expect(disk.has(`/v/Daily/${tomorrow}.md`)).toBe(true))
     expect(fetched).toHaveBeenCalledWith('https://calendar.example/ical/abc/basic.ics')
@@ -98,9 +98,6 @@ describe('the calendar', () => {
     expect(disk.read(`/v/Daily/${tomorrow}.md`)).toBe(
       logged(['#event Offsite at:: Goa source:: Work', '09:30 to 10:00 #event Standup with:: "Mira Vance" source:: Work'])
     )
-    const tags = JSON.parse(disk.read('/v/.config/tags.json')!)
-    expect(tags.event.properties).toEqual(['with', 'at', 'source', 'repeats', 'reminder'])
-
     // On the page: the all-day event first on its day, the source beside each.
     await waitFor(() => expect(rows().filter((row) => row?.includes('Standup'))).toHaveLength(2))
     // `source::` is the name the feed was given in settings, not the feed's own.
@@ -113,23 +110,6 @@ describe('the calendar', () => {
     await waitFor(() => expect(fetched.mock.calls.length).toBe(before + 1))
     await waitFor(() => expect(viewer().getByText('Sync')).toHaveProperty('disabled', false))
     expect(disk.read(`/v/Daily/${today}.md`)!.split('#event')).toHaveLength(2)
-  })
-
-  /** The vault's structure as written: reordered, or with a property removed. */
-  it('writes the properties the vault’s structure lists, in its order', async () => {
-    disk.write('/v/.config/tags.json', JSON.stringify({ event: { properties: ['source', 'with'] } }))
-    await openCalendar()
-    await waitFor(() => expect(disk.has(`/v/Daily/${tomorrow}.md`)).toBe(true))
-    expect(disk.read(`/v/Daily/${tomorrow}.md`)).toBe(logged(['#event Offsite source:: Work', '09:30 to 10:00 #event Standup source:: Work with:: "Mira Vance"']))
-  })
-
-  it('leaves the notes alone when the tags file cannot be read as JSON', async () => {
-    disk.write('/v/.config/tags.json', '{ not json')
-    await openCalendar()
-    fireEvent.click(viewer().getByText('Sync'))
-    await waitFor(() => expect(screen.getByText(/tags\.json could not be read as JSON/)).toBeTruthy())
-    expect(disk.has(`/v/Daily/${tomorrow}.md`)).toBe(false)
-    expect(disk.read('/v/.config/tags.json')).toBe('{ not json')
   })
 
   it('appends to a day that was already written, under what is there', async () => {

@@ -168,8 +168,8 @@ describe('a config file that cannot be read', () => {
     expect(disk.read(CONFIG)).toBe(mine)
   })
 
-  it('is said, and tags.json keeps every structure', async () => {
-    const declared = JSON.stringify({ expense: { properties: ['amount'] } })
+  it('is said, and tags.json is not written over', async () => {
+    const declared = JSON.stringify({ expense: { color: 'green' } })
     disk.write(TAGS, declared)
     disk.corrupt(TAGS)
     disk.write(
@@ -179,9 +179,6 @@ describe('a config file that cannot be read', () => {
     await openApp()
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('tags.json'))
     expect(disk.read(TAGS)).toBe(declared)
-    // Nor is the calendar synced under a structure it could not read.
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    expect(fetched).not.toHaveBeenCalled()
   })
 })
 

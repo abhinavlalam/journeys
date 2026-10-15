@@ -40,7 +40,6 @@ beforeEach(() => {
   shared.waiting = []
   shared.called = []
   back.press = null
-  disk.write('/v/.config/tags.json', JSON.stringify({ expense: { properties: ['amount', 'merchant'] }, walk: { properties: [] } }))
   disk.write('/v/.config/properties.json', JSON.stringify({ amount: { type: 'number' }, merchant: { type: 'backlink' } }))
 })
 
@@ -106,20 +105,24 @@ describe('the phone', () => {
   })
 
   /** A tag's line in its structure's order, each value as its type reads it. */
-  it('writes a tag’s line from its form', async () => {
+  /** A tracker's row from the + as the Trackers page adds one, stamped now; the sheet closes once it is written. */
+  it('adds an expense as a row of its table, and ticks a habit for today', async () => {
+    disk.write('/v/Trackers/spend.csv', 'day,time,amount,currency,for\n')
+    disk.write('/v/Trackers/habits.csv', 'day,water\n')
+    disk.write('/v/.config/settings.json', JSON.stringify({ trackers: { expenses: 'Trackers/spend.csv', habits: 'Trackers/habits.csv' } }))
     await openApp()
-    await add('Tag')
-    expect(sheet().queryByText('#event')).toBeNull()
-    fireEvent.click(sheet().getByText('#expense'))
-    fill('What', 'lunch by the water')
-    fill('merchant', 'Harbour Bistro')
-    fill('amount', '24.50')
-    fireEvent.click(sheet().getByRole('button', { name: 'Now' }))
-    fireEvent.click(sheet().getByRole('button', { name: 'Add' }))
-    // A tag with a structure is a record, at the top level of the day.
-    await waitFor(() =>
-      expect(disk.read(today())).toBe(sectionedDay({ trackers: [`${localTimeStamp()} #expense lunch by the water amount:: 24.50 merchant:: [[Harbour Bistro]]`] }))
-    )
+    await add('Expense')
+    const form = within(sheet().getByRole('form', { name: 'An expense' }))
+    fireEvent.change(form.getByLabelText('Amount'), { target: { value: '24.50' } })
+    fireEvent.change(form.getByLabelText('For'), { target: { value: 'lunch by the water' } })
+    fireEvent.click(form.getByRole('button', { name: 'Add' }))
+    await waitFor(() => expect(disk.read('/v/Trackers/spend.csv')).toMatch(new RegExp(`\\n${localDateStamp()},\\d\\d:\\d\\d,24\\.50,,lunch by the water\\n$`)))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    // Nothing written into the day's note for it: the table holds it.
+    expect(disk.read(today())).toBeUndefined()
+    await add('Habit')
+    fireEvent.click(sheet().getByRole('button', { name: 'water' }))
+    await waitFor(() => expect(disk.read('/v/Trackers/habits.csv')).toBe(`day,water\n${localDateStamp()},1\n`))
   })
 
   it('writes an event into its own day, as the calendar writes one', async () => {

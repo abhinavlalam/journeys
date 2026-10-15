@@ -3,8 +3,6 @@
 
 import { indentOf, proseLines } from './prose'
 import { oneOf, type Entries } from './configEntries'
-import { leadingClock } from './clock'
-import { blockProperties, propertyText, type PropertyType } from './properties'
 
 /**
  * A tag is `#` and a word:
@@ -40,42 +38,6 @@ export function tagNames(raw: string): string[] {
  * table it was a row of empty cells.
  */
 export const tagsOnly = (line: string) => line.trim() !== '' && line.replace(TAG, '').trim() === ''
-
-/**
- * A tag's line from a form: the clock, the tag, the words, then each property of its
- * structure that has a value, in the structure's order and as its type reads it.
- */
-export function tagLine(
-  tag: string,
-  properties: readonly string[],
-  { clock, what, fields }: { clock: string; what: string; fields: Record<string, string> },
-  typeOf: (name: string) => PropertyType
-): string {
-  const carried = properties.filter((name) => fields[name]?.trim())
-  return [clock, `#${tag}`, what.trim(), ...carried.map((name) => propertyText(name, fields[name].trim(), typeOf(name)))]
-    .filter(Boolean)
-    .join(' ')
-}
-
-/**
- * A line's own words, for a tag's table: the line without its clock, its tags, its
- * `name:: value`s and a leading list mark, as the calendar reads an event's title.
- * Without them, a tag of measured things listed its amounts and not what they were
- * for, and `#task` its due dates and not the task. A line that is all properties has none.
- */
-export function lineWords(line: string, typeOf: (name: string) => PropertyType): string {
-  let words = ''
-  let at = leadingClock(line)?.length ?? 0
-  for (const one of blockProperties(line, typeOf)) {
-    words += line.slice(at, one.from)
-    at = one.to
-  }
-  return (words + line.slice(at))
-    .replace(TAG, '$1')
-    .replace(/^\s*(?:[-*+–—]\s+)?(?:\[.\]\s+)?/, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
 
 /** A gathered line: an entry, and what is written under it. */
 export interface CollectedLine {
@@ -145,35 +107,11 @@ export function tagAt(line: string, offset: number): string | null {
 }
 
 /**
- * A tag's structure: the properties its lines carry, kept in
- * `.config/tags.json` by folded name, like `{ "expense": { "properties":
- * ["amount", "merchant"] } }`. Each property's type is set on its own page.
+ * What the app keeps about a tag, in `.config/tags.json` by folded name: its colour
+ * (`{ "expense": { "color": "green" } }`). Until 2026-10-15 a tag also had a structure
+ * of properties, a view and daily totals; a tracker's table does that work now.
  */
 export const TAGS_FILE = 'tags.json'
-
-/**
- * How a tag's page and the timeline draw its lines: as sentences,
- * or as a table of their values. Kept in the tag's entry.
- */
-export const LINE_VIEWS = ['list', 'table'] as const
-export type LineView = (typeof LINE_VIEWS)[number]
-
-/** The tag's chosen view. Unchosen: a table for a tag with properties, else a list. */
-export function viewOf(entries: Entries, tag: string): LineView {
-  const chosen = entries[tag.toLowerCase()]?.view
-  return oneOf(LINE_VIEWS, chosen) ?? (propertiesOf(entries, tag).length > 0 ? 'table' : 'list')
-}
-
-/**
- * Every tag drawn as a table, with its structure: what a table entry shows as fields.
- */
-export function tablesOf(entries: Entries): Record<string, string[]> {
-  return Object.fromEntries(
-    Object.keys(entries)
-      .filter((tag) => viewOf(entries, tag) === 'table')
-      .map((tag) => [tag.toLowerCase(), propertiesOf(entries, tag)])
-  )
-}
 
 /**
  * The colours a tag can take, the palette's six hues (`--hue-*`), so each follows
@@ -192,7 +130,7 @@ export function coloursOf(entries: Entries): Record<string, TagColour> {
   )
 }
 
-/** How a day's values of a property become one number. */
+/** How a column of numbers becomes one: a table's total under it (`CsvTable`). */
 export const COMBINES = ['sum', 'average', 'count', 'min', 'max'] as const
 export type Combine = (typeof COMBINES)[number]
 /** How each way of combining is named: in its menu, and in a total's label. */
@@ -212,50 +150,3 @@ export function combine(values: readonly number[], by: Combine): number | null {
   return by === 'average' ? sum / values.length : sum
 }
 
-/** Where a day's total shows: the day's card in the timeline, the end of its note, or both. */
-export const TOTAL_PLACES = ['both', 'timeline', 'note'] as const
-export type TotalPlace = (typeof TOTAL_PLACES)[number]
-
-/** One of a tag's daily totals: a property, how it is combined, what it is called, where it shows. */
-export interface DayTotal {
-  property: string
-  by: Combine
-  /** What the tile says under the number; empty is the property and the tag. */
-  label: string
-  show: TotalPlace
-}
-
-/**
- * Each tag's daily totals: `totals` in its `tags.json` entry, set on its page, each a
- * property and how it is combined, labelled and shown. Unset, the tag's `number`
- * properties, summed, however its lines are drawn: tied to the table view, switching
- * `#food` to a list took its calories off every day. A property no longer a `number`
- * drops out. Nothing is read from
- * a value but its digits: what a value means is the owner's to say here.
- */
-export function dayTotalsOf(entries: Entries, typeOf: (name: string) => PropertyType): Record<string, DayTotal[]> {
-  return Object.fromEntries(
-    Object.keys(entries).flatMap((tag) => {
-      const chosen = entries[tag]?.totals
-      const listed: unknown[] = Array.isArray(chosen) ? chosen : propertiesOf(entries, tag)
-      const totals = listed.flatMap((one): DayTotal[] => {
-        const given = typeof one === 'string' ? { property: one } : one && typeof one === 'object' ? (one as Record<string, unknown>) : {}
-        const property = typeof given.property === 'string' ? given.property : ''
-        if (!property || typeOf(property) !== 'number') return []
-        return [{
-          property,
-          by: oneOf(COMBINES, given.by) ?? 'sum',
-          label: typeof given.label === 'string' ? given.label : '',
-          show: oneOf(TOTAL_PLACES, given.show) ?? 'both',
-        }]
-      })
-      return totals.length > 0 ? [[tag.toLowerCase(), totals]] : []
-    })
-  )
-}
-
-/** The properties a tag's structure names, in order. */
-export function propertiesOf(entries: Entries, tag: string): string[] {
-  const listed = entries[tag.toLowerCase()]?.properties
-  return Array.isArray(listed) ? listed.filter((one): one is string => typeof one === 'string') : []
-}
