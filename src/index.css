@@ -3241,6 +3241,11 @@ button.folder-toggle {
   font-weight: var(--fw-strong);
 }
 
+/* An open form takes the chips' line to itself, its Cancel beside its Add. */
+.tracker-adder {
+  flex-basis: 100%;
+}
+
 /* A row typed on the page: its fields in a line that wraps, each its label over it. */
 .tracker-form {
   display: flex;
@@ -5241,6 +5246,21 @@ button.task-box:hover {
   font-size: var(--fs-chrome);
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+/* What the tables hold for the day, under the note: the last section, Trackers, goes
+   on into it, its rule at the editor's line edge (past the gutter). */
+.note-section.day-tracked {
+  position: relative;
+}
+
+.note-section.day-tracked::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--gutter-w);
+  border-left: 2px solid color-mix(in srgb, var(--hue-green) 55%, transparent);
 }
 
 .markdown-editor .cm-day-heading .cm-md-h2 {

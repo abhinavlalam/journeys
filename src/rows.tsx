@@ -239,9 +239,12 @@ export function Section({
   startOpen,
   onOpen,
   actions,
+  className,
   children,
 }: {
   title: string
+  /** A look of its own, beside the section's. */
+  className?: string
   /** How many it holds, beside the title; none for a section that holds a form. */
   count?: number
   startOpen: boolean
@@ -258,7 +261,7 @@ export function Section({
 }) {
   const [open, setOpen] = useState(startOpen)
   return (
-    <section className="note-section">
+    <section className={className ? `note-section ${className}` : 'note-section'}>
       <GroupRow
         name={title}
         open={open}

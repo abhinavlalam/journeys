@@ -47,7 +47,7 @@ import { TrackersView } from './TrackersView'
 import { readHabits, withHabit, withTick } from './habits'
 import { EXPENSE_COLUMNS, mainCurrency, readExpenses } from './expenses'
 import { CALORIE_COLUMNS, readCalories } from './calories'
-import { expenseFields, FOOD_FIELDS, type TrackedDay } from './trackerParts'
+import { expenseFields, figuresOf, FOOD_FIELDS, type TrackedDay } from './trackerParts'
 import { TRACKERS, withRecord, type Tracker } from './trackers'
 import { daySkeleton } from './daySections'
 
@@ -1351,6 +1351,7 @@ export default function App() {
                 return (
                   <TimelineView
                     days={timeline}
+                    figures={(day) => figuresOf(tracked(day))}
                     colours={colours}
                     typeOf={typeOfName}
                     typing={typing}

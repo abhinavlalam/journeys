@@ -186,7 +186,8 @@ shows. A page writes a row at a time through `changeTable` (`withRecord`, `withT
 `withHabit`), as every write goes: the queued typing first, then the open tab told.
 - **Today**: spent today and this month against the budget, kcal against the target,
   the habits ticked, each a tile with its meter; the habits to tick; an expense and
-  something eaten added, stamped now, and the usual things eaten offered again.
+  something eaten added, stamped now, each form folded behind its chip (`Adder`: two
+  open at once took the page), and the usual things eaten offered again.
 - **Expenses**: a month at a glance, stepped back and on: spent against the budget and
   the month before over the same days (twelve days set against a whole month read as
   spending less, every month), a day's average and the count; the categories as bars,
@@ -520,8 +521,8 @@ owner and the agent.
 - **The timeline reads a day's first section alone**, its log: what is planned, spent
   and eaten are in the others. A day written before the sections is read whole.
 - **The Trackers section ends with what the tables hold** (`TrackedSection`, drawn
-  under the note, after its last section), so what was written sits over what was
-  processed.
+  under the note, after its last section, its green rule going on into it), so what
+  was written sits over what was processed.
 
 ## The timeline
 
@@ -535,7 +536,8 @@ owner and the agent.
 - **Each day is a page of a journal, raised as a card** (`--bg-raised`; the owner
   found text alone on the ground hard to take in): its date as the head, the day's
   number large over the clocks and its weekday and month over the words, today's
-  card edged and named in `--mark`; the day broken into Night, Morning, Afternoon,
+  card edged and named in `--mark`, its figures beside its count (`figuresOf`: spent,
+  eaten, habits ticked, from the trackers' tables); the day broken into Night, Morning, Afternoon,
   Evening (`partOf`); tags as tinted chips; room between entries; no group label.
   What is nested under an entry is folded to a count (`timeline-more`) and opens on
   a press: shown whole, a video's notes buried the day. Its totals are tiles at its

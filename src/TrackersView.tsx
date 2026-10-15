@@ -7,7 +7,7 @@ import { habitDays, readHabits, streakOf, type Habits } from './habits'
 import { ChevronIcon } from './icons'
 import { AddButton, countOf, EmptyRow, NameField, Section, stepIn } from './rows'
 import { TRACKER_VIEWS } from './settings'
-import { AddForm, AmountField, Bars, Box, Columns, expenseFields, FOOD_FIELDS, Line, now, TablePicker, Tile, Tiles } from './trackerParts'
+import { Adder, AmountField, Bars, Box, Columns, expenseFields, FOOD_FIELDS, Line, now, TablePicker, Tile, Tiles } from './trackerParts'
 import { daysBack, perDay, perWeek, weeksBack, type Tracker } from './trackers'
 import { baseName, folderOf, type VaultFile } from './vaultModel'
 import { ViewerHeader, ViewSwitch } from './ViewerHeader'
@@ -255,7 +255,6 @@ function TodayPage({
   const eaten = meals?.filter((one) => one.day === today) ?? []
   const kcal = eaten.reduce((sum, one) => sum + one.calories, 0)
   const done = habits?.names.filter((name) => habits.done.get(name)?.has(today)) ?? []
-  const usual = meals ? usualItems(meals, USUAL) : []
   return (
     <>
       <Tiles>
@@ -306,28 +305,13 @@ function TodayPage({
       )}
       {(expenses || meals) && (
         <Section title="Add" startOpen>
-          {expenses && (
-            <li style={{ paddingLeft: stepIn(1) }}>
-              <AddForm label="An expense" fields={expenseFields(expenses, currency)} onAdd={(record) => onAdd('expenses', now(record))} />
-            </li>
-          )}
-          {meals && (
-            <li style={{ paddingLeft: stepIn(1) }}>
-              <AddForm label="Something eaten" fields={FOOD_FIELDS} onAdd={(record) => onAdd('calories', now(record))} />
-              {usual.length > 0 && (
-                <div className="tracker-ticks" aria-label="Eaten often">
-                  {usual.map((one) => {
-                    const each = Math.round(one.calories / one.times)
-                    return (
-                      <button key={one.item} className="tracker-tick" onClick={() => onAdd('calories', now({ item: one.item, calories: String(each) }))}>
-                        + {one.item} · {each}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
-            </li>
-          )}
+          <li style={{ paddingLeft: stepIn(1) }}>
+            <div className="tracker-ticks">
+              {expenses && <Adder label="Expense" fields={expenseFields(expenses, currency)} onAdd={(record) => onAdd('expenses', now(record))} />}
+              {meals && <Adder label="Something eaten" fields={FOOD_FIELDS} onAdd={(record) => onAdd('calories', now(record))} />}
+              <Usual meals={meals ?? []} onAdd={(record) => onAdd('calories', now(record))} />
+            </div>
+          </li>
         </Section>
       )}
       {(spentToday.length > 0 || eaten.length > 0) && (
@@ -477,9 +461,11 @@ function ExpensesPage({
         </Section>
       )}
       <Accounts expenses={all} until={thisMonth ? today : `${shown}-31`} today={today} onOpenTable={onOpenTable} />
-      <Section title="Add an expense" startOpen>
+      <Section title="Add" startOpen>
         <li style={{ paddingLeft: stepIn(1) }}>
-          <AddForm label="An expense" fields={expenseFields(expenses, currency)} onAdd={(record) => onAdd(now(record))} />
+          <div className="tracker-ticks">
+            <Adder label="Expense" fields={expenseFields(expenses, currency)} onAdd={(record) => onAdd(now(record))} />
+          </div>
         </li>
       </Section>
       <Section title={thisMonth ? 'This month' : monthOnly.format(dayDate(`${shown}-01`))} count={data.expenses.length} startOpen>
@@ -562,7 +548,6 @@ function CaloriesPage({
   const week = tracked.length ? tracked.reduce((sum, one) => sum + one, 0) / tracked.length : null
   const kept = target ? daily.slice(0, -1).filter((one) => one > 0 && one <= target).length : null
   const eaten = meals.filter((one) => one.day === today)
-  const usual = usualItems(meals, USUAL)
   return (
     <>
       <div className="tracker-controls">
@@ -585,21 +570,12 @@ function CaloriesPage({
           />
         </Box>
       </Section>
-      <Section title="Add something eaten" startOpen>
+      <Section title="Add" startOpen>
         <li style={{ paddingLeft: stepIn(1) }}>
-          <AddForm label="Something eaten" fields={FOOD_FIELDS} onAdd={(record) => onAdd(now(record))} />
-          {usual.length > 0 && (
-            <div className="tracker-ticks" aria-label="Eaten often">
-              {usual.map((one) => {
-                const each = Math.round(one.calories / one.times)
-                return (
-                  <button key={one.item} className="tracker-tick" onClick={() => onAdd(now({ item: one.item, calories: String(each) }))}>
-                    + {one.item} · {each}
-                  </button>
-                )
-              })}
-            </div>
-          )}
+          <div className="tracker-ticks">
+            <Adder label="Something eaten" fields={FOOD_FIELDS} onAdd={(record) => onAdd(now(record))} />
+            <Usual meals={meals} onAdd={(record) => onAdd(now(record))} />
+          </div>
         </li>
       </Section>
       <Section title="Today" count={eaten.length} startOpen>
@@ -747,6 +723,22 @@ function HabitsPage({
           </Box>
         </Section>
       )}
+    </>
+  )
+}
+
+/** What is eaten often, each a chip that adds it again at what it usually comes to. */
+function Usual({ meals, onAdd }: { meals: readonly Meal[]; onAdd: (record: Record<string, string>) => void }) {
+  return (
+    <>
+      {usualItems(meals, USUAL).map((one) => {
+        const each = Math.round(one.calories / one.times)
+        return (
+          <button key={one.item} className="tracker-tick" onClick={() => onAdd({ item: one.item, calories: String(each) })}>
+            + {one.item} · {each}
+          </button>
+        )
+      })}
     </>
   )
 }

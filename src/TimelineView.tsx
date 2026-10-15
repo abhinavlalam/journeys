@@ -27,6 +27,7 @@ type Opens = LineOpens & { onOpen: (file: VaultFile) => void }
  */
 export function TimelineView({
   days,
+  figures,
   colours,
   typeOf,
   typing,
@@ -38,6 +39,8 @@ export function TimelineView({
 }: {
   /** Null while the vault is still being read. */
   days: TimelineDay[] | null
+  /** A day's figures in a line (`figuresOf`): spent, eaten, habits ticked. */
+  figures: (day: string) => string
   /** Each tag's colour (`coloursOf`): an entry takes its first tag's. */
   colours: Record<string, string>
   typeOf: (name: string) => PropertyType
@@ -93,7 +96,7 @@ export function TimelineView({
       )}
       {shown.map(({ note, ...day }) => (
         <section key={day.day} className="journal-day">
-          <DayHead day={day.day} today={today} count={day.entries.filter((one) => one.start >= 0).length} onOpen={note ? () => opens.onOpen(note) : undefined} />
+          <DayHead day={day.day} today={today} count={day.entries.filter((one) => one.start >= 0).length} figures={figures(day.day)} onOpen={note ? () => opens.onOpen(note) : undefined} />
           {view === 'day' && <Grid day={day.day} entries={day.entries} keyOf={keyOf} colours={colours} typeOf={typeOf} {...opens} />}
           <ol className="timeline-entries">
             {view === 'list' && day.entries.map((entry, at) => (
@@ -236,10 +239,11 @@ function Grid({
 
 /**
  * A day's head, as a journal's page opens: the day's number large, its weekday
- * (or today, yesterday, tomorrow) and month beside it, and how many entries it
- * holds. The date opens the day's note.
+ * (or today, yesterday, tomorrow) and month beside it, then how many entries it
+ * holds and its figures (spent, eaten, habits), in one quiet line. The date opens
+ * the day's note.
  */
-function DayHead({ day, today, count, onOpen }: { day: string; today: string; count: number; onOpen?: () => void }) {
+function DayHead({ day, today, count, figures, onOpen }: { day: string; today: string; count: number; figures: string; onOpen?: () => void }) {
   const date = dayDate(day)
   const near = nearDay(day, today)
   return (
@@ -251,7 +255,11 @@ function DayHead({ day, today, count, onOpen }: { day: string; today: string; co
           <span className="journal-month">{monthName.format(date)}</span>
         </span>
       </button>
-      {count > 0 && <span className="journal-count">{countOf(count, 'entry', 'entries')}</span>}
+      {(count > 0 || figures) && (
+        <span className="journal-count">
+          {[count > 0 ? countOf(count, 'entry', 'entries') : '', figures].filter(Boolean).join(' · ')}
+        </span>
+      )}
     </header>
   )
 }

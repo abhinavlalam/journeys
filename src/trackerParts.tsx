@@ -189,7 +189,18 @@ export const now = (record: Record<string, string>) => ({ day: localDateStamp(),
  * A row typed on the page and added to its table: each field as named, Add written when
  * what is needed is there, the fields emptied after but for what they started as.
  */
-export function AddForm({ label, fields, onAdd }: { label: string; fields: readonly FormField[]; onAdd: (record: Record<string, string>) => void }) {
+export function AddForm({
+  label,
+  fields,
+  onAdd,
+  onCancel,
+}: {
+  label: string
+  fields: readonly FormField[]
+  onAdd: (record: Record<string, string>) => void
+  /** A Cancel beside Add, for a form opened on asking (`Adder`). */
+  onCancel?: () => void
+}) {
   const fresh = () => Object.fromEntries(fields.map((field) => [field.name, field.start ?? '']))
   const [values, setValues] = useState<Record<string, string>>(fresh)
   const ready = fields.every((field) => !(field.needed || field.number) || (values[field.name] ?? '').trim() !== '') &&
@@ -233,7 +244,41 @@ export function AddForm({ label, fields, onAdd }: { label: string; fields: reado
       <button className="header-action" type="submit" disabled={!ready}>
         Add
       </button>
+      {onCancel && (
+        <button className="header-action" type="button" onClick={onCancel}>
+          Cancel
+        </button>
+      )}
     </form>
+  )
+}
+
+/**
+ * A form folded behind a chip: `+ label` opens it, and adding a row or Cancel folds it
+ * again. Two forms open at once took the page; a page offers what can be added, and
+ * shows a form when one is asked for.
+ */
+export function Adder({ label, fields, onAdd }: { label: string; fields: readonly FormField[]; onAdd: (record: Record<string, string>) => void }) {
+  const [open, setOpen] = useState(false)
+  if (!open) {
+    return (
+      <button className="tracker-tick" onClick={() => setOpen(true)}>
+        + {label}
+      </button>
+    )
+  }
+  return (
+    <div className="tracker-adder">
+      <AddForm
+        label={label}
+        fields={fields}
+        onAdd={(record) => {
+          setOpen(false)
+          onAdd(record)
+        }}
+        onCancel={() => setOpen(false)}
+      />
+    </div>
   )
 }
 
@@ -310,7 +355,7 @@ export function TrackedSection({ day, onOpenTable }: { day: TrackedDay; onOpenTa
   const done = habits?.filter((one) => one.done).length ?? 0
   const none = 'none in the table yet'
   return (
-    <Section title="Tracked" count={(expenses?.length ?? 0) + (meals?.length ?? 0) + done} startOpen>
+    <Section title="Tracked" className="day-tracked" count={(expenses?.length ?? 0) + (meals?.length ?? 0) + done} startOpen>
       {expenses && (
         <>
           <Line name="Expenses" detail={expenses.length ? countOf(expenses.length, 'expense') : none} value={expenses.length ? moneyText(spent, currency) : ''} onPress={() => onOpenTable('expenses')} />
@@ -356,4 +401,18 @@ export function TrackedSection({ day, onOpenTable }: { day: TrackedDay; onOpenTa
       )}
     </Section>
   )
+}
+
+/** A day's figures in a line, as the timeline heads its card: spent, eaten, habits ticked; empty with none. */
+export function figuresOf({ expenses, meals, habits, currency, calorieTarget }: TrackedDay): string {
+  const spent = expenses?.filter((one) => one.currency === currency).reduce((sum, one) => sum + one.amount, 0) ?? 0
+  const kcal = meals?.reduce((sum, one) => sum + one.calories, 0) ?? 0
+  const done = habits?.filter((one) => one.done).length ?? 0
+  return [
+    expenses?.length ? `${moneyText(spent, currency)} spent` : '',
+    meals?.length ? `${kcal.toLocaleString()}${calorieTarget ? ` of ${calorieTarget.toLocaleString()}` : ''} kcal` : '',
+    habits?.length && done ? `${done} of ${habits.length} habits` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }

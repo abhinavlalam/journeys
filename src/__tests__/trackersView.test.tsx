@@ -57,7 +57,9 @@ async function openTrackers(settings: Record<string, unknown> = { trackers: trac
   fireEvent.click(await screen.findByLabelText('Trackers'))
 }
 const show = (view: string) => fireEvent.click(viewer().getByRole('button', { name: view }))
+/** Opens a form from its chip, fills it, and adds the row. */
 const fill = (form: string, values: Record<string, string>) => {
+  fireEvent.click(viewer().getByRole('button', { name: `+ ${form}` }))
   const it = viewer().getByRole('form', { name: form })
   for (const [label, value] of Object.entries(values)) fireEvent.change(within(it).getByLabelText(label), { target: { value } })
   fireEvent.click(within(it).getByRole('button', { name: 'Add' }))
@@ -78,8 +80,8 @@ describe('today', () => {
   /** Typed on the page, a row goes into the table now, in the table's own columns. */
   it('adds an expense and something eaten as rows of their tables, stamped now', async () => {
     await openTrackers()
-    await waitFor(() => expect(viewer().getByRole('form', { name: 'An expense' })).toBeTruthy())
-    fill('An expense', { Amount: '7.5', For: 'tea', Category: 'Tea' })
+    await waitFor(() => expect(viewer().getByRole('button', { name: '+ Expense' })).toBeTruthy())
+    fill('Expense', { Amount: '7.5', For: 'tea', Category: 'Tea' })
     await waitFor(() => expect(disk.read(EXPENSES)).toMatch(new RegExp(`\\n${today},\\d\\d:\\d\\d,7\\.5,EUR,tea,Tea,,,\\n$`)))
     fill('Something eaten', { What: 'rice, dal', kcal: '540' })
     await waitFor(() => expect(disk.read(CALORIES)).toMatch(new RegExp(`\\n${today},\\d\\d:\\d\\d,"rice, dal",540\\n$`)))
