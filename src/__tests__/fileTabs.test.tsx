@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { clickBeside, disk, fsModule, markdownEditorModule, openApp, rememberVault, resetFakeVault } from './fakeVault'
 import { readProperty } from '../properties'
+import JSZip from 'jszip'
 
 /**
  * A vault is a folder of files, and the tree shows them: PDFs, photos and exports sit
@@ -34,6 +35,35 @@ beforeEach(() => {
   disk.write('/v/archive.zip', 'pretend')
 })
 
+
+const XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+const RELATIONSHIPS = 'xmlns="http://schemas.openxmlformats.org/package/2006/relationships"'
+const RELATIONSHIP = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+
+/** A Word document of these paragraphs, the least a `.docx` holds; a `- ` paragraph is in Word's own bullet list. */
+async function wordDocument(...paragraphs: string[]) {
+  const zip = new JSZip()
+  zip.file(
+    '[Content_Types].xml',
+    `${XML}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`
+  )
+  zip.file('_rels/.rels', `${XML}<Relationships ${RELATIONSHIPS}><Relationship Id="rId1" Type="${RELATIONSHIP}/officeDocument" Target="word/document.xml"/></Relationships>`)
+  zip.file('word/_rels/document.xml.rels', `${XML}<Relationships ${RELATIONSHIPS}><Relationship Id="rId1" Type="${RELATIONSHIP}/numbering" Target="numbering.xml"/></Relationships>`)
+  // Word's default first bullet: the Symbol font's U+F0B7.
+  zip.file(
+    'word/numbering.xml',
+    `${XML}<w:numbering ${W}><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="\uF0B7"/><w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol" w:hint="default"/></w:rPr></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>`
+  )
+  const body = paragraphs
+    .map((one) => {
+      const item = one.startsWith('- ') ? '<w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>' : ''
+      return `<w:p>${item}<w:r><w:t>${one.replace(/^- /, '')}</w:t></w:r></w:p>`
+    })
+    .join('')
+  zip.file('word/document.xml', `${XML}<w:document ${W}><w:body>${body}</w:body></w:document>`)
+  return zip.generateAsync({ type: 'uint8array' })
+}
 
 const sidebar = () => within(document.querySelector('.sidebar')!)
 const title = () => document.querySelector('.viewer:not([hidden]) .viewer-title')?.textContent ?? null
@@ -68,6 +98,47 @@ describe('the reading pane', () => {
     const frame = document.querySelector('iframe.file-frame') as HTMLIFrameElement
     expect(frame).toBeTruthy()
     expect(frame.getAttribute('src')).toContain('deck.pdf')
+  })
+
+  /** Read only: the vault's agent edits the file, and the pane draws what it wrote. */
+  it('draws a Word document as its pages, again when it is written outside the app', async () => {
+    disk.writeBytes('/v/letter.docx', await wordDocument('Dear Mira Vance,'))
+    await openApp()
+    fireEvent.click(sidebar().getByText('letter.docx'))
+    const pages = () => document.querySelector('.viewer:not([hidden]) .word-pages')?.textContent
+    await waitFor(() => expect(pages()).toContain('Dear Mira Vance,'))
+    expect(screen.queryByTestId('editor')).toBeNull()
+    disk.writeBytes('/v/letter.docx', await wordDocument('Dear Mira Vance,', 'The boats are ready.'))
+    fireEvent.focus(window)
+    await waitFor(() => expect(pages()).toContain('The boats are ready.'))
+    // And on a return to its tab, as after an agent in the app's own terminal.
+    clickBeside(sidebar().getByText('whiteboard.png'))
+    await waitFor(() => expect(title()).toBe('whiteboard.png'))
+    disk.writeBytes('/v/letter.docx', await wordDocument('Yours, Northwind'))
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /letter\.docx/ }))
+    await waitFor(() => expect(pages()).toContain('Yours, Northwind'))
+    expect(pages()).not.toContain('Dear Mira Vance,')
+  })
+
+  it('draws Word’s bullet as a bullet', async () => {
+    disk.writeBytes('/v/letter.docx', await wordDocument('Packed:', '- oars'))
+    await openApp()
+    fireEvent.click(sidebar().getByText('letter.docx'))
+    await waitFor(() => expect(document.querySelector('.word-pages')?.textContent).toContain('oars'))
+    const styles = [...document.querySelectorAll('.word-pages style')].map((one) => one.textContent).join('')
+    expect(styles).toMatch(/content: "•/)
+    expect(styles).not.toContain('\uF0B7')
+  })
+
+  it('says a Word document it cannot read, and keeps what it drew', async () => {
+    disk.writeBytes('/v/letter.docx', await wordDocument('Dear Mira Vance,'))
+    await openApp()
+    fireEvent.click(sidebar().getByText('letter.docx'))
+    await waitFor(() => expect(document.querySelector('.word-pages')?.textContent).toContain('Dear Mira Vance,'))
+    disk.write('/v/letter.docx', 'half written')
+    fireEvent.focus(window)
+    await waitFor(() => expect(document.querySelector('.word-failed')?.textContent).toMatch(/^letter\.docx could not be read/))
+    expect(document.querySelector('.word-pages')?.textContent).toContain('Dear Mira Vance,')
   })
 
   it('says so for a file it has nothing to say about, and offers Finder', async () => {

@@ -13,6 +13,7 @@ const dirs = new Set<string>()
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
   readDir: vi.fn(async () => []),
+  readFile: vi.fn(),
   writeFile: vi.fn(),
   readTextFile: vi.fn(async (p: string) => disk.get(p) ?? ''),
   writeTextFile: vi.fn(async (p: string, text: string) => {

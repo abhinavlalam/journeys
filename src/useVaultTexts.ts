@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { readVaultFile, vaultFileStamp, type FileStamp } from './vault'
+import { readVaultFile, sameStamp, vaultFileStamp, type FileStamp } from './vault'
 import { isEncrypted, isNote, type VaultFile, type VaultFolder } from './vaultModel'
 import { buildNoteIndex, collectFiles, collectNotes, type Alias } from './links'
 import { buildBacklinkIndex } from './links'
@@ -358,10 +358,6 @@ function tagLines(corpus: readonly { note: VaultFile; text: string }[] | null): 
     return found
   }
 }
-
-/** The same file as when it was read, as far as the system says: a stamp without a time is never trusted. */
-const sameStamp = (now: FileStamp, then: FileStamp) =>
-  now.modified !== null && now.modified === then.modified && now.size === then.size
 
 function sameRows(was: readonly NoteText[] | null, rows: readonly NoteText[]): boolean {
   return was !== null && was.length === rows.length && rows.every((row, at) => row.note.path === was[at].note.path && row.text === was[at].text)

@@ -1,5 +1,6 @@
 import {
   readDir,
+  readFile,
   readTextFile,
   writeTextFile,
   writeFile,
@@ -47,6 +48,10 @@ export interface FileStamp {
   modified: number | null
 }
 
+/** The same file as when it was read, as far as the system says: a stamp without a time is never trusted. */
+export const sameStamp = (now: FileStamp, then: FileStamp) =>
+  now.modified !== null && now.modified === then.modified && now.size === then.size
+
 /**
  * One entry of a folder listing. `plugin-fs`'s `DirEntry` also has
  * `isSymlink`, which nothing reads, so its entries pass straight through.
@@ -58,11 +63,11 @@ interface VaultDirEntry {
 }
 
 /**
- * The app's filesystem: the nine calls everything above it makes.
+ * The app's filesystem: the ten calls everything above it makes.
  *
  * `vault.ts` is the only module that imports `@tauri-apps/plugin-fs`, so a
  * test's `vi.mock` of it reaches everything. Another backend (mobile, sync)
- * implements these nine calls and nothing else. Every path is absolute.
+ * implements these ten calls and nothing else. Every path is absolute.
  */
 export interface VaultFs {
   /**
@@ -87,6 +92,8 @@ export interface VaultFs {
   remove(path: string, options?: { recursive?: boolean }): Promise<void>
   /** Move or rename, file or folder. */
   move(from: string, to: string): Promise<void>
+  /** Bytes, for a file the pane draws itself, such as a Word document. */
+  readBytes(path: string): Promise<Uint8Array>
   /**
    * Bytes, for a file dragged in from outside, such as a PDF or a photo.
    * The dropped file arrives as bytes, and `String()` of a PDF breaks it.
@@ -97,7 +104,7 @@ export interface VaultFs {
 /**
  * The surface over the real disk, and the only place `plugin-fs`
  * is called. Everything below goes through `vaultFs`, so a
- * function that needs a tenth call has to widen the interface.
+ * function that needs an eleventh call has to widen the interface.
  */
 const vaultFs: VaultFs = {
   stat: async (path) => {
@@ -111,6 +118,7 @@ const vaultFs: VaultFs = {
   makeFolder: mkdir,
   remove,
   move: rename,
+  readBytes: readFile,
   writeBytes: writeFile,
 }
 
@@ -251,6 +259,8 @@ function assertStaysPut(oldAbsolute: string, newAbsolute: string, name: string):
 
 /** A file's stamp, for telling whether it changed since it was read (`useVaultTexts`). */
 export const vaultFileStamp = (file: VaultFile) => vaultFs.stat(file.absolutePath)
+
+export const vaultFileBytes = (file: VaultFile) => vaultFs.readBytes(file.absolutePath)
 
 /**
  * A file's text, decrypted if it is locked. Everything above this sees plain text. A

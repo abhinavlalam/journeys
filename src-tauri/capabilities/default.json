@@ -50,6 +50,26 @@
       ]
     },
     {
+      "identifier": "fs:allow-read-file",
+      "allow": [
+        {
+          "path": "**"
+        },
+        {
+          "path": "**/.config"
+        },
+        {
+          "path": "**/.config/**"
+        },
+        {
+          "path": "**/.claude"
+        },
+        {
+          "path": "**/.claude/**"
+        }
+      ]
+    },
+    {
       "identifier": "fs:allow-write-text-file",
       "allow": [
         {

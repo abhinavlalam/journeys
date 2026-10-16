@@ -34,7 +34,8 @@ interface FakeDir {
 }
 
 const dirs = new Map<string, FakeDir>()
-const files = new Map<string, { path: string; text: string; modified: number }>()
+/** `bytes` for a file written as bytes, which its text, decoded, would corrupt. */
+const files = new Map<string, { path: string; text: string; bytes?: Uint8Array; modified: number }>()
 
 /** Paths that are listed but cannot be read. See `disk.corrupt`. */
 const corrupted = new Set<string>()
@@ -65,12 +66,12 @@ function ensureDir(path: string): FakeDir {
 /** A disk's clock: each write stamps its file, as a modified time does. */
 let tick = 0
 
-function writeFile(path: string, text: string) {
+function writeFile(path: string, text: string, bytes?: Uint8Array) {
   ensureDir(parentOf(path)).files.set(key(baseOf(path)), baseOf(path))
   // Case-preserving: a write through a differently cased path
   // lands on the existing file without renaming it, as APFS does.
   const already = files.get(key(path))
-  files.set(key(path), { path: already?.path ?? path, text, modified: ++tick })
+  files.set(key(path), { path: already?.path ?? path, text, bytes, modified: ++tick })
 }
 
 function removeFile(path: string) {
@@ -89,6 +90,10 @@ export const disk = {
   /** Writes a file, creating every folder above it. Absolute paths throughout. */
   write(path: string, text: string) {
     writeFile(path, text)
+  },
+  /** A file that is not text, such as a Word document. */
+  writeBytes(path: string, bytes: Uint8Array) {
+    writeFile(path, '', bytes)
   },
   /** The bytes, or undefined, including for a file that exists but cannot be read. */
   read(path: string): string | undefined {
@@ -177,7 +182,7 @@ function enoent(path: string): Error {
 const fsSpies = {
   stat: vi.fn(async (path: string) => {
     const found = files.get(key(path))
-    if (found) return { size: new TextEncoder().encode(found.text).length, mtime: new Date(found.modified), isFile: true, isDirectory: false }
+    if (found) return { size: (found.bytes ?? new TextEncoder().encode(found.text)).length, mtime: new Date(found.modified), isFile: true, isDirectory: false }
     if (dirs.has(key(path))) return { size: 0, mtime: null, isFile: false, isDirectory: true }
     throw enoent(path)
   }),
@@ -199,6 +204,12 @@ const fsSpies = {
       })),
     ]
   }),
+  readFile: vi.fn(async (path: string) => {
+    if (corrupted.has(key(path))) throw new Error(`could not be read: ${path}`)
+    const found = files.get(key(path))
+    if (!found) throw enoent(path)
+    return found.bytes ?? new TextEncoder().encode(found.text)
+  }),
   readTextFile: vi.fn(async (path: string) => {
     if (corrupted.has(key(path))) throw new Error(`could not be read: ${path}`)
     const found = files.get(key(path))
@@ -212,13 +223,13 @@ const fsSpies = {
   }),
   exists: vi.fn(async (path: string) => files.has(key(path)) || dirs.has(key(path))),
   /**
-   * Bytes, for a file dragged in from outside. The fake keeps text,
-   * so they are decoded; what is tested is where the file landed.
+   * Bytes, for a file dragged in from outside: kept, and decoded as its
+   * text, since what most tests ask is where the file landed.
    */
   writeFile: vi.fn(async (path: string, bytes: Uint8Array) => {
     const no = refusal(path)
     if (no) throw new Error(no)
-    writeFile(path, new TextDecoder().decode(bytes))
+    writeFile(path, new TextDecoder().decode(bytes), bytes)
   }),
   mkdir: vi.fn(async (path: string) => {
     const no = refusal(path)
@@ -229,9 +240,9 @@ const fsSpies = {
     const no = refusal(to)
     if (no) throw new Error(no)
     if (files.has(key(from))) {
-      const text = files.get(key(from))!.text
+      const { text, bytes } = files.get(key(from))!
       removeFile(from)
-      writeFile(to, text)
+      writeFile(to, text, bytes)
       return
     }
     if (!dirs.has(key(from))) throw enoent(from)
@@ -240,7 +251,7 @@ const fsSpies = {
     removeDir(from)
     ensureDir(to)
     for (const path of inner) ensureDir(`${to}${path.slice(from.length)}`)
-    for (const f of moving) writeFile(`${to}${f.path.slice(from.length)}`, f.text)
+    for (const f of moving) writeFile(`${to}${f.path.slice(from.length)}`, f.text, f.bytes)
   }),
   remove: vi.fn(async (path: string, options?: { recursive?: boolean }) => {
     if (files.has(key(path))) {

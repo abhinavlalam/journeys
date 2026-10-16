@@ -60,6 +60,8 @@
   --column-gap: 1.1rem;
   /* The widest a table cell grows before it is clipped; see `.line-table td`. */
   --cell-max: 16ch;
+  /* A Word document's page: paper in every scheme, as the document's own colours assume. */
+  --paper: #ffffff;
   /* How tall the `[[` popup grows before it scrolls: about twelve rows. */
   --picker-height: 18rem;
 
@@ -1944,6 +1946,35 @@ button.folder-toggle {
   width: 100%;
   border: none;
   background: var(--bg-raised);
+}
+
+/* A Word document's pages as Word lays them out, on the pane's ground, each centred
+   until it is wider than the pane, then scrolled sideways. Its type and colours are its
+   own, as a PDF's are. */
+.word-pages {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--bg-sidebar);
+}
+
+.word-pages > section {
+  flex: none;
+  margin: 0 auto;
+  background: var(--paper);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.word-failed {
+  margin: 0;
+  padding: 0.5rem var(--column-pad);
+  color: var(--alert);
 }
 
 .file-reveal {

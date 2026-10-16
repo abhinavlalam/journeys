@@ -117,12 +117,12 @@ export function folderNotePath(folder: string): string {
  * tree shows every file; this decides what the pane does with it:
  *
  * - `note`, `json`, `csv`, `text` are text and open in the editor; typing saves them.
- * - `image` and `pdf` are shown, not edited (`FileView`).
+ * - `image`, `pdf` and `docx` are shown, not edited (`FileView`).
  * - `other` is a file the app has nothing to show for.
  *
  * A `.enc` is a `note`; the passphrase is asked before anything reads it.
  */
-export type FileKind = 'note' | 'json' | 'csv' | 'text' | 'image' | 'pdf' | 'other'
+export type FileKind = 'note' | 'json' | 'csv' | 'text' | 'image' | 'pdf' | 'docx' | 'other'
 
 const KINDS: [RegExp, FileKind][] = [
   [/\.(md|enc)$/i, 'note'],
@@ -134,6 +134,7 @@ const KINDS: [RegExp, FileKind][] = [
   [/\.(txt|log|ya?ml|toml|ini|env|conf)$/i, 'text'],
   [/\.(png|jpe?g|gif|webp|avif|bmp|svg|heic)$/i, 'image'],
   [/\.pdf$/i, 'pdf'],
+  [/\.docx$/i, 'docx'],
 ]
 
 export function fileKind(path: string): FileKind {

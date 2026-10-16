@@ -33,12 +33,13 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 
 | Where | What it owns |
 | --- | --- |
-| `vault.ts` | **The only module that touches the filesystem**, through `VaultFs` (nine calls; `writeBytes` is the one that is not text, `stat` the one that reads no contents). Reads decrypt and writes re-encrypt locked notes. |
+| `vault.ts` | **The only module that touches the filesystem**, through `VaultFs` (ten calls; `readBytes` and `writeBytes` are the ones that are not text, `stat` the one that reads no contents). Reads decrypt and writes re-encrypt locked notes. |
 | `vaultModel.ts` | Pure path and name rules: `fileKind`, `isNote`, `isEncrypted`, `isTextFile`, `noteName`, `knownPath`, `baseName`, `folderNotePath`, `fileAt`, `isWithin` and `movedWith` (a path in a folder, and where it goes when the folder moves), `linkLabelSpan`. |
 | `useVaultTexts.ts` | The one read of the vault and every cross-note answer as a memo over it. |
 | `links.ts` | Parsing, resolving and retargeting links; the note index; backlinks; `collectNotes`. |
 | `workspace.ts` / `WorkspaceView.tsx` | Tabs, groups and splits as a pure model / its flat rendering. |
 | `NotePane.tsx`, `useNoteBuffer.ts`, `useBuffers.ts` | A note tab, its buffer, and the one door to every open buffer. |
+| `FileView.tsx` | A file the pane shows rather than edits: an image, a PDF, a Word document's pages (`WordPages`). |
 | `EditorHost.tsx` | The editor minus the language: box, gutters, folding, caret, `decorated()`. |
 | `MarkdownEditor.tsx`, `SourceEditor.tsx` | A note; and a file that is not one, as its own text: JSON and CSV coloured, a `.conf`, `.yaml` or `.txt` plain (as markdown, every `# comment` was a heading). |
 | `editorCommands.ts`, `editorComplete.ts`, `editorFold.ts`, `editorPreview.ts` | Keys that write syntax, the `[[`, `/` and property popups, folding, decorations. |
@@ -99,6 +100,13 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   `#comment` in a `.conf` was a tag. A non-note keeps its extension in the tree and
   opens in a `file` tab with no buffer, because a buffer over a PDF is a file the
   first keystroke corrupts.
+- **A Word document is drawn as its pages and edited by the agent** (`WordPages`,
+  `docx-preview`; the owner's choice over Google Docs, which Claude cannot edit, and
+  over an editor in the app, which would rewrite the whole file to change a word). It
+  is drawn again when its stamp changes, on a return to the window or to its tab, since
+  an agent in the app's own terminal writes while the window keeps the focus; the old
+  pages stay until the new ones are drawn. Each document's styles carry their own
+  prefix: two open at once shared `.docx p.Normal`.
 - **A property is `key:: value`, a page's or a block's.** A note's page
   properties are the `key:: value` lines it opens with; the first other line ends
   them (`properties.ts`). A YAML `---` block is read as page properties too and

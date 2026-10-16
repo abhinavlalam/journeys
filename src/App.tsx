@@ -1349,7 +1349,7 @@ export default function App() {
                   />
                 )
               case 'file':
-                return <FileView file={tab.file} onReveal={handleReveal} />
+                return <FileView file={tab.file} shown={isActive} onReveal={handleReveal} />
               case 'settingsFile':
                 return (
                   <SettingsFile vaultPath={vault.vaultPath!} settings={settings} onChange={changeSettings} />
