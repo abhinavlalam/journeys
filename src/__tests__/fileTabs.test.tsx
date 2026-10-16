@@ -25,8 +25,42 @@ vi.mock('../SourceEditor', () => ({
   ),
 }))
 
+/**
+ * The Word editor stood in for: jsdom lays out no pages. Each mount is kept, with what
+ * it was given, what its save will hand back (`next`, null for nothing) and whether it
+ * has been let go, and in what order.
+ */
+const editors = vi.hoisted(() => [] as { bytes: Uint8Array; options: { onChange: () => void }; next: Uint8Array | null; slow: boolean; events: string[] }[])
+vi.mock('@eigenpal/docx-editor-react', async () => {
+  const { forwardRef, useEffect, useImperativeHandle, useState } = await import('react')
+  return {
+    DocxEditor: forwardRef(({ documentBuffer, ...options }: { documentBuffer: Uint8Array; onChange: () => void }, ref) => {
+      const [one] = useState(() => ({ bytes: documentBuffer, options, next: null as Uint8Array | null, slow: false, events: [] as string[] }))
+      one.options = options
+      useEffect(() => {
+        editors.push(one)
+        return () => void one.events.push('destroy')
+      }, [one])
+      useImperativeHandle(ref, () => ({
+        save: async () => {
+          one.events.push('save')
+          // A real save takes its time: long enough for the pages to read the file first.
+          if (one.slow) await new Promise((done) => setTimeout(done, 200))
+          return one.next && new Uint8Array(one.next).buffer
+        },
+      }))
+      return <div>the editor</div>
+    }),
+  }
+})
+vi.mock('@eigenpal/docx-editor-core', () => ({ setGoogleFontsEnabled: () => {} }))
+vi.mock('@eigenpal/docx-editor-react/styles.css?inline', () => ({
+  default: '.ep-root .x{color:red}[contenteditable=true]{display:inline}[contenteditable=true]:focus{outline:none}',
+}))
+
 afterEach(cleanup)
 beforeEach(() => {
+  editors.length = 0
   resetFakeVault()
   rememberVault('/v')
   disk.write('/v/deck.pdf', '%PDF-1.7 pretend')
@@ -210,6 +244,77 @@ describe('the reading pane', () => {
  * `moveFile`. Only a note's own parts (its `path` and links) are
  * rewritten, and only for files that have them.
  */
+describe('a Word document edited', () => {
+  const bytesOf = (path: string) => fsModule().readFile(path)
+  const same = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((byte, at) => byte === b[at])
+  async function openEditor() {
+    disk.writeBytes('/v/letter.docx', await wordDocument('Dear Mira Vance,'))
+    await openApp()
+    fireEvent.click(sidebar().getByText('letter.docx'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    await waitFor(() => expect(editors).toHaveLength(1))
+    return editors[0]
+  }
+
+  it('opens the file in the editor, and writes a change a moment after it', async () => {
+    const editor = await openEditor()
+    expect(same(editor.bytes, await bytesOf('/v/letter.docx'))).toBe(true)
+    const edited = await wordDocument('Dear Mira Vance,', 'The boats are ready.')
+    editor.next = edited
+    editor.options.onChange()
+    await waitFor(() => expect(same(disk.bytes('/v/letter.docx')!, edited)).toBe(true))
+    expect(disk.paths()).not.toContain('/v/letter (other).docx')
+  })
+
+  /** As a note's save does: what the agent wrote meanwhile is not written over unseen. */
+  it('keeps beside it what was written there meanwhile, and says so', async () => {
+    const editor = await openEditor()
+    const theirs = await wordDocument('Yours, Northwind')
+    disk.writeBytes('/v/letter.docx', theirs)
+    editor.next = await wordDocument('Dear Mira Vance, again')
+    editor.options.onChange()
+    await waitFor(() => expect(same(disk.bytes('/v/letter (other).docx')!, theirs)).toBe(true))
+    expect(same(disk.bytes('/v/letter.docx')!, editor.next)).toBe(true)
+    expect(await screen.findByText(/letter\.docx changed elsewhere while you edited/)).toBeTruthy()
+  })
+
+  it('writes what was changed before the pages are drawn again', async () => {
+    const editor = await openEditor()
+    editor.next = await wordDocument('The boats are ready.')
+    editor.slow = true
+    editor.options.onChange()
+    fireEvent.click(screen.getByRole('button', { name: 'Pages' }))
+    await waitFor(() => expect(document.querySelector('.word-pages')?.textContent).toContain('The boats are ready.'))
+    expect(editor.events).toEqual(['save', 'destroy'])
+  })
+
+  /** Unmounted under a save, the editor handed back nothing: it goes only once the save is written. */
+  it('writes what was changed when its tab closes, before the editor goes', async () => {
+    const editor = await openEditor()
+    editor.next = await wordDocument('The boats are ready.')
+    editor.options.onChange()
+    fireEvent.click(screen.getByRole('button', { name: 'Close letter.docx' }))
+    await waitFor(() => expect(editor.events).toEqual(['save', 'destroy']))
+    expect(same(disk.bytes('/v/letter.docx')!, editor.next)).toBe(true)
+  })
+
+  it('writes nothing it was not asked to', async () => {
+    const editor = await openEditor()
+    const before = disk.bytes('/v/letter.docx')!
+    fireEvent.click(screen.getByRole('button', { name: 'Pages' }))
+    await waitFor(() => expect(editor.events).toEqual(['destroy']))
+    expect(disk.bytes('/v/letter.docx')).toBe(before)
+  })
+
+  /** Its sheet set every editable element in the page to `display: inline`, the note's editor among them. */
+  it('keeps the editor’s sheet to the editor', async () => {
+    await openEditor()
+    const sheet = [...document.head.querySelectorAll('style')].map((one) => one.textContent).find((text) => text?.includes('.ep-root'))!
+    expect(sheet).toContain(':is(.ep-root, .paged-editor__hidden-pm) [contenteditable=true]{display:inline}')
+    expect(sheet.replaceAll(':is(.ep-root, .paged-editor__hidden-pm) [contenteditable=true]', '')).not.toContain('[contenteditable=true]')
+  })
+})
+
 describe('moving a file that is not a note', () => {
   const FILE_MIME = 'application/x-journeys-file'
   const tree = () => document.querySelector('.pane-section .file-list') as HTMLElement

@@ -95,6 +95,10 @@ export const disk = {
   writeBytes(path: string, bytes: Uint8Array) {
     writeFile(path, '', bytes)
   },
+  /** A file written as bytes, as they are. */
+  bytes(path: string): Uint8Array | undefined {
+    return files.get(key(path))?.bytes
+  },
   /** The bytes, or undefined, including for a file that exists but cannot be read. */
   read(path: string): string | undefined {
     return files.get(key(path))?.text

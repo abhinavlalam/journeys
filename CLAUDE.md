@@ -40,6 +40,7 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 | `workspace.ts` / `WorkspaceView.tsx` | Tabs, groups and splits as a pure model / its flat rendering. |
 | `NotePane.tsx`, `useNoteBuffer.ts`, `useBuffers.ts` | A note tab, its buffer, and the one door to every open buffer. |
 | `FileView.tsx` | A file the pane shows rather than edits: an image, a PDF, a Word document's pages (`WordPages`). |
+| `WordEditor.tsx`, `wordFonts.ts` | A Word document edited in place, and the faces Word's documents are drawn in. |
 | `EditorHost.tsx` | The editor minus the language: box, gutters, folding, caret, `decorated()`. |
 | `MarkdownEditor.tsx`, `SourceEditor.tsx` | A note; and a file that is not one, as its own text: JSON and CSV coloured, a `.conf`, `.yaml` or `.txt` plain (as markdown, every `# comment` was a heading). |
 | `editorCommands.ts`, `editorComplete.ts`, `editorFold.ts`, `editorPreview.ts` | Keys that write syntax, the `[[`, `/` and property popups, folding, decorations. |
@@ -100,9 +101,8 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   `#comment` in a `.conf` was a tag. A non-note keeps its extension in the tree and
   opens in a `file` tab with no buffer, because a buffer over a PDF is a file the
   first keystroke corrupts.
-- **A Word document is drawn as its pages and edited by the agent** (`WordPages`,
-  `docx-preview`; the owner's choice over Google Docs, which Claude cannot edit, and
-  over an editor in the app, which would rewrite the whole file to change a word). It
+- **A Word document is drawn as its pages, read only** (`WordPages`, `docx-preview`;
+  the owner's choice over Google Docs, which Claude cannot edit). It
   is drawn again when its stamp changes, on a return to the window or to its tab, since
   an agent in the app's own terminal writes while the window keeps the focus; the old
   pages stay until the new ones are drawn. Each document's styles carry their own
@@ -113,6 +113,27 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   stops (`experimental`) on a 3pt space (`--word-tab-space`: the library rounds a tab to a
   whole point, and a full space ended each one past its stop); a list marker as wide as
   its hanging indent, where the tab after it was a space (`asWord`).
+- **And edited in place, as Word edits it** (`WordEditor`, `docx-editor`, the header's
+  Edit; desktop only, its toolbar is wider than a phone). Chosen after a test on a real
+  document: a word changed rewrites that paragraph alone, every other part byte for byte;
+  a new paragraph rewrites the body, keeping every character, its formatting and its
+  spaces, and losing only Word's bookkeeping and bookmarks nothing linked to. Its rules:
+  - **In a React root of its own**, unmounted only once its save is written: unmounted
+    under a save, the save came back empty. Not the library's `renderAsync`, which
+    resolves on the first change, so never for a document only opened.
+  - **Saved as a note is**: `AUTOSAVE_MS` after a change (`onChange` fires for an edit
+    alone, never for a load), when its tab hides, before Pages draws the file again, and
+    as its tab closes; registered with `useBuffers`, so a quit, a move and a delete reach
+    it. A save that fails stays to be written and throws.
+  - **Never over bytes it has not seen** (`writeSeenBytes`): the agent's write meanwhile
+    is kept beside as `name (other).docx` and said. `keepOther` copies bytes, or a Word
+    file's copy was its zip decoded as text. A write elsewhere with nothing waiting is
+    taken in by opening the document again, so its undo goes with it.
+  - **Its sheet is kept to it**: five rules were on every editable element in the page,
+    and set the note's editor to `display: inline`. Its hidden ProseMirror lives in
+    `body`, so a hidden tab blurs it, or it kept the keys.
+  - **No font is fetched**: Google Fonts is off (it told Google the document's fonts and
+    failed offline), and Calibri and Cambria are the bundled twins.
 - **A property is `key:: value`, a page's or a block's.** A note's page
   properties are the `key:: value` lines it opens with; the first other line ends
   them (`properties.ts`). A YAML `---` block is read as page properties too and

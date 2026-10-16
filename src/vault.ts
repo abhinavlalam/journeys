@@ -303,8 +303,25 @@ export async function keepOther(file: VaultFile): Promise<VaultFile> {
   const stem = file.path.slice(0, file.path.length - ext.length)
   let other = fileAt(root, `${stem} (other)${ext}`)
   for (let n = 2; await vaultFs.exists(other.absolutePath); n++) other = fileAt(root, `${stem} (other ${n})${ext}`)
-  await vaultFs.writeText(other.absolutePath, await vaultFs.readText(file.absolutePath))
+  await vaultFs.writeBytes(other.absolutePath, await vaultFs.readBytes(file.absolutePath))
   return other
+}
+
+const sameBytes = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((byte, at) => byte === b[at])
+
+/**
+ * A file that is not text written as `writeNote` writes a note: never over bytes it has
+ * not seen (`seen`, as read or last written here). Bytes changed since, by the agent or
+ * a pull, are kept beside it first, and that copy returned.
+ */
+export async function writeSeenBytes(file: VaultFile, bytes: Uint8Array, seen: Uint8Array): Promise<VaultFile | null> {
+  let kept: VaultFile | null = null
+  if (await vaultFs.exists(file.absolutePath)) {
+    const onDisk = await vaultFs.readBytes(file.absolutePath)
+    if (!sameBytes(onDisk, seen) && !sameBytes(onDisk, bytes)) kept = await keepOther(file)
+  }
+  await vaultFs.writeBytes(file.absolutePath, bytes)
+  return kept
 }
 
 /**

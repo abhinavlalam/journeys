@@ -1980,6 +1980,20 @@ button.folder-toggle {
   font-size: var(--word-tab-space);
 }
 
+/* The Word editor fills the pane; its toolbar and pages are its own, as the pages'
+   type and colours are. */
+.word-editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.word-editor > * {
+  flex: 1;
+  min-height: 0;
+}
+
 .word-failed {
   margin: 0;
   padding: 0.5rem var(--column-pad);
