@@ -542,9 +542,12 @@ owner and the agent.
 
 ## A day's sections
 
-- **Every daily note has the same three sections** (the owner's, 2026-10-15): `## Log`
-  (what happened, work, meetings), `## Notes` (tasks, goals, a thought), `## Trackers`
-  (expenses, food), named and tagged in `daySections`. Plain markdown headings, so the
+- **Every daily note has the same two sections** (the owner's, 2026-10-15): `## Log`
+  (what happened, work, meetings) and `## Notes` (tasks, goals, a thought, and what is
+  spent or eaten, captured as it comes), named and tagged in `daySections`. A third,
+  `## Trackers`, was taken out on 2026-10-17: hard to read, and the agent puts those
+  lines in the tables wherever they are; the days written with it keep it as an
+  ordinary heading inside Notes. Plain markdown headings, so the
   note stays markdown; the editor draws them apart (`daySectionPreview`: each heading
   its name, small and spaced, and each section's lines with a rule of its own hue at
   the left; no ground, which the owner found ugly), and only in a daily note.
@@ -561,9 +564,9 @@ owner and the agent.
   in them, once, as the vault's were on 2026-10-15.
 - **The timeline reads a day's first section alone**, its log: what is planned, spent
   and eaten are in the others. A day written before the sections is read whole.
-- **The Trackers section ends with what the tables hold** (`TrackedSection`, drawn
-  under the note, after its last section, its green rule going on into it), so what
-  was written sits over what was processed.
+- **A daily note ends with what the tables hold** (`TrackedSection`, drawn under the
+  note, after its last section, with a green rule of its own), so what was written
+  sits over what was processed.
 
 ## The timeline
 

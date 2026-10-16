@@ -313,8 +313,9 @@ export const DEFAULT_SETTINGS: Settings = {
   daySections: [
     // A calendar's event is the day's, all-day or timed: the calendar writes it here.
     { name: 'Log', tags: ['event'] },
-    { name: 'Notes', tags: ['task', 'goal'] },
-    { name: 'Trackers', tags: ['expense', 'food'] },
+    // A tracker's line is captured with the day's notes, not in the log, and the agent
+    // puts it in its table (until 2026-10-17, a third section, Trackers, hard to read).
+    { name: 'Notes', tags: ['task', 'goal', 'expense', 'food'] },
   ],
   shortcuts: defaultShortcuts(),
   graphHides: [],
@@ -479,8 +480,9 @@ function pickFeeds(value: unknown): CalendarFeed[] {
 }
 
 /**
- * The daily sections as written: three, each a name on one line, unlike the others, and
- * its tags. Anything else is the default, whole: sections are read by position.
+ * The daily sections as written: two, the day's log (the timeline's) and its notes, each
+ * a name on one line, unlike the other, and its tags. Anything else is the default,
+ * whole: sections are read by position.
  */
 function pickSections(value: unknown): DaySection[] {
   if (!Array.isArray(value) || value.length !== DEFAULT_SETTINGS.daySections.length) return DEFAULT_SETTINGS.daySections

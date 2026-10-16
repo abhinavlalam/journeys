@@ -1,5 +1,5 @@
-// A daily note in sections: `## Log`, `## Notes`, `## Trackers` by default (the owner's
-// names, `daySections` in the settings), the same in every daily note, in that order. A
+// A daily note in sections: `## Log` and `## Notes` by default (the owner's names,
+// `daySections` in the settings), the same in every daily note, in that order. A
 // section is its heading and the lines after it up to the next section's; the note is
 // still markdown, and the sections are drawn apart (`daySectionPreview`).
 //

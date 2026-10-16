@@ -528,19 +528,22 @@ describe('the trackers’ settings', () => {
   })
 })
 
-/** The daily sections: three, by position, each a name and the tags whose lines go there. */
+/** The daily sections: two, by position, each a name and the tags whose lines go there. */
 describe('the daily sections', () => {
-  it('are Log, Notes and Trackers unless three are written, and a bad one means the default, whole', () => {
-    expect(parseSettings(null).daySections.map((one) => one.name)).toEqual(['Log', 'Notes', 'Trackers'])
-    const written = '{"daySections":[{"name":"Day","tags":[]},{"name":"Plans","tags":["#Task","not a tag"]},{"name":"Spent","tags":["expense"]}]}'
+  it('are Log and Notes unless two are written, and a bad one means the default, whole', () => {
+    expect(parseSettings(null).daySections).toEqual([
+      { name: 'Log', tags: ['event'] },
+      { name: 'Notes', tags: ['task', 'goal', 'expense', 'food'] },
+    ])
+    const written = '{"daySections":[{"name":"Day","tags":[]},{"name":"Plans","tags":["#Task","not a tag"]}]}'
     expect(parseSettings(written).daySections).toEqual([
       { name: 'Day', tags: [] },
       { name: 'Plans', tags: ['task'] },
-      { name: 'Spent', tags: ['expense'] },
     ])
-    // Two of one name, or too few, are the default.
-    expect(parseSettings('{"daySections":[{"name":"Day"},{"name":"day"},{"name":"Spent"}]}').daySections).toEqual(DEFAULT_SETTINGS.daySections)
+    // Two of one name, too few, or the three of before 2026-10-17, are the default.
+    expect(parseSettings('{"daySections":[{"name":"Day"},{"name":"day"}]}').daySections).toEqual(DEFAULT_SETTINGS.daySections)
     expect(parseSettings('{"daySections":[{"name":"Day"}]}').daySections).toEqual(DEFAULT_SETTINGS.daySections)
+    expect(parseSettings('{"daySections":[{"name":"Log"},{"name":"Notes"},{"name":"Trackers"}]}').daySections).toEqual(DEFAULT_SETTINGS.daySections)
   })
 })
 

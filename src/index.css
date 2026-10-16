@@ -5325,7 +5325,7 @@ button.task-box:hover {
   padding-top: 0;
 }
 
-/* A daily note's sections (`## Log`, `## Notes`, `## Trackers`, the owner's): each
+/* A daily note's sections (`## Log`, `## Notes`, the owner's): each
    section's lines with a rule of its own hue at the left, and each heading its name,
    small and spaced, so a day's parts read apart. No ground: filled, the owner found
    the sections ugly. The text is the note's; only lines are drawn. */
@@ -5339,9 +5339,6 @@ button.task-box:hover {
   --section: var(--hue-amber);
 }
 
-.markdown-editor .cm-line[data-section='2'] {
-  --section: var(--hue-green);
-}
 
 .code-editor .cm-editor .cm-line.cm-day-heading {
   padding-top: 1em;
@@ -5351,8 +5348,8 @@ button.task-box:hover {
   text-transform: uppercase;
 }
 
-/* What the tables hold for the day, under the note: the last section, Trackers, goes
-   on into it, its rule at the editor's line edge (past the gutter). */
+/* What the tables hold for the day, under the note, with a rule of its own at the
+   editor's line edge (past the gutter), as a section has. */
 .note-section.day-tracked {
   position: relative;
 }

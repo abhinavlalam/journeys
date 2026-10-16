@@ -8,7 +8,7 @@ import { useCalendarSync } from '../useCalendarSync'
 import { DEFAULT_SETTINGS } from '../settings'
 
 /** A day the sync made: its sections, with `lines` in the first. */
-const logged = (lines: readonly string[]) => ['## Log', ...lines, '', '## Notes', '', '## Trackers', ''].join('\n')
+const logged = (lines: readonly string[]) => ['## Log', ...lines, '', '## Notes', ''].join('\n')
 
 /**
  * The calendar from the row to the disk: Sync fetches a feed, its
