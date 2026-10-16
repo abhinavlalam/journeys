@@ -53,7 +53,7 @@ async function wordDocument(...paragraphs: string[]) {
   // Word's default first bullet: the Symbol font's U+F0B7.
   zip.file(
     'word/numbering.xml',
-    `${XML}<w:numbering ${W}><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="\uF0B7"/><w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol" w:hint="default"/></w:rPr></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>`
+    `${XML}<w:numbering ${W}><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val="\uF0B7"/><w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr><w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol" w:hint="default"/></w:rPr></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>`
   )
   const body = paragraphs
     .map((one) => {
@@ -120,7 +120,8 @@ describe('the reading pane', () => {
     expect(pages()).not.toContain('Dear Mira Vance,')
   })
 
-  it('draws Word’s bullet as a bullet', async () => {
+  /** Its tab to the text drawn as a space, an item's first line started short of the rest. */
+  it('draws Word’s bullet as a bullet, its text at the item’s indent', async () => {
     disk.writeBytes('/v/letter.docx', await wordDocument('Packed:', '- oars'))
     await openApp()
     fireEvent.click(sidebar().getByText('letter.docx'))
@@ -128,6 +129,37 @@ describe('the reading pane', () => {
     const styles = [...document.querySelectorAll('.word-pages style')].map((one) => one.textContent).join('')
     expect(styles).toMatch(/content: "•/)
     expect(styles).not.toContain('\uF0B7')
+    expect(styles).toMatch(/p\.word-\d+-num-1-0:before \{ display: inline-block; min-width: 18\.00pt; text-indent: 0 \}/)
+  })
+
+  it('draws Calibri and Cambria by their metric twins, unless they are installed', async () => {
+    const faces: { family: string; source: string; weight?: string; style?: string }[] = []
+    vi.stubGlobal(
+      'FontFace',
+      class {
+        constructor(family: string, source: string, { weight, style }: FontFaceDescriptors) {
+          faces.push({ family, source, weight, style })
+        }
+        load = async () => this
+      }
+    )
+    Object.defineProperty(document, 'fonts', { value: { add: () => undefined }, configurable: true })
+    disk.writeBytes('/v/letter.docx', await wordDocument('Dear Mira Vance,'))
+    await openApp()
+    fireEvent.click(sidebar().getByText('letter.docx'))
+    await waitFor(() => expect(document.querySelector('.word-pages')?.textContent).toContain('Dear Mira Vance,'))
+    expect(faces.map(({ family, weight, style }) => `${family} ${weight} ${style}`)).toEqual([
+      'Calibri 400 normal',
+      'Calibri 700 normal',
+      'Calibri 400 italic',
+      'Calibri 700 italic',
+      'Cambria 400 normal',
+      'Cambria 700 normal',
+      'Cambria 400 italic',
+      'Cambria 700 italic',
+    ])
+    expect(faces[3].source).toMatch(/^local\('Calibri Bold Italic'\), url\(.*carlito-latin-700-italic\.woff2\)$/)
+    vi.unstubAllGlobals()
   })
 
   it('says a Word document it cannot read, and keeps what it drew', async () => {

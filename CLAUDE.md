@@ -106,7 +106,13 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
   is drawn again when its stamp changes, on a return to the window or to its tab, since
   an agent in the app's own terminal writes while the window keeps the focus; the old
   pages stay until the new ones are drawn. Each document's styles carry their own
-  prefix: two open at once shared `.docx p.Normal`.
+  prefix: two open at once shared `.docx p.Normal`. **Drawn as Word draws it**, measured
+  in WebKit against a Google Docs export: Calibri and Cambria by their metric twins, Carlito and
+  Caladea (`TWINS`, OFL, bundled), loaded before the first drawing, since its tabs are
+  measured once (in Times, every line spaced to the margin wrapped); tabs measured to their
+  stops (`experimental`) on a 3pt space (`--word-tab-space`: the library rounds a tab to a
+  whole point, and a full space ended each one past its stop); a list marker as wide as
+  its hanging indent, where the tab after it was a space (`asWord`).
 - **A property is `key:: value`, a page's or a block's.** A note's page
   properties are the `key:: value` lines it opens with; the first other line ends
   them (`properties.ts`). A YAML `---` block is read as page properties too and

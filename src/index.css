@@ -62,6 +62,11 @@
   --cell-max: 16ch;
   /* A Word document's page: paper in every scheme, as the document's own colours assume. */
   --paper: #ffffff;
+  /* A Word document's tab is a no-break space widened to its stop, to a whole point
+     (docx-preview). At this size the space is 0.7pt, more than that rounding, so a tab
+     never ends short of its stop, where the next tab took nothing, nor a whole space past
+     it, which pushed a line spaced out to the margin onto the next. */
+  --word-tab-space: 3pt;
   /* How tall the `[[` popup grows before it scrolls: about twelve rows. */
   --picker-height: 18rem;
 
@@ -1969,6 +1974,10 @@ button.folder-toggle {
   background: var(--paper);
   border-radius: var(--radius-sm);
   box-shadow: 0 0 0 1px var(--border);
+}
+
+.word-pages span[class$='-tab-stop'] {
+  font-size: var(--word-tab-space);
 }
 
 .word-failed {
