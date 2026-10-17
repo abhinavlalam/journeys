@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentProps, type MutableRefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type ComponentProps, type MutableRefObject, type ReactNode } from 'react'
 import { useNoteBuffer } from './useNoteBuffer'
 import type { BufferSet } from './useBuffers'
 import { ViewerHeader, ViewSwitch } from './ViewerHeader'
@@ -8,7 +8,6 @@ import { SourceEditor } from './SourceEditor'
 import { NoteFooter } from './NoteFooter'
 import { FolderTree } from './FolderTree'
 import { anchorRange, backlinksTo, childrenOf, folderWithNote, trailTo } from './links'
-import { openBoxOf } from './daySections'
 import { dailyNeighbours, dayOf, isDailyNote } from './daily'
 import { TrackedSection, type TrackedDay } from './trackerParts'
 import type { Tracker } from './trackers'
@@ -68,6 +67,8 @@ interface NotePaneProps {
   reveal?: { path: string; anchor: string; n: number } | null
   /** Asks the vault's agent to organise the days (`ORGANISE`), from a daily note's header; none on the phone. */
   onOrganise?: () => void
+  /** A daily note's plan, kept in its own table and shown at the note's top (`PlanSection`); none, none. */
+  dayPlan?: (day: string) => ReactNode
 }
 
 /**
@@ -102,6 +103,7 @@ export function NotePane({
   onOpenTable,
   reveal,
   onOrganise,
+  dayPlan,
 }: NotePaneProps) {
   const buffer = useNoteBuffer({ vaultPath, refresh, setError })
 
@@ -162,7 +164,6 @@ export function NotePane({
    */
   const loaded = buffer.note?.path === file.path
   const kind = fileKind(file.path)
-  // The day's plan is drawn as a section is, after them, so the sections keep their hues.
   // A link to one of its lines names it as the `[[` popup does, by its path when
   // another note has its name, since the link is pasted elsewhere.
   const linkName = useMemo(
@@ -181,10 +182,7 @@ export function NotePane({
     const range = reveal && reveal.path === file.path ? anchorRange(buffer.body, reveal.anchor) : null
     return range && reveal ? { ...range, n: reveal.n } : null
   }, [reveal, file.path, buffer.body])
-  const daySectionNames = useMemo(
-    () => [...settings.daySections.map((section) => section.name), ...(settings.dayPlan.count ? [settings.dayPlan.name] : [])],
-    [settings.daySections, settings.dayPlan]
-  )
+  const daySectionNames = useMemo(() => settings.daySections.map((section) => section.name), [settings.daySections])
 
   /**
    * A table, or its text (`CSV_VIEWS`). Either mounts over the text as it is now
@@ -247,6 +245,8 @@ export function NotePane({
           )}
         </nav>
       )}
+      {/* The day's plan, first: the day starts with it. Its table holds it, not the note. */}
+      {loaded && dayPlan && isDailyNote(file.path, settings.dailyFolder) && dayPlan(dayOf(file.path))}
       {!loaded ? null : buffer.unreadable ? (
         <p className="viewer-empty">
           This note could not be read, so it has not been opened for editing. Nothing has been
@@ -298,14 +298,13 @@ export function NotePane({
           onLineLink={lineLinked}
           reveal={revealAt}
           caretAtEnd={isDailyNote(file.path, settings.dailyFolder)}
-          caret={isDailyNote(file.path, settings.dailyFolder) ? (openBoxOf(buffer.body, settings.dayPlan, settings.daySections) ?? undefined) : undefined}
           indentWidth={settings.indentWidth}
           onOpenLink={onOpenLink}
           onOpenTag={onOpenTag}
         />
       )}
-      {/* What the trackers' tables hold for the day, under its last section, Trackers: what the
-          note says and this does not is not in a table yet. */}
+      {/* What the trackers' tables hold for the day, under its last section: what the note
+          says and this does not is not in a table yet. */}
       {loaded && isDailyNote(file.path, settings.dailyFolder) && <TrackedSection day={tracked(dayOf(file.path))} onOpenTable={onOpenTable} />}
 
       {/* Notes only. A link to a non-`.md` target is external,

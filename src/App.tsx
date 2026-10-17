@@ -49,12 +49,13 @@ import { EXPENSE_COLUMNS, mainCurrency, readExpenses } from './expenses'
 import { CALORIE_COLUMNS, readCalories } from './calories'
 import { expenseFields, figuresOf, FOOD_FIELDS, type TrackedDay } from './trackerParts'
 import { TRACKERS, withRecord, type Tracker } from './trackers'
-import { daySkeleton, planKept } from './daySections'
+import { daySkeleton } from './daySections'
 
 /** What a page adds a row to a tracker's table by. */
 const TRACKER_COLUMNS = { expenses: EXPENSE_COLUMNS, calories: CALORIE_COLUMNS } as const
 /** A tracker's table as it is made: its first line. Habits have a column each, added as they are. */
 const TABLE_HEADER: Record<Tracker, string> = {
+  plan: PLAN_COLUMNS.join(','),
   expenses: Object.values(EXPENSE_COLUMNS).join(','),
   calories: Object.values(CALORIE_COLUMNS).join(','),
   habits: 'day',
@@ -76,7 +77,7 @@ import { useVaultTexts } from './useVaultTexts'
 import { useSettings } from './useSettings'
 import { useBuffers } from './useBuffers'
 import { NotePane } from './NotePane'
-import { dayOf, isDailyNote } from './daily'
+import { isDailyNote } from './daily'
 import { WorkspaceView } from './WorkspaceView'
 import {
   activeTab,
@@ -107,6 +108,8 @@ import { Capture, type Adding } from './Capture'
 import { useShares } from './useShares'
 import { useMenuBar } from './menuBar'
 import { APP_COLUMNS, useAppTime, withAppMinutes } from './appTime'
+import { keptDays, PLAN_COLUMNS, readPlan, withPlanned, withThing, type Planned } from './plan'
+import { PlanSection } from './PlanView'
 import { shareDay, shareEntry, type Share } from './share'
 import { useDrops } from './useDrops'
 import { useCalendarSync } from './useCalendarSync'
@@ -381,16 +384,13 @@ export default function App() {
     >
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [texts, settings.trackers, viewVisible, liveVersion])
-  /**
-   * The day's plan as a habit: the days whose plan was kept, read from their notes, one
-   * more memo over the one read. Shown beside the table's habits; ticked in the note.
-   */
-  const { dayPlan, daySections, dailyFolder } = settings
-  const planned = useMemo(() => {
-    if (!texts || dayPlan.count === 0) return null
-    const days = texts.filter(({ note, text }) => isDailyNote(note.path, dailyFolder) && planKept(text, dayPlan, daySections))
-    return { name: dayPlan.name, done: new Set(days.map(({ note }) => dayOf(note.path))) }
-  }, [texts, dayPlan, daySections, dailyFolder])
+  /** The day's plan, from its table: each day's things, in the table's order. Null without a table. */
+  const plan = useMemo(() => (trackerTables.plan.text === null ? null : readPlan(trackerTables.plan.text).rows), [trackerTables.plan.text])
+  /** The plan as a habit: the days all its things were done. Shown beside the table's habits; ticked in the plan. */
+  const planned = useMemo(
+    () => (plan && settings.dayPlan.count > 0 ? { name: settings.dayPlan.name, done: keptDays(plan, settings.dayPlan.count) } : null),
+    [plan, settings.dayPlan]
+  )
   /** What the trackers' tables hold for a day, which ends its daily note. */
   const tracked = useMemo(() => {
     const read = <T,>(tracker: Tracker, reader: (text: string) => T) => (trackerTables[tracker].text === null ? null : reader(trackerTables[tracker].text!))
@@ -643,7 +643,7 @@ export default function App() {
     const file = dailyNoteFile(vault.vaultPath, settings.dailyFolder, day)
     if (noteIndex.byKey.has(pathKey(file.path))) return openNote(file)
     await vault.mutate(
-      (v) => ensureDailyNote(v, settings.dailyFolder, day, daySkeleton(settings.daySections, settings.dayPlan)),
+      (v) => ensureDailyNote(v, settings.dailyFolder, day, daySkeleton(settings.daySections)),
       async ({ file, created }) => {
         // A new note is given its icon once, when it is made.
         if (created) await inheritIcon(file)
@@ -676,7 +676,7 @@ export default function App() {
     const format = { properties: EVENT_PROPERTIES, typeOf: typeOfName }
     const { byDay, sources } = await feedLines(settings.calendarFeeds, localDateStamp(), settings.calendarDays, format.properties)
     await vault.mutate(
-      (v) => syncEvents(v, settings.dailyFolder, format, byDay, sources, settings.daySections, settings.dayPlan),
+      (v) => syncEvents(v, settings.dailyFolder, format, byDay, sources, settings.daySections),
       async ({ changed, created }) => {
         for (const file of created) await inheritIcon(file)
         for (const { file, text } of changed) patch(new Set([file.path]), () => text)
@@ -839,7 +839,7 @@ export default function App() {
     return vault.mutate(
       async (v) => {
         const text = await entry(v)
-        const { file, created } = await ensureDailyNote(v, settings.dailyFolder, day, daySkeleton(settings.daySections, settings.dayPlan))
+        const { file, created } = await ensureDailyNote(v, settings.dailyFolder, day, daySkeleton(settings.daySections))
         const next = withNewEntry(file, await readVaultFile(file), text, {
           sections: settings.daySections,
           indent: ' '.repeat(settings.indentWidth),
@@ -904,16 +904,23 @@ export default function App() {
   async function makeTable(tracker: Tracker, path: string) {
     if (await changeTable(path, (text) => text || `${TABLE_HEADER[tracker]}\n`)) changeSettings({ ...settings, trackers: { ...settings.trackers, [tracker]: path } })
   }
-  /** Minutes in each app on a day, added into the apps table, made beside the other trackers' the first time. */
-  async function writeAppTime(day: string, minutes: ReadonlyMap<string, number>) {
-    let path = settings.trackers.apps
-    if (!path) {
-      const beside = Object.values(settings.trackers).find(Boolean)
-      const home = beside ? folderOf(beside) : 'Trackers'
-      path = `${home ? `${home}/` : ''}apps.csv`
-      await makeTable('apps', path)
-    }
-    return changeTable(path, (text) => withAppMinutes(text, day, minutes))
+  /** A tracker's table, made beside the other trackers' the first time something is written into it. */
+  async function tableFor(tracker: Tracker) {
+    if (settings.trackers[tracker]) return settings.trackers[tracker]
+    const beside = Object.values(settings.trackers).find(Boolean)
+    const home = beside ? folderOf(beside) : 'Trackers'
+    const path = `${home ? `${home}/` : ''}${tracker}.csv`
+    await makeTable(tracker, path)
+    return path
+  }
+  /** Minutes in each app on a day, added into the apps table. */
+  const writeAppTime = async (day: string, minutes: ReadonlyMap<string, number>) =>
+    changeTable(await tableFor('apps'), (text) => withAppMinutes(text, day, minutes))
+  /** The plan's table written: a thing added for a day, or one ticked or reworded. */
+  const planWrites = {
+    onAdd: async (day: string, thing: string) => void changeTable(await tableFor('plan'), (text) => withThing(text, day, thing)),
+    onChange: async (planned: Planned, change: { done?: boolean; thing?: string }) =>
+      void changeTable(await tableFor('plan'), (text) => withPlanned(text, planned, change)),
   }
   useAppTime({ on: settings.trackApps, write: writeAppTime })
 
@@ -1393,6 +1400,11 @@ export default function App() {
                     onOpenTable={openTable}
                     reveal={reveal}
                     onOrganise={organise}
+                    dayPlan={
+                      settings.dayPlan.count > 0
+                        ? (day) => <PlanSection day={day} name={settings.dayPlan.name} count={settings.dayPlan.count} things={plan?.filter((one) => one.day === day) ?? []} {...planWrites} />
+                        : undefined
+                    }
                     onColumnTotal={(column, total) =>
                       changeSettings({ ...settings, columnTotals: { ...settings.columnTotals, [column.toLowerCase()]: total } })
                     }
@@ -1471,6 +1483,7 @@ export default function App() {
                     onView={(trackersView) => changeSettings({ ...settings, trackersView })}
                     tables={trackerTables}
                     planned={planned}
+                    plan={{ name: settings.dayPlan.name, count: settings.dayPlan.count, ...planWrites }}
                     files={tables}
                     reading={reading || !texts}
                     targets={settings}

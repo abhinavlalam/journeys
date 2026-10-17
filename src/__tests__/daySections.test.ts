@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { daySkeleton, openBoxOf, planKept, sectioned, sectionOf, spansOf, withInSection, type DaySection } from '../daySections'
+import { daySkeleton, sectioned, sectionOf, spansOf, withInSection, type DaySection } from '../daySections'
 
 /** A daily note in sections: the same headings in every day, each line where its kind says. */
 
@@ -35,32 +35,8 @@ describe('a day’s sections', () => {
     expect(sectionOf('#event Offsite', SECTIONS)).toBe(0)
   })
 
-  it('begin a new day with their headings, after the plan’s empty boxes', () => {
+  it('begin a new day with their headings', () => {
     expect(daySkeleton(SECTIONS)).toBe('## Log\n\n## Notes\n\n## Trackers\n')
-    expect(daySkeleton(SECTIONS.slice(0, 2), { name: 'Plan', count: 2 })).toBe('## Plan\n- [ ] \n- [ ] \n\n## Log\n\n## Notes\n')
-    expect(daySkeleton(SECTIONS.slice(0, 2), { name: 'Plan', count: 0 })).toBe('## Log\n\n## Notes\n')
-  })
-})
-
-describe('a day’s plan', () => {
-  const PLAN = { name: 'Plan', count: 2 }
-  const day = (...boxes: string[]) => ['## Plan', ...boxes, '', '## Log', '09:00 standup', '', '## Notes', '- [x] a box of the notes', ''].join('\n')
-
-  it('is kept when as many boxes as it has are ticked, each with something written', () => {
-    expect(planKept(day('- [x] call the ferry', '  - [X] water the fern'), PLAN, SECTIONS)).toBe(true)
-    expect(planKept(day('- [x] call the ferry', '- [ ] water the fern'), PLAN, SECTIONS)).toBe(false)
-    // An empty box ticked is not a thing done, and the notes' boxes are not the plan's.
-    expect(planKept(day('- [x] call the ferry', '- [x] '), PLAN, SECTIONS)).toBe(false)
-    expect(planKept(day('- [x] call the ferry'), PLAN, SECTIONS)).toBe(false)
-    expect(planKept('## Log\n- [x] one\n- [x] two\n', PLAN, SECTIONS)).toBe(false)
-  })
-
-  /** A daily note opens there, where the day begins, until its plan is written. */
-  it('is still to be written after its first empty box', () => {
-    const begun = day('- [ ] call the ferry', '- [ ] ')
-    expect(begun.slice(0, openBoxOf(begun, PLAN, SECTIONS)!)).toBe('## Plan\n- [ ] call the ferry\n- [ ] ')
-    expect(openBoxOf(day('- [x] call the ferry', '- [ ] water the fern'), PLAN, SECTIONS)).toBeNull()
-    expect(openBoxOf('## Log\n- [ ] \n', PLAN, SECTIONS)).toBeNull()
   })
 })
 

@@ -1,12 +1,12 @@
-// The trackers: tables of what is counted day by day (expenses, calories, habits, the
-// time in each app), each
+// The trackers: tables of what is counted day by day (the day's plan, expenses,
+// calories, habits, the time in each app), each
 // read by the names of its columns. What they share is here; each one's own sums are in
 // its module (`expenses.ts`, `calories.ts`, `habits.ts`).
 
 import { DAY_STAMP, daysAfter, intoWeek } from './clock'
 import { numberOf, readTable, withRow } from './table'
 
-export const TRACKERS = ['expenses', 'calories', 'habits', 'apps'] as const
+export const TRACKERS = ['plan', 'expenses', 'calories', 'habits', 'apps'] as const
 export type Tracker = (typeof TRACKERS)[number]
 
 /** A tracker's columns: the field each is read into, by the column's name. Every one has a day and a time. */

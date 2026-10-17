@@ -651,7 +651,7 @@ export async function ensureDailyNote(
   vaultPath: string,
   folder = DAILY_FOLDER,
   day = localDateStamp(),
-  /** What a new day is written with: its plan and its sections' headings (`daySkeleton`). */
+  /** What a new day is written with: its sections' headings (`daySkeleton`). */
   begun = ''
 ): Promise<{ file: VaultFile; created: boolean }> {
   const folderAbsolute = `${vaultPath}/${folder}`

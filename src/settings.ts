@@ -9,7 +9,8 @@ import { DAILY_FOLDER, FILES_FOLDER, readConfigFile, safeNewName, writeConfigFil
 import { COLUMN_TOTALS, TAG_NAME, type ColumnTotal } from './tags'
 import { fileKind, SETTINGS_FILE } from './vaultModel'
 import { TRACKERS, type Tracker } from './trackers'
-import type { DayPlan, DaySection } from './daySections'
+import type { DaySection } from './daySections'
+import type { DayPlan } from './plan'
 import { onAndroid, paintBars } from './platform'
 import { ACTIONS, defaultShortcuts, normalizeCombo, type ActionId } from './shortcuts'
 
@@ -184,7 +185,7 @@ export interface Settings {
    * only that one), else in the second.
    */
   daySections: DaySection[]
-  /** What each new day opens with: a heading over that many boxes (`DayPlan`). */
+  /** The day's plan, Today's 8: its name and how many things a day (`plan.ts`). */
   dayPlan: DayPlan
   shortcuts: Record<ActionId, string>
   /**
@@ -330,7 +331,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphShows: { text: true, property: true, tag: true },
   timelineView: 'list',
   tasksView: 'due',
-  trackers: { expenses: '', calories: '', habits: '', apps: '' },
+  trackers: { plan: '', expenses: '', calories: '', habits: '', apps: '' },
   trackersView: 'today',
   calorieTarget: 0,
   monthlyBudget: 0,

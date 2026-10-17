@@ -56,7 +56,7 @@ async function openTrackers(settings: Record<string, unknown> = { trackers: trac
   render(<App />)
   fireEvent.click(await screen.findByLabelText('Trackers'))
 }
-const show = (view: string) => fireEvent.click(viewer().getByRole('button', { name: view }))
+const show = (view: string) => fireEvent.click(within(viewer().getByRole('group', { name: 'View' })).getByRole('button', { name: view }))
 /** Opens a form from its chip, fills it, and adds the row. */
 const fill = (form: string, values: Record<string, string>) => {
   fireEvent.click(viewer().getByRole('button', { name: `+ ${form}` }))
@@ -71,11 +71,10 @@ describe('today', () => {
     await waitFor(() => expect(tile('today, of 2,000')).toBe('570 kcal'))
     expect(tile(/^Spent today/)).toBe(moneyText(30, 'EUR'))
     expect(tile('this month, of ' + moneyText(1000, 'EUR', 0))).toBe(moneyText(42.5, 'EUR', 0))
-    // The day's plan is a habit too, not kept today.
-    expect(tile('habits today')).toBe('1 of 3')
+    expect(tile('habits today')).toBe('1 of 2')
     fireEvent.click(viewer().getByRole('button', { name: 'stretch' }))
     await waitFor(() => expect(disk.read(HABITS)).toBe(habits.replace(`${today},1,`, `${today},1,1`)))
-    await waitFor(() => expect(tile('habits today')).toBe('2 of 3'))
+    await waitFor(() => expect(tile('habits today')).toBe('2 of 2'))
   })
 
   /** Typed on the page, a row goes into the table now, in the table's own columns. */
@@ -183,26 +182,58 @@ describe('apps', () => {
   })
 })
 
-/** The day's plan, `## Today’s 8`: a habit kept on the days all its boxes are ticked, read from the notes. */
+/** The day's plan, Today’s 8: one table, shown at the top of each daily note and in Trackers. */
 describe('the day’s plan', () => {
-  const plan = (ticked: number, open = 8 - ticked) => ['## Today’s 8', ...Array(ticked).fill('- [x] row the boat'), ...Array(open).fill('- [ ] row the boat'), '', '## Log', ''].join('\n')
-  const cell = (day: string) => {
-    const date = dayDate(day)
-    return viewer().getByRole('button', { name: `Today’s 8, ${weekdayName.format(date)} ${shortDate.format(date)}` })
+  const PLAN = '/v/Trackers/plan.csv'
+  const yesterday = () => localDateStamp(new Date(dayDate(today).getTime() - 86400000))
+  const plan = () => ['day,thing,done', ...Array.from({ length: 8 }, (_, n) => `${yesterday()},thing ${n + 1},1`), `${today},call the ferry,1`, `${today},row the boat,`, ''].join('\n')
+  const section = () => within(document.querySelector('.viewer:not([hidden]) .day-plan') as HTMLElement)
+
+  async function openToday(settings: Record<string, unknown>) {
+    disk.write(`/v/Daily/${today}.md`, '## Log\n\n## Notes\n')
+    disk.write(SETTINGS, JSON.stringify(settings))
+    const { default: App } = await import('../App')
+    render(<App />)
+    fireEvent.click(await screen.findByText('Daily'))
+    fireEvent.click(await screen.findByText(today))
+    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .day-plan')).toBeTruthy())
   }
 
-  it('is a habit kept on the days all eight are ticked, and a press opens the day', async () => {
-    const yesterday = localDateStamp(new Date(dayDate(today).getTime() - 86400000))
-    disk.write(`/v/Daily/${yesterday}.md`, plan(8))
-    disk.write(`/v/Daily/${today}.md`, plan(7))
-    await openTrackers()
+  it('is shown at the top of the day’s note, ticked and added to in its table, the note left as it is', async () => {
+    disk.write(PLAN, plan())
+    await openToday({ trackers: { ...tracked, plan: 'Trackers/plan.csv' } })
+    await waitFor(() => expect(section().getByText('row the boat')).toBeTruthy())
+    expect(section().getByRole('checkbox', { name: 'call the ferry: done' }).getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(section().getByRole('checkbox', { name: 'row the boat: done' }))
+    await waitFor(() => expect(disk.read(PLAN)).toContain(`${today},row the boat,1`))
+    const field = section().getByLabelText('Something to work on')
+    expect(field.getAttribute('placeholder')).toBe('6 more things to work on')
+    fireEvent.change(field, { target: { value: 'water the fern' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    await waitFor(() => expect(disk.read(PLAN)).toMatch(new RegExp(`${today},water the fern,\\n$`)))
+    expect(disk.read(`/v/Daily/${today}.md`)).toBe('## Log\n\n## Notes\n')
+  })
+
+  it('makes its table beside the others with the first thing', async () => {
+    await openToday({ trackers: tracked })
+    fireEvent.change(section().getByLabelText('Something to work on'), { target: { value: 'call the ferry' } })
+    fireEvent.keyDown(section().getByLabelText('Something to work on'), { key: 'Enter' })
+    await waitFor(() => expect(disk.read(PLAN)).toBe(`day,thing,done\n${today},call the ferry,\n`))
+    await waitFor(() => expect(JSON.parse(disk.read(SETTINGS)!).trackers.plan).toBe('Trackers/plan.csv'))
+  })
+
+  it('has a page of its own in Trackers, and is a habit kept on the days all eight were done', async () => {
+    disk.write(PLAN, plan())
+    await openTrackers({ trackers: { ...tracked, plan: 'Trackers/plan.csv' } })
+    show('Today’s 8')
+    await waitFor(() => expect(tile('done today')).toBe('1 of 8'))
+    expect(tile('days this month with all done')).toBe(yesterday().startsWith(month) ? '1 of 2' : '0 of 1')
+    expect(tile('days in a row')).toBe('1')
     show('Habits')
-    await waitFor(() => expect(cell(yesterday).getAttribute('aria-pressed')).toBe('true'))
-    expect(cell(today).getAttribute('aria-pressed')).toBe('false')
-    // Ticked in the note, not in the table: the press goes to the day.
-    fireEvent.click(cell(today))
-    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe(today))
-    expect(disk.read(HABITS)).toBe(habits)
+    const date = dayDate(yesterday())
+    await waitFor(() =>
+      expect(viewer().getByRole('button', { name: `Today’s 8, ${weekdayName.format(date)} ${shortDate.format(date)}` }).getAttribute('aria-pressed')).toBe('true')
+    )
   })
 })
 
@@ -222,6 +253,6 @@ describe('a daily note', () => {
     })
     expect(section.getByText('lunch')).toBeTruthy()
     expect(section.getByText(`570 of 2,000 kcal`)).toBeTruthy()
-    expect(section.getByText('1 of 3')).toBeTruthy()
+    expect(section.getByText('1 of 2')).toBeTruthy()
   })
 })

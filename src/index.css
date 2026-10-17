@@ -5325,7 +5325,7 @@ button.task-box:hover {
   padding-top: 0;
 }
 
-/* A daily note's sections (`## Log`, `## Notes`, the owner's) and its plan (`## Today's 8`): each
+/* A daily note's sections (`## Log`, `## Notes`, the owner's): each
    section's lines with a rule of its own hue at the left, and each heading its name,
    small and spaced, so a day's parts read apart. No ground: filled, the owner found
    the sections ugly. The text is the note's; only lines are drawn. */
@@ -5339,9 +5339,6 @@ button.task-box:hover {
   --section: var(--hue-amber);
 }
 
-.markdown-editor .cm-line[data-section='2'] {
-  --section: var(--hue-violet);
-}
 
 
 .code-editor .cm-editor .cm-line.cm-day-heading {
@@ -5365,6 +5362,43 @@ button.task-box:hover {
   bottom: 0;
   left: var(--gutter-w);
   border-left: 2px solid color-mix(in srgb, var(--hue-green) 55%, transparent);
+}
+
+/* The day's plan at the top of a daily note (`PlanSection`), from its own table, with a
+   rule of its own as a section has. */
+.note-section.day-plan {
+  position: relative;
+}
+
+.note-section.day-plan::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--gutter-w);
+  border-left: 2px solid color-mix(in srgb, var(--hue-violet) 55%, transparent);
+}
+
+.plan-field {
+  flex: 1;
+  min-width: 0;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-viewer);
+  color: var(--text);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  outline: none;
+}
+
+.plan-field:focus {
+  border-color: var(--mark);
+}
+
+.plan-new {
+  width: 100%;
 }
 
 .markdown-editor .cm-day-heading .cm-md-h2 {

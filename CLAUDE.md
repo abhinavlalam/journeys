@@ -58,6 +58,7 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 | `trackers.ts`, `expenses.ts`, `calories.ts`, `habits.ts` / `TrackersView.tsx`, `trackerParts.tsx` | The trackers' tables, each read by its columns' names, and what each adds up / their page and its parts, and the Tracked section ending a daily note. |
 | `LineEditor.tsx` | One line in the note's own editor, for a page that takes typing: `EditLine` for one written (saved on Enter or leaving when changed, emptied is not deleted), `NewLine` for a new one; `Typing`, what every editor types with. |
 | `ViewerHeader.tsx` | Every page's header: its name (a note's renames it), its status (`statusCount`: nothing at none), its controls, and `ViewSwitch`, a page's ways of being drawn. |
+| `plan.ts` / `PlanView.tsx` | The day's plan, Today's 8: its table / its section in a daily note and its page in Trackers. |
 | `appTime.ts` | The time in each app: the apps table, and the count from the Mac's reports. |
 | `menuBar.ts` / `MenuBarPanel.tsx` | The menu bar's time tracker and line for today: the main window's half that writes / the panel that asks. |
 | `useLog.ts` / `LogView.tsx` | What the app says: shown a while, kept in the Log / its page. |
@@ -572,14 +573,16 @@ owner and the agent.
   so an all-day event, with no clock, is the day's too. What is nested under a line goes with it. Every line the app writes into a
   day goes through it: an entry, a task, the phone's +, a share (`withNewEntry`), and a
   calendar event, always in the first (`syncEvents`).
-- **A day opens with its plan** (`dayPlan`, the owner's `## Today's 8`, from a video on
-  starting each day with the eight things to work on): a heading over eight empty boxes,
-  first in every new day, drawn as a section is (violet). Nothing is filed into it; it
-  is the owner's to write and tick. A daily note opens on its first empty box until it
-  is written (`openBoxOf`), then at its end. **A day whose eight are ticked, each with
-  something written, keeps a habit** (`planKept`): one more memo over the one read,
-  shown on the Habits and Today pages and under the note beside the table's habits,
-  and pressed, it opens the day, where it is ticked, never writing `habits.csv`.
+- **The day's plan is a table, shown in the day** (`plan.ts`, `PlanSection`, the owner's
+  `Today's 8`, from a video on starting each day with the eight things to work on):
+  `Trackers/plan.csv`, a row per thing per day (day, thing, done), and at the top of
+  each daily note its day's things, a box ticking one and its words changing it, and a
+  field for the next while there are fewer than `dayPlan`'s count; every write goes to
+  the table (`withThing`, `withPlanned`), made beside the others with the first. Until
+  2026-10-17 the eight were boxes written into each new day; the owner wanted the data
+  in one place and the day only showing it. **A day with all done keeps a habit**
+  (`keptDays`), beside the table's habits; pressed, it opens the day. Trackers has its
+  page (`PlanPage`): the month by day, the days kept, the streak.
 - **A new day is begun with its sections** (`daySkeleton`, through `ensureDailyNote`),
   and an empty one too. A day written before them is filed as it was (`inSections`): a
   heading tacked onto its end read as a section of one line. `sectioned` puts such a day

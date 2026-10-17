@@ -13,12 +13,23 @@ import { NameField } from './rows'
  * the tree's row share `NameField` and, through `App`, the same handler.
  */
 /** A page's ways of being drawn, one pressed, each shown as its name. */
-export function ViewSwitch<T extends string>({ views, view, onView }: { views: readonly T[]; view: T; onView: (next: T) => void }) {
+export function ViewSwitch<T extends string>({
+  views,
+  view,
+  onView,
+  labels = {},
+}: {
+  views: readonly T[]
+  view: T
+  onView: (next: T) => void
+  /** A view called otherwise than its name, as the owner named it. */
+  labels?: Partial<Record<T, string>>
+}) {
   return (
     <span className="view-switch" role="group" aria-label="View">
       {views.map((one) => (
         <button key={one} className="header-action" aria-pressed={view === one} onClick={() => onView(one)}>
-          {one[0].toUpperCase() + one.slice(1)}
+          {labels[one] ?? one[0].toUpperCase() + one.slice(1)}
         </button>
       ))}
     </span>

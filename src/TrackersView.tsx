@@ -10,6 +10,8 @@ import { TRACKER_VIEWS } from './settings'
 import { Adder, AmountField, Bars, Box, Columns, expenseFields, FOOD_FIELDS, Line, now, TablePicker, Tile, Tiles } from './trackerParts'
 import { daysBack, perDay, perWeek, weeksBack, type Tracker } from './trackers'
 import { APP_COLUMNS, hoursText, minutesByApp, readAppTime, type AppTime } from './appTime'
+import { PLAN_COLUMNS, readPlan } from './plan'
+import { PlanPage, type PlanWrites } from './PlanView'
 import { baseName, folderOf, type VaultFile } from './vaultModel'
 import { ViewerHeader, ViewSwitch } from './ViewerHeader'
 
@@ -37,9 +39,10 @@ export interface Targets {
 
 type View = (typeof TRACKER_VIEWS)[number]
 
-const NAMES: Record<Tracker, string> = { expenses: 'expenses', calories: 'calories', habits: 'habits', apps: 'time in each app' }
+const NAMES: Record<Tracker, string> = { plan: 'day’s plan', expenses: 'expenses', calories: 'calories', habits: 'habits', apps: 'time in each app' }
 /** What each table is read by, said when one lacks what it needs. */
 const COLUMNS: Record<Tracker, readonly string[]> = {
+  plan: PLAN_COLUMNS,
   expenses: Object.values(EXPENSE_COLUMNS),
   calories: Object.values(CALORIE_COLUMNS),
   habits: ['day', 'and a column for each habit'],
@@ -58,6 +61,7 @@ export function TrackersView({
   onView,
   tables,
   planned,
+  plan,
   files,
   reading,
   targets,
@@ -77,8 +81,10 @@ export function TrackersView({
   view: View
   onView: (view: View) => void
   tables: Readonly<Record<Tracker, TrackerTable>>
-  /** The day's plan as a habit, read from the daily notes: shown with the table's, and ticked in the note. */
+  /** The day's plan as a habit, read from its table: shown with the table's habits, and ticked in the plan. */
   planned: { name: string; done: ReadonlySet<string> } | null
+  /** The day's plan (`dayPlan`): its name, how many things a day, and its table's writes. */
+  plan: { name: string; count: number } & PlanWrites
   /** The vault's tables, to pick from. */
   files: readonly VaultFile[]
   reading: boolean
@@ -108,9 +114,10 @@ export function TrackersView({
     if (!planned || !table) return table
     return { names: [...table.names, planned.name], done: new Map([...table.done, [planned.name, new Set(planned.done)]]) }
   }, [tables.habits.text, planned])
-  // A press on the plan's day opens the day, where its boxes are.
+  // The plan's habit is its things done, not a cell: a press on a day opens it, its things at the top.
   const tick = (day: string, habit: string, done: boolean) => (habit === planned?.name ? onOpenDay(day) : onTick(day, habit, done))
   const apps = useMemo(() => (tables.apps.text === null ? null : readAppTime(tables.apps.text)), [tables.apps.text])
+  const plans = useMemo(() => (tables.plan.text === null ? null : readPlan(tables.plan.text)), [tables.plan.text])
   const currency = expenses ? mainCurrency(expenses.expenses) : ''
   // One currency is added up: the one most expenses are in.
   const counted = useMemo(() => expenses?.expenses.filter((one) => one.currency === currency) ?? [], [expenses, currency])
@@ -162,6 +169,7 @@ export function TrackersView({
     <ViewerHeader name="Trackers" status={status}>
       <ViewSwitch
         views={TRACKER_VIEWS}
+        labels={{ plan: plan.name }}
         view={view}
         onView={(next) => {
           setChanging(false)
@@ -235,6 +243,11 @@ export function TrackersView({
           />
         )
       )
+    }
+    if (view === 'plan') {
+      if (!plans) return null
+      const { name, count, ...writes } = plan
+      return lacking('plan', plans.missing) || <PlanPage today={today} count={count} rows={plans.rows} onOpenDay={onOpenDay} {...writes} />
     }
     if (view === 'apps') {
       if (!apps) return null

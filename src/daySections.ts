@@ -9,24 +9,13 @@
 
 import { leadingClock } from './clock'
 import { splitPageProperties } from './properties'
-import { indentOf, proseLines, TASK_LINE, taskState } from './prose'
+import { indentOf, proseLines } from './prose'
 import { tagNames } from './tags'
 
 export interface DaySection {
   name: string
   /** Tags whose lines go in this section, in lower case. */
   tags: string[]
-}
-
-/**
- * What the day is to be: a heading over `count` task boxes, first in a new day (the
- * owner's `## Today's 8`, after a video on starting each day with the eight things to
- * work on). Nothing is filed into it: it is the owner's to fill in and tick. A day whose
- * `count` boxes are all ticked is a habit kept (`planKept`). `count` 0 is none.
- */
-export interface DayPlan {
-  name: string
-  count: number
 }
 
 /** A section as a note has it: which of the day's sections, its heading's line, and its last line. */
@@ -58,32 +47,8 @@ export function sectionOf(line: string, sections: readonly DaySection[], below: 
   return leadingClock(line.trim()) || below.some((one) => leadingClock(one.trim())) ? 0 : 1
 }
 
-/** A new daily note: its plan's empty boxes, then its sections' headings, an empty line between. */
-export const daySkeleton = (sections: readonly DaySection[], plan?: DayPlan) =>
-  [...(plan?.count ? [`## ${plan.name}\n${'- [ ] \n'.repeat(plan.count)}`] : []), ...sections.map((section) => `## ${section.name}\n`)].join('\n')
-
-/** A day's plan's boxes, those up to the next section's heading: where each line ends, and whether it is ticked and written. */
-function planBoxes(raw: string, plan: DayPlan, sections: readonly DaySection[]) {
-  const span = plan.count > 0 && spansOf(raw, [plan.name, ...sections.map((section) => section.name)]).find((one) => one.index === 0)
-  if (!span) return []
-  let offset = 0
-  return raw.split('\n').flatMap((line, at) => {
-    const end = (offset += line.length + 1) - 1
-    const box = at > span.heading && at <= span.end ? TASK_LINE.exec(line) : null
-    return box ? [{ end, ticked: taskState(box[2]) === 'done', written: line.slice(box[0].length).trim() !== '' }] : []
-  })
-}
-
-/**
- * Where a day's plan is still to be written: just after its first empty box, or null.
- * A daily note opens there, where the day begins, until the plan is written.
- */
-export const openBoxOf = (raw: string, plan: DayPlan, sections: readonly DaySection[]) =>
-  planBoxes(raw, plan, sections).find((box) => !box.written)?.end ?? null
-
-/** Whether a day's plan was kept: as many of its boxes ticked, each with something written, as it has. */
-export const planKept = (raw: string, plan: DayPlan, sections: readonly DaySection[]) =>
-  plan.count > 0 && planBoxes(raw, plan, sections).filter((box) => box.ticked && box.written).length >= plan.count
+/** A new daily note: its sections' headings, an empty line between. */
+export const daySkeleton = (sections: readonly DaySection[]) => sections.map((section) => `## ${section.name}\n`).join('\n')
 
 /**
  * Whether a day is kept in sections: it has them, or nothing is written yet and it is
