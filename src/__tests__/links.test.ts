@@ -3,6 +3,9 @@ import type { VaultFile, VaultFolder } from '../vaultModel'
 
 // No mocks: `links.ts` imports no filesystem, directly or through `vault.ts`.
 import {
+  anchorOf,
+  anchorRange,
+  newBlockId,
   parseNoteLinks,
   isExternalTarget,
   collectFiles,
@@ -1029,5 +1032,35 @@ describe('retargetLinks', () => {
   it('leaves a note with no links exactly as it was', () => {
     const text = '---\npath: Notes\n---\n\n# A page\n\nNo links here.\n'
     expect(follow(text)).toBe(text)
+  })
+})
+
+/** `[[Plan#^id]]` and `[[Plan#Heading]]`: what a link names in its note, and the line it is. */
+describe('an anchor', () => {
+  const text = ['icon:: pen', '# Plan', '  - call the ferry ^ab12cd', '    - at nine', '```', 'fake ^zz99yy', '```', '## Q3 goals', ''].join('\n')
+  const lineOf = (anchor: string) => {
+    const range = anchorRange(text, anchor)
+    return range && text.slice(range.from, range.to)
+  }
+
+  it('is what follows the first #', () => {
+    expect(anchorOf('Plan#^ab12cd')).toBe('^ab12cd')
+    expect(anchorOf('Areas/Plan#Q3 goals')).toBe('Q3 goals')
+    expect(anchorOf('Plan')).toBe('')
+  })
+
+  it('names the line whose id it is, less its indent and the id, and not in code', () => {
+    expect(lineOf('^ab12cd')).toBe('- call the ferry')
+    expect(lineOf('^zz99yy')).toBeNull()
+    expect(lineOf('^nothing')).toBeNull()
+  })
+
+  it('names a heading by its words, in any case, the last of A#B', () => {
+    expect(lineOf('q3 GOALS')).toBe('## Q3 goals')
+    expect(lineOf('Plan#Q3 goals')).toBe('## Q3 goals')
+  })
+
+  it('is made new: six letters and digits no line has', () => {
+    expect(newBlockId(text)).toMatch(/^[a-z0-9]{6}$/)
   })
 })

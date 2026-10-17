@@ -20,7 +20,7 @@ import {
   selectedCompletion,
 } from '@codemirror/autocomplete'
 import { EditorHost } from './EditorHost'
-import { formatKeymap, insertTimeKeymap } from './editorCommands'
+import { copyLineLinkKeymap, formatKeymap, insertTimeKeymap } from './editorCommands'
 import { completionAppearance, slashSource, wikiLinkSource } from './editorComplete'
 import {
   propertyTypes,
@@ -53,6 +53,14 @@ interface MarkdownEditorProps {
    * turn it off while the settings panel is capturing a rebind.
    */
   insertTimeCombo?: string | null
+  /** The copy-a-link-to-this-line combo, off as the time's is (`copyLineLinkKeymap`). */
+  copyLineLinkCombo?: string | null
+  /** The note's name in a link, for a link to one of its lines; none, no such links. */
+  linkName?: string
+  /** A link to a line was made (null: the line had nothing on it). */
+  onLineLink?: (link: string | null) => void
+  /** A line to choose and bring into view, as a link's anchor names it; `n` counts the requests. */
+  reveal?: { from: number; to: number; n: number } | null
   /**
    * Every note in the vault, for the `[[` popup. Read through a
    * ref, so notes made after mount are offered too.
@@ -208,6 +216,11 @@ function markdownExtensions(latest: { current: MarkdownEditorProps }): Extension
       // Tab takes the popup's pick, if there is one.
       { key: 'Tab', run: acceptCompletion },
       insertTimeKeymap(() => latest.current.insertTimeCombo ?? null),
+      copyLineLinkKeymap(
+        () => latest.current.copyLineLinkCombo ?? null,
+        () => latest.current.linkName ?? null,
+        (link) => latest.current.onLineLink?.(link)
+      ),
       ...formatKeymap,
       // lang-markdown's own keys: Enter continues a quote, Backspace removes a
       // marker. Before the host's `defaultKeymap`, whose plain Enter would win.
@@ -260,6 +273,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
       gutters={!props.line}
       autoFocus={props.autoFocus ?? (props.line ? true : undefined)}
       incoming={props.incoming}
+      reveal={props.reveal}
     />
   )
 }

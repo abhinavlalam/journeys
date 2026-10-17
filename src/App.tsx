@@ -106,6 +106,7 @@ import { SettingsPanel, type SectionId } from './SettingsPanel'
 import { syncWord, useSync } from './useSync'
 import { CloneVault } from './CloneVault'
 import {
+  anchorOf,
   collectFolders,
   folderWithNote,
   existingNotesIn,
@@ -305,6 +306,8 @@ export default function App() {
 
   /** The daily sections' names, the same array while they are unchanged, so the timeline is not rebuilt on every render. */
   const daySectionNames = useMemo(() => settings.daySections.map((section) => section.name), [settings.daySections])
+  /** The line a followed link names in its note (`[[Plan#^id]]`), for that note's pane to show. */
+  const [reveal, setReveal] = useState<{ path: string; anchor: string; n: number } | null>(null)
 
   /**
    * The one read of the vault and everything built from it. `liveText`,
@@ -713,7 +716,10 @@ export default function App() {
     const from = focusedNote?.path ?? ''
     const resolved = resolveTarget(wiki ? { target, wiki } : target, from, noteIndex)
     if (resolved.kind === 'note') {
-      void openNote(resolved.note)
+      await openNote(resolved.note)
+      // `[[Plan#^id]]` and `[[Plan#Q3]]`: the note opens at that line.
+      const anchor = wiki ? anchorOf(target) : ''
+      if (anchor) setReveal((was) => ({ path: resolved.note.path, anchor, n: (was?.n ?? 0) + 1 }))
       return
     }
     // A link that isn't a note goes to the OS. Rust checks the
@@ -1100,6 +1106,7 @@ export default function App() {
     tagStructures: tagStructures.entries,
     // Off while the settings are open, as in a note: the shortcut may be being changed.
     insertTimeCombo: settingsOpen ? null : settings.shortcuts.insertTime,
+    copyLineLinkCombo: settingsOpen ? null : settings.shortcuts.copyLineLink,
   }
   /** What a page opens: a note, a link's target, a tag's page. */
   const opens = { onOpen: (file: VaultFile) => void openNote(file), onOpenLink: openLink, onOpenTag: (tag: string) => view('tag', tag) }
@@ -1351,6 +1358,7 @@ export default function App() {
                     onTyped={typed}
                     tracked={tracked}
                     onOpenTable={openTable}
+                    reveal={reveal}
                     onColumnTotal={(column, total) =>
                       changeSettings({ ...settings, columnTotals: { ...settings.columnTotals, [column.toLowerCase()]: total } })
                     }

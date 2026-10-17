@@ -7,13 +7,13 @@ import { MarkdownEditor } from './MarkdownEditor'
 import { SourceEditor } from './SourceEditor'
 import { NoteFooter } from './NoteFooter'
 import { FolderTree } from './FolderTree'
-import { backlinksTo, childrenOf, folderWithNote, trailTo } from './links'
+import { anchorRange, backlinksTo, childrenOf, folderWithNote, trailTo } from './links'
 import { openBoxOf } from './daySections'
 import { dailyNeighbours, dayOf, isDailyNote } from './daily'
 import { TrackedSection, type TrackedDay } from './trackerParts'
 import type { Tracker } from './trackers'
 import { ChevronIcon } from './icons'
-import { fileKind, isEncrypted, isNote } from './vaultModel'
+import { fileKind, isEncrypted, isNote, knownPath } from './vaultModel'
 import type { VaultFile, VaultFolder } from './vaultModel'
 import type { Settings } from './settings'
 import type { useVaultTexts } from './useVaultTexts'
@@ -64,6 +64,8 @@ interface NotePaneProps {
    * on screen in another pane, to take the live text; see `liveVersion`.
    */
   onTyped?: () => void
+  /** A link's anchor to show, for the note at `path`: its line chosen and brought into view. */
+  reveal?: { path: string; anchor: string; n: number } | null
 }
 
 /**
@@ -96,6 +98,7 @@ export function NotePane({
   onColumnTotal,
   tracked,
   onOpenTable,
+  reveal,
 }: NotePaneProps) {
   const buffer = useNoteBuffer({ vaultPath, refresh, setError })
 
@@ -157,6 +160,24 @@ export function NotePane({
   const loaded = buffer.note?.path === file.path
   const kind = fileKind(file.path)
   // The day's plan is drawn as a section is, after them, so the sections keep their hues.
+  // A link to one of its lines names it as the `[[` popup does, by its path when
+  // another note has its name, since the link is pasted elsewhere.
+  const linkName = useMemo(
+    () => (typing.notes.filter((one) => one.name.toLowerCase() === file.name.toLowerCase()).length > 1 ? knownPath(file.path) : file.name),
+    [typing.notes, file]
+  )
+  const lineLinked = (link: string | null) => {
+    if (!link) return setError('A link goes to a line with something written on it.')
+    navigator.clipboard.writeText(link).then(
+      () => setError(`Copied ${link}: pasted anywhere, it opens this note at that line.`),
+      (err: unknown) => setError(`The link could not be copied: ${String(err)}`)
+    )
+  }
+  // Found in the text as it is now, so a link followed before the note was read lands once it is.
+  const revealAt = useMemo(() => {
+    const range = reveal && reveal.path === file.path ? anchorRange(buffer.body, reveal.anchor) : null
+    return range && reveal ? { ...range, n: reveal.n } : null
+  }, [reveal, file.path, buffer.body])
   const daySectionNames = useMemo(
     () => [...settings.daySections.map((section) => section.name), ...(settings.dayPlan.count ? [settings.dayPlan.name] : [])],
     [settings.daySections, settings.dayPlan]
@@ -265,6 +286,9 @@ export function NotePane({
           {...typing}
           dailyFolder={settings.dailyFolder}
           daySections={isDailyNote(file.path, settings.dailyFolder) ? daySectionNames : undefined}
+          linkName={linkName}
+          onLineLink={lineLinked}
+          reveal={revealAt}
           caretAtEnd={isDailyNote(file.path, settings.dailyFolder)}
           caret={isDailyNote(file.path, settings.dailyFolder) ? (openBoxOf(buffer.body, settings.dayPlan, settings.daySections) ?? undefined) : undefined}
           indentWidth={settings.indentWidth}

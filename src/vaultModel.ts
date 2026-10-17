@@ -195,6 +195,7 @@ function tailFrom(path: string, names: number): number {
  * - `[[a/b/c|the office]]` shows `the office`.
  * - `[[a/b/c|!2]]` shows `b/c`, `!3` shows `a/b/c`, and `!` shows
  *   the whole path, for a name that needs its parent to make sense.
+ * - `[[a/b/c#^k3f9qz]]`, a link to a line, shows `c`: the id is for the app.
  *
  * The depth marker goes where an alias would: that part already says
  * what the link shows, a rename leaves it alone, and resolving ignores
@@ -202,7 +203,10 @@ function tailFrom(path: string, names: number): number {
  */
 export function linkLabelSpan(inner: string): { from: number; to: number } {
   const pipe = inner.indexOf('|')
-  if (pipe === -1) return { from: tailFrom(inner, 1), to: inner.length }
+  if (pipe === -1) {
+    const target = inner.includes('#^') ? inner.slice(0, inner.indexOf('#^')) : inner
+    return { from: tailFrom(target, 1), to: target.length }
+  }
   const depth = /^\s*!(\d*)\s*$/.exec(inner.slice(pipe + 1))
   // Anything else after the pipe is an alias, shown as written.
   if (!depth) return { from: pipe + 1, to: inner.length }

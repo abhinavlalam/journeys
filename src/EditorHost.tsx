@@ -41,6 +41,11 @@ interface EditorHostProps {
    * write. `n` counts the reads, so the same text read twice is applied once.
    */
   incoming?: { text: string; n: number } | null
+  /**
+   * A line a link's anchor names: chosen and brought to the middle, once for each
+   * request (`n`), as soon as the editor has it.
+   */
+  reveal?: { from: number; to: number; n: number } | null
   /** Called on every document change, and nothing else. */
   onChange: (text: string) => void
   /**
@@ -200,6 +205,7 @@ export function EditorHost({
   gutters = true,
   autoFocus = !onAndroid,
   incoming,
+  reveal,
 }: EditorHostProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   // What was applied, so a mount never applies a read meant for the editor before it.
@@ -270,6 +276,15 @@ export function EditorHost({
     const { from, to, insert } = smallestChange(now, next)
     view.dispatch({ changes: { from, to, insert: Text.of(insert.split('\n')) }, annotations: Transaction.addToHistory.of(false) })
   }, [incoming])
+
+  const revealed = useRef<number | null>(null)
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view || !reveal || reveal.n === revealed.current) return
+    revealed.current = reveal.n
+    const to = Math.min(reveal.to, view.state.doc.length)
+    view.dispatch({ selection: { anchor: Math.min(reveal.from, to), head: to }, effects: EditorView.scrollIntoView(to, { y: 'center' }) })
+  }, [reveal])
 
   // Hidden, it takes no keys. A tab's press does not move the focus in WebKit, so the
   // keyboard stayed in a note when the terminal's tab showed, and select-all and

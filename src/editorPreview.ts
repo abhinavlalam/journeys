@@ -15,6 +15,7 @@ import { TAG, TAG_COLOURS, tagAt, type TagColour } from './tags'
 import { linkLabelSpan } from './vaultModel'
 import { spansOf } from './daySections'
 import { TASK_LINE, taskState } from './prose'
+import { BLOCK_ID } from './links'
 
 /** `[[Target]]` and `[[Target|Alias]]`, which CommonMark parses as plain text. */
 const WIKILINK = /\[\[([^\]\n]+)\]\]/g
@@ -563,6 +564,13 @@ export function livePreviewDecorations(
     // Not in a fence: code keeps its own indent, and the block's inset is its own.
     const fenced = inside(state, line.from, FENCE)
     if (spaces > 0 && !fenced) found.push(hangingLine(spaceHang(spaces)).range(line.from))
+    // A line's own id (`^id`) is for links to it: dimmed while the caret is on the
+    // line, and gone otherwise. From its `^`, so it never meets a task's box.
+    const block = fenced ? null : BLOCK_ID.exec(line.text)
+    if (block) {
+      const id = line.from + line.text.lastIndexOf(`^${block[1]}`)
+      found.push((touched(state, line.from, line.to) ? markerMark : hidden).range(id, line.to))
+    }
     const task = TASK_LINE.exec(line.text)
     if (!task || fenced) continue
     const boxFrom = line.from + task[1].length

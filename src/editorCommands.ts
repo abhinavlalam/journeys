@@ -6,6 +6,7 @@ import { EditorView, type Command } from '@codemirror/view'
 import { getIndentUnit } from '@codemirror/language'
 import { localTimeStamp } from './clock'
 import { indentOf } from './prose'
+import { BLOCK_ID, newBlockId } from './links'
 
 /**
  * Wrap the selection in `marker`, or unwrap it if it is already wrapped.
@@ -299,6 +300,34 @@ export function wrapInWikiLink(view: EditorView): boolean {
   // The first bracket wraps and keeps the selection, so a second
   // press can make the link.
   return wrapWith('[', ']')(view)
+}
+
+/**
+ * The copy-a-link-to-this-line key: the caret's line is given an id at its end (`^id`,
+ * Obsidian's), unless it has one, and `[[note#^id]]` is handed to `copied`, or null
+ * for a line with nothing on it. Read on each press, as the time key is.
+ */
+export function copyLineLinkKeymap(combo: () => string | null, note: () => string | null, copied: (link: string | null) => void) {
+  return {
+    any: (view: EditorView, event: KeyboardEvent) => {
+      const key = combo()
+      const want = key && cmKey(key)
+      const name = note()
+      if (!want || !name || keyNameOf(event) !== want) return false
+      const line = view.state.doc.lineAt(view.state.selection.main.head)
+      if (line.text.trim() === '') {
+        copied(null)
+        return true
+      }
+      let id = BLOCK_ID.exec(line.text)?.[1]
+      if (!id) {
+        id = newBlockId(view.state.doc.toString())
+        view.dispatch({ changes: { from: line.from + line.text.trimEnd().length, to: line.to, insert: ` ^${id}` } })
+      }
+      copied(`[[${name}#^${id}]]`)
+      return true
+    },
+  }
 }
 
 /**

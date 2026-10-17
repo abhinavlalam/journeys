@@ -458,7 +458,15 @@ owner and the agent.
   The fold marker's span is `display: flex`, or it is a line tall and the arrow
   sits low. Line numbers stay on every file type.
 - **Every link reads as its name** (`linkLabelSpan`): the alias, else the last
-  name of the path; `|!n` shows n names, `|!` all. Syntax hides while the caret is
+  name of the path; `|!n` shows n names, `|!` all; a link to a line, its note's name.
+- **A link to a line** (`[[Note#^id]]`, Obsidian's form, the owner's ask): ⌘⇧C
+  (`copyLineLink`, rebindable) gives the caret's line an id at its end unless it has
+  one (`BLOCK_ID`, `newBlockId`) and copies the link, naming the note as the `[[` popup
+  does, by its path when another note has its name, since it is pasted elsewhere. The
+  id shows only while the caret is on its line. Followed from anywhere (`anchorOf`), the
+  note opens with that line chosen and in view (`anchorRange`, `EditorHost`'s `reveal`,
+  once per request, as soon as the note is read); a heading's words work too. The id
+  names the line and what is nested under it, and moves with it. Syntax hides while the caret is
   elsewhere. Bare URLs and emails are links. External targets go to `open_url`,
   which checks the scheme in Rust.
 - **One mark per line.** A mark inside a sentence changes colour and nothing else

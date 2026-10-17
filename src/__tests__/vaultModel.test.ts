@@ -101,6 +101,12 @@ describe('linkLabelSpan', () => {
     expect(shown('Pingbird')).toBe('Pingbird')
   })
 
+  /** `[[Note#^id]]`, copied from a line: the id is for the app, and read as the note's name. */
+  it('shows a link to a line as its note’s name', () => {
+    expect(shown('Areas/Pingbird#^k3f9qz')).toBe('Pingbird')
+    expect(shown('Pingbird#Q3 goals')).toBe('Pingbird#Q3 goals')
+  })
+
   it('shows an alias verbatim, because an alias is how a link gets a name', () => {
     expect(shown('Areas/Pingbird|the bird one')).toBe('the bird one')
     // A leading space is the writer's and stays: the editor hides up to the pipe.

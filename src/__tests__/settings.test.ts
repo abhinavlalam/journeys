@@ -95,6 +95,7 @@ describe('the defaults', () => {
     expect(DEFAULT_SETTINGS.shortcuts).toEqual({
       openToday: 'mod+shift+o',
       insertTime: 'mod+shift+t',
+      copyLineLink: 'mod+shift+c',
       openTerminal: 'mod+shift+l',
       goBack: 'mod+alt+arrowleft',
       goForward: 'mod+alt+arrowright',
@@ -245,6 +246,7 @@ describe('reading what was stored', () => {
     expect(parsed.shortcuts).toEqual({
       openToday: 'mod+shift+t',
       insertTime: 'mod+shift+o',
+      copyLineLink: 'mod+shift+c',
       openTerminal: 'mod+shift+l',
       goBack: 'mod+alt+arrowleft',
       goForward: 'mod+alt+arrowright',

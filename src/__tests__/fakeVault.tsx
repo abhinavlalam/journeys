@@ -296,9 +296,11 @@ export function markdownEditorModule() {
       line,
       insertTimeCombo,
       incoming,
+      reveal,
     }: {
       initialMarkdown: string
       incoming?: { text: string; n: number } | null
+      reveal?: { from: number; to: number } | null
       onChange: (markdown: string) => void
       shown?: boolean
       insertTimeCombo?: string | null
@@ -320,6 +322,8 @@ export function markdownEditorModule() {
         <textarea
           key={incoming?.n ?? 0}
           data-testid={shown ? 'editor' : 'hidden-editor'}
+          // What a followed link's anchor asked the real one to choose, `from:to`.
+          data-reveal={reveal ? `${reveal.from}:${reveal.to}` : undefined}
           className="markdown-editor"
           aria-label="Markdown source"
           defaultValue={incoming?.text ?? initialMarkdown}

@@ -136,6 +136,22 @@ describe('a table edited in place', () => {
     await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')?.textContent).toBe('roadmap'))
   })
 
+  /** `[[Note#^id]]`, as copied from a line: the note opens at that line, wherever the link is pressed. */
+  it('opens a link to a line at that line', async () => {
+    const note = 'Harbour notes\n- ferry at nine ^ab12cd\n'
+    disk.write('/v/Harbour.md', note)
+    disk.write(FILE, 'day,amount,what\n2026-10-10,480,[[Harbour#^ab12cd]] fares\n')
+    await openApp()
+    fireEvent.click(notes().getByText('Trackers'))
+    fireEvent.click(await waitFor(() => within(document.querySelector('.sidebar')!).getByText('expenses.csv')))
+    fireEvent.click(await waitFor(() => within(cell('What, row 1')).getByRole('button', { name: 'Harbour' })))
+    const chosen = await waitFor(() => {
+      const [from, to] = screen.getByTestId('editor').dataset.reveal!.split(':').map(Number)
+      return note.slice(from, to)
+    })
+    expect(chosen).toBe('- ferry at nine')
+  })
+
   /** Switched to after an edit, the text editor held the old text, and its first key saved it over the edit. */
   it('shows the text as edited when switched to Text', async () => {
     await openTable()

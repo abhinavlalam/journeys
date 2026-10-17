@@ -5,7 +5,7 @@
 // Pure: no filesystem, no React. Note text is the input, so the caller
 // decides when to read the vault, and a test of this file mocks nothing.
 
-import { maskCode } from './prose'
+import { maskCode, proseLines } from './prose'
 import {
   fileAt,
   folderNoteRef,
@@ -471,6 +471,46 @@ type ResolvedTarget =
   /** `aliased`: reached by a name in its `aliases::`, which a move leaves as written. */
   | { kind: 'note'; note: VaultFile; aliased?: true }
   | { kind: 'new'; path: string }
+
+/**
+ * A line's own id, Obsidian's `^id` at its end, which `[[Plan#^id]]` links to: the line
+ * and what is nested under it. Made by copying a link to the line (`newBlockId`).
+ */
+export const BLOCK_ID = /(?:^|\s)\^([A-Za-z0-9-]+)\s*$/
+
+/** An id no line of `text` has: six letters and digits. */
+export function newBlockId(text: string): string {
+  for (;;) {
+    const id = Math.random().toString(36).slice(2, 8)
+    if (id.length === 6 && !text.includes(`^${id}`)) return id
+  }
+}
+
+/** What a wikilink points at in its note, after the first `#`: `^id`, a heading's words, or nothing. */
+export function anchorOf(target: string): string {
+  const cut = target.indexOf('#')
+  return cut === -1 ? '' : target.slice(cut + 1).trim()
+}
+
+/**
+ * The line an anchor names, outside code: the line whose id it is (`^id`), less the id,
+ * or the heading of those words (the last of `A#B`), any case. Null when none has it.
+ */
+export function anchorRange(text: string, anchor: string): { from: number; to: number } | null {
+  const id = anchor.startsWith('^') ? anchor.slice(1) : null
+  const words = anchor.split('#').pop()!.trim().toLowerCase()
+  const lines = text.split('\n')
+  let from = 0
+  for (const [at, line] of proseLines(text).entries()) {
+    const written = lines[at]
+    const block = id && BLOCK_ID.exec(line)
+    if (block && block[1] === id) return { from: from + (written.length - written.trimStart().length), to: from + block.index }
+    const heading = !id && /^#{1,6}\s+(.*?)\s*$/.exec(line)
+    if (heading && heading[1].toLowerCase() === words) return { from, to: from + written.length }
+    from += written.length + 1
+  }
+  return null
+}
 
 /**
  * A wikilink's target ends at the first `#`, so `[[Plan#Q3]]`

@@ -1973,3 +1973,47 @@ describe('following a link in the note', () => {
   })
 })
 
+
+/** A link to a line, `[[Note#^id]]`: copied from the line, and the line it names shown. */
+describe('a link to a line', () => {
+  it('gives the caret’s line an id on its combo and hands over its link; a line with one keeps it', () => {
+    const linked = vi.fn()
+    const { container } = render(
+      <MarkdownEditor initialMarkdown={'first\nsecond line\n'} onChange={() => {}} copyLineLinkCombo="mod+shift+c" linkName="Harbour" onLineLink={linked} />
+    )
+    const view = viewOf(container)
+    view.dispatch({ selection: { anchor: 8 } })
+    fireEvent.keyDown(view.contentDOM, { key: 'C', metaKey: true, shiftKey: true })
+    const id = /^first\nsecond line \^([a-z0-9]{6})\n$/.exec(view.state.doc.toString())?.[1]
+    expect(id).toBeTruthy()
+    expect(linked).toHaveBeenLastCalledWith(`[[Harbour#^${id}]]`)
+    // Again, the same link, and the line as it is.
+    fireEvent.keyDown(view.contentDOM, { key: 'C', metaKey: true, shiftKey: true })
+    expect(view.state.doc.toString()).toBe(`first\nsecond line ^${id}\n`)
+    expect(linked).toHaveBeenLastCalledWith(`[[Harbour#^${id}]]`)
+    // A line with nothing on it has no link.
+    view.dispatch({ selection: { anchor: view.state.doc.length } })
+    fireEvent.keyDown(view.contentDOM, { key: 'C', metaKey: true, shiftKey: true })
+    expect(linked).toHaveBeenLastCalledWith(null)
+  })
+
+  it('shows a line’s id only while the caret is on that line', () => {
+    const { container } = render(<MarkdownEditor initialMarkdown={'first\n- call the ferry ^ab12cd\n'} onChange={() => {}} />)
+    const view = viewOf(container)
+    view.dispatch({ selection: { anchor: 0 } })
+    expect(view.contentDOM.textContent).not.toContain('^ab12cd')
+    view.dispatch({ selection: { anchor: 10 } })
+    expect(view.contentDOM.textContent).toContain('^ab12cd')
+  })
+
+  it('chooses the line a link names, once for each time it is followed', () => {
+    const props = { initialMarkdown: 'one\ntwo ^ab12cd\nthree', onChange: () => {} }
+    const { container, rerender } = render(<MarkdownEditor {...props} />)
+    const view = viewOf(container)
+    rerender(<MarkdownEditor {...props} reveal={{ from: 4, to: 7, n: 1 }} />)
+    expect([view.state.selection.main.from, view.state.selection.main.to]).toEqual([4, 7])
+    view.dispatch({ selection: { anchor: 0 } })
+    rerender(<MarkdownEditor {...props} reveal={{ from: 4, to: 7, n: 1 }} />)
+    expect(view.state.selection.main.head).toBe(0)
+  })
+})

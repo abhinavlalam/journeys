@@ -17,6 +17,7 @@ export interface Typing {
   propertyTypes: Entries
   tagStructures: Entries
   insertTimeCombo: string | null
+  copyLineLinkCombo: string | null
 }
 
 type LineEditorProps = {
