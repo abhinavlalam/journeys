@@ -15,7 +15,8 @@ export interface Share {
 }
 
 /** Every share since the last call, each once. */
-export const takeShares = () => invoke<Share[]>('phone_shares')
+/** What arrived since the last take: shares, and whether the home screen's "Add to today" was pressed. */
+export const takeShares = () => invoke<{ shares: Share[]; capture: boolean }>('phone_shares')
 
 /** The day a share is filed in: the one it arrived on. */
 export const shareDay = (share: Share) => localDateStamp(new Date(share.at))

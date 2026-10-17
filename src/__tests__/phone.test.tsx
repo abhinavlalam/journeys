@@ -13,7 +13,7 @@ import { sectionedDay, disk, fsModule, openApp, rememberVault, resetFakeVault } 
  */
 
 const back = vi.hoisted(() => ({ press: null as null | (() => void) }))
-const shared = vi.hoisted(() => ({ waiting: [] as Share[], called: [] as string[] }))
+const shared = vi.hoisted(() => ({ waiting: [] as Share[], capture: false, called: [] as string[] }))
 
 vi.mock('@tauri-apps/plugin-fs', () => fsModule())
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(async () => null), confirm: vi.fn(async () => true) }))
@@ -28,7 +28,11 @@ vi.mock('@tauri-apps/api/app', () => ({
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(async (command: string) => {
     shared.called.push(command)
-    if (command === 'phone_shares') return shared.waiting.splice(0)
+    if (command === 'phone_shares') {
+      const taken = { shares: shared.waiting.splice(0), capture: shared.capture }
+      shared.capture = false
+      return taken
+    }
     throw new Error(`no bridge for ${command}`)
   }),
 }))
@@ -38,6 +42,7 @@ beforeEach(() => {
   resetFakeVault()
   rememberVault('/v')
   shared.waiting = []
+  shared.capture = false
   shared.called = []
   back.press = null
   disk.write('/v/.config/properties.json', JSON.stringify({ amount: { type: 'number' }, merchant: { type: 'backlink' } }))
@@ -207,12 +212,23 @@ describe('a share from another app', () => {
     await openApp()
     const clock = localTimeStamp(new Date(at))
     await waitFor(() =>
-      expect(disk.read(today())).toBe(sectionedDay({ log: [`${clock} #shared Lunch spot [[Files/photo 2.jpg]]`, '    by the harbour'] }))
+      expect(disk.read(today())).toBe(sectionedDay({ notes: [`${clock} #shared Lunch spot [[Files/photo 2.jpg]]`, '    by the harbour'] }))
     )
     // Never over a file, and moved rather than copied.
     expect(disk.read('/v/Files/photo 2.jpg')).toBe('JPEG')
     expect(disk.read('/v/Files/photo.jpg')).toBe('an older photo')
     expect(disk.has('/cache/shared/1-0')).toBe(false)
+  })
+
+  /** The home screen's "Add to today": the app opens on a line for today, as the + would. */
+  it('opens the + on a line for today when the home screen’s bar was pressed', async () => {
+    await openApp()
+    await waitFor(() => expect(page().getByText(localDateStamp())).toBeTruthy())
+    expect(screen.queryByRole('dialog')).toBeNull()
+    shared.capture = true
+    focus()
+    await waitFor(() => expect(document.querySelector('.capture-line .cm-editor')).toBeTruthy())
+    expect(sheet().getByText('Note')).toBeTruthy()
   })
 
   it('arrives on a return to the app', async () => {

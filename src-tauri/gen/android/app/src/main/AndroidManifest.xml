@@ -35,6 +35,19 @@
             </intent-filter>
         </activity>
 
+        <!-- The home screen's "Add to today" (`CaptureWidget`). -->
+        <receiver
+            android:name=".CaptureWidget"
+            android:exported="false"
+            android:label="@string/widget_capture">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_capture_info" />
+        </receiver>
+
         <provider
           android:name="androidx.core.content.FileProvider"
           android:authorities="${applicationId}.fileprovider"

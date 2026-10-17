@@ -846,7 +846,16 @@ owner and the agent.
   fills it. Today is today's note, opened without being made (a look at the day
   writes nothing). A page opened to read does not raise the keyboard (`EditorHost`'s
   `autoFocus`); a line editor does.
-- **A share is filed into the day it arrived** as `HH:MM #shared` (`shareTag`), its
+- **The home screen's "Add to today"** (`CaptureWidget`, the owner's ask): a bar that
+  opens the app on the +'s note line, the keyboard up, so the line is written as every
+  other is. The press reaches the page as a share does (`take`'s `capture`), with two
+  traps measured on the emulator: launched the same way again, Android brought the
+  task forward and said nothing (so `CLEAR_TOP` and `SINGLE_TOP`); and brought back
+  from the background, the page took before the press arrived, so it was seen a return
+  late (so the plugin asks for a take at once, `journeys:take`). Focused with no touch,
+  a WebView's field raises no keyboard, so the plugin shows it after the sheet mounts.
+- **A share is filed into the day it arrived** as `HH:MM #shared` (`shareTag`, a Notes
+  tag by default: a link seen is a note, not the day's log), its
   subject and first line, and `[[Files/<name>]]` per file, the rest of a message nested
   under it, so the laptop's agent finds it by the tag. Files are copied into the app's
   files while the sender's grant lasts (`PhonePlugin`), then *moved* into `filesFolder` under

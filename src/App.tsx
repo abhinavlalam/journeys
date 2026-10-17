@@ -936,7 +936,8 @@ export default function App() {
     if (filed) void sync.now()
     return filed
   }
-  useShares(vault.vaultPath, fileShare, setError)
+  // The home screen's "Add to today": the + sheet open on a line for today, keyboard up.
+  useShares(vault.vaultPath, fileShare, () => setAdding('note'), setError)
 
   /** Photos or files picked with the phone's +, kept in `filesFolder` and linked from a line in today. */
   const fileUploads = (files: File[], caption: string, clock: string) =>

@@ -7,4 +7,8 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <!-- The home screen's bar, in the icon's colours: its tile's ground and ink. -->
+    <color name="widget_ground">#FFF8F8F5</color>
+    <color name="widget_ink">#FF121215</color>
+    <color name="widget_hint">#FF5C5C66</color>
 </resources>

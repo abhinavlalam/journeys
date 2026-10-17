@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The home screen's bar at night: the app's raised ground and its text. -->
+    <color name="widget_ground">#FF16161A</color>
+    <color name="widget_ink">#FFF8F8F5</color>
+    <color name="widget_hint">#FFA6A6B0</color>
+</resources>

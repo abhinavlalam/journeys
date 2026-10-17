@@ -321,7 +321,8 @@ export const DEFAULT_SETTINGS: Settings = {
     { name: 'Log', tags: ['event'] },
     // A tracker's line is captured with the day's notes, not in the log, and the agent
     // puts it in its table (until 2026-10-17, a third section, Trackers, hard to read).
-    { name: 'Notes', tags: ['task', 'goal', 'expense', 'food'] },
+    // A share is a link or a thing seen, a note: the log is for what happened.
+    { name: 'Notes', tags: ['task', 'goal', 'expense', 'food', 'shared'] },
   ],
   dayPlan: { name: 'Today’s 8', count: 8 },
   shortcuts: defaultShortcuts(),

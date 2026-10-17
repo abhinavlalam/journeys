@@ -1,6 +1,6 @@
-//! What the phone adds: what other apps share in, and the colour behind the
-//! system bars. Both are `PhonePlugin.kt` in the app's Android sources; on a
-//! desktop nothing is shared in and there are no bars to paint.
+//! What the phone adds: what other apps share in, a press on the home screen's "Add
+//! to today", and the colour behind the system bars. All are `PhonePlugin.kt` in the
+//! app's Android sources; on a desktop nothing is shared in and there are no bars to paint.
 //!
 //! The commands are `async`: a sync command runs on the main thread, where the
 //! Kotlin side runs too, and waiting there for its answer would never end.
@@ -20,6 +20,14 @@ pub struct Share {
     files: Vec<SharedFile>,
 }
 
+/// What arrived since the last take: shares, and whether "Add to today" was pressed.
+#[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct Taken {
+    shares: Vec<Share>,
+    capture: bool,
+}
+
 /// A copy in the app's own files, or why the file could not be read.
 #[derive(Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -31,7 +39,7 @@ pub struct SharedFile {
 
 #[cfg(target_os = "android")]
 mod kotlin {
-    use super::{Result, Share};
+    use super::{Result, Taken};
     use serde::{Deserialize, Serialize};
     use std::sync::OnceLock;
     use tauri::plugin::{Builder, PluginHandle, TauriPlugin};
@@ -56,20 +64,14 @@ mod kotlin {
             .map_err(|e| e.to_string())
     }
 
-    #[derive(Deserialize, Default)]
-    #[serde(default)]
-    struct Taken {
-        shares: Vec<Share>,
-    }
-
     #[derive(Serialize)]
     struct Paint<'a> {
         color: &'a str,
         light: bool,
     }
 
-    pub fn take() -> Result<Vec<Share>> {
-        call::<_, Taken>("take", ()).map(|taken| taken.shares)
+    pub fn take() -> Result<Taken> {
+        call("take", ())
     }
 
     pub fn paint(color: &str, light: bool) -> Result<()> {
@@ -80,13 +82,13 @@ mod kotlin {
 #[cfg(target_os = "android")]
 pub use kotlin::init;
 
-/// Every share that arrived since the last call, each once.
+/// Every share that arrived since the last call, each once, and whether "Add to today" was pressed.
 #[tauri::command]
-pub async fn phone_shares() -> Result<Vec<Share>> {
+pub async fn phone_shares() -> Result<Taken> {
     #[cfg(target_os = "android")]
     return kotlin::take();
     #[cfg(not(target_os = "android"))]
-    Ok(Vec::new())
+    Ok(Taken::default())
 }
 
 /// Paints behind the system bars, `#rrggbb`, with icons for a `light` colour or a dark one.

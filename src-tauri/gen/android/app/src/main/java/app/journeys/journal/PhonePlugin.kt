@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.webkit.MimeTypeMap
 import android.webkit.WebView
 import androidx.core.view.WindowCompat
@@ -27,7 +28,8 @@ class PaintArgs {
 
 /**
  * What the phone adds (`phone.rs` is the Rust half): what other apps share in through
- * Android's share sheet, and the colour behind the system bars.
+ * Android's share sheet, a press on the home screen's "Add to today" (`CaptureWidget`),
+ * and the colour behind the system bars.
  *
  * A share's files are copied into the app's own files as it arrives, while the
  * sender's grant to read them lasts; the page moves the copies into the vault as it
@@ -40,15 +42,29 @@ class PhonePlugin(private val activity: Activity) : Plugin(activity) {
     private val worker = Executors.newSingleThreadExecutor()
     /** Touched on `worker` only. */
     private val waiting = mutableListOf<JSObject>()
+    /** The home screen's bar was pressed: the page opens its note at the next `take`. On `worker` only. */
+    private var captureAsked = false
+    private var webView: WebView? = null
 
-    override fun load(webView: WebView) = receive(activity.intent)
+    override fun load(webView: WebView) {
+        this.webView = webView
+        receive(activity.intent)
+    }
 
     override fun onNewIntent(intent: Intent) = receive(intent)
 
     private fun receive(intent: Intent?) {
-        if (intent == null || intent.action !in listOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE)) return
-        // Reopened from Recents, the activity is handed the share it was opened with again.
-        if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        // Reopened from Recents, the activity is handed what it was opened with again.
+        if (intent == null || intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        if (intent.action == CaptureWidget.CAPTURE) {
+            return worker.execute {
+                captureAsked = true
+                // Taken now: brought back from the background, the page had taken before
+                // this press arrived, and it waited for the return after.
+                activity.runOnUiThread { webView?.evaluateJavascript("dispatchEvent(new Event('$TAKE'))", null) }
+            }
+        }
+        if (intent.action !in listOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE)) return
         val at = System.currentTimeMillis()
         val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
         val subject = intent.getStringExtra(Intent.EXTRA_SUBJECT)
@@ -104,14 +120,39 @@ class PhonePlugin(private val activity: Activity) : Plugin(activity) {
         return if (extension == null) given else "$given.$extension"
     }
 
+    companion object {
+        /** The page's event for a take now (`useShares`). */
+        const val TAKE = "journeys:take"
+        /** Long enough for the + sheet to mount and its line to take the focus. */
+        const val KEYBOARD_AFTER_MS = 400L
+    }
+
     @Command
     fun take(invoke: Invoke) {
         worker.execute {
             val shares = JSArray()
             waiting.forEach(shares::put)
             waiting.clear()
-            invoke.resolve(JSObject().apply { put("shares", shares) })
+            invoke.resolve(JSObject().apply {
+                put("shares", shares)
+                put("capture", captureAsked)
+            })
+            if (captureAsked) keyboard()
+            captureAsked = false
         }
+    }
+
+    /**
+     * The keyboard up for the line the page opens: focused without a touch, as from the
+     * home screen's bar, a WebView's field raises none. After the sheet has mounted and
+     * taken the focus.
+     */
+    private fun keyboard() {
+        val view = webView ?: return
+        view.postDelayed({
+            view.requestFocus()
+            activity.getSystemService(InputMethodManager::class.java)?.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+        }, KEYBOARD_AFTER_MS)
     }
 
     /**

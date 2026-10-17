@@ -550,7 +550,7 @@ describe('the daily sections', () => {
   it('are Log and Notes unless two are written, and a bad one means the default, whole', () => {
     expect(parseSettings(null).daySections).toEqual([
       { name: 'Log', tags: ['event'] },
-      { name: 'Notes', tags: ['task', 'goal', 'expense', 'food'] },
+      { name: 'Notes', tags: ['task', 'goal', 'expense', 'food', 'shared'] },
     ])
     const written = '{"daySections":[{"name":"Day","tags":[]},{"name":"Plans","tags":["#Task","not a tag"]}]}'
     expect(parseSettings(written).daySections).toEqual([
