@@ -177,7 +177,10 @@ describe('a config file that cannot be read', () => {
       JSON.stringify({ ...DEFAULT_SETTINGS, calendarFeeds: [{ name: 'Work', url: 'https://calendar.example/ical/abc/basic.ics' }] })
     )
     await openApp()
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('tags.json'))
+    // Read in the Log, which keeps every message: at the bottom of the window, the
+    // feed's own failure here could replace it before it was looked at.
+    fireEvent.click(screen.getByLabelText('Log'))
+    await waitFor(() => expect([...document.querySelectorAll('.log-text')].some((one) => one.textContent?.includes('tags.json'))).toBe(true))
     expect(disk.read(TAGS)).toBe(declared)
   })
 })

@@ -10,5 +10,8 @@ export default defineConfig({
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     // One async budget for every `waitFor` in the suite — see the file itself.
     setupFiles: ['src/__tests__/setup.ts'],
+    // Well above a `waitFor`'s: a test is several waits in turn, and under load the
+    // runner cut one off at its five seconds before any wait could say what it awaited.
+    testTimeout: 20000,
   },
 })

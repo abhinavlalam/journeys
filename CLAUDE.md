@@ -989,7 +989,10 @@ owner and the agent.
   async budget is one setting in `src/__tests__/setup.ts`, as are the stubs for
   what jsdom lacks (`Range.getClientRects`, `matchMedia`) — a test needing another
   sets its own; `openApp` and `vaultFile` are `fakeVault`'s, not each file's; a
-  wall-clock guard needs a runner timeout looser than itself.
+  wall-clock guard needs a runner timeout looser than itself (`testTimeout`, 20 s
+  over a `waitFor`'s 5: at 5 each, a test of several waits was cut off under load);
+  a message is read in the Log, not the alert, where another can follow it (a
+  feed's failure replaced the one a test waited for, one run in three).
 - **jsdom lays nothing out.** Measure layout in headless Chrome: dump a component's
   markup into a page with `index.css`, write `getBoundingClientRect()` into a
   `<pre>`, and run
