@@ -56,6 +56,7 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 | `trackers.ts`, `expenses.ts`, `calories.ts`, `habits.ts` / `TrackersView.tsx`, `trackerParts.tsx` | The trackers' tables, each read by its columns' names, and what each adds up / their page and its parts, and the Tracked section ending a daily note. |
 | `LineEditor.tsx` | One line in the note's own editor, for a page that takes typing: `EditLine` for one written (saved on Enter or leaving when changed, emptied is not deleted), `NewLine` for a new one; `Typing`, what every editor types with. |
 | `ViewerHeader.tsx` | Every page's header: its name (a note's renames it), its status (`statusCount`: nothing at none), its controls, and `ViewSwitch`, a page's ways of being drawn. |
+| `menuBar.ts` / `MenuBarPanel.tsx` | The menu bar's time tracker and line for today: the main window's half that writes / the panel that asks. |
 | `useLog.ts` / `LogView.tsx` | What the app says: shown a while, kept in the Log / its page. |
 | `crypto.ts`, `useLocks.ts`, `useAutoLock.ts` | Locked notes: the format and the passphrases held / asking and locking / the clock. |
 | `sync.ts`, `useSync.ts`, `src-tauri/src/sync.rs` | Git sync. |
@@ -723,6 +724,22 @@ owner and the agent.
   out, unreachable, reset, broken pipe) — quiet, and retried. A certificate the machine does not
   trust is not offline, and is said: a bare `SSL|TLS` in the rule made a sync that
   could never succeed say only "offline".
+
+## The menu bar
+
+- **An icon in the menu bar opens a small panel** (`menubar` in `lib.rs`, a window of its
+  own labelled `capture`, `MenuBarPanel` by its label in `main.tsx`; the owner's ask):
+  a line for today, and **Now**, what is being done, timed from when it is said.
+  Hidden when it loses the focus, never closed (closing a window asks to quit). Its icon
+  is a template drawn by `icon.py` (`icons/tray.png`), tinted by macOS for the bar.
+- **The panel only asks; the main window writes** (`useMenuBar`, by events, `ASK` and
+  `TELL`), through `fileEntry`, so the open note's buffer, the tree and the sync see the
+  line as they see any other. The panel's capability names no file.
+- **A time stopped is one line in the day it started** (`trackedLine`, the owner's
+  choice): `09:12 to 10:40 what`, which the timeline draws as a block; one clock under a
+  minute. Starting something else stops what runs first. Running, it is kept in
+  `.config/timer.json`, so a quit does not lose it, and its time is beside the icon
+  (`tray_title`). A line that could not be written goes back into its field.
 
 ## The terminal
 

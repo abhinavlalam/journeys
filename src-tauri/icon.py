@@ -3,7 +3,8 @@
 (That command also writes Windows and iOS sets, which are deleted.) Android's comes
 from its own two layers: `npx tauri icon src-tauri/icon-android.json -o <a scratch
 folder>`, then its `android/` copied over `gen/android/app/src/main/res`. Until
-2026-10-12 the phone carried Tauri's stock logo.
+2026-10-12 the phone carried Tauri's stock logo. The menu bar's, `icons/tray.png`, is
+written here as it is used.
 
 This file exists because the icon had **no source**. `icons/` held generated art
 with nothing behind it, so its colour could not be changed without redrawing it.
@@ -234,7 +235,7 @@ def write(path, rows):
     raw = b''.join(b'\x00' + r for r in rows)
     png = (
         b'\x89PNG\r\n\x1a\n'
-        + chunk(b'IHDR', struct.pack('>IIBBBBB', N, N, 8, 6, 0, 0, 0))
+        + chunk(b'IHDR', struct.pack('>IIBBBBB', len(rows[0]) // 4, len(rows), 8, 6, 0, 0, 0))
         + chunk(b'IDAT', zlib.compress(raw, 9))
         + chunk(b'IEND', b'')
     )
@@ -268,3 +269,19 @@ write(
     'src-tauri/icon-android-bg.png',
     [bytes((*tuple(round(a + (b - a) * y / (N - 1)) for a, b in zip(TOP, BOTTOM)), 255)) * N for y in range(N)],
 )
+
+# **The menu bar's** is the mark alone, black on nothing: a template, which macOS tints
+# for a light bar or a dark one. 44 pixels for the 22-point bar at 2x, the mark 36 of
+# them across, as the system's own glyphs sit in theirs, and half a pixel bolder all
+# round: at this size the sweep was under a point wide, beside glyphs of a point and a half.
+TRAY = 44
+TRAY_SCALE = 36 / (2 * (SWEEP_R + SWEEP_W / 2))
+tray = []
+for y in range(TRAY):
+    row = bytearray(TRAY * 4)
+    for x in range(TRAY):
+        ink = coverage(TRAY_SCALE * mark(C + (x + 0.5 - TRAY / 2) / TRAY_SCALE, C + (y + 0.5 - TRAY / 2) / TRAY_SCALE) - 0.5)
+        if ink > 0:
+            row[x * 4 : x * 4 + 4] = bytes((0, 0, 0, round(255 * ink)))
+    tray.append(bytes(row))
+write('src-tauri/icons/tray.png', tray)

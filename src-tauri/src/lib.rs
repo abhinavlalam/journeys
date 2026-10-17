@@ -163,6 +163,66 @@ mod quit {
     }
 }
 
+/// The menu bar's Journeys: an icon that opens a small panel, a window of its own
+/// (`PANEL`), for the time tracker and a line into today. The panel only asks; the
+/// main window writes, so the open note, the tree and the sync see it (`useMenuBar`).
+#[cfg(desktop)]
+mod menubar {
+    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+    use tauri::{AppHandle, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
+
+    pub const PANEL: &str = "capture";
+    const TRAY: &str = "journeys";
+    const WIDTH: f64 = 360.0;
+    const HEIGHT: f64 = 248.0;
+
+    pub fn install(app: &tauri::App) -> tauri::Result<()> {
+        WebviewWindowBuilder::new(app, PANEL, WebviewUrl::App("index.html".into()))
+            .title("Journeys")
+            .inner_size(WIDTH, HEIGHT)
+            .visible(false)
+            .decorations(false)
+            .resizable(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .build()?;
+        // A template: macOS tints it for a light menu bar or a dark one (`icon.py`).
+        let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?;
+        TrayIconBuilder::with_id(TRAY)
+            .icon(icon)
+            .icon_as_template(true)
+            .tooltip("Journeys")
+            .on_tray_icon_event(|tray, event| {
+                if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, rect, .. } = event {
+                    toggle(tray.app_handle(), rect);
+                }
+            })
+            .build(app)?;
+        Ok(())
+    }
+
+    /// Shown under the icon, centred on it, or hidden when it was showing.
+    fn toggle(app: &AppHandle, icon: tauri::Rect) {
+        let Some(panel) = app.get_webview_window(PANEL) else { return };
+        if panel.is_visible().unwrap_or(false) {
+            let _ = panel.hide();
+            return;
+        }
+        let scale = panel.scale_factor().unwrap_or(1.0);
+        let (at, size) = (icon.position.to_physical::<f64>(scale), icon.size.to_physical::<f64>(scale));
+        let _ = panel.set_position(PhysicalPosition::new(at.x + (size.width - WIDTH * scale) / 2.0, at.y + size.height));
+        let _ = panel.show();
+        let _ = panel.set_focus();
+    }
+
+    /// What the menu bar says beside the icon: the time tracked so far, or nothing.
+    #[tauri::command]
+    pub fn tray_title(app: AppHandle, title: Option<String>) -> Result<(), String> {
+        let tray = app.tray_by_id(TRAY).ok_or("there is no menu bar icon")?;
+        tray.set_title(title).map_err(|e| e.to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
@@ -176,6 +236,21 @@ pub fn run() {
     });
     #[cfg(desktop)]
     let builder = builder.on_window_event(|window, event| {
+        // The menu bar's panel goes when it loses the focus, as a menu does, and is
+        // never closed, only hidden: closing a window asks to quit.
+        if window.label() == menubar::PANEL {
+            match event {
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+                tauri::WindowEvent::Focused(false) => {
+                    let _ = window.hide();
+                }
+                _ => {}
+            }
+            return;
+        }
         if let tauri::WindowEvent::CloseRequested { api, .. } = event {
             if !quit::LEAVING.load(std::sync::atomic::Ordering::SeqCst) {
                 api.prevent_close();
@@ -207,7 +282,9 @@ pub fn run() {
             #[cfg(desktop)]
             quit::quit,
             #[cfg(desktop)]
-            quit::stay
+            quit::stay,
+            #[cfg(desktop)]
+            menubar::tray_title
         ])
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -226,6 +303,8 @@ pub fn run() {
                 Ok(count) => log::info!("trusting {count} system certificates"),
                 Err(e) => log::warn!("sync will not connect: {e}"),
             }
+            #[cfg(desktop)]
+            menubar::install(app)?;
             Ok(())
         })
         .run(tauri::generate_context!())

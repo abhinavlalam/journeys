@@ -5744,3 +5744,69 @@ button.task-box:hover {
    `.cm-md-frontmatter`. The colon stays dim, which separates name from value. */
 
 
+
+/* ---- The menu bar's panel ---- */
+
+/* A window of its own under the menu bar's icon: the line for today, what is being
+   done and since when, and what was said. The page's ground and type, its fields
+   drawn as the Trackers page draws its own. */
+.menubar-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  height: 100vh;
+  padding: 0.75rem;
+  background: var(--bg-raised);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-chrome);
+}
+
+.menubar-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--text-dim);
+}
+
+.menubar-field input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-viewer);
+  color: var(--text);
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  outline: none;
+}
+
+.menubar-field input:focus {
+  border-color: var(--mark);
+}
+
+.menubar-tracking {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.menubar-what {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--fw-strong);
+}
+
+.menubar-since,
+.menubar-said {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.menubar-said {
+  margin: 0;
+}

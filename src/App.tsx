@@ -98,6 +98,7 @@ import { onAndroid } from './platform'
 import { PhoneBar, usePhoneNav } from './Phone'
 import { Capture, type Adding } from './Capture'
 import { useShares } from './useShares'
+import { useMenuBar } from './menuBar'
 import { shareDay, shareEntry, type Share } from './share'
 import { useDrops } from './useDrops'
 import { useCalendarSync } from './useCalendarSync'
@@ -835,7 +836,6 @@ export default function App() {
           sections: settings.daySections,
           indent: ' '.repeat(settings.indentWidth),
           group: settings.timelineGroup,
-          // A tag with a structure is a record, written at the top level of the day.
         })
         await writeVaultFile(file, next)
         return { file, created, next }
@@ -847,6 +847,9 @@ export default function App() {
       }
     )
   }
+
+  // The menu bar's time tracker and line for today, written through `fileEntry`.
+  useMenuBar({ vaultPath: vault.vaultPath, file: (day, text) => fileEntry(day, async () => text), say: setError })
 
   /**
    * A new timeline entry in today's note. It is filed as typed: without
