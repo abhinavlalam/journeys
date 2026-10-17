@@ -137,11 +137,15 @@ const shift = (
  */
 export const LIST_ITEM = /^([ \t]*)(?:([-*+])|(\d{1,9})([.)]))([ \t]+)(\[.\][ \t]+)?/
 
+/** A box with no list marker before it (`TASK_LINE`): its indent, and the box with its space. */
+const BOX_ITEM = /^([ \t]*)\[[ xX]\][ \t]+/
+
 /**
  * Enter on plain indented lines and list lines:
  *
  * - on a list line, the next line gets the same indent and
- *   marker (the next number, or an empty box for a task);
+ *   marker (the next number, or an empty box for a task); a box
+ *   with no marker is followed by an empty box;
  * - on an empty item, the marker goes and the indent stays;
  * - on an empty indented line, the line moves out one indent width;
  * - on any other indented line, the next line keeps the indent;
@@ -157,7 +161,7 @@ export const continueIndent: Command = ({ state, dispatch }) => {
   if (!range.empty) return false
   const line = state.doc.lineAt(range.head)
   const lead = line.text.slice(0, indentOf(line.text))
-  const item = LIST_ITEM.exec(line.text)
+  const item = LIST_ITEM.exec(line.text) ?? BOX_ITEM.exec(line.text)
   const write = (from: number, to: number, insert: string) => {
     const changes = state.changes({ from, to, insert })
     // Mapped, not counted: a line break is one position however the file spells it.
@@ -170,7 +174,8 @@ export const continueIndent: Command = ({ state, dispatch }) => {
   if (item && line.text === item[0]) return write(line.from, line.to, lead)
   if (line.text === lead) return write(line.from, line.to, lead.slice(0, Math.max(0, lead.length - getIndentUnit(state))))
   if (range.head < line.from + (item ? item[0].length : lead.length)) return write(line.from, line.from, br)
-  const marker = item ? (item[2] ?? `${Number(item[3]) + 1}${item[4]}`) + item[5] + (item[6] ? '[ ] ' : '') : ''
+  const box = item && item[2] === undefined && item[3] === undefined
+  const marker = !item ? '' : box ? '[ ] ' : (item[2] ?? `${Number(item[3]) + 1}${item[4]}`) + item[5] + (item[6] ? '[ ] ' : '')
   return write(range.head, range.head, `${br}${lead}${marker}`)
 }
 

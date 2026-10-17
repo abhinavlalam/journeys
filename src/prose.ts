@@ -104,14 +104,17 @@ export function proseLines(raw: string): string[] {
 }
 
 /**
- * A task line: a list marker, then `[c]`, then a space or the end of the line.
+ * A task line: a list marker and `[c]`, or `[ ]` or `[x]` alone at the line's start (the
+ * owner's way of typing a box), then a space.
  *
- * Obsidian's rule, not GFM's: GFM only knows `[ ]` and `[x]`, and
- * Obsidian vaults also use `[-]`, `[>]` and `[/]`. So any single
- * character is a state, and one with no glyph is shown as itself. The
- * `(?=\s|$)` keeps `- [[Note]]` and `- [x](url)` from being tasks.
+ * With a marker, Obsidian's rule, not GFM's: GFM only knows `[ ]` and `[x]`, and
+ * Obsidian vaults also use `[-]`, `[>]` and `[/]`. So any single character is a state,
+ * and one with no glyph is shown as itself. Without one, only open or ticked, or a line
+ * opening `[1] ` would be a task. **The space makes it a box**: drawn as `]` was typed,
+ * the box took the brackets from under the caret. It also keeps `- [[Note]]` and
+ * `- [x](url)` from being tasks.
  */
-export const TASK_LINE = /^(\s*(?:[-*+]|\d+[.)])\s+)\[(.)\](?=\s|$)/
+export const TASK_LINE = /^(\s*(?:(?:[-*+]|\d+[.)])\s+(?=\[.\])|(?=\[[ xX]\])))\[(.)\](?=\s)/
 
 /** What the app draws for a state: a box, a ticked box, or the character itself. */
 export function taskState(mark: string): 'open' | 'done' | 'other' {

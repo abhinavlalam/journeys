@@ -476,9 +476,11 @@ owner and the agent.
 - **One mark per line.** A mark inside a sentence changes colour and nothing else
   — not size, weight, family or line. The clock is `--text-dim` and tabular; a
   tag and a link take `--mark`, underlined only under the pointer.
-- Tasks are a scan of the line (Obsidian's states, any single character); the
-  checkbox replaces `[ ]`, at any indent but not in fenced code, and is always
-  drawn. Done text is `--text-dim`, not struck (`~~` is its own syntax).
+- Tasks are a scan of the line (`TASK_LINE`: with a list marker, Obsidian's states,
+  any single character; with none, the owner's `[ ]` or `[x]` alone, so `[1] ` is not
+  one); the checkbox replaces `[ ]`, at any indent but not in fenced code, **once a
+  space follows it**: drawn as `]` was typed, it took the brackets from under the
+  caret. Enter after a box with no marker gives another `[ ] `. Done text is `--text-dim`, not struck (`~~` is its own syntax).
 - `/` opens where a tag's `#` does (line start or after a space) and offers blocks
   only where a block can begin. `[` over a selection makes a link. Backspace
   inside a fresh `[[]]` takes all four characters.

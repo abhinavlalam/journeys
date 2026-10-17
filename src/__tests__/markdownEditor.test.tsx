@@ -389,6 +389,17 @@ describe('Live Preview', () => {
     expect(all(stateOf('1. [ ] first\n', 0))).toEqual(['task@3-7'])
   })
 
+  /** The owner types a box as `[ ]` and a space; drawn as `]` was typed, it took the brackets from under the caret. */
+  it('draws a box typed with no dash, and any box only once the space after it is there', () => {
+    expect(all(stateOf('[ ] milk\n', 0))).toEqual(['task@0-4'])
+    expect(all(stateOf('[x] milk\n', 0))).toEqual(['task@0-4', 'cm-md-task-done@4-8'])
+    // Before the space, still brackets.
+    expect(all(stateOf('[ ]', 0))).toEqual([])
+    expect(all(stateOf('- [ ]', 0))).toEqual([])
+    // With no dash, only open or ticked: a line opening `[1] ` is not a task.
+    expect(all(stateOf('[1] Smith, 2020\n', 0))).toEqual([])
+  })
+
   /**
    * The box stays drawn with the caret in the line, so it can be pressed while writing.
    */
@@ -632,6 +643,9 @@ describe('Enter on an indented line', () => {
     expect(run(continueIndent, stateOf('  1. one', 8, 8, 6)).doc).toBe('  1. one\n  2. ')
     expect(run(continueIndent, stateOf('- [x] done', 10, 10, 6)).doc).toBe('- [x] done\n- [ ] ')
     expect(run(continueIndent, stateOf('- ', 2, 2, 6)).doc).toBe('')
+    // A box with no dash is followed by an empty one, and an empty one ends them.
+    expect(run(continueIndent, stateOf('[x] milk', 8, 8, 6)).doc).toBe('[x] milk\n[ ] ')
+    expect(run(continueIndent, stateOf('[ ] ', 4, 4, 6)).doc).toBe('')
   })
 
   it('opens a blank line above when Enter is pressed before the text', () => {
