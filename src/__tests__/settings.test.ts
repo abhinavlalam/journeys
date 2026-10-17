@@ -508,12 +508,13 @@ describe('graphHides', () => {
 /** The trackers: each one's table, their targets, and how each column is totalled. */
 describe('the trackers’ settings', () => {
   it('names each tracker’s table only as a table, and reads the expenses table where it was kept until 2026-10-15', () => {
-    expect([parseSettings(null).trackers, parseSettings(null).columnTotals]).toEqual([{ expenses: '', calories: '', habits: '' }, {}])
+    expect([parseSettings(null).trackers, parseSettings(null).columnTotals]).toEqual([{ expenses: '', calories: '', habits: '', apps: '' }, {}])
     expect(parseSettings('{"expensesSheet":"Trackers/spend.csv"}').trackers.expenses).toBe('Trackers/spend.csv')
     expect(parseSettings('{"trackers":{"calories":"Trackers/food.csv","habits":"Trackers/habits.md"}}').trackers).toEqual({
       expenses: '',
       calories: 'Trackers/food.csv',
       habits: '',
+      apps: '',
     })
     expect(parseSettings('{"columnTotals":{"End-Amount":"none","amount":"max","what":"most"}}').columnTotals).toEqual({ 'end-amount': 'none', amount: 'max' })
   })

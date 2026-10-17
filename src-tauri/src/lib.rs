@@ -223,6 +223,41 @@ mod menubar {
     }
 }
 
+/// Which app is in front, and how long since the last key or press, sent to the main
+/// window every few seconds for the time spent in each app (`useAppTime`). Only the
+/// app's name is read; nothing is kept here.
+#[cfg(target_os = "macos")]
+mod front {
+    use objc2_app_kit::NSWorkspace;
+    use objc2_core_graphics::{CGEventSource, CGEventSourceStateID, CGEventType};
+    use std::time::Duration;
+    use tauri::{AppHandle, Emitter};
+
+    const EVERY: Duration = Duration::from_secs(5);
+    /// `kCGAnyInputEventType`: a key, a press, a move, a scroll.
+    const ANY_INPUT: CGEventType = CGEventType(u32::MAX);
+
+    #[derive(Clone, serde::Serialize)]
+    struct Front {
+        app: String,
+        idle: f64,
+    }
+
+    pub fn watch(app: AppHandle) {
+        std::thread::spawn(move || loop {
+            std::thread::sleep(EVERY);
+            let front = objc2::rc::autoreleasepool(|_| {
+                let name = NSWorkspace::sharedWorkspace().frontmostApplication()?.localizedName()?.to_string();
+                let idle = CGEventSource::seconds_since_last_event_type(CGEventSourceStateID::CombinedSessionState, ANY_INPUT);
+                Some(Front { app: name, idle })
+            });
+            if let Some(front) = front {
+                let _ = app.emit_to("main", "front-app", front);
+            }
+        });
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default();
@@ -305,6 +340,8 @@ pub fn run() {
             }
             #[cfg(desktop)]
             menubar::install(app)?;
+            #[cfg(target_os = "macos")]
+            front::watch(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())

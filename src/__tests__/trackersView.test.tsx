@@ -168,6 +168,21 @@ describe('habits', () => {
   })
 })
 
+/** The time in each app, as the Mac counted it into its table. */
+describe('apps', () => {
+  it('shows today’s and the week’s time by app, and turns the counting off', async () => {
+    disk.write('/v/Trackers/apps.csv', ['day,app,minutes', `${today},Mail,25`, `${today},Terminal,65`, ''].join('\n'))
+    await openTrackers({ trackers: { ...tracked, apps: 'Trackers/apps.csv' } })
+    show('Apps')
+    await waitFor(() => expect(tile('in apps today')).toBe('1:30'))
+    expect(tile('the last seven days')).toBe('1:30')
+    expect(viewer().getAllByText('Terminal').length).toBeGreaterThan(0)
+    fireEvent.click(viewer().getByRole('button', { name: 'Counting' }))
+    await waitFor(() => expect(JSON.parse(disk.read(SETTINGS)!).trackApps).toBe(false))
+    expect(viewer().getByRole('button', { name: 'Not counting' })).toBeTruthy()
+  })
+})
+
 /** The day's plan, `## Today’s 8`: a habit kept on the days all its boxes are ticked, read from the notes. */
 describe('the day’s plan', () => {
   const plan = (ticked: number, open = 8 - ticked) => ['## Today’s 8', ...Array(ticked).fill('- [x] row the boat'), ...Array(open).fill('- [ ] row the boat'), '', '## Log', ''].join('\n')

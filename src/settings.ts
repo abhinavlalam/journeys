@@ -166,6 +166,8 @@ export interface Settings {
    * have none. A row shows only its note's own icon: icons spread by being written.
    */
   inheritIcons: boolean
+  /** The time in each app counted into the apps table (`useAppTime`); the Mac only. */
+  trackApps: boolean
   /** Spaces per indent level: what Tab inserts, and what Enter steps back by. */
   indentWidth: number
   /** A single path segment under the vault root. */
@@ -308,6 +310,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // Four spaces per level: two looks barely indented in a proportional face.
   indentWidth: 4,
   inheritIcons: true,
+  trackApps: true,
   // `vault.ts`'s constant, so this default and `ensureDailyNote`'s can't drift apart.
   dailyFolder: DAILY_FOLDER,
   filesFolder: FILES_FOLDER,
@@ -326,7 +329,7 @@ export const DEFAULT_SETTINGS: Settings = {
   graphShows: { text: true, property: true, tag: true },
   timelineView: 'list',
   tasksView: 'due',
-  trackers: { expenses: '', calories: '', habits: '' },
+  trackers: { expenses: '', calories: '', habits: '', apps: '' },
   trackersView: 'today',
   calorieTarget: 0,
   monthlyBudget: 0,
@@ -420,6 +423,7 @@ export function parseSettings(raw: unknown): Settings {
     rowSpacing: pickNumber(stored.rowSpacing, BOUNDS.rowSpacing, pixels.rowSpacing),
     lineLength: pickNumber(stored.lineLength, BOUNDS.lineLength, pixels.lineLength),
     inheritIcons: typeof stored.inheritIcons === 'boolean' ? stored.inheritIcons : DEFAULT_SETTINGS.inheritIcons,
+    trackApps: typeof stored.trackApps === 'boolean' ? stored.trackApps : DEFAULT_SETTINGS.trackApps,
     indentWidth: pickNumber(stored.indentWidth, BOUNDS.indentWidth, DEFAULT_SETTINGS.indentWidth),
     dailyFolder: valid('dailyFolder', validateFolder),
     filesFolder: valid('filesFolder', validateFolder),

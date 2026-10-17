@@ -56,6 +56,7 @@ workers. To restore it, copy `package.json` and `package-lock.json` there and ru
 | `trackers.ts`, `expenses.ts`, `calories.ts`, `habits.ts` / `TrackersView.tsx`, `trackerParts.tsx` | The trackers' tables, each read by its columns' names, and what each adds up / their page and its parts, and the Tracked section ending a daily note. |
 | `LineEditor.tsx` | One line in the note's own editor, for a page that takes typing: `EditLine` for one written (saved on Enter or leaving when changed, emptied is not deleted), `NewLine` for a new one; `Typing`, what every editor types with. |
 | `ViewerHeader.tsx` | Every page's header: its name (a note's renames it), its status (`statusCount`: nothing at none), its controls, and `ViewSwitch`, a page's ways of being drawn. |
+| `appTime.ts` | The time in each app: the apps table, and the count from the Mac's reports. |
 | `menuBar.ts` / `MenuBarPanel.tsx` | The menu bar's time tracker and line for today: the main window's half that writes / the panel that asks. |
 | `useLog.ts` / `LogView.tsx` | What the app says: shown a while, kept in the Log / its page. |
 | `crypto.ts`, `useLocks.ts`, `useAutoLock.ts` | Locked notes: the format and the passphrases held / asking and locking / the clock. |
@@ -740,6 +741,15 @@ owner and the agent.
   minute. Starting something else stops what runs first. Running, it is kept in
   `.config/timer.json`, so a quit does not lose it, and its time is beside the icon
   (`tray_title`). A line that could not be written goes back into its field.
+
+- **The time in each app** (`front` in `lib.rs`, `useAppTime`, the owner's ask): every
+  five seconds the Mac says which app is in front, by name only, and how long since a
+  key or a press (`objc2-app-kit`, `objc2-core-graphics`, already in Tauri's build); a
+  report counts up to ten seconds (after a sleep the gap is not time in an app), and
+  none while away for two minutes. Whole minutes go into the apps table every five
+  minutes, a row per app per day (`withAppMinutes`; each minute was a commit in the
+  vault's history), the table made beside the other trackers' the first time. The
+  Trackers page's Apps shows and stops it (`trackApps`). Nothing leaves the Mac.
 
 ## The terminal
 

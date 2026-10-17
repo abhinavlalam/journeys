@@ -53,6 +53,13 @@ import { daySkeleton, planKept } from './daySections'
 
 /** What a page adds a row to a tracker's table by. */
 const TRACKER_COLUMNS = { expenses: EXPENSE_COLUMNS, calories: CALORIE_COLUMNS } as const
+/** A tracker's table as it is made: its first line. Habits have a column each, added as they are. */
+const TABLE_HEADER: Record<Tracker, string> = {
+  expenses: Object.values(EXPENSE_COLUMNS).join(','),
+  calories: Object.values(CALORIE_COLUMNS).join(','),
+  habits: 'day',
+  apps: APP_COLUMNS.join(','),
+}
 import { LogView } from './LogView'
 import { useLog } from './useLog'
 import { GraphView } from './GraphView'
@@ -99,6 +106,7 @@ import { PhoneBar, usePhoneNav } from './Phone'
 import { Capture, type Adding } from './Capture'
 import { useShares } from './useShares'
 import { useMenuBar } from './menuBar'
+import { APP_COLUMNS, useAppTime, withAppMinutes } from './appTime'
 import { shareDay, shareEntry, type Share } from './share'
 import { useDrops } from './useDrops'
 import { useCalendarSync } from './useCalendarSync'
@@ -884,9 +892,20 @@ export default function App() {
   }
   /** A table made for a tracker, its columns written, and picked. One already at the path is picked as it is. */
   async function makeTable(tracker: Tracker, path: string) {
-    const header = tracker === 'habits' ? 'day' : Object.values(TRACKER_COLUMNS[tracker]).join(',')
-    if (await changeTable(path, (text) => text || `${header}\n`)) changeSettings({ ...settings, trackers: { ...settings.trackers, [tracker]: path } })
+    if (await changeTable(path, (text) => text || `${TABLE_HEADER[tracker]}\n`)) changeSettings({ ...settings, trackers: { ...settings.trackers, [tracker]: path } })
   }
+  /** Minutes in each app on a day, added into the apps table, made beside the other trackers' the first time. */
+  async function writeAppTime(day: string, minutes: ReadonlyMap<string, number>) {
+    let path = settings.trackers.apps
+    if (!path) {
+      const beside = Object.values(settings.trackers).find(Boolean)
+      const home = beside ? folderOf(beside) : 'Trackers'
+      path = `${home ? `${home}/` : ''}apps.csv`
+      await makeTable('apps', path)
+    }
+    return changeTable(path, (text) => withAppMinutes(text, day, minutes))
+  }
+  useAppTime({ on: settings.trackApps, write: writeAppTime })
 
   /**
    * A share from another app, filed in the day it arrived with its files moved into
@@ -1452,6 +1471,8 @@ export default function App() {
                     onOpenTable={openTable}
                     onOpenDay={(day) => void openDay(day)}
                     onOrganise={onAndroid ? undefined : () => open({ kind: 'terminal', ...ORGANISE })}
+                    counting={settings.trackApps}
+                    onCounting={(trackApps) => changeSettings({ ...settings, trackApps })}
                     onError={setError}
                   />
                 )

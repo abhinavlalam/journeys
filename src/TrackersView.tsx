@@ -9,6 +9,7 @@ import { AddButton, countOf, EmptyRow, NameField, Section, stepIn } from './rows
 import { TRACKER_VIEWS } from './settings'
 import { Adder, AmountField, Bars, Box, Columns, expenseFields, FOOD_FIELDS, Line, now, TablePicker, Tile, Tiles } from './trackerParts'
 import { daysBack, perDay, perWeek, weeksBack, type Tracker } from './trackers'
+import { APP_COLUMNS, hoursText, minutesByApp, readAppTime, type AppTime } from './appTime'
 import { baseName, folderOf, type VaultFile } from './vaultModel'
 import { ViewerHeader, ViewSwitch } from './ViewerHeader'
 
@@ -36,12 +37,13 @@ export interface Targets {
 
 type View = (typeof TRACKER_VIEWS)[number]
 
-const NAMES: Record<Tracker, string> = { expenses: 'expenses', calories: 'calories', habits: 'habits' }
+const NAMES: Record<Tracker, string> = { expenses: 'expenses', calories: 'calories', habits: 'habits', apps: 'time in each app' }
 /** What each table is read by, said when one lacks what it needs. */
 const COLUMNS: Record<Tracker, readonly string[]> = {
   expenses: Object.values(EXPENSE_COLUMNS),
   calories: Object.values(CALORIE_COLUMNS),
   habits: ['day', 'and a column for each habit'],
+  apps: APP_COLUMNS,
 }
 
 /**
@@ -68,6 +70,8 @@ export function TrackersView({
   onOpenTable,
   onOpenDay,
   onOrganise,
+  counting,
+  onCounting,
   onError,
 }: {
   view: View
@@ -90,6 +94,9 @@ export function TrackersView({
   onOpenDay: (day: string) => void
   /** Asks the vault's agent, in a terminal, to put the notes into the tables; none on the phone. */
   onOrganise?: () => void
+  /** Whether the time in each app is being counted (`trackApps`), and a change to it. */
+  counting: boolean
+  onCounting: (on: boolean) => void
   onError: (message: string) => void
 }) {
   const today = localDateStamp()
@@ -103,6 +110,7 @@ export function TrackersView({
   }, [tables.habits.text, planned])
   // A press on the plan's day opens the day, where its boxes are.
   const tick = (day: string, habit: string, done: boolean) => (habit === planned?.name ? onOpenDay(day) : onTick(day, habit, done))
+  const apps = useMemo(() => (tables.apps.text === null ? null : readAppTime(tables.apps.text)), [tables.apps.text])
   const currency = expenses ? mainCurrency(expenses.expenses) : ''
   // One currency is added up: the one most expenses are in.
   const counted = useMemo(() => expenses?.expenses.filter((one) => one.currency === currency) ?? [], [expenses, currency])
@@ -227,6 +235,10 @@ export function TrackersView({
           />
         )
       )
+    }
+    if (view === 'apps') {
+      if (!apps) return null
+      return lacking('apps', apps.missing) || <AppsPage today={today} rows={apps.rows} counting={counting} onCounting={onCounting} onOpenDay={onOpenDay} />
     }
     if (!habits) return null
     return <HabitsPage today={today} habits={habits} onTick={tick} onAddHabit={onAddHabit} onError={onError} />
@@ -539,6 +551,69 @@ function Accounts({ expenses, until, today, onOpenTable }: { expenses: readonly 
 }
 
 /** Calories: today against the target, the last days, what is eaten often, today's, and something added. */
+/**
+ * The time in each app, as the Mac counted it (`useAppTime`): today's and the last seven
+ * days', each app a bar, and the last days as columns, a press opening the day. Counted
+ * only while a key or a press was made in the last two minutes, and written every five.
+ */
+function AppsPage({
+  today,
+  rows,
+  counting,
+  onCounting,
+  onOpenDay,
+}: {
+  today: string
+  rows: readonly AppTime[]
+  counting: boolean
+  onCounting: (on: boolean) => void
+  onOpenDay: (day: string) => void
+}) {
+  const days = daysBack(today, DAYS)
+  const daily = perDay(
+    rows.map((one) => ({ day: one.day, n: one.minutes })),
+    days
+  )
+  const todays = minutesByApp(rows, new Set([today]))
+  const week = minutesByApp(rows, new Set(days.slice(-7)))
+  const sum = (list: readonly { minutes: number }[]) => list.reduce((total, one) => total + one.minutes, 0)
+  const bars = (list: readonly { app: string; minutes: number }[]) => (
+    <Box>
+      <Bars rows={list.slice(0, 12).map((one) => ({ name: one.app, value: one.minutes, share: one.minutes / sum(list) }))} figure={hoursText} />
+    </Box>
+  )
+  return (
+    <>
+      <div className="tracker-controls">
+        <button className="header-action" aria-pressed={counting} onClick={() => onCounting(!counting)}>
+          {counting ? 'Counting' : 'Not counting'}
+        </button>
+      </div>
+      <Tiles>
+        <Tile figure={hoursText(sum(todays))} name="in apps today" />
+        <Tile figure={hoursText(sum(week))} name="the last seven days" />
+      </Tiles>
+      <Section title="Today" count={todays.length} startOpen>
+        {todays.length === 0 ? <EmptyRow text={counting ? 'Nothing written yet today: the minutes are written every five.' : 'Not counting.'} /> : bars(todays)}
+      </Section>
+      <Section title="The last days" count={daily.filter((one) => one > 0).length} startOpen>
+        <Box>
+          <Columns
+            values={daily}
+            says={(at) => `${shortDay(days[at], today)}: ${hoursText(daily[at])}`}
+            axis={(at) => ((DAYS - 1 - at) % 7 === 0 ? shortDate.format(dayDate(days[at])) : '')}
+            current={DAYS - 1}
+            onPress={(at) => onOpenDay(days[at])}
+          />
+        </Box>
+      </Section>
+      <Section title="The last seven days" count={week.length} startOpen>
+        {week.length === 0 ? <EmptyRow text="Nothing counted in the last seven days." /> : bars(week)}
+      </Section>
+    </>
+  )
+}
+
 function CaloriesPage({
   today,
   meals,
