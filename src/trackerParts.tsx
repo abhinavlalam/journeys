@@ -336,7 +336,7 @@ export function TablePicker({
 export interface TrackedDay {
   expenses: readonly Expense[] | null
   meals: readonly Meal[] | null
-  habits: readonly { name: string; done: boolean }[] | null
+  habits: readonly { name: string; done: boolean }[]
   /** The currency the day's expenses are added up in. */
   currency: string
   calorieTarget: number
@@ -349,10 +349,10 @@ export interface TrackedDay {
  */
 export function TrackedSection({ day, onOpenTable }: { day: TrackedDay; onOpenTable: (tracker: Tracker) => void }) {
   const { expenses, meals, habits, currency, calorieTarget } = day
-  if (!expenses && !meals && !habits) return null
+  if (!expenses && !meals && habits.length === 0) return null
   const spent = expenses?.filter((one) => one.currency === currency).reduce((sum, one) => sum + one.amount, 0) ?? 0
   const kcal = meals?.reduce((sum, one) => sum + one.calories, 0) ?? 0
-  const done = habits?.filter((one) => one.done).length ?? 0
+  const done = habits.filter((one) => one.done).length
   const none = 'none in the table yet'
   return (
     <Section title="Tracked" className="day-tracked" count={(expenses?.length ?? 0) + (meals?.length ?? 0) + done} startOpen>
@@ -384,7 +384,7 @@ export function TrackedSection({ day, onOpenTable }: { day: TrackedDay; onOpenTa
           ))}
         </>
       )}
-      {habits && habits.length > 0 && (
+      {habits.length > 0 && (
         <>
           <Line name="Habits" detail={`${done} of ${habits.length}`} value="" onPress={() => onOpenTable('habits')} />
           <li style={{ paddingLeft: stepIn(2) }}>
@@ -407,11 +407,11 @@ export function TrackedSection({ day, onOpenTable }: { day: TrackedDay; onOpenTa
 export function figuresOf({ expenses, meals, habits, currency, calorieTarget }: TrackedDay): string {
   const spent = expenses?.filter((one) => one.currency === currency).reduce((sum, one) => sum + one.amount, 0) ?? 0
   const kcal = meals?.reduce((sum, one) => sum + one.calories, 0) ?? 0
-  const done = habits?.filter((one) => one.done).length ?? 0
+  const done = habits.filter((one) => one.done).length
   return [
     expenses?.length ? `${moneyText(spent, currency)} spent` : '',
     meals?.length ? `${kcal.toLocaleString()}${calorieTarget ? ` of ${calorieTarget.toLocaleString()}` : ''} kcal` : '',
-    habits?.length && done ? `${done} of ${habits.length} habits` : '',
+    habits.length && done ? `${done} of ${habits.length} habits` : '',
   ]
     .filter(Boolean)
     .join(' · ')

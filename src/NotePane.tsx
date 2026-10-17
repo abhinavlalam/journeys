@@ -8,6 +8,7 @@ import { SourceEditor } from './SourceEditor'
 import { NoteFooter } from './NoteFooter'
 import { FolderTree } from './FolderTree'
 import { backlinksTo, childrenOf, folderWithNote, trailTo } from './links'
+import { openBoxOf } from './daySections'
 import { dailyNeighbours, dayOf, isDailyNote } from './daily'
 import { TrackedSection, type TrackedDay } from './trackerParts'
 import type { Tracker } from './trackers'
@@ -155,7 +156,11 @@ export function NotePane({
    */
   const loaded = buffer.note?.path === file.path
   const kind = fileKind(file.path)
-  const daySectionNames = useMemo(() => settings.daySections.map((section) => section.name), [settings.daySections])
+  // The day's plan is drawn as a section is, after them, so the sections keep their hues.
+  const daySectionNames = useMemo(
+    () => [...settings.daySections.map((section) => section.name), ...(settings.dayPlan.count ? [settings.dayPlan.name] : [])],
+    [settings.daySections, settings.dayPlan]
+  )
 
   /**
    * A table, or its text (`CSV_VIEWS`). Either mounts over the text as it is now
@@ -261,6 +266,7 @@ export function NotePane({
           dailyFolder={settings.dailyFolder}
           daySections={isDailyNote(file.path, settings.dailyFolder) ? daySectionNames : undefined}
           caretAtEnd={isDailyNote(file.path, settings.dailyFolder)}
+          caret={isDailyNote(file.path, settings.dailyFolder) ? (openBoxOf(buffer.body, settings.dayPlan, settings.daySections) ?? undefined) : undefined}
           indentWidth={settings.indentWidth}
           onOpenLink={onOpenLink}
           onOpenTag={onOpenTag}

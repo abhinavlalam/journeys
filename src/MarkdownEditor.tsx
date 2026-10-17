@@ -66,6 +66,8 @@ interface MarkdownEditorProps {
   tagStructures?: Entries
   /** Open with the caret at the end. A daily note's next line goes at the bottom. */
   caretAtEnd?: boolean
+  /** Where the caret starts, over `caretAtEnd`: a daily note's first empty box of its plan. */
+  caret?: number
   /** On screen; see `EditorHost`. */
   shown?: boolean
   /**
@@ -249,7 +251,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
     <EditorHost
       shown={props.shown}
       initialText={initialMarkdown}
-      initialSelection={props.caretAtEnd ? initialMarkdown.length : caretOnOpen(initialMarkdown)}
+      initialSelection={props.caret ?? (props.caretAtEnd ? initialMarkdown.length : caretOnOpen(initialMarkdown))}
       onChange={onChange}
       extensions={extensionsRef.current}
       ariaLabel="Markdown source"

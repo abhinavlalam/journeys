@@ -379,9 +379,12 @@ export async function openApp(settings?: Record<string, unknown>) {
   await waitFor(() => expect(screen.getByText('roadmap')).toBeTruthy())
 }
 
-/** A day in its sections (the default `daySections`), each holding the lines given. */
+/** A new day's plan, as the default `dayPlan` makes it: eight empty boxes. */
+export const DAY_PLAN = `## Today’s 8\n${'- [ ] \n'.repeat(8)}\n`
+
+/** A day the app made: its plan, then its sections (the default `daySections`), each holding the lines given. */
 export const sectionedDay = ({ log = [], notes = [] }: { log?: string[]; notes?: string[] }) =>
-  [['## Log', ...log], ['## Notes', ...notes]].map((section) => section.join('\n')).join('\n\n') + '\n'
+  DAY_PLAN + [['## Log', ...log], ['## Notes', ...notes]].map((section) => section.join('\n')).join('\n\n') + '\n'
 
 /** ⌘-click, which opens in a new tab: the app reads ⌘ on the press, so a press and then the click. */
 export function clickBeside(element: Element) {

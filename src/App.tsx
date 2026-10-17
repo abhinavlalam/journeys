@@ -49,7 +49,7 @@ import { EXPENSE_COLUMNS, mainCurrency, readExpenses } from './expenses'
 import { CALORIE_COLUMNS, readCalories } from './calories'
 import { expenseFields, figuresOf, FOOD_FIELDS, type TrackedDay } from './trackerParts'
 import { TRACKERS, withRecord, type Tracker } from './trackers'
-import { daySkeleton } from './daySections'
+import { daySkeleton, planKept } from './daySections'
 
 /** What a page adds a row to a tracker's table by. */
 const TRACKER_COLUMNS = { expenses: EXPENSE_COLUMNS, calories: CALORIE_COLUMNS } as const
@@ -69,7 +69,7 @@ import { useVaultTexts } from './useVaultTexts'
 import { useSettings } from './useSettings'
 import { useBuffers } from './useBuffers'
 import { NotePane } from './NotePane'
-import { isDailyNote } from './daily'
+import { dayOf, isDailyNote } from './daily'
 import { WorkspaceView } from './WorkspaceView'
 import {
   activeTab,
@@ -369,6 +369,16 @@ export default function App() {
     >
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [texts, settings.trackers, viewVisible, liveVersion])
+  /**
+   * The day's plan as a habit: the days whose plan was kept, read from their notes, one
+   * more memo over the one read. Shown beside the table's habits; ticked in the note.
+   */
+  const { dayPlan, daySections, dailyFolder } = settings
+  const planned = useMemo(() => {
+    if (!texts || dayPlan.count === 0) return null
+    const days = texts.filter(({ note, text }) => isDailyNote(note.path, dailyFolder) && planKept(text, dayPlan, daySections))
+    return { name: dayPlan.name, done: new Set(days.map(({ note }) => dayOf(note.path))) }
+  }, [texts, dayPlan, daySections, dailyFolder])
   /** What the trackers' tables hold for a day, which ends its daily note. */
   const tracked = useMemo(() => {
     const read = <T,>(tracker: Tracker, reader: (text: string) => T) => (trackerTables[tracker].text === null ? null : reader(trackerTables[tracker].text!))
@@ -379,11 +389,14 @@ export default function App() {
     return (day: string): TrackedDay => ({
       expenses: expenses && expenses.filter((one) => one.day === day),
       meals: meals && meals.filter((one) => one.day === day),
-      habits: habits && habits.names.map((name) => ({ name, done: habits.done.get(name)?.has(day) ?? false })),
+      habits: [
+        ...(habits?.names.map((name) => ({ name, done: habits.done.get(name)?.has(day) ?? false })) ?? []),
+        ...(planned ? [{ name: planned.name, done: planned.done.has(day) }] : []),
+      ],
       currency,
       calorieTarget: settings.calorieTarget,
     })
-  }, [trackerTables, settings.calorieTarget])
+  }, [trackerTables, settings.calorieTarget, planned])
   /** The phone's + forms for a row of a tracker's table, as the Trackers page has them; null where there is no table. */
   const trackerForms = useMemo(() => {
     const expenses = trackerTables.expenses.text === null ? null : readExpenses(trackerTables.expenses.text).expenses
@@ -392,13 +405,8 @@ export default function App() {
       food: trackerTables.calories.text === null ? null : FOOD_FIELDS,
     }
   }, [trackerTables.expenses.text, trackerTables.calories.text])
-  /** The habits not ticked today, counted beside Trackers. */
-  const habitsLeft = useMemo(() => {
-    const text = trackerTables.habits.text
-    if (!text) return 0
-    const { names, done } = readHabits(text)
-    return names.filter((name) => !done.get(name)?.has(localDateStamp())).length
-  }, [trackerTables.habits.text])
+  /** The habits not ticked today, the day's plan among them, counted beside Trackers. */
+  const habitsLeft = tracked(localDateStamp()).habits.filter((habit) => !habit.done).length
   /** The phone's one place at a time, and where its back gesture goes. */
   const phone = usePhoneNav({
     page: active,
@@ -623,7 +631,7 @@ export default function App() {
     const file = dailyNoteFile(vault.vaultPath, settings.dailyFolder, day)
     if (noteIndex.byKey.has(pathKey(file.path))) return openNote(file)
     await vault.mutate(
-      (v) => ensureDailyNote(v, settings.dailyFolder, day, daySkeleton(settings.daySections)),
+      (v) => ensureDailyNote(v, settings.dailyFolder, day, daySkeleton(settings.daySections, settings.dayPlan)),
       async ({ file, created }) => {
         // A new note is given its icon once, when it is made.
         if (created) await inheritIcon(file)
@@ -656,7 +664,7 @@ export default function App() {
     const format = { properties: EVENT_PROPERTIES, typeOf: typeOfName }
     const { byDay, sources } = await feedLines(settings.calendarFeeds, localDateStamp(), settings.calendarDays, format.properties)
     await vault.mutate(
-      (v) => syncEvents(v, settings.dailyFolder, format, byDay, sources, settings.daySections),
+      (v) => syncEvents(v, settings.dailyFolder, format, byDay, sources, settings.daySections, settings.dayPlan),
       async ({ changed, created }) => {
         for (const file of created) await inheritIcon(file)
         for (const { file, text } of changed) patch(new Set([file.path]), () => text)
@@ -816,7 +824,7 @@ export default function App() {
     return vault.mutate(
       async (v) => {
         const text = await entry(v)
-        const { file, created } = await ensureDailyNote(v, settings.dailyFolder, day, daySkeleton(settings.daySections))
+        const { file, created } = await ensureDailyNote(v, settings.dailyFolder, day, daySkeleton(settings.daySections, settings.dayPlan))
         const next = withNewEntry(file, await readVaultFile(file), text, {
           sections: settings.daySections,
           indent: ' '.repeat(settings.indentWidth),
@@ -1420,6 +1428,7 @@ export default function App() {
                     view={settings.trackersView}
                     onView={(trackersView) => changeSettings({ ...settings, trackersView })}
                     tables={trackerTables}
+                    planned={planned}
                     files={tables}
                     reading={reading || !texts}
                     targets={settings}
@@ -1494,7 +1503,8 @@ export default function App() {
             onLine={(day, text) => fileEntry(day, async () => text)}
             forms={trackerForms}
             onRow={(tracker, record) => changeTable(settings.trackers[tracker], (text) => withRecord(text, TRACKER_COLUMNS[tracker], record))}
-            habits={tracked(localDateStamp()).habits}
+            // The day's plan is ticked in the note, not here.
+            habits={tracked(localDateStamp()).habits.filter((habit) => habit.name !== planned?.name)}
             onTick={(habit, done) => changeTable(settings.trackers.habits, (text) => withTick(text, localDateStamp(), habit, done))}
             onFiles={fileUploads}
             onPage={makeNote}

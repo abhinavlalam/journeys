@@ -5325,7 +5325,7 @@ button.task-box:hover {
   padding-top: 0;
 }
 
-/* A daily note's sections (`## Log`, `## Notes`, the owner's): each
+/* A daily note's sections (`## Log`, `## Notes`, the owner's) and its plan (`## Today's 8`): each
    section's lines with a rule of its own hue at the left, and each heading its name,
    small and spaced, so a day's parts read apart. No ground: filled, the owner found
    the sections ugly. The text is the note's; only lines are drawn. */
@@ -5337,6 +5337,10 @@ button.task-box:hover {
 
 .markdown-editor .cm-line[data-section='1'] {
   --section: var(--hue-amber);
+}
+
+.markdown-editor .cm-line[data-section='2'] {
+  --section: var(--hue-violet);
 }
 
 

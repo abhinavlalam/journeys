@@ -71,10 +71,11 @@ describe('today', () => {
     await waitFor(() => expect(tile('today, of 2,000')).toBe('570 kcal'))
     expect(tile(/^Spent today/)).toBe(moneyText(30, 'EUR'))
     expect(tile('this month, of ' + moneyText(1000, 'EUR', 0))).toBe(moneyText(42.5, 'EUR', 0))
-    expect(tile('habits today')).toBe('1 of 2')
+    // The day's plan is a habit too, not kept today.
+    expect(tile('habits today')).toBe('1 of 3')
     fireEvent.click(viewer().getByRole('button', { name: 'stretch' }))
     await waitFor(() => expect(disk.read(HABITS)).toBe(habits.replace(`${today},1,`, `${today},1,1`)))
-    await waitFor(() => expect(tile('habits today')).toBe('2 of 2'))
+    await waitFor(() => expect(tile('habits today')).toBe('2 of 3'))
   })
 
   /** Typed on the page, a row goes into the table now, in the table's own columns. */
@@ -167,6 +168,29 @@ describe('habits', () => {
   })
 })
 
+/** The day's plan, `## Today’s 8`: a habit kept on the days all its boxes are ticked, read from the notes. */
+describe('the day’s plan', () => {
+  const plan = (ticked: number, open = 8 - ticked) => ['## Today’s 8', ...Array(ticked).fill('- [x] row the boat'), ...Array(open).fill('- [ ] row the boat'), '', '## Log', ''].join('\n')
+  const cell = (day: string) => {
+    const date = dayDate(day)
+    return viewer().getByRole('button', { name: `Today’s 8, ${weekdayName.format(date)} ${shortDate.format(date)}` })
+  }
+
+  it('is a habit kept on the days all eight are ticked, and a press opens the day', async () => {
+    const yesterday = localDateStamp(new Date(dayDate(today).getTime() - 86400000))
+    disk.write(`/v/Daily/${yesterday}.md`, plan(8))
+    disk.write(`/v/Daily/${today}.md`, plan(7))
+    await openTrackers()
+    show('Habits')
+    await waitFor(() => expect(cell(yesterday).getAttribute('aria-pressed')).toBe('true'))
+    expect(cell(today).getAttribute('aria-pressed')).toBe('false')
+    // Ticked in the note, not in the table: the press goes to the day.
+    fireEvent.click(cell(today))
+    await waitFor(() => expect(document.querySelector('.viewer:not([hidden]) .viewer-title')!.textContent).toBe(today))
+    expect(disk.read(HABITS)).toBe(habits)
+  })
+})
+
 /** The end of a day's note: what the tables hold for it, so what is not there has not been put in a table yet. */
 describe('a daily note', () => {
   it('ends with what the trackers hold for its day', async () => {
@@ -183,6 +207,6 @@ describe('a daily note', () => {
     })
     expect(section.getByText('lunch')).toBeTruthy()
     expect(section.getByText(`570 of 2,000 kcal`)).toBeTruthy()
-    expect(section.getByText('1 of 2')).toBeTruthy()
+    expect(section.getByText('1 of 3')).toBeTruthy()
   })
 })

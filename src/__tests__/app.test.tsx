@@ -303,8 +303,8 @@ describe('the shell', () => {
     // Opened through the tree's own path, so the row is there and selected.
     await waitFor(() => expect(row(today())).toBeTruthy())
     expect(row(today()).closest('button')?.className).toContain('selected')
-    // A new day is begun with its sections.
-    expect(editor().value).toBe(sectionedDay({}))
+    // A new day is begun with its plan and its sections, once the editor holds it.
+    await waitFor(() => expect(editor().value).toBe(sectionedDay({})))
   })
 
   /** Made already, it opens as it is: no write, and no walk of the folders first. */

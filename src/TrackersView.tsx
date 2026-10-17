@@ -55,6 +55,7 @@ export function TrackersView({
   view,
   onView,
   tables,
+  planned,
   files,
   reading,
   targets,
@@ -72,6 +73,8 @@ export function TrackersView({
   view: View
   onView: (view: View) => void
   tables: Readonly<Record<Tracker, TrackerTable>>
+  /** The day's plan as a habit, read from the daily notes: shown with the table's, and ticked in the note. */
+  planned: { name: string; done: ReadonlySet<string> } | null
   /** The vault's tables, to pick from. */
   files: readonly VaultFile[]
   reading: boolean
@@ -93,7 +96,13 @@ export function TrackersView({
   const [changing, setChanging] = useState(false)
   const expenses = useMemo(() => (tables.expenses.text === null ? null : readExpenses(tables.expenses.text)), [tables.expenses.text])
   const calories = useMemo(() => (tables.calories.text === null ? null : readCalories(tables.calories.text)), [tables.calories.text])
-  const habits = useMemo(() => (tables.habits.text === null ? null : readHabits(tables.habits.text)), [tables.habits.text])
+  const habits = useMemo(() => {
+    const table = tables.habits.text === null ? null : readHabits(tables.habits.text)
+    if (!planned || !table) return table
+    return { names: [...table.names, planned.name], done: new Map([...table.done, [planned.name, new Set(planned.done)]]) }
+  }, [tables.habits.text, planned])
+  // A press on the plan's day opens the day, where its boxes are.
+  const tick = (day: string, habit: string, done: boolean) => (habit === planned?.name ? onOpenDay(day) : onTick(day, habit, done))
   const currency = expenses ? mainCurrency(expenses.expenses) : ''
   // One currency is added up: the one most expenses are in.
   const counted = useMemo(() => expenses?.expenses.filter((one) => one.currency === currency) ?? [], [expenses, currency])
@@ -176,7 +185,7 @@ export function TrackersView({
           currency={currency}
           targets={targets}
           onAdd={onAdd}
-          onTick={onTick}
+          onTick={tick}
           onView={onView}
           onOpenTable={onOpenTable}
         />
@@ -220,7 +229,7 @@ export function TrackersView({
       )
     }
     if (!habits) return null
-    return <HabitsPage today={today} habits={habits} onTick={onTick} onAddHabit={onAddHabit} onError={onError} />
+    return <HabitsPage today={today} habits={habits} onTick={tick} onAddHabit={onAddHabit} onError={onError} />
   }
 
   return (

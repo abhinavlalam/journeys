@@ -102,3 +102,19 @@ function maskInlineCode(text: string): string {
 export function proseLines(raw: string): string[] {
   return maskCode(raw).split(/\r?\n/)
 }
+
+/**
+ * A task line: a list marker, then `[c]`, then a space or the end of the line.
+ *
+ * Obsidian's rule, not GFM's: GFM only knows `[ ]` and `[x]`, and
+ * Obsidian vaults also use `[-]`, `[>]` and `[/]`. So any single
+ * character is a state, and one with no glyph is shown as itself. The
+ * `(?=\s|$)` keeps `- [[Note]]` and `- [x](url)` from being tasks.
+ */
+export const TASK_LINE = /^(\s*(?:[-*+]|\d+[.)])\s+)\[(.)\](?=\s|$)/
+
+/** What the app draws for a state: a box, a ticked box, or the character itself. */
+export function taskState(mark: string): 'open' | 'done' | 'other' {
+  if (mark === ' ') return 'open'
+  return /^[xX]$/.test(mark) ? 'done' : 'other'
+}

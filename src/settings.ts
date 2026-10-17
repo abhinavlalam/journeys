@@ -9,7 +9,7 @@ import { DAILY_FOLDER, FILES_FOLDER, readConfigFile, safeNewName, writeConfigFil
 import { COLUMN_TOTALS, TAG_NAME, type ColumnTotal } from './tags'
 import { fileKind, SETTINGS_FILE } from './vaultModel'
 import { TRACKERS, type Tracker } from './trackers'
-import type { DaySection } from './daySections'
+import type { DayPlan, DaySection } from './daySections'
 import { onAndroid, paintBars } from './platform'
 import { ACTIONS, defaultShortcuts, normalizeCombo, type ActionId } from './shortcuts'
 
@@ -182,6 +182,8 @@ export interface Settings {
    * only that one), else in the second.
    */
   daySections: DaySection[]
+  /** What each new day opens with: a heading over that many boxes (`DayPlan`). */
+  dayPlan: DayPlan
   shortcuts: Record<ActionId, string>
   /**
    * Folders the graph leaves out, as vault-relative paths (`Archive/Old`). Useful
@@ -282,6 +284,7 @@ export const BOUNDS = {
   lockMinutes: { min: 1, max: 60, step: 1 },
   calorieTarget: { min: 0, max: 20000, step: 50 },
   monthlyBudget: { min: 0, max: 1e12, step: 1 },
+  planCount: { min: 0, max: 20, step: 1 },
 } as const
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -317,6 +320,7 @@ export const DEFAULT_SETTINGS: Settings = {
     // puts it in its table (until 2026-10-17, a third section, Trackers, hard to read).
     { name: 'Notes', tags: ['task', 'goal', 'expense', 'food'] },
   ],
+  dayPlan: { name: 'Today’s 8', count: 8 },
   shortcuts: defaultShortcuts(),
   graphHides: [],
   graphShows: { text: true, property: true, tag: true },
@@ -422,6 +426,7 @@ export function parseSettings(raw: unknown): Settings {
     shareTag: valid('shareTag', validateTag),
     timelineGroup: valid('timelineGroup', validateTag),
     daySections: pickSections(stored.daySections),
+    dayPlan: pickPlan(stored.dayPlan, pickSections(stored.daySections)),
     shortcuts: pickShortcuts(stored.shortcuts),
     // Trailing slashes off: a folder is named as the tree spells it.
     graphHides: pickStrings(stored.graphHides).map((one) => one.replace(/\/+$/, '')),
@@ -496,6 +501,15 @@ function pickSections(value: unknown): DaySection[] {
   const names = read.map((one) => one.name.toLowerCase())
   const good = read.every((one) => one.name !== '' && !/[\r\n]/.test(one.name)) && new Set(names).size === names.length
   return good ? read : DEFAULT_SETTINGS.daySections
+}
+
+/** The day's plan as written: a name on one line, unlike a section's, and a whole count. Else the default. */
+function pickPlan(value: unknown, sections: readonly DaySection[]): DayPlan {
+  const stored = (value ?? {}) as Partial<Record<keyof DayPlan, unknown>>
+  const name = typeof stored.name === 'string' ? stored.name.trim() : ''
+  const taken = sections.some((section) => section.name.toLowerCase() === name.toLowerCase())
+  if (name === '' || /[\r\n]/.test(name) || taken) return DEFAULT_SETTINGS.dayPlan
+  return { name, count: Math.round(pickNumber(stored.count, BOUNDS.planCount, DEFAULT_SETTINGS.dayPlan.count)) }
 }
 
 /**

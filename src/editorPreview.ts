@@ -14,6 +14,7 @@ import { checkMarkup } from './icons'
 import { TAG, TAG_COLOURS, tagAt, type TagColour } from './tags'
 import { linkLabelSpan } from './vaultModel'
 import { spansOf } from './daySections'
+import { TASK_LINE, taskState } from './prose'
 
 /** `[[Target]]` and `[[Target|Alias]]`, which CommonMark parses as plain text. */
 const WIKILINK = /\[\[([^\]\n]+)\]\]/g
@@ -99,21 +100,6 @@ const MARKERS = new Set(['EmphasisMark', 'CodeMark', 'StrikethroughMark', 'Heade
 /** Block nodes that render, and the class that renders them. */
 const BLOCK: Record<string, string> = { Blockquote: 'cm-md-quote' }
 
-/**
- * A task line: a list marker, then `[c]`, then a space or the end of the line.
- *
- * Obsidian's rule, not GFM's: GFM only knows `[ ]` and `[x]`, and
- * Obsidian vaults also use `[-]`, `[>]` and `[/]`. So any single
- * character is a state, and one with no glyph is shown as itself. The
- * `(?=\s|$)` keeps `- [[Note]]` and `- [x](url)` from being tasks.
- */
-const TASK_LINE = /^(\s*(?:[-*+]|\d+[.)])\s+)\[(.)\](?=\s|$)/
-
-/** What the app draws for a state: a box, a ticked box, or the character itself. */
-function taskState(mark: string): 'open' | 'done' | 'other' {
-  if (mark === ' ') return 'open'
-  return /^[xX]$/.test(mark) ? 'done' : 'other'
-}
 
 /**
  * The task on the line at `pos`, or null, read from the line's text.

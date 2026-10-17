@@ -528,6 +528,18 @@ describe('the trackers’ settings', () => {
   })
 })
 
+/** What a new day opens with: a heading over that many boxes. */
+describe('the day’s plan', () => {
+  it('is Today’s 8 unless a name and a count are written; a section’s name or no name is the default', () => {
+    expect(parseSettings(null).dayPlan).toEqual({ name: 'Today’s 8', count: 8 })
+    expect(parseSettings('{"dayPlan":{"name":"Three things","count":3}}').dayPlan).toEqual({ name: 'Three things', count: 3 })
+    expect(parseSettings('{"dayPlan":{"name":"Plan","count":99}}').dayPlan).toEqual({ name: 'Plan', count: 20 })
+    expect(parseSettings('{"dayPlan":{"name":"Plan","count":0}}').dayPlan).toEqual({ name: 'Plan', count: 0 })
+    expect(parseSettings('{"dayPlan":{"name":"log","count":3}}').dayPlan).toEqual(DEFAULT_SETTINGS.dayPlan)
+    expect(parseSettings('{"dayPlan":{"name":"","count":3}}').dayPlan).toEqual(DEFAULT_SETTINGS.dayPlan)
+  })
+})
+
 /** The daily sections: two, by position, each a name and the tags whose lines go there. */
 describe('the daily sections', () => {
   it('are Log and Notes unless two are written, and a bad one means the default, whole', () => {

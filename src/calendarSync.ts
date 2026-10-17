@@ -1,7 +1,7 @@
 // Writing the feeds' events into the daily notes: the calendar's
 // one write, through `vault.ts`.
 
-import { daySkeleton, inSections, withInSection, type DaySection } from './daySections'
+import { daySkeleton, inSections, withInSection, type DayPlan, type DaySection } from './daySections'
 import { EVENT, eventLine, lineKey, readEvent, SOURCE, untouched, type EventFormat } from './calendar'
 import { fetchFeed } from './calendarFeed'
 import { dayDate, daysAfter, localDateStamp } from './clock'
@@ -68,7 +68,9 @@ export async function syncEvents(
   byDay: ReadonlyMap<string, readonly string[]>,
   sources: ReadonlySet<string>,
   /** The daily sections: a new day is made with them, and an event goes in the first, with what happened. */
-  sections: readonly DaySection[] = []
+  sections: readonly DaySection[] = [],
+  /** What a new day opens with, before its sections. */
+  plan?: DayPlan
 ): Promise<Synced> {
   const keyOf = (line: string) => lineKey(format.typeOf, line)
   const out: Synced = { changed: [], created: [] }
@@ -76,7 +78,7 @@ export async function syncEvents(
     const page = vaultFileRef(vaultPath, `${folder}/${day}.md`)
     let file = page
     let created = false
-    if (lines.length > 0) ({ file, created } = await ensureDailyNote(vaultPath, folder, day, daySkeleton(sections)))
+    if (lines.length > 0) ({ file, created } = await ensureDailyNote(vaultPath, folder, day, daySkeleton(sections, plan)))
     else if (!(await fileExists(page))) continue
     const text = await readVaultFile(file)
 

@@ -558,6 +558,14 @@ owner and the agent.
   so an all-day event, with no clock, is the day's too. What is nested under a line goes with it. Every line the app writes into a
   day goes through it: an entry, a task, the phone's +, a share (`withNewEntry`), and a
   calendar event, always in the first (`syncEvents`).
+- **A day opens with its plan** (`dayPlan`, the owner's `## Today's 8`, from a video on
+  starting each day with the eight things to work on): a heading over eight empty boxes,
+  first in every new day, drawn as a section is (violet). Nothing is filed into it; it
+  is the owner's to write and tick. A daily note opens on its first empty box until it
+  is written (`openBoxOf`), then at its end. **A day whose eight are ticked, each with
+  something written, keeps a habit** (`planKept`): one more memo over the one read,
+  shown on the Habits and Today pages and under the note beside the table's habits,
+  and pressed, it opens the day, where it is ticked, never writing `habits.csv`.
 - **A new day is begun with its sections** (`daySkeleton`, through `ensureDailyNote`),
   and an empty one too. A day written before them is filed as it was (`inSections`): a
   heading tacked onto its end read as a section of one line. `sectioned` puts such a day
