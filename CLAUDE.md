@@ -17,8 +17,10 @@ npm run build     # tsc --noEmit && vite build — the real type check
 npm test          # vitest
 npx tauri dev     # run the app
 npx tauri build   # bundle to $CARGO_TARGET_DIR/release/bundle/macos
-rm -rf /Applications/Journeys.app && mv "$CARGO_TARGET_DIR/release/bundle/macos/Journeys.app" /Applications/
-                  # moved, not copied: Raycast and Spotlight find only what is in Applications
+B="$CARGO_TARGET_DIR/release/bundle/macos/Journeys.app"
+test -d "$B" && rm -rf /Applications/Journeys.app && mv "$B" /Applications/
+                  # moved, not copied: Raycast and Spotlight find only what is in Applications;
+                  # and only once there is a build, or a failed one left no app at all
 cd src-tauri && cargo test
 ```
 
@@ -741,6 +743,16 @@ owner and the agent.
   minute. Starting something else stops what runs first. Running, it is kept in
   `.config/timer.json`, so a quit does not lose it, and its time is beside the icon
   (`tray_title`). A line that could not be written goes back into its field.
+- **Brain dumping is one key from any app** (the owner's ask): `openCapture`, ⌃⌥Space by
+  default (Raycast often has ⌥Space), registered with the system (`capture_shortcut`,
+  `tauri-plugin-global-shortcut`, `acceleratorOf`) and let go while the settings are
+  open; a key another app holds is said. The line for today is a box: ⇧↩ the next
+  line, ↩ files them all, each its own line in the order typed, and what could not be
+  written goes back.
+- **Organise** (`ORGANISE`, the vault's agent in a terminal of its own) is in a daily
+  note's header, Trackers' and the panel's, whose press brings the main window forward
+  (`show_main`). It asks for the days to be organised as the vault's instructions say,
+  each line in its section and the trackers into their tables, not only the tables.
 
 - **The time in each app** (`front` in `lib.rs`, `useAppTime`, the owner's ask): every
   five seconds the Mac says which app is in front, by name only, and how long since a
@@ -753,9 +765,9 @@ owner and the agent.
 
 ## The terminal
 
-- **Organise** (Trackers' header, `ORGANISE`) opens a terminal on a session of its own,
+- **Organise** (`ORGANISE`; see The menu bar) opens a terminal on a session of its own,
   `journeys-organise`, and types `claude '…'` once its shell has started (`run`): the
-  vault's agent puts the days' notes into the tables, as its instructions say, asking
+  vault's agent organises the days not yet organised, as its instructions say, asking
   what it cannot tell. Opened again while its tab is there, it goes to that tab.
 - **⇧⌘L goes to the terminal** (`openTerminal`, an action in `ACTIONS`, rebindable;
   the owner's pick), as the row does: the last one, else a new one. Not on the phone.
@@ -957,6 +969,10 @@ owner and the agent.
   write that starts from "not there yet" checks `exists` and lets the read throw:
   taken for absent, a note's body became its `path:` block, and `settings.json` and
   `collections.json` were written over with defaults.
+- **A plugin can move Tauri itself.** `tauri build` refuses a `tauri` crate whose minor
+  version differs from `@tauri-apps/api`'s; the global-shortcut plugin's 2.4 asked for
+  `tauri` 2.12 and the lock took it. Pin a plugin to a version that asks for the `tauri`
+  in use, and check `tauri` in `Cargo.lock` after adding one.
 - **A native crate can link Homebrew.** After adding one, run `otool -L` on the
   bundled binary: everything should be under `/System` or `/usr/lib`. OpenSSL is
   static (`src-tauri/.cargo/config.toml`).

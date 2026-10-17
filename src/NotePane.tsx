@@ -66,6 +66,8 @@ interface NotePaneProps {
   onTyped?: () => void
   /** A link's anchor to show, for the note at `path`: its line chosen and brought into view. */
   reveal?: { path: string; anchor: string; n: number } | null
+  /** Asks the vault's agent to organise the days (`ORGANISE`), from a daily note's header; none on the phone. */
+  onOrganise?: () => void
 }
 
 /**
@@ -99,6 +101,7 @@ export function NotePane({
   tracked,
   onOpenTable,
   reveal,
+  onOrganise,
 }: NotePaneProps) {
   const buffer = useNoteBuffer({ vaultPath, refresh, setError })
 
@@ -218,6 +221,11 @@ export function NotePane({
         {isEncrypted(file.path) && (
           <button className="header-action" onClick={() => onLock(file)}>
             Lock
+          </button>
+        )}
+        {onOrganise && isDailyNote(file.path, settings.dailyFolder) && (
+          <button className="header-action" onClick={onOrganise}>
+            Organise
           </button>
         )}
       </ViewerHeader>

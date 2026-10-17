@@ -23,13 +23,14 @@ export function spawnTerminal(
 }
 
 /**
- * What Organise (Trackers) runs, in a session of its own: the vault's agent asked to put
- * the days' notes into the tables, as the vault's own instructions for it say. Started
- * as a conversation, so its questions (two alike expenses) are asked and answered there.
+ * What Organise runs (a daily note's header, Trackers', the menu bar's panel), in a
+ * session of its own: the vault's agent asked to organise the days not organised yet,
+ * as the vault's own instructions for it say (each line in its section, trackers into
+ * their tables). Started as a conversation, so its questions are asked and answered there.
  */
 export const ORGANISE = {
   session: 'journeys-organise',
-  run: "claude 'Organise my daily notes into the tracker tables, as your instructions for this vault say: the days not organised yet.'",
+  run: "claude 'Organise my daily notes, as your instructions for this vault say: the days not organised yet.'",
 }
 
 export function writeTerminal(id: string, data: string): Promise<void> {

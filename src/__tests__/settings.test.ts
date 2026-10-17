@@ -100,6 +100,7 @@ describe('the defaults', () => {
       goBack: 'mod+alt+arrowleft',
       goForward: 'mod+alt+arrowright',
       quickOpen: 'mod+p',
+      openCapture: 'ctrl+alt+space',
     })
   })
 
@@ -251,6 +252,7 @@ describe('reading what was stored', () => {
       goBack: 'mod+alt+arrowleft',
       goForward: 'mod+alt+arrowright',
       quickOpen: 'mod+p',
+      openCapture: 'ctrl+alt+space',
     })
   })
 

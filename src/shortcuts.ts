@@ -17,7 +17,7 @@ import { formatKeymap } from './editorCommands'
 // The action registry
 // ---------------------------------------------------------------------------
 
-export type ActionId = 'openToday' | 'insertTime' | 'copyLineLink' | 'openTerminal' | 'goBack' | 'goForward' | 'quickOpen'
+export type ActionId = 'openToday' | 'insertTime' | 'copyLineLink' | 'openTerminal' | 'goBack' | 'goForward' | 'quickOpen' | 'openCapture'
 
 interface Action {
   id: ActionId
@@ -39,6 +39,9 @@ export const ACTIONS: readonly Action[] = [
   { id: 'goBack', label: 'Back, in the tab in front', defaultCombo: 'mod+alt+arrowleft' },
   { id: 'goForward', label: 'Forward, in the tab in front', defaultCombo: 'mod+alt+arrowright' },
   { id: 'quickOpen', label: 'Open a note or page by its name', defaultCombo: 'mod+p' },
+  // The one taken from every app, not only this one (`acceleratorOf`). Raycast often
+  // has ⌥Space and Spotlight ⌘Space.
+  { id: 'openCapture', label: 'Add to today, from any app', defaultCombo: 'ctrl+alt+space' },
 ]
 
 export function defaultShortcuts(): Record<ActionId, string> {
@@ -186,6 +189,15 @@ const KEY_SYMBOLS: Record<string, string> = {
   pagedown: 'Page Down',
   home: 'Home',
   end: 'End',
+}
+
+/**
+ * A combo as the system takes a key for every app (`capture_shortcut`): `Control+Alt+space`,
+ * the key's name as stored, which it reads in any case. Null for one it cannot read.
+ */
+export function acceleratorOf(combo: string): string | null {
+  const parsed = parseCombo(combo)
+  return parsed && [parsed.ctrl && 'Control', parsed.alt && 'Alt', parsed.shift && 'Shift', parsed.mod && 'Command', parsed.key].filter(Boolean).join('+')
 }
 
 /** macOS order, ⌃⌥⇧⌘ then the key, which differs from the text form's. */

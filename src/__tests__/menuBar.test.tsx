@@ -31,6 +31,7 @@ vi.mock('@tauri-apps/plugin-fs', () => fsModule())
 
 const { ASK, elapsedText, readTracking, TELL, trackedLine, useMenuBar } = await import('../menuBar')
 const { MenuBarPanel } = await import('../MenuBarPanel')
+const { invoke } = await import('@tauri-apps/api/core')
 
 const TIMER = '/v/.config/timer.json'
 const told = (event: string) => bus.sent.filter((one) => one.event === event).map((one) => one.payload)
@@ -61,8 +62,8 @@ describe('a time tracked', () => {
 })
 
 describe('the main window’s half', () => {
-  function mount(file = vi.fn(async () => true)) {
-    renderHook(() => useMenuBar({ vaultPath: '/v', file, say: () => {} }))
+  function mount(file = vi.fn(async (_day: string, _line: string) => true)) {
+    renderHook(() => useMenuBar({ vaultPath: '/v', combo: 'ctrl+alt+space', file, organise: () => {}, say: () => {} }))
     return file
   }
 
@@ -72,6 +73,16 @@ describe('the main window’s half', () => {
     await act(async () => bus.fire(ASK.line, { text: 'call the ferry' }))
     await waitFor(() => expect(file).toHaveBeenCalledWith(localDateStamp(), 'call the ferry'))
     await waitFor(() => expect(told(TELL.said)).toEqual([{ said: 'Added to today.' }]))
+  })
+
+  it('adds a brain dump a line at a time, and hands back what could not be written', async () => {
+    const file = mount(vi.fn(async (_day: string, line: string) => line !== 'water the fern'))
+    await waitFor(() => expect(bus.handlers.has(ASK.line)).toBe(true))
+    await act(async () => bus.fire(ASK.line, { text: 'call the ferry\n\n  row the boat  \n' }))
+    await waitFor(() => expect(told(TELL.said)).toEqual([{ said: '2 lines added to today.' }]))
+    expect(file.mock.calls.map(([, line]) => line)).toEqual(['call the ferry', 'row the boat'])
+    await act(async () => bus.fire(ASK.line, { text: 'tea\nwater the fern\npot the basil' }))
+    await waitFor(() => expect(told(TELL.said).at(-1)).toEqual({ said: 'It could not be added.', line: 'water the fern\npot the basil' }))
   })
 
   it('hands a line back when it could not be written', async () => {
@@ -98,6 +109,11 @@ describe('the main window’s half', () => {
     expect(told(TELL.said).at(-1)).toEqual({ said: 'Written into the day’s log.' })
   })
 
+  it('takes the panel’s key from every app, in the system’s form', async () => {
+    mount()
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('capture_shortcut', { combo: 'Control+Alt+space' }))
+  })
+
   it('takes up a tracker the file holds', async () => {
     disk.write(TIMER, `${JSON.stringify({ what: 'reading', since: 5 })}\n`)
     mount()
@@ -120,6 +136,11 @@ describe('the panel', () => {
       [ASK.start, { what: 'writing the spec' }],
     ])
     expect((screen.getByLabelText('Add to today') as HTMLInputElement).value).toBe('')
+    // ⇧↩ is the next line of a brain dump, not the end of it.
+    fireEvent.keyDown(screen.getByLabelText('Add to today'), { key: 'Enter', shiftKey: true })
+    expect(bus.sent).toHaveLength(3)
+    fireEvent.click(screen.getByRole('button', { name: 'Organise' }))
+    expect(bus.sent.at(-1)).toMatchObject({ to: 'main', event: ASK.organise })
   })
 
   it('shows what runs and since when, stops it, and puts back a line not written', async () => {

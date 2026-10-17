@@ -8,6 +8,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { emitTo, listen } from '@tauri-apps/api/event'
 import { localDateStamp, localTimeStamp } from './clock'
 import { onAndroid } from './platform'
+import { acceleratorOf } from './shortcuts'
 import { readConfigFile, writeConfigFile } from './vault'
 
 /** What is being done, and since when (ms): the time tracker running. */
@@ -20,7 +21,7 @@ export interface Tracking {
 export const PANEL = 'capture'
 
 /** What the panel asks and is told, and what the main window answers it with. */
-export const ASK = { start: 'menubar:start', stop: 'menubar:stop', line: 'menubar:line', hello: 'menubar:hello' } as const
+export const ASK = { start: 'menubar:start', stop: 'menubar:stop', line: 'menubar:line', organise: 'menubar:organise', hello: 'menubar:hello' } as const
 export const TELL = { state: 'menubar:state', said: 'menubar:said' } as const
 
 /** What the panel is told after it asked: what to say, and what to put back in a field when it was not written. */
@@ -69,16 +70,22 @@ export function elapsedText(since: number, now: number): string {
  */
 export function useMenuBar({
   vaultPath,
+  combo,
   file,
+  organise,
   say,
 }: {
   vaultPath: string | null
+  /** The key that opens the panel from any app (`openCapture`), or none. */
+  combo: string | null
   file: (day: string, text: string) => Promise<boolean>
+  /** The agent asked to organise the days, in the main window, which then comes forward. */
+  organise: () => void
   say: (message: string) => void
 }) {
   const [tracking, setTracking] = useState<Tracking | null>(null)
-  const latest = useRef({ vaultPath, file, say, tracking })
-  latest.current = { vaultPath, file, say, tracking }
+  const latest = useRef({ vaultPath, file, organise, say, tracking })
+  latest.current = { vaultPath, file, organise, say, tracking }
 
   useEffect(() => {
     if (!vaultPath) return
@@ -111,6 +118,13 @@ export function useMenuBar({
     }
     const handlers: [string, (payload: unknown) => Promise<Said | void>][] = [
       [ASK.hello, async () => {}],
+      [
+        ASK.organise,
+        async () => {
+          latest.current.organise()
+          await invoke('show_main')
+        },
+      ],
       [ASK.stop, async () => ({ said: (await stop()) ? 'Written into the day’s log.' : 'The time could not be written; it is still running.' })],
       [
         ASK.start,
@@ -123,10 +137,17 @@ export function useMenuBar({
       ],
       [
         ASK.line,
+        // A brain dump: each line its own, filed as it says, in the order written. What
+        // could not be written goes back into the box.
         async (payload) => {
-          const text = String((payload as { text?: string })?.text ?? '').trim()
-          if (!text) return
-          return (await latest.current.file(localDateStamp(), text)) ? { said: 'Added to today.' } : { said: 'It could not be added.', line: text }
+          const lines = String((payload as { text?: string })?.text ?? '')
+            .split('\n')
+            .map((one) => one.trim())
+            .filter(Boolean)
+          for (const [at, line] of lines.entries()) {
+            if (!(await latest.current.file(localDateStamp(), line))) return { said: 'It could not be added.', line: lines.slice(at).join('\n') }
+          }
+          if (lines.length) return { said: lines.length === 1 ? 'Added to today.' : `${lines.length} lines added to today.` }
         },
       ],
     ]
@@ -140,6 +161,12 @@ export function useMenuBar({
     )
     return () => off.forEach((one) => void one.then((unlisten) => unlisten()))
   }, [])
+
+  // The key that opens the panel from any app; one another app holds is said.
+  useEffect(() => {
+    if (!present()) return
+    invoke('capture_shortcut', { combo: combo && acceleratorOf(combo) }).catch((err: unknown) => latest.current.say(`The key for the menu bar’s panel: ${String(err)}`))
+  }, [combo])
 
   // The time so far beside the icon, each half minute, and nothing when none runs. Only
   // a label: a refusal changes nothing written, so it is not said each time.

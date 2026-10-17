@@ -174,7 +174,7 @@ mod menubar {
     pub const PANEL: &str = "capture";
     const TRAY: &str = "journeys";
     const WIDTH: f64 = 360.0;
-    const HEIGHT: f64 = 248.0;
+    const HEIGHT: f64 = 300.0;
 
     pub fn install(app: &tauri::App) -> tauri::Result<()> {
         WebviewWindowBuilder::new(app, PANEL, WebviewUrl::App("index.html".into()))
@@ -213,6 +213,41 @@ mod menubar {
         let _ = panel.set_position(PhysicalPosition::new(at.x + (size.width - WIDTH * scale) / 2.0, at.y + size.height));
         let _ = panel.show();
         let _ = panel.set_focus();
+    }
+
+    /// The panel from any app, on the owner's key (`openCapture`), under the icon.
+    pub fn shortcut(app: &tauri::App) -> tauri::Result<()> {
+        use tauri_plugin_global_shortcut::{Builder, ShortcutState};
+        app.handle().plugin(
+            Builder::new()
+                .with_handler(|app, _, event| {
+                    if event.state() == ShortcutState::Pressed {
+                        if let Some(icon) = app.tray_by_id(TRAY).and_then(|tray| tray.rect().ok().flatten()) {
+                            toggle(app, icon);
+                        }
+                    }
+                })
+                .build(),
+        )
+    }
+
+    /// The key that opens the panel from any app, in place of the one before; none, none.
+    #[tauri::command]
+    pub fn capture_shortcut(app: AppHandle, combo: Option<String>) -> Result<(), String> {
+        use tauri_plugin_global_shortcut::GlobalShortcutExt;
+        let keys = app.global_shortcut();
+        keys.unregister_all().map_err(|e| e.to_string())?;
+        match combo {
+            Some(combo) => keys.register(combo.as_str()).map_err(|e| format!("{combo} could not be taken: {e}")),
+            None => Ok(()),
+        }
+    }
+
+    /// The main window in front, for what the panel asked to be seen there (Organise).
+    #[tauri::command]
+    pub fn show_main(app: AppHandle) -> Result<(), String> {
+        let main = app.get_webview_window("main").ok_or("there is no main window")?;
+        main.show().and_then(|_| main.set_focus()).map_err(|e| e.to_string())
     }
 
     /// What the menu bar says beside the icon: the time tracked so far, or nothing.
@@ -319,7 +354,11 @@ pub fn run() {
             #[cfg(desktop)]
             quit::stay,
             #[cfg(desktop)]
-            menubar::tray_title
+            menubar::tray_title,
+            #[cfg(desktop)]
+            menubar::capture_shortcut,
+            #[cfg(desktop)]
+            menubar::show_main
         ])
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -340,6 +379,8 @@ pub fn run() {
             }
             #[cfg(desktop)]
             menubar::install(app)?;
+            #[cfg(desktop)]
+            menubar::shortcut(app)?;
             #[cfg(target_os = "macos")]
             front::watch(app.handle().clone());
             Ok(())

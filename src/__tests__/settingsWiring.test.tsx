@@ -95,7 +95,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 100))
 describe('settings reaching the app', () => {
   it('opens today’s page on the combo the settings name, and not on the default', async () => {
     remember({
-      shortcuts: { openToday: 'mod+alt+j', insertTime: 'mod+shift+t', copyLineLink: 'mod+shift+c', openTerminal: 'mod+shift+l', goBack: 'mod+alt+arrowleft', goForward: 'mod+alt+arrowright', quickOpen: 'mod+p' },
+      shortcuts: { openToday: 'mod+alt+j', insertTime: 'mod+shift+t', copyLineLink: 'mod+shift+c', openTerminal: 'mod+shift+l', goBack: 'mod+alt+arrowleft', goForward: 'mod+alt+arrowright', quickOpen: 'mod+p', openCapture: 'ctrl+alt+space' },
     })
     await openApp()
 

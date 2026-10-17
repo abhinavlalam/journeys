@@ -5769,7 +5769,8 @@ button.task-box:hover {
   color: var(--text-dim);
 }
 
-.menubar-field input {
+.menubar-field input,
+.menubar-field textarea {
   padding: 0.4rem 0.5rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -5781,7 +5782,12 @@ button.task-box:hover {
   outline: none;
 }
 
-.menubar-field input:focus {
+.menubar-field textarea {
+  resize: none;
+}
+
+.menubar-field input:focus,
+.menubar-field textarea:focus {
   border-color: var(--mark);
 }
 
@@ -5807,6 +5813,14 @@ button.task-box:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.menubar-foot {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: auto 0 0;
+}
+
 .menubar-said {
-  margin: 0;
+  flex: 1;
+  min-width: 0;
 }

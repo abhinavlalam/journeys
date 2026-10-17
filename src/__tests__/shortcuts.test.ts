@@ -154,7 +154,7 @@ describe('conflicts', () => {
 
 describe('the registry', () => {
   it('is the list the panel and the defaults both read', () => {
-    expect(ACTIONS.map((action) => action.id)).toEqual(['openToday', 'insertTime', 'copyLineLink', 'openTerminal', 'goBack', 'goForward', 'quickOpen'])
+    expect(ACTIONS.map((action) => action.id)).toEqual(['openToday', 'insertTime', 'copyLineLink', 'openTerminal', 'goBack', 'goForward', 'quickOpen', 'openCapture'])
     // The registry and the stored map cannot drift: one is built from the other.
     expect(Object.keys(defaultShortcuts())).toEqual(ACTIONS.map((action) => action.id))
   })

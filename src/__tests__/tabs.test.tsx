@@ -176,6 +176,16 @@ describe('a terminal', () => {
     expect(tabs()).toEqual(['Trackers', 'Terminal'])
   })
 
+  /** A day's brain dump organised in one press, from the day itself. */
+  it('opens the same session from a daily note’s Organise, and not from another note', async () => {
+    await openApp()
+    await openFromTree('alpha')
+    expect(screen.queryByRole('button', { name: 'Organise' })).toBeNull()
+    fireEvent.keyDown(window, { key: 'O', metaKey: true, shiftKey: true })
+    fireEvent.click(await waitFor(() => screen.getByRole('button', { name: 'Organise' })))
+    await waitFor(() => expect(screen.getByTestId('terminal').textContent).toBe('journeys-organise'))
+  })
+
   /** ⇧⌘L goes to the terminal from anywhere, as the row does: the open one, else a new one. */
   it('is gone to by its shortcut', async () => {
     await openApp()

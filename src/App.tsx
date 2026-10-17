@@ -856,8 +856,18 @@ export default function App() {
     )
   }
 
+  /** The vault's agent asked, in a terminal of its own, to organise the days not organised yet. None on the phone. */
+  const organise = onAndroid ? undefined : () => open({ kind: 'terminal', ...ORGANISE })
+
   // The menu bar's time tracker and line for today, written through `fileEntry`.
-  useMenuBar({ vaultPath: vault.vaultPath, file: (day, text) => fileEntry(day, async () => text), say: setError })
+  useMenuBar({
+    vaultPath: vault.vaultPath,
+    // Let go while the settings are open, as every key is: it may be being changed.
+    combo: settingsOpen ? null : settings.shortcuts.openCapture,
+    file: (day, text) => fileEntry(day, async () => text),
+    organise: () => organise?.(),
+    say: setError,
+  })
 
   /**
    * A new timeline entry in today's note. It is filed as typed: without
@@ -1381,6 +1391,7 @@ export default function App() {
                     tracked={tracked}
                     onOpenTable={openTable}
                     reveal={reveal}
+                    onOrganise={organise}
                     onColumnTotal={(column, total) =>
                       changeSettings({ ...settings, columnTotals: { ...settings.columnTotals, [column.toLowerCase()]: total } })
                     }
@@ -1470,7 +1481,7 @@ export default function App() {
                     onAddHabit={(name) => void changeTable(settings.trackers.habits, (text) => withHabit(text, name))}
                     onOpenTable={openTable}
                     onOpenDay={(day) => void openDay(day)}
-                    onOrganise={onAndroid ? undefined : () => open({ kind: 'terminal', ...ORGANISE })}
+                    onOrganise={organise}
                     counting={settings.trackApps}
                     onCounting={(trackApps) => changeSettings({ ...settings, trackApps })}
                     onError={setError}

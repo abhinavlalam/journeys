@@ -19,7 +19,7 @@ export function MenuBarPanel() {
   const [now, setNow] = useState(() => Date.now())
   const [what, setWhat] = useState('')
   const [line, setLine] = useState('')
-  const lineField = useRef<HTMLInputElement>(null)
+  const lineField = useRef<HTMLTextAreaElement>(null)
 
   // Dressed as the window was last, from the settings it keeps for its first paint.
   useEffect(() => applySettingsLive(loadSettings()), [])
@@ -62,19 +62,24 @@ export function MenuBarPanel() {
     <main className="menubar-panel" onKeyDown={(event) => event.key === 'Escape' && void getCurrentWindow().hide()}>
       <label className="menubar-field">
         <span>Add to today</span>
-        <input
+        {/* A brain dump: ⇧↩ for another line, ↩ adds them all, each its own line in the day. */}
+        <textarea
           ref={lineField}
           value={line}
-          placeholder="A thought, a thing done, a thing to do"
+          rows={3}
+          placeholder="A thought a line: ⇧↩ for the next, ↩ adds them"
           autoCapitalize="off"
           autoCorrect="off"
           spellCheck={false}
           onChange={(event) => setLine(event.currentTarget.value)}
-          onKeyDown={onEnter(() => {
-            if (!line.trim()) return
-            void emitTo(MAIN, ASK.line, { text: line })
-            setLine('')
-          })}
+          onKeyDown={(event) => {
+            if (event.shiftKey) return
+            onEnter(() => {
+              if (!line.trim()) return
+              void emitTo(MAIN, ASK.line, { text: line })
+              setLine('')
+            })(event)
+          }}
         />
       </label>
       <label className="menubar-field">
@@ -104,8 +109,14 @@ export function MenuBarPanel() {
           </button>
         </p>
       )}
-      <p className="menubar-said" role="status">
-        {said}
+      <p className="menubar-foot">
+        <span className="menubar-said" role="status">
+          {said}
+        </span>
+        {/* The agent, in the main window, put the days' lines where they belong. */}
+        <button className="header-action" onClick={() => void emitTo(MAIN, ASK.organise)}>
+          Organise
+        </button>
       </p>
     </main>
   )

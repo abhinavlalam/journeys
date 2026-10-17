@@ -55,3 +55,7 @@ objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWorkspace", "NSRunningApplication"] }
 objc2-core-graphics = { version = "0.3", default-features = false, features = ["std", "CGEventSource", "CGEventTypes"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }
+
+# The menu bar's panel from any app, on the owner's key (`menubar::shortcut`).
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-global-shortcut = "=2.3.2"
